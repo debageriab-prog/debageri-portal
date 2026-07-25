@@ -1,0 +1,19 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function active() {
+      return request.auth != null &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.status == "active";
+    }
+    function user() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+    match /organizations/{organizationId}/employees/{userId}/{category}/{fileName} {
+      allow read: if active() && user().organizationId == organizationId &&
+        (request.auth.uid == userId || user().role == "admin");
+      // Uploads are server-controlled until document workflows are implemented.
+      allow write: if false;
+    }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

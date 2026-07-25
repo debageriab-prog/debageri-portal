@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "debageri-portal-dev",
+    "portal-dev": "debageri-portal-dev",
+    "portal-prod": "debageri-portal-prod"
+  }
+}
