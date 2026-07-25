@@ -15,10 +15,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
       - run: npm ci
-      - run: npm run check:project -- --target=dev
+      - run: npm run check:project
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
@@ -27,7 +27,7 @@ jobs:
       - run: npm run build
         env:
           PORTAL_ENVIRONMENT: test
-          PORTAL_EXPECTED_PROJECT_ID: debageri-portal-dev
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID: debageri-portal-dev
-          FIREBASE_ADMIN_PROJECT_ID: debageri-portal-dev
+          PORTAL_EXPECTED_PROJECT_ID: debageri-portal-local
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: debageri-portal-local
+          FIREBASE_ADMIN_PROJECT_ID: debageri-portal-local
           NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "false"

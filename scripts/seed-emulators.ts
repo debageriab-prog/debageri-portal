@@ -9,7 +9,7 @@ if (
 ) {
   throw new Error("Seed may run only against Firebase emulators");
 }
-const projectId = "debageri-portal-dev";
+const projectId = "debageri-portal-local";
 const app = initializeApp({ projectId });
 const auth = getAuth(app);
 const db = getFirestore(app);

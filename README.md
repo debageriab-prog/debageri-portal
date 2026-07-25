@@ -6,7 +6,7 @@ Debageri Portal (Debageri Medarbetarportal) is Debageri's internal employee plat
 
 The repository contains a working Next.js 16/React 19/strict TypeScript vertical slice, Firebase Authentication session foundation, Firestore service boundary, rules, emulator seed, responsive branded UI, and automated domain/rules tests. Cloud resources must still be created manually in the isolated portal projects.
 
-Node 20–22 and npm are required. The app uses Tailwind CSS 4, Firebase 12/Admin 14, Zod 4, Vitest, ESLint, and Prettier.
+Node 22 and npm are required. The app uses Tailwind CSS 4, Firebase 12/Admin 14, Zod 4, Vitest, ESLint, and Prettier.
 
 ## Local setup
 
@@ -35,7 +35,9 @@ npm run build
 
 All variables are documented in [.env.example](.env.example). Public Firebase web configuration is not secret; Admin credentials are server-only. Prefer Application Default Credentials/Cloud Run service identity in deployed environments. Never commit service-account keys.
 
-Explicit aliases target only `debageri-portal-dev` and `debageri-portal-prod`. `npm run deploy:dev` and `npm run deploy:prod` validate and display the target before invoking Firebase deployment.
+The application has two modes: local Firebase emulators and the single production project `debageri-portal-prod`. There is no cloud development environment. The only deployment alias is `portal-prod`; `npm run deploy:prod` validates and displays it before deploying Firebase configuration.
+
+The production application is packaged by [Dockerfile](Dockerfile) for Cloud Run. The manually triggered `Deploy production` GitHub workflow validates the project, runs every quality gate, deploys Firebase rules/indexes, publishes an Artifact Registry image, and deploys Cloud Run using Workload Identity Federation.
 
 ## Documentation
 

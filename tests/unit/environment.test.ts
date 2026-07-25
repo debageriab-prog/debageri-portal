@@ -3,9 +3,9 @@ import { validatePortalEnvironment } from "@/lib/config/environment";
 
 const safe = {
   PORTAL_ENVIRONMENT: "local",
-  PORTAL_EXPECTED_PROJECT_ID: "debageri-portal-dev",
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: "debageri-portal-dev",
-  FIREBASE_ADMIN_PROJECT_ID: "debageri-portal-dev",
+  PORTAL_EXPECTED_PROJECT_ID: "debageri-portal-local",
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: "debageri-portal-local",
+  FIREBASE_ADMIN_PROJECT_ID: "debageri-portal-local",
   NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "true",
 };
 describe("environment isolation", () => {
@@ -24,10 +24,10 @@ describe("environment isolation", () => {
     expect(() =>
       validatePortalEnvironment({
         ...safe,
-        FIREBASE_ADMIN_PROJECT_ID: "other-portal-dev",
+        FIREBASE_ADMIN_PROJECT_ID: "other-portal",
       }),
     ).toThrow(/do not match/));
-  it("refuses production locally", () =>
+  it("refuses the production project locally", () =>
     expect(() =>
       validatePortalEnvironment({
         ...safe,
@@ -36,4 +36,18 @@ describe("environment isolation", () => {
         FIREBASE_ADMIN_PROJECT_ID: "debageri-portal-prod",
       }),
     ).toThrow(/Local/));
+  it("accepts the single production project without emulators", () =>
+    expect(
+      validatePortalEnvironment({
+        PORTAL_ENVIRONMENT: "production",
+        PORTAL_EXPECTED_PROJECT_ID: "debageri-portal-prod",
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: "debageri-portal-prod",
+        FIREBASE_ADMIN_PROJECT_ID: "debageri-portal-prod",
+        NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "false",
+      }),
+    ).toMatchObject({
+      environment: "production",
+      expectedProjectId: "debageri-portal-prod",
+      useEmulators: false,
+    }));
 });

@@ -4,9 +4,9 @@
 
 Accepted. Recruitment and employee data have different users, purposes, retention, and risk; no production infrastructure is shared.
 
-## 002: Separate portal development and production
+## 002: Local emulators plus one production project
 
-Accepted. Isolation prevents test data/actions affecting employees and enables independent IAM, secrets, App Check, logs, backups, and release gates.
+Accepted. Development uses the Firebase Emulator Suite and a fictitious local project ID; the only cloud environment is `debageri-portal-prod`. This reduces cloud administration while keeping test data and actions out of production. Production retains independent IAM, secrets, App Check, logs, backups, and release gates.
 
 ## 003: Firestore as primary database
 
