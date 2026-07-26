@@ -62,10 +62,26 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v3
 
+      - name: Check production service
+        id: service
+        run: |
+          if gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --quiet > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "### Preview deployment skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "The Cloud Run service does not exist yet. Merge this PR so the main deployment can create it; subsequent branches will receive zero-traffic previews." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Configure Artifact Registry
+        if: steps.service.outputs.exists == 'true'
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
       - name: Build and push data-isolated preview
+        if: steps.service.outputs.exists == 'true'
         run: |
           REGISTRY="${REGION}-docker.pkg.dev"
           IMAGE="${REGISTRY}/${PROJECT_ID}/${AR_REPOSITORY}/${SERVICE}:preview-${{ steps.tag.outputs.slug }}"
@@ -81,6 +97,7 @@ jobs:
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
       - name: Deploy zero-traffic preview revision
+        if: steps.service.outputs.exists == 'true'
         env:
           PREVIEW_SERVICE_ACCOUNT: ${{ secrets.GCP_PREVIEW_SERVICE_ACCOUNT }}
         run: |
@@ -99,6 +116,7 @@ jobs:
             --quiet
 
       - name: Print preview URL
+        if: steps.service.outputs.exists == 'true'
         run: |
           HOST=$(gcloud run services describe "$SERVICE" \
             --project "$PROJECT_ID" \

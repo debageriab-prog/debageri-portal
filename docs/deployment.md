@@ -68,6 +68,8 @@ The deployer needs narrowly scoped permission to:
 
 Every non-main branch triggers `.github/workflows/preview.yml`. It validates the full project, builds an immutable branch-tagged image, and deploys a tagged Cloud Run revision with zero production traffic.
 
+Cloud Run cannot create a new service with `--no-traffic`. Before the first production deployment, the preview workflow therefore completes validation and authentication but skips image creation and deployment with an explanation in the job summary. Merging to `main` creates the service; subsequent branches deploy zero-traffic preview revisions normally.
+
 Unlike the website previews, portal previews use:
 
 - fictitious `debageri-portal-local` Firebase browser configuration;
