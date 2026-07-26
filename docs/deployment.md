@@ -100,7 +100,11 @@ Cloud Run allows unauthenticated HTTP invocation because the login page and Fire
 
 ## Custom domain
 
-After the first deployment, map `portal.debageri.se` to the production service using a supported Cloud Run mapping or external HTTPS load balancer. Add the final domain to Firebase Authentication authorized domains and App Check. Preview tag URLs receive production Firebase configuration and must be allowed when Authentication or App Check domain controls are enforced.
+The production hostname is `portal.debageri.se`. Use the global external
+Application Load Balancer setup documented in
+[Portal custom domain](custom-domain.md). The runbook includes Google Cloud,
+one.com DNS, managed TLS, Firebase Authentication, browser API key, App Check,
+verification, and troubleshooting steps.
 
 ## Rollback
 
