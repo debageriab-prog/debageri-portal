@@ -55,6 +55,7 @@ export async function PATCH(
     category: parsed.data.category,
     hourlyRate: parsed.data.hourlyRate,
     active: parsed.data.active,
+    employeeCanSelect: parsed.data.employeeCanSelect,
     requiresComment: parsed.data.requiresComment,
     countsAsWorkedTime: parsed.data.countsAsWorkedTime,
     updatedAt: FieldValue.serverTimestamp(),

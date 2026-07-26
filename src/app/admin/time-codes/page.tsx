@@ -19,6 +19,7 @@ export default async function TimeCodesPage() {
         category: String(data.category),
         hourlyRate: Number(data.hourlyRate ?? 0),
         active: Boolean(data.active),
+        employeeCanSelect: data.employeeCanSelect !== false,
         requiresComment: Boolean(data.requiresComment),
         countsAsWorkedTime: Boolean(data.countsAsWorkedTime),
       };

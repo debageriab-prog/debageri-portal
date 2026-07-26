@@ -89,7 +89,7 @@ async function loadCurrent() {
     .get();
   const codes = codeDocs.docs
     .map((doc) => ({ id: doc.id, ...doc.data() }) as TimeCode)
-    .filter((code) => code.active && code.employeeCanSelect)
+    .filter((code) => code.active && code.employeeCanSelect !== false)
     .sort((a, b) => Number(a.sortOrder) - Number(b.sortOrder));
   return {
     user,

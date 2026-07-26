@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     requiresComment: parsed.data.requiresComment,
     countsAsWorkedTime: parsed.data.countsAsWorkedTime,
     countsTowardExpectedTime: true,
-    employeeCanSelect: true,
+    employeeCanSelect: parsed.data.employeeCanSelect,
     validFrom: new Date().toISOString().slice(0, 10),
     validTo: null,
     sortOrder: Date.now(),

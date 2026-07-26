@@ -10,6 +10,7 @@ export type ManagedTimeCode = {
   category: string;
   hourlyRate: number;
   active: boolean;
+  employeeCanSelect: boolean;
   requiresComment: boolean;
   countsAsWorkedTime: boolean;
 };
@@ -57,6 +58,7 @@ export function TimeCodeManagement({ codes }: { codes: ManagedTimeCode[] }) {
             category: form.get("category"),
             hourlyRate: Number(form.get("hourlyRate")),
             active: form.get("active") === "on",
+            employeeCanSelect: form.get("employeeCanSelect") === "on",
             requiresComment: form.get("requiresComment") === "on",
             countsAsWorkedTime: form.get("countsAsWorkedTime") === "on",
           }),
@@ -252,6 +254,14 @@ export function TimeCodeManagement({ codes }: { codes: ManagedTimeCode[] }) {
                     defaultChecked={value?.active ?? true}
                   />{" "}
                   Active
+                </label>
+                <label>
+                  <input
+                    name="employeeCanSelect"
+                    type="checkbox"
+                    defaultChecked={value?.employeeCanSelect ?? true}
+                  />{" "}
+                  Employees can select
                 </label>
                 <label>
                   <input
