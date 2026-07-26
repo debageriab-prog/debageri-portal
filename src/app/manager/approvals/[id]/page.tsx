@@ -1,59 +1,89 @@
-export default function ReviewPage() {
+import { notFound, redirect } from "next/navigation";
+import { getAdminServices } from "@/lib/firebase/admin";
+import { verifySession } from "@/server/auth/session";
+import { formatDuration } from "@/lib/durations/duration";
+import { ReviewActions } from "./ReviewActions";
+
+export default async function ReviewPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const actor = (await verifySession())!;
+  const { id } = await params;
+  const { db } = getAdminServices();
+  const sheetDoc = await db.collection("timesheets").doc(id).get();
+  if (!sheetDoc.exists) notFound();
+  const sheet = sheetDoc.data()!;
+  if (
+    sheet.organizationId !== actor.organizationId ||
+    (actor.role === "manager" && sheet.managerId !== actor.id)
+  )
+    redirect("/unauthorized");
+  const [userDoc, entries] = await Promise.all([
+    db.collection("users").doc(String(sheet.userId)).get(),
+    db.collection("timeEntries").where("timesheetId", "==", id).get(),
+  ]);
+  const user = userDoc.data();
   return (
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Granskning · Vecka 31</div>
-          <h1>Anna Sjöberg</h1>
-          <p className="muted">DB-004 · 27 juli–2 augusti 2026</p>
+          <div className="eyebrow">Week {sheet.isoWeek}</div>
+          <h1>{String(user?.displayName ?? user?.email ?? sheet.userId)}</h1>
+          <p className="muted">
+            {sheet.periodStart} – {sheet.periodEnd}
+          </p>
         </div>
-        <span className="status">Inskickad</span>
+        <span className="status">{sheet.status}</span>
       </div>
       <div className="grid-2">
         <section className="card">
-          <h2>Rapporterad tid</h2>
-          {[
-            "Måndag · REG · 8 h",
-            "Tisdag · REG · 8 h",
-            "Onsdag · REG 6 h + PARENTAL 2 h",
-            "Torsdag · REG · 8 h",
-            "Fredag · REG · 8 h",
-          ].map((line) => (
-            <p
-              key={line}
-              style={{
-                borderBottom: "1px solid var(--border)",
-                paddingBottom: 12,
-              }}
-            >
-              {line}
-            </p>
-          ))}
+          <h2>Reported time</h2>
+          {entries.empty ? (
+            <p>No time entries.</p>
+          ) : (
+            entries.docs
+              .sort((a, b) =>
+                String(a.data().date).localeCompare(String(b.data().date)),
+              )
+              .map((doc) => {
+                const entry = doc.data();
+                return (
+                  <p key={doc.id}>
+                    {entry.date} · {entry.timeCodeSnapshot?.code} ·{" "}
+                    {formatDuration(entry.minutes)}
+                    {entry.comment ? ` · ${entry.comment}` : ""}
+                  </p>
+                );
+              })
+          )}
         </section>
         <aside className="card">
-          <h2>Sammanfattning</h2>
+          <h2>Summary</h2>
           <p>
-            Förväntat <strong style={{ float: "right" }}>40 h</strong>
+            Expected{" "}
+            <strong style={{ float: "right" }}>
+              {formatDuration(sheet.expectedMinutes)}
+            </strong>
           </p>
           <p>
-            Rapporterat <strong style={{ float: "right" }}>40 h</strong>
+            Reported{" "}
+            <strong style={{ float: "right" }}>
+              {formatDuration(sheet.reportedMinutes)}
+            </strong>
           </p>
           <p>
-            Arbetat <strong style={{ float: "right" }}>38 h</strong>
+            Worked{" "}
+            <strong style={{ float: "right" }}>
+              {formatDuration(sheet.workedMinutes)}
+            </strong>
           </p>
-          <hr style={{ borderColor: "var(--border)" }} />
-          <label>
-            Avslagsorsak
-            <textarea
-              className="field"
-              rows={4}
-              placeholder="Krävs vid avslag"
-            />
-          </label>
-          <div className="actions" style={{ marginTop: 14 }}>
-            <button className="button">Godkänn</button>
-            <button className="button danger">Avslå</button>
-          </div>
+          {sheet.status === "submitted" ? (
+            <ReviewActions id={id} />
+          ) : (
+            <p>This timesheet has already been reviewed.</p>
+          )}
         </aside>
       </div>
     </>

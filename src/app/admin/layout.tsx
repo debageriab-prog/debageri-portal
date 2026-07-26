@@ -1,8 +1,13 @@
 import { PortalShell } from "@/components/layout/PortalShell";
-export default function AdminLayout({
+import { redirect } from "next/navigation";
+import { verifySession } from "@/server/auth/session";
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <PortalShell>{children}</PortalShell>;
+  const user = await verifySession();
+  if (!user) redirect("/auth/login");
+  if (user.role !== "admin") redirect("/unauthorized");
+  return <PortalShell user={user}>{children}</PortalShell>;
 }

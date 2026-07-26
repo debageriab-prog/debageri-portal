@@ -27,7 +27,10 @@ export default function LoginPage() {
         body: JSON.stringify({ idToken: await credential.user.getIdToken() }),
       });
       if (!response.ok) throw new Error(t("accessDenied"));
-      window.location.assign("/employee");
+      const result = (await response.json()) as { role: string };
+      window.location.assign(
+        result.role === "admin" ? "/admin" : "/employee/timesheets/current",
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t("loginFailed"));
     } finally {

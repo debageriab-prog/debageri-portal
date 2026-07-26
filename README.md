@@ -4,7 +4,7 @@ Debageri Portal (Debageri Medarbetarportal) is Debageri's internal employee plat
 
 ## Status and stack
 
-The repository contains a working Next.js 16/React 19/strict TypeScript vertical slice, Firebase Authentication session foundation, Firestore service boundary, rules, emulator seed, responsive branded UI, and automated domain/rules tests. Cloud resources must still be created manually in the isolated portal projects.
+The repository contains a working Next.js 16/React 19/strict TypeScript portal, Firebase Authentication sessions, Firestore-backed employee administration and time-reporting workflows, responsive branded UI, and automated domain/rules tests. Cloud resources must still be created manually in the isolated portal projects.
 
 Node 22 and npm are required. The app uses Tailwind CSS 4, Firebase 12/Admin 14, Zod 4, Vitest, ESLint, and Prettier.
 
@@ -14,11 +14,10 @@ Node 22 and npm are required. The app uses Tailwind CSS 4, Firebase 12/Admin 14,
 npm ci
 cp .env.example .env.local
 npm run emulators
-npm run seed
 npm run dev
 ```
 
-Seed accounts use the local-only password `PortalDemo!2026`: `admin@portal.local`, `manager@portal.local`, `anna@portal.local`, and `oskar@portal.local`. Never reuse these outside the emulator.
+Create the initial organization and administrator through the documented Firebase setup process. Administrators create employee accounts from the portal.
 
 Quality commands:
 

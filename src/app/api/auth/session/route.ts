@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const cookie = await auth.createSessionCookie(idToken, {
       expiresIn: SESSION_DURATION_MS,
     });
-    const response = NextResponse.json({ ok: true });
+    const response = NextResponse.json({ ok: true, role: user.data()?.role });
     response.cookies.set(SESSION_COOKIE, cookie, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

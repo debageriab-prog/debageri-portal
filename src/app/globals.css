@@ -303,6 +303,12 @@ th {
   grid-template-columns: 1.5fr 1fr;
   gap: 18px;
 }
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
 .notice {
   padding: 12px 14px;
   border-radius: 12px;

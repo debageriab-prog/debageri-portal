@@ -1,38 +1,44 @@
-"use client";
-import { useLocale } from "@/components/localization/LocaleProvider";
-
-export default function SettingsPage() {
-  const { locale, t } = useLocale();
+import { getAdminServices } from "@/lib/firebase/admin";
+import { verifySession } from "@/server/auth/session";
+export default async function SettingsPage() {
+  const user = (await verifySession())!;
+  const { db } = getAdminServices();
+  const snapshot = await db
+    .collection("organizations")
+    .doc(user.organizationId)
+    .get();
+  const organization = snapshot.data();
   return (
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">{t("admin")}</div>
-          <h1>{t("organization")}</h1>
+          <div className="eyebrow">Admin</div>
+          <h1>Organization</h1>
         </div>
       </div>
       <section className="card">
-        <h2>Debageri AB</h2>
-        <p>
-          <strong>{t("organizationId")}</strong>
-          <br />
-          debageri
-        </p>
-        <p>
-          <strong>{t("timezone")}</strong>
-          <br />
-          Europe/Stockholm
-        </p>
-        <p>
-          <strong>{t("defaultLanguage")}</strong>
-          <br />
-          {locale === "en-SE" ? "English (en-SE)" : "Svenska (sv-SE)"}
-        </p>
-        <p>
-          <strong>{t("weekStarts")}</strong>
-          <br />
-          {t("mondayValue")}
-        </p>
+        {!organization ? (
+          <p>Organization settings are not configured.</p>
+        ) : (
+          <>
+            <h2>{String(organization.name)}</h2>
+            <p>
+              <strong>ID</strong>
+              <br />
+              {snapshot.id}
+            </p>
+            <p>
+              <strong>Timezone</strong>
+              <br />
+              {String(organization.timezone)}
+            </p>
+            <p>
+              <strong>Locale</strong>
+              <br />
+              {String(organization.locale)}
+            </p>
+          </>
+        )}
       </section>
     </>
   );
