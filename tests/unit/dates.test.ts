@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getIsoWeek, getIsoWeekDates, timesheetId } from "@/lib/dates/iso-week";
+import {
+  getIsoWeek,
+  getIsoWeekDates,
+  splitWeekByMonth,
+  timesheetId,
+} from "@/lib/dates/iso-week";
 
 describe("ISO weeks", () => {
   it("handles the week-year boundary", () => {
@@ -21,5 +26,18 @@ describe("ISO weeks", () => {
     expect(timesheetId("debageri", "abc123", 2026, 3)).toBe(
       "debageri_abc123_2026-W03",
     );
+  });
+  it("splits a week at a month boundary", () => {
+    expect(
+      splitWeekByMonth([
+        "2026-08-31",
+        "2026-09-01",
+        "2026-09-02",
+        "2026-09-03",
+        "2026-09-04",
+        "2026-09-05",
+        "2026-09-06",
+      ]),
+    ).toHaveLength(2);
   });
 });

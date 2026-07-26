@@ -1,64 +1,74 @@
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
-import { formatDuration } from "@/lib/durations/duration";
-import type { Timesheet } from "@/domain/types";
+import { getIsoWeek } from "@/lib/dates/iso-week";
+import { HistoryView } from "./HistoryView";
 
 export default async function HistoryPage() {
   const user = (await verifySession())!;
   const { db } = getAdminServices();
-  const snapshot = await db
-    .collection("timesheets")
-    .where("userId", "==", user.id)
-    .get();
-  const sheets = snapshot.docs
-    .map((doc) => ({ id: doc.id, ...doc.data() }) as Timesheet)
+  const [sheetSnapshot, entrySnapshot, termSnapshot, holidaySnapshot] =
+    await Promise.all([
+      db.collection("timesheets").where("userId", "==", user.id).get(),
+      db.collection("timeEntries").where("userId", "==", user.id).get(),
+      db.collection("employmentTerms").where("userId", "==", user.id).get(),
+      db
+        .collection("holidays")
+        .where("organizationId", "==", user.organizationId)
+        .get(),
+    ]);
+  const entryTotals = new Map<string, number>();
+  const entries = entrySnapshot.docs.map((doc) => {
+    const data = doc.data();
+    const timesheetId = String(data.timesheetId);
+    const minutes = Number(data.minutes ?? 0);
+    entryTotals.set(timesheetId, (entryTotals.get(timesheetId) ?? 0) + minutes);
+    return {
+      timesheetId,
+      date: String(data.date),
+      minutes,
+      code: String(data.timeCodeSnapshot?.code ?? data.timeCodeId),
+      countsAsWorkedTime: Boolean(data.timeCodeSnapshot?.countsAsWorkedTime),
+    };
+  });
+  const sheets = sheetSnapshot.docs
+    .map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        isoYear: Number(data.isoYear),
+        isoWeek: Number(data.isoWeek),
+        part: Number(data.part ?? 1),
+        partCount: Number(data.partCount ?? 1),
+        periodStart: String(data.periodStart),
+        periodEnd: String(data.periodEnd),
+        reportedMinutes: entryTotals.get(doc.id) ?? 0,
+        expectedMinutes: Number(data.expectedMinutes ?? 0),
+        status: String(data.status),
+      };
+    })
     .sort(
       (a, b) =>
-        Number(b.isoYear) - Number(a.isoYear) ||
-        Number(b.isoWeek) - Number(a.isoWeek),
+        b.isoYear - a.isoYear || b.isoWeek - a.isoWeek || b.part - a.part,
     );
+  const today = new Date().toISOString().slice(0, 10);
+  const current = getIsoWeek(today);
   return (
-    <>
-      <div className="topbar">
-        <div>
-          <div className="eyebrow">Time reporting</div>
-          <h1>History</h1>
-          <p className="muted page-description">
-            Review previous weeks, reported totals and the current approval
-            status of every timesheet.
-          </p>
-        </div>
-      </div>
-      <section className="card table-wrap">
-        {sheets.length === 0 ? (
-          <p>No timesheets yet.</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Week</th>
-                <th>Period</th>
-                <th>Reported</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sheets.map((sheet) => (
-                <tr key={sheet.id}>
-                  <td>
-                    {sheet.isoYear}-W{String(sheet.isoWeek).padStart(2, "0")}
-                  </td>
-                  <td>
-                    {String(sheet.periodStart)} – {String(sheet.periodEnd)}
-                  </td>
-                  <td>{formatDuration(Number(sheet.reportedMinutes))}</td>
-                  <td>{String(sheet.status)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </>
+    <HistoryView
+      sheets={sheets}
+      entries={entries}
+      currentYear={current.isoYear}
+      currentWeek={current.isoWeek}
+      currentMonth={today.slice(0, 7)}
+      terms={termSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          validFrom: String(data.validFrom),
+          validTo: data.validTo ? String(data.validTo) : null,
+          reportingStartDate: String(data.reportingStartDate ?? data.validFrom),
+          schedule: data.schedule as Record<string, number>,
+        };
+      })}
+      holidayDates={holidaySnapshot.docs.map((doc) => String(doc.data().date))}
+    />
   );
 }

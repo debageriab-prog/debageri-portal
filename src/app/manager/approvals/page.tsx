@@ -61,9 +61,12 @@ export default async function ApprovalsPage() {
                     </td>
                     <td>
                       {sheet.isoYear}-W{String(sheet.isoWeek).padStart(2, "0")}
+                      {Number(sheet.partCount ?? 1) > 1
+                        ? `-${String(sheet.part ?? 1).padStart(2, "0")}`
+                        : ""}
                     </td>
                     <td>
-                      {sheet.periodStart} – {sheet.periodEnd}
+                      {sheet.periodStart} to {sheet.periodEnd}
                     </td>
                     <td>{formatDuration(sheet.expectedMinutes)}</td>
                     <td>{formatDuration(sheet.reportedMinutes)}</td>

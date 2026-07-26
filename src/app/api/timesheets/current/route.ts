@@ -2,7 +2,12 @@ import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminServices } from "@/lib/firebase/admin";
-import { getIsoWeek, getIsoWeekDates, timesheetId } from "@/lib/dates/iso-week";
+import {
+  getIsoWeek,
+  getIsoWeekDates,
+  splitWeekByMonth,
+  timesheetPartId,
+} from "@/lib/dates/iso-week";
 import { verifySession } from "@/server/auth/session";
 import type { TimeCode, Timesheet } from "@/domain/types";
 
@@ -19,57 +24,151 @@ const saveSchema = z.object({
     .max(100),
 });
 
-async function loadCurrent() {
+const weekQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2200).optional(),
+  week: z.coerce.number().int().min(1).max(53).optional(),
+  copyYear: z.coerce.number().int().min(2000).max(2200).optional(),
+  copyWeek: z.coerce.number().int().min(1).max(53).optional(),
+  part: z.coerce.number().int().min(1).max(2).optional(),
+});
+
+async function loadCurrent(request: Request) {
   const user = await verifySession();
   if (!user) return null;
   const { db } = getAdminServices();
   const today = new Date().toISOString().slice(0, 10);
-  const { isoYear, isoWeek } = getIsoWeek(today);
-  const dates = getIsoWeekDates(isoYear, isoWeek);
-  const id = timesheetId(user.organizationId, user.id, isoYear, isoWeek);
-  const [sheetDoc, termDocs, codeDocs] = await Promise.all([
-    db.collection("timesheets").doc(id).get(),
+  let current = getIsoWeek(today);
+  const url = new URL(request.url);
+  const query = weekQuerySchema.safeParse(Object.fromEntries(url.searchParams));
+  if (!query.success) return { user, error: "Invalid week selection." };
+  const existingSheets = await db
+    .collection("timesheets")
+    .where("userId", "==", user.id)
+    .get();
+  const latest = existingSheets.docs
+    .map((doc) => doc.data())
+    .filter((sheet) => sheet.status !== "draft")
+    .sort((a, b) => String(b.periodEnd).localeCompare(String(a.periodEnd)))[0];
+  if (!query.data.year && !query.data.week) {
+    if (latest) {
+      const next = new Date(`${latest.periodEnd}T12:00:00Z`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      current = getIsoWeek(next);
+    }
+  }
+  const isoYear = query.data.year ?? current.isoYear;
+  const isoWeek = query.data.week ?? current.isoWeek;
+  let fullDates: string[];
+  try {
+    fullDates = getIsoWeekDates(isoYear, isoWeek);
+  } catch {
+    return { user, error: "The selected ISO week does not exist." };
+  }
+  const parts = splitWeekByMonth(fullDates);
+  const partDocs = await db.getAll(
+    ...parts.map((_, index) =>
+      db
+        .collection("timesheets")
+        .doc(
+          timesheetPartId(
+            user.organizationId,
+            user.id,
+            isoYear,
+            isoWeek,
+            index + 1,
+            parts.length,
+          ),
+        ),
+    ),
+  );
+  const selectedPart =
+    query.data.part ??
+    Math.max(
+      1,
+      partDocs.findIndex(
+        (doc) => !doc.exists || doc.data()?.status === "draft",
+      ) + 1 || parts.length,
+    );
+  if (selectedPart > parts.length)
+    return { user, error: "The selected week part does not exist." };
+  const dates = parts[selectedPart - 1]!;
+  const id = timesheetPartId(
+    user.organizationId,
+    user.id,
+    isoYear,
+    isoWeek,
+    selectedPart,
+    parts.length,
+  );
+  const sheetDoc = partDocs[selectedPart - 1]!;
+  const [termDocs, codeDocs, holidayDocs] = await Promise.all([
     db.collection("employmentTerms").where("userId", "==", user.id).get(),
     db
       .collection("timeCodes")
       .where("organizationId", "==", user.organizationId)
       .get(),
+    db
+      .collection("holidays")
+      .where("organizationId", "==", user.organizationId)
+      .get(),
   ]);
+  const holidayNames = new Map(
+    holidayDocs.docs.map((doc) => [
+      String(doc.data().date),
+      String(doc.data().name),
+    ]),
+  );
+  const redDays = dates.map((date) => {
+    const weekend = [0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay());
+    return {
+      date,
+      isRed: weekend || holidayNames.has(date),
+      reason: holidayNames.get(date) ?? (weekend ? "Weekend" : null),
+    };
+  });
   const term = termDocs.docs
     .map((doc) => doc.data())
     .filter(
       (item) =>
-        item.validFrom <= dates[6]! &&
+        item.validFrom <= dates.at(-1)! &&
         (!item.validTo || item.validTo >= dates[0]!) &&
-        String(item.reportingStartDate ?? item.validFrom) <= dates[6]!,
+        String(item.reportingStartDate ?? item.validFrom) <= dates.at(-1)!,
     )
     .sort((a, b) => String(b.validFrom).localeCompare(String(a.validFrom)))[0];
   if (!term)
     return { user, error: "No active employment terms are configured." };
+  const scheduleKeys = [
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+  ];
+  const expectedMinutes = dates.reduce((total, date, index) => {
+    const begins = String(term.reportingStartDate ?? term.validFrom);
+    if (
+      date < begins ||
+      (term.validTo && date > term.validTo) ||
+      redDays[index]?.isRed
+    )
+      return total;
+    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+    return total + Number(term.schedule?.[scheduleKeys[weekday]!] ?? 0);
+  }, 0);
   let sheet = sheetDoc.data() as Omit<Timesheet, "id"> | undefined;
   if (!sheetDoc.exists) {
-    const scheduleKeys = [
-      "monday",
-      "tuesday",
-      "wednesday",
-      "thursday",
-      "friday",
-      "saturday",
-      "sunday",
-    ];
-    const expectedMinutes = dates.reduce((total, date, index) => {
-      const begins = String(term.reportingStartDate ?? term.validFrom);
-      if (date < begins || (term.validTo && date > term.validTo)) return total;
-      return total + Number(term.schedule?.[scheduleKeys[index]!] ?? 0);
-    }, 0);
-    const newSheet = {
+    sheet = {
       organizationId: user.organizationId,
       userId: user.id,
       managerId: user.managerId,
       isoYear,
       isoWeek,
+      part: selectedPart,
+      partCount: parts.length,
       periodStart: dates[0]!,
-      periodEnd: dates[6]!,
+      periodEnd: dates.at(-1)!,
       status: "draft" as const,
       expectedMinutes,
       reportedMinutes: 0,
@@ -77,11 +176,12 @@ async function loadCurrent() {
       absenceMinutes: 0,
       rejectionReason: null,
       version: 0,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
     };
-    await db.collection("timesheets").doc(id).create(newSheet);
-    sheet = newSheet;
+  } else if (
+    sheet?.status === "draft" &&
+    sheet?.expectedMinutes !== expectedMinutes
+  ) {
+    sheet = { ...sheet!, expectedMinutes };
   }
   const entryDocs = await db
     .collection("timeEntries")
@@ -95,20 +195,73 @@ async function loadCurrent() {
         code.employeeCanSelect !== false &&
         (!code.assignedUserId || code.assignedUserId === user.id),
     )
-    .sort((a, b) => Number(a.sortOrder) - Number(b.sortOrder));
+    .sort((a, b) => {
+      const rank = (code: TimeCode) =>
+        code.category === "work" ? 0 : code.category === "vacation" ? 1 : 2;
+      return (
+        rank(a) - rank(b) ||
+        Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) ||
+        a.id.localeCompare(b.id)
+      );
+    });
+  let copyEntries: Array<Record<string, unknown>> = [];
+  if (query.data.copyYear && query.data.copyWeek) {
+    try {
+      const copyDates = getIsoWeekDates(
+        query.data.copyYear,
+        query.data.copyWeek,
+      );
+      const sourceEntries = await db
+        .collection("timeEntries")
+        .where("userId", "==", user.id)
+        .get();
+      const allowedCodes = new Set(codes.map((code) => code.id));
+      copyEntries = sourceEntries.docs
+        .map((doc) => doc.data())
+        .filter(
+          (entry) =>
+            Number(entry.isoYear) === query.data.copyYear &&
+            Number(entry.isoWeek) === query.data.copyWeek &&
+            allowedCodes.has(String(entry.timeCodeId)),
+        )
+        .map((entry) => ({
+          ...entry,
+          id: `copy-${crypto.randomUUID()}`,
+          date: fullDates[copyDates.indexOf(String(entry.date))],
+        }))
+        .filter(
+          (entry) => Boolean(entry.date) && dates.includes(String(entry.date)),
+        );
+    } catch {
+      return { user, error: "The copy-from week does not exist." };
+    }
+  }
   return {
     user,
     id,
+    sheetExists: sheetDoc.exists,
     dates,
+    part: selectedPart,
+    partCount: parts.length,
+    redDays,
     schedule: term.schedule,
     sheet: { id, ...sheet },
     entries: entryDocs.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+    copyEntries,
     codes,
+    latestReported: latest
+      ? {
+          isoYear: Number(latest.isoYear),
+          isoWeek: Number(latest.isoWeek),
+          periodStart: String(latest.periodStart),
+          periodEnd: String(latest.periodEnd),
+        }
+      : null,
   };
 }
 
-export async function GET() {
-  const data = await loadCurrent();
+export async function GET(request: Request) {
+  const data = await loadCurrent(request);
   if (!data)
     return NextResponse.json(
       { error: "Authentication required" },
@@ -119,8 +272,8 @@ export async function GET() {
   return NextResponse.json({ data });
 }
 
-export async function PUT(request: Request) {
-  const loaded = await loadCurrent();
+async function saveCurrent(request: Request) {
+  const loaded = await loadCurrent(request);
   if (!loaded)
     return NextResponse.json(
       { error: "Authentication required" },
@@ -128,9 +281,12 @@ export async function PUT(request: Request) {
     );
   if ("error" in loaded)
     return NextResponse.json({ error: loaded.error }, { status: 409 });
-  if (!["draft", "rejected", "reopened"].includes(String(loaded.sheet.status)))
+  if (loaded.sheet.status !== "draft")
     return NextResponse.json(
-      { error: "This timesheet is not editable." },
+      {
+        error:
+          "You already reported this week. Delete the existing draft if you want to report again, or edit that draft.",
+      },
       { status: 409 },
     );
   const parsed = saveSchema.safeParse(await request.json().catch(() => null));
@@ -163,8 +319,15 @@ export async function PUT(request: Request) {
     absenceMinutes = 0;
   for (const entry of parsed.data.entries) {
     const code = codeMap.get(entry.timeCodeId)!;
+    const countsAsWorkedTime = code.countsAsWorkedTime === true;
+    const countsTowardExpectedTime = code.countsTowardExpectedTime !== false;
+    const category = code.category ?? (countsAsWorkedTime ? "work" : "other");
+    const localizedName =
+      typeof code.name === "string"
+        ? code.name
+        : (code.name?.sv ?? code.name?.en ?? code.code);
     reportedMinutes += entry.minutes;
-    if (code.countsAsWorkedTime) workedMinutes += entry.minutes;
+    if (countsAsWorkedTime) workedMinutes += entry.minutes;
     else absenceMinutes += entry.minutes;
     const date = new Date(`${entry.date}T12:00:00Z`);
     batch.create(db.collection("timeEntries").doc(), {
@@ -179,10 +342,10 @@ export async function PUT(request: Request) {
       timeCodeId: entry.timeCodeId,
       timeCodeSnapshot: {
         code: code.code,
-        name: code.name?.sv ?? code.code,
-        category: code.category,
-        countsAsWorkedTime: code.countsAsWorkedTime,
-        countsTowardExpectedTime: code.countsTowardExpectedTime,
+        name: localizedName,
+        category,
+        countsAsWorkedTime,
+        countsTowardExpectedTime,
         hourlyRate: Number(code.hourlyRate ?? 0),
       },
       minutes: entry.minutes,
@@ -192,12 +355,49 @@ export async function PUT(request: Request) {
       updatedAt: FieldValue.serverTimestamp(),
     });
   }
-  batch.update(db.collection("timesheets").doc(loaded.id), {
+  const sheetRef = db.collection("timesheets").doc(loaded.id);
+  const totals = {
+    expectedMinutes: loaded.sheet.expectedMinutes,
     reportedMinutes,
     workedMinutes,
     absenceMinutes,
     updatedAt: FieldValue.serverTimestamp(),
-  });
+  };
+  if (loaded.sheetExists) {
+    batch.update(sheetRef, totals);
+  } else {
+    batch.create(sheetRef, {
+      organizationId: loaded.user.organizationId,
+      userId: loaded.user.id,
+      managerId: loaded.user.managerId,
+      isoYear: loaded.sheet.isoYear,
+      isoWeek: loaded.sheet.isoWeek,
+      part: loaded.part,
+      partCount: loaded.partCount,
+      periodStart: loaded.dates[0],
+      periodEnd: loaded.dates.at(-1),
+      status: "draft",
+      rejectionReason: null,
+      version: 0,
+      ...totals,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
   await batch.commit();
   return NextResponse.json({ ok: true });
+}
+
+export async function PUT(request: Request) {
+  try {
+    return await saveCurrent(request);
+  } catch (error) {
+    console.error("Saving time report failed", error);
+    return NextResponse.json(
+      {
+        error:
+          "The time report could not be saved. Please try again. If the problem continues, contact an administrator.",
+      },
+      { status: 500 },
+    );
+  }
 }

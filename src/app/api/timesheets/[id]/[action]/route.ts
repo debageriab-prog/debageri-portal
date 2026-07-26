@@ -32,11 +32,19 @@ export async function POST(
     const result = await transitionTimesheet(actor, id, target, reason);
     return NextResponse.json({ data: result });
   } catch (error) {
+    console.error("Timesheet transition failed", error);
     const code = error instanceof Error ? error.message : "INTERNAL";
     const status =
       code === "FORBIDDEN" ? 403 : code === "NOT_FOUND" ? 404 : 409;
     return NextResponse.json(
-      { error: status === 409 ? "The operation could not be completed" : code },
+      {
+        error:
+          code === "ALREADY_REPORTED"
+            ? "You already reported this week. Delete the existing draft if you want to report again, or edit that draft."
+            : status === 409
+              ? "The operation could not be completed"
+              : code,
+      },
       { status },
     );
   }

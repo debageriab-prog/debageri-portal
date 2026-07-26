@@ -84,6 +84,8 @@ export interface TimeEntry {
   date: string;
   isoYear: number;
   isoWeek: number;
+  part?: number;
+  partCount?: number;
   year: number;
   month: number;
   timeCodeId: string;
@@ -107,6 +109,8 @@ export interface Timesheet extends TimesheetTotals {
   managerId: string | null;
   isoYear: number;
   isoWeek: number;
+  part?: number;
+  partCount?: number;
   periodStart: string;
   periodEnd: string;
   status: TimesheetStatus;

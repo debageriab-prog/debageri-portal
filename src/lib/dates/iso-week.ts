@@ -71,3 +71,25 @@ export function timesheetId(
 ): string {
   return `${organizationId}_${userId}_${isoYear}-W${String(isoWeek).padStart(2, "0")}`;
 }
+
+export function splitWeekByMonth(dates: string[]): string[][] {
+  return dates.reduce<string[][]>((parts, date) => {
+    const current = parts.at(-1);
+    if (!current || current[0]?.slice(0, 7) !== date.slice(0, 7))
+      parts.push([date]);
+    else current.push(date);
+    return parts;
+  }, []);
+}
+
+export function timesheetPartId(
+  organizationId: string,
+  userId: string,
+  isoYear: number,
+  isoWeek: number,
+  part: number,
+  partCount: number,
+): string {
+  const base = timesheetId(organizationId, userId, isoYear, isoWeek);
+  return partCount > 1 ? `${base}-P${String(part).padStart(2, "0")}` : base;
+}
