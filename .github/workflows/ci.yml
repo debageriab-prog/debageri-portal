@@ -1,0 +1,33 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: ["**"]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run check:project
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:rules
+      - run: npm run build
+        env:
+          PORTAL_ENVIRONMENT: test
+          PORTAL_EXPECTED_PROJECT_ID: debageri-portal-local
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: debageri-portal-local
+          FIREBASE_ADMIN_PROJECT_ID: debageri-portal-local
+          NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "false"

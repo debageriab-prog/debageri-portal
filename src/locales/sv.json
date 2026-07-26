@@ -1,0 +1,23 @@
+{
+  "product": "Debageri Medarbetarportal",
+  "dashboard": "Översikt",
+  "timesheet": "Tidrapport",
+  "reports": "Rapporter",
+  "profile": "Profil",
+  "approvals": "Att godkänna",
+  "employees": "Medarbetare",
+  "admin": "Administration",
+  "week": "Vecka",
+  "expected": "Förväntat",
+  "reported": "Rapporterat",
+  "worked": "Arbetad tid",
+  "absence": "Frånvaro",
+  "difference": "Differens",
+  "save": "Spara utkast",
+  "submit": "Skicka in veckan",
+  "add": "Lägg till rad",
+  "comment": "Kommentar",
+  "code": "Tidkod",
+  "duration": "Tid",
+  "status": "Status"
+}

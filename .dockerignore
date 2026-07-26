@@ -1,0 +1,11 @@
+.git
+.github
+.next
+node_modules
+.firebase-data
+.env*
+firebase-debug.log
+coverage
+docs
+tests
+service-account*.json

@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function userDoc() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function active() { return signedIn() && userDoc().data.status == "active"; }
+    function org() { return userDoc().data.organizationId; }
+    function sameOrg(data) { return active() && data.organizationId == org(); }
+    function isAdmin() { return active() && userDoc().data.role == "admin"; }
+    function isManagerFor(userId) {
+      return active() &&
+        (isAdmin() ||
+          (userDoc().data.role == "manager" &&
+           get(/databases/$(database)/documents/users/$(userId)).data.managerId == request.auth.uid));
+    }
+    function own(userId) { return active() && request.auth.uid == userId; }
+    function editableTimesheet(timesheetId) {
+      let sheet = get(/databases/$(database)/documents/timesheets/$(timesheetId));
+      return sheet.data.userId == request.auth.uid &&
+        sheet.data.organizationId == org() &&
+        sheet.data.status in ["draft", "rejected", "reopened"];
+    }
+
+    match /organizations/{organizationId} {
+      allow read: if active() && organizationId == org();
+      allow write: if false;
+    }
+    match /users/{userId} {
+      allow read: if sameOrg(resource.data) && (own(userId) || isManagerFor(userId) || isAdmin());
+      allow write: if false;
+    }
+    match /employmentTerms/{termId} {
+      allow read: if sameOrg(resource.data) && (own(resource.data.userId) || isManagerFor(resource.data.userId));
+      allow write: if false;
+    }
+    match /timeCodes/{codeId} {
+      allow read: if sameOrg(resource.data);
+      allow write: if false;
+    }
+    match /timesheets/{timesheetId} {
+      allow read: if sameOrg(resource.data) && (own(resource.data.userId) || isManagerFor(resource.data.userId));
+      allow create: if active() && request.resource.data.userId == request.auth.uid &&
+        request.resource.data.organizationId == org() &&
+        request.resource.data.status == "draft" &&
+        request.resource.data.reportedMinutes == 0 &&
+        request.resource.data.workedMinutes == 0 &&
+        request.resource.data.absenceMinutes == 0;
+      allow update, delete: if false;
+    }
+    match /timeEntries/{entryId} {
+      allow read: if sameOrg(resource.data) && (own(resource.data.userId) || isManagerFor(resource.data.userId));
+      allow create: if active() &&
+        request.resource.data.organizationId == org() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.minutes is int &&
+        request.resource.data.minutes > 0 &&
+        editableTimesheet(request.resource.data.timesheetId);
+      allow update: if sameOrg(resource.data) && own(resource.data.userId) &&
+        editableTimesheet(resource.data.timesheetId) &&
+        request.resource.data.organizationId == resource.data.organizationId &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.timesheetId == resource.data.timesheetId &&
+        request.resource.data.timeCodeSnapshot == resource.data.timeCodeSnapshot &&
+        request.resource.data.minutes is int &&
+        request.resource.data.minutes > 0;
+      allow delete: if sameOrg(resource.data) && own(resource.data.userId) &&
+        editableTimesheet(resource.data.timesheetId);
+    }
+    match /approvalEvents/{eventId} {
+      allow read: if sameOrg(resource.data) && (own(resource.data.userId) || isManagerFor(resource.data.userId));
+      allow write: if false;
+    }
+    match /auditLogs/{logId} {
+      allow read: if isAdmin() && sameOrg(resource.data);
+      allow write: if false;
+    }
+    match /holidays/{holidayId} {
+      allow read: if sameOrg(resource.data);
+      allow write: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "product": "Debageri Employee Portal",
+  "dashboard": "Overview",
+  "timesheet": "Timesheet",
+  "reports": "Reports",
+  "profile": "Profile",
+  "approvals": "Approvals",
+  "employees": "Employees",
+  "admin": "Administration",
+  "week": "Week",
+  "expected": "Expected",
+  "reported": "Reported",
+  "worked": "Worked",
+  "absence": "Absence",
+  "difference": "Difference",
+  "save": "Save draft",
+  "submit": "Submit week",
+  "add": "Add entry",
+  "comment": "Comment",
+  "code": "Time code",
+  "duration": "Duration",
+  "status": "Status"
+}
