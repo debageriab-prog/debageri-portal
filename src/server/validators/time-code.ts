@@ -18,6 +18,7 @@ export const timeCodeSchema = z.object({
   hourlyRate: z.number().nonnegative().max(1_000_000),
   active: z.boolean(),
   employeeCanSelect: z.boolean(),
+  assignedUserId: z.string().min(1).max(128).nullable(),
   requiresComment: z.boolean(),
   countsAsWorkedTime: z.boolean(),
 });

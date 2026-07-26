@@ -17,6 +17,20 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   const { db } = getAdminServices();
+  if (parsed.data.assignedUserId) {
+    const assignedUser = await db
+      .collection("users")
+      .doc(parsed.data.assignedUserId)
+      .get();
+    if (
+      !assignedUser.exists ||
+      assignedUser.data()?.organizationId !== actor.organizationId
+    )
+      return NextResponse.json(
+        { error: "The selected employee could not be found." },
+        { status: 400 },
+      );
+  }
   const duplicate = await db
     .collection("timeCodes")
     .where("organizationId", "==", actor.organizationId)
@@ -38,6 +52,7 @@ export async function POST(request: Request) {
     countsAsWorkedTime: parsed.data.countsAsWorkedTime,
     countsTowardExpectedTime: true,
     employeeCanSelect: parsed.data.employeeCanSelect,
+    assignedUserId: parsed.data.assignedUserId,
     validFrom: new Date().toISOString().slice(0, 10),
     validTo: null,
     sortOrder: Date.now(),

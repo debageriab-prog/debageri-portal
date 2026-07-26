@@ -11,6 +11,7 @@ export type ManagedTimeCode = {
   hourlyRate: number;
   active: boolean;
   employeeCanSelect: boolean;
+  assignedUserId: string | null;
   requiresComment: boolean;
   countsAsWorkedTime: boolean;
 };
@@ -28,7 +29,19 @@ const categories = [
   "other",
 ];
 
-export function TimeCodeManagement({ codes }: { codes: ManagedTimeCode[] }) {
+type AssignableUser = {
+  id: string;
+  displayName: string;
+  status: string;
+};
+
+export function TimeCodeManagement({
+  codes,
+  users,
+}: {
+  codes: ManagedTimeCode[];
+  users: AssignableUser[];
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState<ManagedTimeCode | "new" | null>(null);
   const [deleting, setDeleting] = useState<ManagedTimeCode | null>(null);
@@ -59,6 +72,7 @@ export function TimeCodeManagement({ codes }: { codes: ManagedTimeCode[] }) {
             hourlyRate: Number(form.get("hourlyRate")),
             active: form.get("active") === "on",
             employeeCanSelect: form.get("employeeCanSelect") === "on",
+            assignedUserId: form.get("assignedUserId") || null,
             requiresComment: form.get("requiresComment") === "on",
             countsAsWorkedTime: form.get("countsAsWorkedTime") === "on",
           }),
@@ -148,6 +162,7 @@ export function TimeCodeManagement({ codes }: { codes: ManagedTimeCode[] }) {
                 <th>Category</th>
                 <th>Hourly rate</th>
                 <th>Status</th>
+                <th>Assigned to</th>
                 <th>
                   <span className="sr-only">Actions</span>
                 </th>
@@ -163,6 +178,12 @@ export function TimeCodeManagement({ codes }: { codes: ManagedTimeCode[] }) {
                   </td>
                   <td>{code.hourlyRate.toFixed(2)}</td>
                   <td>{code.active ? "Active" : "Inactive"}</td>
+                  <td>
+                    {code.assignedUserId
+                      ? (users.find((user) => user.id === code.assignedUserId)
+                          ?.displayName ?? "Unknown employee")
+                      : "Everyone"}
+                  </td>
                   <td>
                     <div className="row-actions">
                       <button
@@ -246,6 +267,26 @@ export function TimeCodeManagement({ codes }: { codes: ManagedTimeCode[] }) {
                     defaultValue={value?.hourlyRate ?? 0}
                     required
                   />
+                </label>
+                <label className="form-wide">
+                  Assigned employee
+                  <select
+                    className="field"
+                    name="assignedUserId"
+                    defaultValue={value?.assignedUserId ?? ""}
+                  >
+                    <option value="">Everyone</option>
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.displayName}
+                        {user.status === "inactive" ? " (inactive)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <small>
+                    Leave this as Everyone for shared codes such as vacation or
+                    sick leave.
+                  </small>
                 </label>
                 <label>
                   <input

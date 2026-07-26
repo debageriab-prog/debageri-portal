@@ -59,6 +59,7 @@ export interface TimeCode {
   countsAsWorkedTime: boolean;
   countsTowardExpectedTime: boolean;
   employeeCanSelect: boolean;
+  assignedUserId?: string | null;
   active: boolean;
   validFrom: string;
   validTo: string | null;

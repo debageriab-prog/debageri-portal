@@ -36,6 +36,20 @@ export async function PATCH(
       { error: "Check the time code details and try again." },
       { status: 400 },
     );
+  if (parsed.data.assignedUserId) {
+    const assignedUser = await loaded.db
+      .collection("users")
+      .doc(parsed.data.assignedUserId)
+      .get();
+    if (
+      !assignedUser.exists ||
+      assignedUser.data()?.organizationId !== loaded.actor.organizationId
+    )
+      return NextResponse.json(
+        { error: "The selected employee could not be found." },
+        { status: 400 },
+      );
+  }
   const duplicate = await loaded.db
     .collection("timeCodes")
     .where("organizationId", "==", loaded.actor.organizationId)
@@ -56,6 +70,7 @@ export async function PATCH(
     hourlyRate: parsed.data.hourlyRate,
     active: parsed.data.active,
     employeeCanSelect: parsed.data.employeeCanSelect,
+    assignedUserId: parsed.data.assignedUserId,
     requiresComment: parsed.data.requiresComment,
     countsAsWorkedTime: parsed.data.countsAsWorkedTime,
     updatedAt: FieldValue.serverTimestamp(),
