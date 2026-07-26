@@ -1,29 +1,33 @@
+"use client";
+import { useLocale } from "@/components/localization/LocaleProvider";
+
 export default function TimeCodesPage() {
+  const { t } = useLocale();
   const codes = [
-    ["REG", "Ordinarie arbetstid", "Arbete"],
-    ["VAC", "Semester", "Semester"],
-    ["PARENTAL", "Föräldraledighet", "Frånvaro"],
-    ["SICK", "Sjukfrånvaro", "Frånvaro"],
-    ["VAB", "Vård av barn", "Frånvaro"],
-    ["OVERTIME", "Övertid", "Övertid"],
+    ["REG", t("regularWork"), t("work")],
+    ["VAC", t("vacation"), t("vacation")],
+    ["PARENTAL", t("parentalLeave"), t("absenceCategory")],
+    ["SICK", t("sickLeave"), t("absenceCategory")],
+    ["VAB", t("careOfSickChild"), t("absenceCategory")],
+    ["OVERTIME", t("overtime"), t("overtime")],
   ];
   return (
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Administration</div>
-          <h1>Tidkoder</h1>
+          <div className="eyebrow">{t("admin")}</div>
+          <h1>{t("timeCodes")}</h1>
         </div>
-        <button className="button">Ny tidkod</button>
+        <button className="button">{t("newTimeCode")}</button>
       </div>
       <section className="card table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Kod</th>
-              <th>Namn</th>
-              <th>Kategori</th>
-              <th>Status</th>
+              <th>{t("code")}</th>
+              <th>{t("name")}</th>
+              <th>{t("category")}</th>
+              <th>{t("status")}</th>
             </tr>
           </thead>
           <tbody>
@@ -33,7 +37,7 @@ export default function TimeCodesPage() {
                   <td key={cell}>{cell}</td>
                 ))}
                 <td>
-                  <span className="status">Aktiv</span>
+                  <span className="status">{t("active")}</span>
                 </td>
               </tr>
             ))}

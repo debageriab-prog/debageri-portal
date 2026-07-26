@@ -1,20 +1,24 @@
+"use client";
+import { useLocale } from "@/components/localization/LocaleProvider";
+
 export default function AuditPage() {
+  const { t } = useLocale();
   return (
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Administration</div>
-          <h1>Revisionshistorik</h1>
+          <div className="eyebrow">{t("admin")}</div>
+          <h1>{t("auditHistory")}</h1>
         </div>
       </div>
       <section className="card table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Tid</th>
-              <th>Aktör</th>
-              <th>Händelse</th>
-              <th>Objekt</th>
+              <th>{t("time")}</th>
+              <th>{t("actor")}</th>
+              <th>{t("event")}</th>
+              <th>{t("entity")}</th>
             </tr>
           </thead>
           <tbody>
