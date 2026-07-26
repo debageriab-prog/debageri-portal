@@ -39,6 +39,14 @@
       ]
     },
     {
+      "collectionGroup": "timesheets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "employmentTerms",
       "queryScope": "COLLECTION",
       "fields": [

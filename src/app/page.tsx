@@ -1,4 +1,7 @@
 import { redirect } from "next/navigation";
-export default function Home() {
-  redirect("/employee/timesheets/current");
+import { verifySession } from "@/server/auth/session";
+export default async function Home() {
+  const user = await verifySession();
+  if (!user) redirect("/auth/login");
+  redirect(user.role === "admin" ? "/admin" : "/employee/timesheets/current");
 }

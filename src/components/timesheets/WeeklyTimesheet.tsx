@@ -1,210 +1,81 @@
 "use client";
-
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
-import { useLocale } from "@/components/localization/LocaleProvider";
 
-type Entry = { id: number; code: string; minutes: number; comment: string };
-const codes = [
-  "REG",
-  "VAC",
-  "PARENTAL",
-  "SICK",
-  "VAB",
-  "UNPAID",
-  "OVERTIME",
-  "COMP",
-];
-const initial: Record<number, Entry[]> = {
-  0: [{ id: 1, code: "REG", minutes: 480, comment: "" }],
-  1: [{ id: 2, code: "REG", minutes: 480, comment: "" }],
-  2: [
-    { id: 3, code: "REG", minutes: 360, comment: "" },
-    { id: 4, code: "PARENTAL", minutes: 120, comment: "Hämtning förskola" },
-  ],
+type Code = { id: string; code: string; name: { sv?: string; en?: string }; requiresComment: boolean };
+type Entry = { key: string; date: string; timeCodeId: string; minutes: number; comment: string };
+type Data = {
+  id: string; dates: string[]; schedule: Record<string, number>;
+  sheet: { isoYear: number; isoWeek: number; status: string; expectedMinutes: number; rejectionReason?: string | null };
+  codes: Code[]; entries: Array<Entry & { id: string }>;
 };
+const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const scheduleKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
 export function WeeklyTimesheet() {
-  const { locale, t } = useLocale();
-  const days = [
-    [t("monday"), t("july27")],
-    [t("tuesday"), t("july28")],
-    [t("wednesday"), t("july29")],
-    [t("thursday"), t("july30")],
-    [t("friday"), t("july31")],
-    [t("saturday"), t("august1")],
-    [t("sunday"), t("august2")],
-  ];
-  const [entries, setEntries] = useState(initial);
-  const [saved, setSaved] = useState(false);
-  const nextEntryId = useRef(10);
-  const reported = useMemo(
-    () =>
-      Object.values(entries)
-        .flat()
-        .reduce((sum, entry) => sum + entry.minutes, 0),
-    [entries],
-  );
-  const worked = useMemo(
-    () =>
-      Object.values(entries)
-        .flat()
-        .filter((entry) => ["REG", "OVERTIME"].includes(entry.code))
-        .reduce((sum, entry) => sum + entry.minutes, 0),
-    [entries],
-  );
-  const expected = 2_400;
-  function patch(day: number, id: number, patchValue: Partial<Entry>) {
-    setSaved(false);
-    setEntries((current) => ({
-      ...current,
-      [day]: (current[day] ?? []).map((entry) =>
-        entry.id === id ? { ...entry, ...patchValue } : entry,
-      ),
-    }));
+  const router = useRouter();
+  const [data, setData] = useState<Data | null>(null);
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [message, setMessage] = useState("Loading…");
+  const editable = data && ["draft", "rejected", "reopened"].includes(data.sheet.status);
+  useEffect(() => {
+    fetch("/api/timesheets/current").then(async (response) => {
+      if (response.status === 401) return router.replace("/auth/login");
+      const result = await response.json();
+      if (!response.ok) return setMessage(result.error);
+      setData(result.data);
+      setEntries(result.data.entries.map((entry: Entry & { id: string }) => ({ ...entry, key: entry.id, comment: entry.comment ?? "" })));
+      setMessage("");
+    });
+  }, [router]);
+  const reported = useMemo(() => entries.reduce((sum, entry) => sum + entry.minutes, 0), [entries]);
+  function add(date: string) {
+    if (!data?.codes.length) return;
+    setEntries((current) => [...current, { key: crypto.randomUUID(), date, timeCodeId: data.codes[0]!.id, minutes: 60, comment: "" }]);
   }
-  function add(day: number) {
-    const id = nextEntryId.current++;
-    setEntries((current) => ({
-      ...current,
-      [day]: [
-        ...(current[day] ?? []),
-        { id, code: "REG", minutes: 480, comment: "" },
-      ],
-    }));
+  function patch(key: string, value: Partial<Entry>) {
+    setEntries((current) => current.map((entry) => entry.key === key ? { ...entry, ...value } : entry));
   }
-  function remove(day: number, id: number) {
-    setEntries((current) => ({
-      ...current,
-      [day]: (current[day] ?? []).filter((entry) => entry.id !== id),
-    }));
+  async function save() {
+    setMessage("Saving…");
+    const response = await fetch("/api/timesheets/current", {
+      method: "PUT", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ entries: entries.map(({ date, timeCodeId, minutes, comment }) => ({ date, timeCodeId, minutes, comment: comment || null })) }),
+    });
+    const result = await response.json();
+    setMessage(response.ok ? "Saved." : result.error);
+    return response.ok;
   }
-  return (
-    <>
-      <div className="topbar">
-        <div>
-          <div className="eyebrow">{t("timeReporting")}</div>
-          <h1>{t("week")} 31</h1>
-          <div className="muted">{t("dateRange")}</div>
-        </div>
-        <span className="status">{t("draft")}</span>
-      </div>
-      <section className="metrics" aria-label={t("weekSummary")}>
-        {[
-          [t("expected"), expected],
-          [t("reported"), reported],
-          [t("worked"), worked],
-          [t("absence"), reported - worked],
-          [t("difference"), reported - expected],
-        ].map(([label, value]) => (
-          <div className="metric" key={label}>
-            <span className="muted">{label}</span>
-            <strong>{formatDuration(value as number, locale)}</strong>
-          </div>
-        ))}
-      </section>
-      <section className="card">
-        <div className="week-head">
-          <div className="week-nav">
-            <button className="icon-button" aria-label={t("previousWeek")}>
-              ←
-            </button>
-            <button className="icon-button" aria-label={t("nextWeek")}>
-              →
-            </button>
-          </div>
-          <div className="actions">
-            <button className="button secondary" onClick={() => setSaved(true)}>
-              {saved ? t("saved") : t("save")}
-            </button>
-            <button className="button" disabled={reported !== expected}>
-              {t("submitWeek")}
-            </button>
-          </div>
-        </div>
-        {reported !== expected && (
-          <p className="notice" role="status">
-            {t("expectedShortfall").replace(
-              "{duration}",
-              formatDuration(reported - expected, locale),
-            )}
-          </p>
-        )}
-        <div className="days">
-          {days.map(([name, date], day) => {
-            const dayEntries = entries[day] ?? [];
-            const total = dayEntries.reduce(
-              (sum, entry) => sum + entry.minutes,
-              0,
-            );
-            return (
-              <article className="day" key={name}>
-                <header className="day-head">
-                  <div>
-                    <strong>{name}</strong>
-                    <div className="muted">{date}</div>
-                  </div>
-                  <span className="muted">
-                    {t("expected")} {day < 5 ? "8 h" : "0 min"}
-                  </span>
-                  <strong>{formatDuration(total, locale)}</strong>
-                </header>
-                {dayEntries.map((entry) => (
-                  <div className="entry" key={entry.id}>
-                    <select
-                      className="field"
-                      aria-label={`${t("code")} ${name}`}
-                      value={entry.code}
-                      onChange={(event) =>
-                        patch(day, entry.id, { code: event.target.value })
-                      }
-                    >
-                      {codes.map((code) => (
-                        <option key={code}>{code}</option>
-                      ))}
-                    </select>
-                    <input
-                      className="field"
-                      aria-label={`${t("minutes")} ${name}`}
-                      type="number"
-                      min="1"
-                      max="1440"
-                      value={entry.minutes}
-                      onChange={(event) =>
-                        patch(day, entry.id, {
-                          minutes: Number(event.target.value),
-                        })
-                      }
-                    />
-                    <input
-                      className="field"
-                      aria-label={`${t("comment")} ${name}`}
-                      type="text"
-                      placeholder={t("optionalComment")}
-                      value={entry.comment}
-                      onChange={(event) =>
-                        patch(day, entry.id, { comment: event.target.value })
-                      }
-                    />
-                    <button
-                      className="icon-button"
-                      aria-label={`${t("removeEntry")} ${name}`}
-                      onClick={() => remove(day, entry.id)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                <div className="entry-empty">
-                  <button className="button secondary" onClick={() => add(day)}>
-                    {t("addEntry")}
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-    </>
-  );
+  async function submit() {
+    if (!(await save())) return;
+    const response = await fetch(`/api/timesheets/${data!.id}/submit`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}",
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error);
+    setData((current) => current ? { ...current, sheet: { ...current.sheet, status: "submitted" } } : current);
+    setMessage("Submitted for approval.");
+  }
+  if (!data) return <section className="card"><p>{message}</p></section>;
+  return <>
+    <div className="topbar"><div><div className="eyebrow">Time reporting</div><h1>Week {data.sheet.isoWeek}, {data.sheet.isoYear}</h1><p className="muted">{data.dates[0]} – {data.dates[6]}</p></div><span className="status">{data.sheet.status}</span></div>
+    {data.sheet.rejectionReason && <p className="notice">Rejected: {data.sheet.rejectionReason}</p>}
+    <section className="metrics"><div className="metric"><span>Expected</span><strong>{formatDuration(data.sheet.expectedMinutes)}</strong></div><div className="metric"><span>Reported</span><strong>{formatDuration(reported)}</strong></div></section>
+    <section className="card">
+      {!data.codes.length && <p className="notice">No active time codes are configured. Ask an administrator to add one.</p>}
+      {data.dates.map((date, day) => <article className="day" key={date}>
+        <header className="day-head"><strong>{dayNames[day]} · {date}</strong><span>Expected {formatDuration(Number(data.schedule[scheduleKeys[day]!] ?? 0))}</span></header>
+        {entries.filter((entry) => entry.date === date).map((entry) => <div className="entry" key={entry.key}>
+          <select className="field" value={entry.timeCodeId} disabled={!editable} onChange={(event) => patch(entry.key, { timeCodeId: event.target.value })}>{data.codes.map((code) => <option value={code.id} key={code.id}>{code.code} — {code.name.en ?? code.name.sv}</option>)}</select>
+          <input className="field" type="number" min="1" max="1440" value={entry.minutes} disabled={!editable} onChange={(event) => patch(entry.key, { minutes: Number(event.target.value) })} />
+          <input className="field" value={entry.comment} disabled={!editable} placeholder="Comment" onChange={(event) => patch(entry.key, { comment: event.target.value })} />
+          <button className="icon-button" disabled={!editable} onClick={() => setEntries((current) => current.filter((item) => item.key !== entry.key))}>×</button>
+        </div>)}
+        {editable && <div className="entry-empty"><button className="button secondary" disabled={!data.codes.length} onClick={() => add(date)}>Add entry</button></div>}
+      </article>)}
+      {message && <p className="notice" role="status">{message}</p>}
+      {editable && <div className="actions" style={{ marginTop: 18 }}><button className="button secondary" onClick={save}>Save</button><button className="button" disabled={reported !== data.sheet.expectedMinutes || !data.codes.length} onClick={submit}>Submit</button></div>}
+    </section>
+  </>;
 }

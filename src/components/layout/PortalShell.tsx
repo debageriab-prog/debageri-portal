@@ -1,58 +1,55 @@
 "use client";
 
 import Link from "next/link";
+import type { PortalUser } from "@/domain/types";
 import { useLocale } from "@/components/localization/LocaleProvider";
 
-export function PortalShell({ children }: { children: React.ReactNode }) {
+export function PortalShell({
+  children,
+  user,
+}: {
+  children: React.ReactNode;
+  user: PortalUser;
+}) {
   const { t } = useLocale();
-  const nav = [
-    [t("dashboard"), "/employee"],
+  const nav: Array<[string, string]> = [
     [t("timesheet"), "/employee/timesheets/current"],
     [t("history"), "/employee/timesheets"],
-    [t("reports"), "/employee/reports"],
-    [t("approvals"), "/manager/approvals"],
-    [t("admin"), "/admin"],
   ];
+  if (["manager", "admin"].includes(user.role))
+    nav.push([t("approvals"), "/manager/approvals"]);
+  if (user.role === "admin") nav.push([t("admin"), "/admin"]);
+
+  async function logout() {
+    await fetch("/api/auth/session", { method: "DELETE" });
+    window.location.assign("/auth/login");
+  }
 
   return (
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">D</span>
-          <span>
-            Debageri
-            <br />
-            Portal
-          </span>
+          <span>Debageri Portal</span>
         </div>
         <nav aria-label={t("mainMenu")}>
-          {nav.map(([label, href], index) => (
-            <Link
-              className={`nav-link ${index === 1 ? "active" : ""}`}
-              href={href!}
-              key={href}
-            >
+          {nav.map(([label, href]) => (
+            <Link className="nav-link" href={href} key={href}>
               {label}
             </Link>
           ))}
         </nav>
-        <p
-          style={{
-            position: "absolute",
-            bottom: 24,
-            color: "#c4a98e",
-            fontSize: 12,
-          }}
-        >
-          Debageri AB · {t("internal")}
-        </p>
+        <div style={{ position: "absolute", bottom: 24, fontSize: 12 }}>
+          <div>{user.displayName}</div>
+          <button className="nav-link" onClick={logout}>
+            Log out
+          </button>
+        </div>
       </aside>
       <main className="main">{children}</main>
       <nav className="mobilebar" aria-label={t("mobileMenu")}>
-        {nav.slice(0, 4).map(([label, href]) => (
-          <Link href={href!} key={href}>
-            {label}
-          </Link>
+        {nav.map(([label, href]) => (
+          <Link href={href} key={href}>{label}</Link>
         ))}
       </nav>
     </div>

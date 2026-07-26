@@ -1,63 +1,10 @@
+import { getAdminServices } from "@/lib/firebase/admin";
+import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
-export default function ReportsPage() {
-  return (
-    <>
-      <div className="topbar">
-        <div>
-          <div className="eyebrow">Rapporter</div>
-          <h1>Min tid</h1>
-          <p className="muted">Vecka, månad, år eller eget datumintervall.</p>
-        </div>
-      </div>
-      <section className="card">
-        <div className="actions">
-          <button className="button">Denna vecka</button>
-          <button className="button secondary">Denna månad</button>
-          <button className="button secondary">Detta år</button>
-          <button className="button secondary">Eget intervall</button>
-        </div>
-        <div className="metrics">
-          {[
-            ["Förväntat", 2400],
-            ["Rapporterat", 2400],
-            ["Arbetat", 2280],
-            ["Frånvaro", 120],
-            ["Differens", 0],
-          ].map(([label, value]) => (
-            <div className="metric" key={label}>
-              <span className="muted">{label}</span>
-              <strong>{formatDuration(value as number)}</strong>
-            </div>
-          ))}
-        </div>
-        <h2>Fördelning per kod</h2>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Kod</th>
-                <th>Kategori</th>
-                <th>Tid</th>
-                <th>Andel</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>REG</td>
-                <td>Arbete</td>
-                <td>38 h</td>
-                <td>95 %</td>
-              </tr>
-              <tr>
-                <td>PARENTAL</td>
-                <td>Föräldraledighet</td>
-                <td>2 h</td>
-                <td>5 %</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </>
-  );
+export default async function ReportsPage() {
+  const user = (await verifySession())!; const { db } = getAdminServices();
+  const snapshot = await db.collection("timeEntries").where("userId", "==", user.id).get();
+  const totals = new Map<string, number>();
+  snapshot.docs.forEach((doc) => { const entry = doc.data(); const code = String(entry.timeCodeSnapshot?.code ?? entry.timeCodeId); totals.set(code, (totals.get(code) ?? 0) + Number(entry.minutes)); });
+  return <><div className="topbar"><div><div className="eyebrow">Reports</div><h1>My reported time</h1></div></div><section className="card table-wrap">{totals.size === 0 ? <p>No reported time yet.</p> : <table><thead><tr><th>Code</th><th>Time</th></tr></thead><tbody>{[...totals].map(([code, minutes]) => <tr key={code}><td>{code}</td><td>{formatDuration(minutes)}</td></tr>)}</tbody></table>}</section></>;
 }
