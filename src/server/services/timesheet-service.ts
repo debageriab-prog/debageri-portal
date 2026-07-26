@@ -23,6 +23,12 @@ export async function transitionTimesheet(
     const sheet = { id: snapshot.id, ...snapshot.data() } as Timesheet;
     if (sheet.organizationId !== actor.organizationId)
       throw new Error("FORBIDDEN");
+    if (
+      toStatus === "submitted" &&
+      sheet.userId === actor.id &&
+      sheet.status !== "draft"
+    )
+      throw new Error("ALREADY_REPORTED");
     const employeeAction =
       toStatus === "submitted" && sheet.userId === actor.id;
     const reviewerAction =

@@ -120,7 +120,7 @@ async function loadCurrent(request: Request) {
     await db.collection("timesheets").doc(id).create(newSheet);
     sheet = newSheet;
   } else if (
-    ["draft", "rejected", "reopened"].includes(String(sheet?.status)) &&
+    sheet?.status === "draft" &&
     sheet?.expectedMinutes !== expectedMinutes
   ) {
     await sheetDoc.ref.update({
@@ -215,9 +215,12 @@ export async function PUT(request: Request) {
     );
   if ("error" in loaded)
     return NextResponse.json({ error: loaded.error }, { status: 409 });
-  if (!["draft", "rejected", "reopened"].includes(String(loaded.sheet.status)))
+  if (loaded.sheet.status !== "draft")
     return NextResponse.json(
-      { error: "This timesheet is not editable." },
+      {
+        error:
+          "You already reported this week. Delete the existing draft if you want to report again, or edit that draft.",
+      },
       { status: 409 },
     );
   const parsed = saveSchema.safeParse(await request.json().catch(() => null));

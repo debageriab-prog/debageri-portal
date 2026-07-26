@@ -66,8 +66,13 @@ export function WeeklyTimesheet() {
   const [copyMode, setCopyMode] = useState("");
   const [copyYear, setCopyYear] = useState(new Date().getUTCFullYear());
   const [copyWeek, setCopyWeek] = useState(1);
-  const editable =
-    data && ["draft", "rejected", "reopened"].includes(data.sheet.status);
+  const [weekMode, setWeekMode] = useState<"current" | "number" | "date">(
+    "current",
+  );
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmation, setConfirmation] = useState("");
+  const [success, setSuccess] = useState("");
+  const editable = data && data.sheet.status === "draft";
 
   async function loadWeek(
     year?: number,
@@ -107,9 +112,16 @@ export function WeeklyTimesheet() {
   }
 
   useEffect(() => {
-    // The async loader updates state only after the request resolves.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadWeek();
+    const params = new URLSearchParams(window.location.search);
+    const selectedYear = Number(params.get("year"));
+    const selectedWeek = Number(params.get("week"));
+    const timeout = window.setTimeout(() => {
+      if (selectedYear && selectedWeek) {
+        setWeekMode("number");
+        void loadWeek(selectedYear, selectedWeek);
+      } else void loadWeek();
+    }, 0);
+    return () => window.clearTimeout(timeout);
     // Initial load only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -128,6 +140,31 @@ export function WeeklyTimesheet() {
       (redDay, day) =>
         redDay.isRed && rows.some((row) => (row.minutes[day] ?? 0) > 0),
     ) ?? [];
+  const today = new Date().toISOString().slice(0, 10);
+  const futureDates =
+    data?.dates.filter(
+      (date, day) =>
+        date > today && rows.some((row) => (row.minutes[day] ?? 0) > 0),
+    ) ?? [];
+  const submitWarnings = [
+    ...(reportedRedDays.length
+      ? [
+          `Time is reported on ${reportedRedDays.length} red ${
+            reportedRedDays.length === 1 ? "day" : "days"
+          }.`,
+        ]
+      : []),
+    ...(reported > 2400
+      ? ["Total reported time exceeds 40 hours for this week."]
+      : []),
+    ...(futureDates.length
+      ? [
+          `Time is reported on ${futureDates.length} future ${
+            futureDates.length === 1 ? "date" : "dates"
+          }.`,
+        ]
+      : []),
+  ];
 
   function addRow() {
     if (!data?.codes.length) return;
@@ -148,15 +185,6 @@ export function WeeklyTimesheet() {
   function changeMinutes(row: Row, day: number, hours: number) {
     if (!data) return;
     const minutes = Math.round(hours * 60);
-    if (
-      minutes > 0 &&
-      !row.minutes[day] &&
-      data.redDays[day]?.isRed &&
-      !window.confirm(
-        `You are reporting time on a red day (${data.redDays[day]?.reason}). Are you sure you want to proceed?`,
-      )
-    )
-      return;
     const next = [...row.minutes];
     next[day] = minutes;
     setRows((current) =>
@@ -166,27 +194,8 @@ export function WeeklyTimesheet() {
     );
   }
 
-  function confirmWarnings(action: "proceed" | "submit") {
-    if (
-      reportedRedDays.length &&
-      !window.confirm(
-        `This report includes time on ${reportedRedDays.length} red ${reportedRedDays.length === 1 ? "day" : "days"}. Are you sure you want to ${action}?`,
-      )
-    )
-      return false;
-    if (
-      reported > 2400 &&
-      !window.confirm(
-        `Total reported time exceeds 40 hours for this week. Are you sure you want to ${action}?`,
-      )
-    )
-      return false;
-    return true;
-  }
-
-  async function save(confirmBeforeSave = true) {
+  async function save() {
     if (!data) return false;
-    if (confirmBeforeSave && !confirmWarnings("proceed")) return false;
     setMessage("Saving...");
     try {
       const entries = rows.flatMap((row) =>
@@ -221,31 +230,32 @@ export function WeeklyTimesheet() {
     }
   }
 
-  async function submit() {
-    if (!confirmWarnings("submit")) return;
-    if (!(await save(false)) || !data) return;
+  async function performSubmit() {
+    if (!(await save()) || !data) return;
     const response = await fetch(`/api/timesheets/${data.id}/submit`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: "{}",
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) return setMessage(result.error);
-    setData((current) =>
-      current
-        ? { ...current, sheet: { ...current.sheet, status: "submitted" } }
-        : current,
-    );
-    setMessage("Submitted for approval.");
+    if (!response.ok)
+      return setMessage(
+        result.error ??
+          "You already reported this week. Delete the draft to report again, or edit the existing draft.",
+      );
+    setConfirmOpen(false);
+    setConfirmation("");
+    setRows([]);
+    setSuccess("Time reported successfully");
+    const nextMonday = new Date(`${data.dates[0]}T12:00:00Z`);
+    nextMonday.setUTCDate(nextMonday.getUTCDate() + 7);
+    const next = getIsoWeek(nextMonday);
+    setWeekMode("number");
+    await loadWeek(next.isoYear, next.isoWeek);
   }
 
-  function selectMonday(value: string) {
+  function selectCalendarDate(value: string) {
     if (!value) return;
-    const date = new Date(`${value}T12:00:00Z`);
-    if (date.getUTCDay() !== 1) {
-      setMessage("Select a Monday as the start of the reporting week.");
-      return;
-    }
     const selected = getIsoWeek(value);
     setCopyMode("");
     void loadWeek(selected.isoYear, selected.isoWeek);
@@ -283,53 +293,89 @@ export function WeeklyTimesheet() {
         </div>
         <span className="status">{data.sheet.status}</span>
       </div>
+      {success && (
+        <div className="toast toast-success" role="status">
+          <span className="toast-icon">✓</span>
+          <span>{success}</span>
+          <button aria-label="Dismiss" onClick={() => setSuccess("")}>
+            ×
+          </button>
+        </div>
+      )}
       <section className="card timesheet-controls">
         <div>
           <strong>Reporting week</strong>
-          <div className="actions">
-            <button
-              className="button secondary"
-              onClick={() => {
-                setCopyMode("");
-                void loadWeek();
-              }}
-            >
-              Current week
-            </button>
-            <input
-              className="field compact-field"
-              type="number"
-              value={yearInput}
-              onChange={(event) => setYearInput(Number(event.target.value))}
-              aria-label="ISO year"
-            />
-            <input
-              className="field compact-field"
-              type="number"
-              min="1"
-              max="53"
-              value={weekInput}
-              onChange={(event) => setWeekInput(Number(event.target.value))}
-              aria-label="ISO week"
-            />
-            <button
-              className="button secondary"
-              onClick={() => {
-                setCopyMode("");
-                void loadWeek(yearInput, weekInput);
-              }}
-            >
-              Open week
-            </button>
-            <label>
-              Week starts{" "}
-              <input
-                className="field"
-                type="date"
-                onChange={(event) => selectMonday(event.target.value)}
-              />
-            </label>
+          <div
+            className="week-mode-picker"
+            role="radiogroup"
+            aria-label="Choose how to select a reporting week"
+          >
+            {(["current", "number", "date"] as const).map((mode) => (
+              <label key={mode} className={weekMode === mode ? "selected" : ""}>
+                <input
+                  type="radio"
+                  name="weekMode"
+                  value={mode}
+                  checked={weekMode === mode}
+                  onChange={() => {
+                    setWeekMode(mode);
+                    setCopyMode("");
+                    if (mode === "current") void loadWeek();
+                  }}
+                />
+                {mode === "current"
+                  ? "Current week"
+                  : mode === "number"
+                    ? "Week number"
+                    : "Calendar date"}
+              </label>
+            ))}
           </div>
+          {weekMode === "number" && (
+            <div className="actions selection-panel">
+              <label>
+                Year
+                <input
+                  className="field compact-field"
+                  type="number"
+                  value={yearInput}
+                  onChange={(event) => setYearInput(Number(event.target.value))}
+                />
+              </label>
+              <label>
+                Week
+                <input
+                  className="field compact-field"
+                  type="number"
+                  min="1"
+                  max="53"
+                  value={weekInput}
+                  onChange={(event) => setWeekInput(Number(event.target.value))}
+                />
+              </label>
+              <button
+                className="button secondary"
+                onClick={() => void loadWeek(yearInput, weekInput)}
+              >
+                Open week
+              </button>
+            </div>
+          )}
+          {weekMode === "date" && (
+            <div className="selection-panel">
+              <label>
+                Choose any date in the week
+                <input
+                  className="field"
+                  type="date"
+                  onChange={(event) => selectCalendarDate(event.target.value)}
+                />
+              </label>
+              <small className="muted">
+                The full Monday to Sunday week opens automatically.
+              </small>
+            </div>
+          )}
         </div>
         <div>
           <strong>Copy from</strong>
@@ -383,17 +429,6 @@ export function WeeklyTimesheet() {
       {data.sheet.rejectionReason && (
         <p className="notice">Rejected: {data.sheet.rejectionReason}</p>
       )}
-      {reported > 2400 && (
-        <p className="notice notice-warning">
-          This week exceeds 40 reported hours. Confirm the warning before saving
-          or submitting.
-        </p>
-      )}
-      {reportedRedDays.map((day) => (
-        <p className="notice notice-warning" key={day.date}>
-          You are reporting time on {day.date}, a red day ({day.reason}).
-        </p>
-      ))}
       <section className="metrics">
         <div className="metric">
           <span>Expected</span>
@@ -523,7 +558,27 @@ export function WeeklyTimesheet() {
               disabled={
                 reported < data.sheet.expectedMinutes || !data.codes.length
               }
-              onClick={() => void submit()}
+              onClick={() => {
+                if (submitWarnings.length) {
+                  setConfirmation("");
+                  setConfirmOpen(true);
+                } else void performSubmit();
+              }}
+            >
+              Submit
+            </button>
+          </div>
+        )}
+        {!editable && (
+          <div className="actions timesheet-actions">
+            <span className="actions-spacer" />
+            <button
+              className="button"
+              onClick={() =>
+                setMessage(
+                  "You already reported this week. Delete the old draft if you want to report again, or edit that draft.",
+                )
+              }
             >
               Submit
             </button>
@@ -535,6 +590,56 @@ export function WeeklyTimesheet() {
           </p>
         )}
       </section>
+      {confirmOpen && (
+        <div className="modal-backdrop">
+          <section
+            className="modal modal-small warning-modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="submit-warning-title"
+          >
+            <header className="modal-header">
+              <div>
+                <span className="eyebrow danger-text">Review warnings</span>
+                <h2 id="submit-warning-title">Submit this time report?</h2>
+                <p>
+                  Please review the unusual reporting conditions before
+                  continuing.
+                </p>
+              </div>
+            </header>
+            <ul className="warning-list">
+              {submitWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+            <label>
+              Type <strong>I am sure</strong> to submit
+              <input
+                className="field"
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.target.value)}
+                autoFocus
+              />
+            </label>
+            <footer className="modal-actions">
+              <button
+                className="button secondary"
+                onClick={() => setConfirmOpen(false)}
+              >
+                Review report
+              </button>
+              <button
+                className="button danger"
+                disabled={confirmation !== "I am sure"}
+                onClick={() => void performSubmit()}
+              >
+                Submit anyway
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
     </>
   );
 }

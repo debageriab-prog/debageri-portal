@@ -769,6 +769,136 @@ th {
   color: #71480a;
 }
 
+.week-mode-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(130px, 1fr));
+  gap: 8px;
+  max-width: 620px;
+}
+
+.week-mode-picker label,
+.week-mode-picker button {
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  padding: 12px 14px;
+  background: #faf8f6;
+  color: var(--foreground);
+  cursor: pointer;
+  text-align: center;
+  font-weight: 700;
+}
+
+.week-mode-picker label.selected,
+.week-mode-picker button.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.week-mode-picker input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.selection-panel {
+  max-width: 620px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fcfaf8;
+}
+
+.warning-list {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 22px;
+  padding: 0;
+  list-style: none;
+}
+
+.warning-list li {
+  padding: 12px 14px;
+  border-left: 4px solid #d08a2d;
+  border-radius: 10px;
+  background: #fff6e5;
+  color: #71480a;
+}
+
+.history-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.history-controls .week-mode-picker {
+  grid-template-columns: repeat(2, minmax(110px, 1fr));
+}
+
+.history-controls label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.month-summary {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  align-items: center;
+  gap: 35px;
+  margin-bottom: 18px;
+}
+
+.donut {
+  width: 200px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.donut > div {
+  width: 126px;
+  aspect-ratio: 1;
+  display: grid;
+  place-content: center;
+  border-radius: 50%;
+  background: white;
+  text-align: center;
+  box-shadow: 0 4px 18px rgb(48 37 30 / 8%);
+}
+
+.donut strong,
+.donut span {
+  display: block;
+}
+
+.donut span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chart-legend {
+  display: grid;
+  gap: 10px;
+}
+
+.chart-legend > div {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+}
+
 @media (max-width: 900px) {
   .shell {
     display: block;

@@ -36,7 +36,14 @@ export async function POST(
     const status =
       code === "FORBIDDEN" ? 403 : code === "NOT_FOUND" ? 404 : 409;
     return NextResponse.json(
-      { error: status === 409 ? "The operation could not be completed" : code },
+      {
+        error:
+          code === "ALREADY_REPORTED"
+            ? "You already reported this week. Delete the existing draft if you want to report again, or edit that draft."
+            : status === 409
+              ? "The operation could not be completed"
+              : code,
+      },
       { status },
     );
   }
