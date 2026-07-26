@@ -14,6 +14,6 @@ The visual system uses Inter, warm beige `#F7F2EA`, dark brown `#3D3027`, suppor
 
 ## Assumptions and risks
 
-The only expected cloud project ID is `debageri-portal-prod`; local work uses the fictitious emulator ID `debageri-portal-local`. `debageri` is the initial organization, `Europe/Stockholm` is authoritative, and email/password is the initial provider. Cloud region, retention, App Check provider, identity federation, legal basis, payroll interpretation, and production admin onboarding require explicit organizational decisions.
+The only expected cloud project ID is `debageri-portal`; local work uses the fictitious emulator ID `debageri-portal-local`. `debageri` is the initial organization, `Europe/Stockholm` is authoritative, and email/password is the initial provider. Cloud region, retention, App Check provider, identity federation, legal basis, payroll interpretation, and production admin onboarding require explicit organizational decisions.
 
 The largest remaining risks are incomplete live UI/repository wiring, missing provisioned cloud resources, missing production App Check/monitoring/backups, incomplete browser E2E and Storage-rule tests, and dependency advisories without upstream non-breaking fixes. These are launch blockers, not silently accepted production risks.

@@ -1,5 +1,5 @@
 {
   "projects": {
-    "portal-prod": "debageri-portal-prod"
+    "portal": "debageri-portal"
   }
 }

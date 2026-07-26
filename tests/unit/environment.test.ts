@@ -31,23 +31,23 @@ describe("environment isolation", () => {
     expect(() =>
       validatePortalEnvironment({
         ...safe,
-        NEXT_PUBLIC_FIREBASE_PROJECT_ID: "debageri-portal-prod",
-        PORTAL_EXPECTED_PROJECT_ID: "debageri-portal-prod",
-        FIREBASE_ADMIN_PROJECT_ID: "debageri-portal-prod",
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: "debageri-portal",
+        PORTAL_EXPECTED_PROJECT_ID: "debageri-portal",
+        FIREBASE_ADMIN_PROJECT_ID: "debageri-portal",
       }),
     ).toThrow(/Local/));
   it("accepts the single production project without emulators", () =>
     expect(
       validatePortalEnvironment({
         PORTAL_ENVIRONMENT: "production",
-        PORTAL_EXPECTED_PROJECT_ID: "debageri-portal-prod",
-        NEXT_PUBLIC_FIREBASE_PROJECT_ID: "debageri-portal-prod",
-        FIREBASE_ADMIN_PROJECT_ID: "debageri-portal-prod",
+        PORTAL_EXPECTED_PROJECT_ID: "debageri-portal",
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: "debageri-portal",
+        FIREBASE_ADMIN_PROJECT_ID: "debageri-portal",
         NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "false",
       }),
     ).toMatchObject({
       environment: "production",
-      expectedProjectId: "debageri-portal-prod",
+      expectedProjectId: "debageri-portal",
       useEmulators: false,
     }));
 });

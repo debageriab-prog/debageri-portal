@@ -1,67 +1,89 @@
-# Production deployment
+# Cloud Run deployment
 
-The portal runs as a standalone Next.js container on Cloud Run in `debageri-portal-prod`. Images are stored in the production project's Artifact Registry. Firebase Auth, Firestore, Storage, rules, logs, IAM, and backups belong to the same portal production project and are never shared with `debageri-web`.
+The portal follows the same delivery shape as `debageri-web`: CI runs for branches and pull requests, every non-main branch receives a tagged zero-traffic preview revision, and every push to `main` automatically deploys production. The portal adds data-isolation controls because employee data is more sensitive than public website content.
 
-## GitHub production environment
+The only cloud project is `debageri-portal`. Images live in its `debageri-portal` Artifact Registry repository and the Cloud Run service is named `debageri-portal`.
 
-Create a GitHub Environment named `production` and require reviewer approval. Configure:
+## GitHub repository secrets
 
-### Environment secrets
+Configure these under repository **Settings → Secrets and variables → Actions → Secrets**:
 
-| Name                                                | Value                                         |
-| --------------------------------------------------- | --------------------------------------------- |
-| `GCP_WORKLOAD_IDENTITY_PROVIDER`                    | Full Workload Identity Provider resource name |
-| `GCP_DEPLOYER_SERVICE_ACCOUNT`                      | GitHub deployer service-account email         |
-| `NEXT_PUBLIC_FIREBASE_API_KEY`                      | Firebase Web App API key                      |
-| `NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY` | App Check web provider site key               |
+| Name                                                | Value                                                    |
+| --------------------------------------------------- | -------------------------------------------------------- |
+| `GCP_PROJECT_ID`                                    | `debageri-portal`                                        |
+| `GCP_REGION`                                        | `europe-west1`                                           |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER`                    | Full Workload Identity Provider resource name            |
+| `GCP_DEPLOYER_SERVICE_ACCOUNT`                      | GitHub deployer service-account email                    |
+| `GCP_RUNTIME_SERVICE_ACCOUNT`                       | `portal-runtime@debageri-portal.iam.gserviceaccount.com` |
+| `GCP_PREVIEW_SERVICE_ACCOUNT`                       | `portal-preview@debageri-portal.iam.gserviceaccount.com` |
+| `NEXT_PUBLIC_FIREBASE_API_KEY`                      | Firebase Web App API key                                 |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`                  | Firebase Web App auth domain                             |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`               | Firebase Web App Storage bucket                          |
+| `NEXT_PUBLIC_FIREBASE_APP_ID`                       | Firebase Web App ID                                      |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`          | Firebase Web App sender ID                               |
+| `NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY` | App Check web provider site key                          |
 
-### Environment variables
+Firebase web values are public application configuration, but GitHub secrets keep build configuration consistent and avoid accidental logging. Do not add a Firebase Admin JSON key.
 
-| Name                                       | Value                                                         |
-| ------------------------------------------ | ------------------------------------------------------------- |
-| `GCP_RUNTIME_SERVICE_ACCOUNT`              | `portal-runtime@debageri-portal-prod.iam.gserviceaccount.com` |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`         | Value from the production Firebase Web App                    |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`      | Value from the production Firebase Web App                    |
-| `NEXT_PUBLIC_FIREBASE_APP_ID`              | Value from the production Firebase Web App                    |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Value from the production Firebase Web App                    |
+## Workload Identity Federation and IAM
 
-## Workload Identity Federation
+Create a deployer service account and a Workload Identity Pool/Provider that trusts only `debageriab-prog/debageri-portal`. Bind the repository principal to the deployer with Workload Identity User.
 
-Create a production deployer service account and a Workload Identity Pool/Provider that trusts only `debageriab-prog/debageri-portal`. Bind the repository principal to the deployer service account with Workload Identity User. Do not create a service-account key.
+The deployer needs narrowly scoped permission to:
 
-The deployer needs narrowly scoped ability to:
-
-- push images to the `debageri-portal` Artifact Registry repository;
+- push to the portal Artifact Registry repository;
 - deploy/update the `debageri-portal` Cloud Run service;
-- act as the `portal-runtime` service account;
-- deploy Firestore indexes/rules and Storage rules;
-- read enabled-service/project metadata needed by the deployment tools.
+- act as both `portal-runtime` and `portal-preview`;
+- deploy Firestore rules/indexes and Storage rules;
+- read required project/service metadata.
 
-Use resource-level roles where available. Do not grant Owner.
+`portal-runtime` receives Firestore and Firebase Authentication roles. `portal-preview` deliberately receives no Firestore, Auth, Storage, or Secret Manager data roles. Do not grant Owner.
 
-## Deploy
+## Continuous integration
 
-1. Merge reviewed changes to `main`.
-2. Open GitHub Actions → **Deploy production**.
-3. Select **Run workflow**.
-4. Approve the protected `production` environment.
+`.github/workflows/ci.yml` runs for every pushed branch and pull request:
 
-The workflow:
+1. install dependencies;
+2. validate the exact Firebase project alias;
+3. formatting check;
+4. lint;
+5. strict type check;
+6. unit tests;
+7. Firestore emulator rule tests;
+8. production build.
 
-1. installs dependencies;
-2. validates the exact Firebase alias/project;
-3. runs formatting, lint, strict type checking, unit tests, emulator rule tests, and production build;
-4. authenticates to GCP with short-lived GitHub OIDC credentials;
-5. deploys Firestore rules/indexes and Storage rules;
-6. builds and pushes an immutable image tagged with the commit SHA;
-7. deploys Cloud Run using the dedicated runtime identity.
+## Branch previews
 
-Cloud Run allows unauthenticated HTTP access because the login page and Firebase token exchange must be reachable; application data access remains protected by Firebase authentication, server authorization, and Security Rules.
+Every non-main branch triggers `.github/workflows/preview.yml`. It validates the full project, builds an immutable branch-tagged image, and deploys a tagged Cloud Run revision with zero production traffic.
+
+Unlike the website previews, portal previews use:
+
+- fictitious `debageri-portal-local` Firebase browser configuration;
+- `portal-preview`, which has no employee-data permissions;
+- `PORTAL_ENVIRONMENT=test`;
+- no production Firebase rules deployment.
+
+The preview is suitable for visual and interaction review, but login and production-backed workflows are intentionally unavailable. This prevents unreviewed branch code from reading or mutating employee data.
+
+## Main deployment
+
+Every push or merged PR to `main` triggers `.github/workflows/deploy.yml`. A manual dispatch is also available. The workflow:
+
+1. runs all CI gates again;
+2. verifies `GCP_PROJECT_ID` equals exactly `debageri-portal`;
+3. authenticates through GitHub OIDC/WIF;
+4. deploys Firestore rules/indexes and Storage rules;
+5. builds and pushes SHA and `latest` images;
+6. deploys Cloud Run with `portal-runtime`;
+7. routes 100% of production traffic to the latest healthy revision;
+8. prints the service URL.
+
+Cloud Run allows unauthenticated HTTP invocation because the login page and Firebase token exchange must be reachable. Application data remains protected by Firebase authentication, server authorization, IAM, and Security Rules.
 
 ## Custom domain
 
-After the first Cloud Run deployment succeeds, map `portal.debageri.se` using a supported Cloud Run domain mapping or an external HTTPS load balancer. Add the final domain to Firebase Authentication authorized domains and the App Check configuration. Verify TLS, login, session cookies, rules, and authorization before inviting employees.
+After the first deployment, map `portal.debageri.se` to the production service using a supported Cloud Run mapping or external HTTPS load balancer. Add the final domain to Firebase Authentication authorized domains and App Check. Preview tag URLs do not receive production Firebase/App Check configuration.
 
 ## Rollback
 
-Cloud Run revisions are immutable. Route traffic back to a known-good revision in Cloud Run, then investigate before redeploying. Rules/index changes require their own reviewed rollback commit; do not weaken rules directly in the console.
+Route traffic to a known-good immutable Cloud Run revision, then investigate before redeploying. Rules/index changes require a reviewed rollback commit; do not weaken rules directly in the console.

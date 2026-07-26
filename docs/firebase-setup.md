@@ -1,10 +1,10 @@
 # Firebase production setup
 
-The portal has no cloud development environment. Local development uses Firebase emulators with project ID `debageri-portal-local`; the only real Firebase/GCP project is `debageri-portal-prod`.
+The portal has no separate cloud development environment. Local development uses Firebase emulators with project ID `debageri-portal-local`; the only real Firebase/GCP project is `debageri-portal`.
 
 ## 1. Create the project
 
-In Firebase Console, create `debageri-portal-prod` and attach a billing account. If that globally unique ID is unavailable, stop and update `.firebaserc`, project validation, workflow configuration, tests, and documentation before creating a differently named project. Never select or add Firebase resources to a `debageri-web*` project.
+In Firebase Console, create `debageri-portal` and attach a billing account. If that globally unique ID is unavailable, stop and update `.firebaserc`, project validation, workflow configuration, tests, and documentation before creating a differently named project. Never select or add Firebase resources to a `debageri-web*` project.
 
 Choose the Firestore and Storage locations only after confirming data-residency, latency, backup, and organizational requirements. Locations cannot be casually changed later.
 
@@ -29,10 +29,10 @@ From Google Cloud Shell:
 git clone https://github.com/debageriab-prog/debageri-portal.git
 cd debageri-portal
 git checkout main
-PROJECT_ID=debageri-portal-prod bash scripts/setup-gcp-production.sh
+PROJECT_ID=debageri-portal bash scripts/setup-gcp-production.sh
 ```
 
-The script validates the exact project ID, enables required APIs, creates the `europe-west1` Artifact Registry repository, creates `portal-runtime@debageri-portal-prod.iam.gserviceaccount.com`, and grants it Firestore and Firebase Authentication runtime access.
+The script validates the exact project ID, enables required APIs, creates the `europe-west1` Artifact Registry repository, creates `portal-runtime@debageri-portal.iam.gserviceaccount.com` with Firestore/Auth access, and creates `portal-preview@debageri-portal.iam.gserviceaccount.com` without production-data roles.
 
 Do not generate a JSON key. Cloud Run uses its attached service identity and Application Default Credentials.
 
@@ -44,7 +44,7 @@ Before the first application deployment:
 npm ci
 npm run check:project
 npm run test:rules
-npm run deploy:prod
+npm run deploy
 ```
 
 This deploys only resources declared in `firebase.json`: Firestore rules/indexes and Storage rules. The repository has no default Firebase alias, so an unqualified deployment cannot silently select production.

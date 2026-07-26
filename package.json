@@ -19,7 +19,7 @@
     "emulators": "firebase emulators:start --project debageri-portal-local --export-on-exit=.firebase-data",
     "seed": "tsx scripts/seed-emulators.ts",
     "check:project": "tsx scripts/validate-project.ts",
-    "deploy:prod": "npm run check:project && firebase deploy --project portal-prod",
+    "deploy": "npm run check:project && firebase deploy --project portal",
     "ci": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:rules && npm run build"
   },
   "dependencies": {

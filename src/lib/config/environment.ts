@@ -44,7 +44,7 @@ export function validatePortalEnvironment(
     throw new Error("Portal Firebase project IDs do not match");
   if (
     parsed.PORTAL_ENVIRONMENT === "production" &&
-    ids[0] !== "debageri-portal-prod"
+    ids[0] !== "debageri-portal"
   ) {
     throw new Error("Production must target a portal production project");
   }

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ID="${PROJECT_ID:-debageri-portal-prod}"
+PROJECT_ID="${PROJECT_ID:-debageri-portal}"
 REGION="${REGION:-europe-west1}"
 REPOSITORY="${REPOSITORY:-debageri-portal}"
 RUNTIME_SERVICE_ACCOUNT="${RUNTIME_SERVICE_ACCOUNT:-portal-runtime}"
+PREVIEW_SERVICE_ACCOUNT="${PREVIEW_SERVICE_ACCOUNT:-portal-preview}"
 
-if [[ "$PROJECT_ID" != "debageri-portal-prod" ]]; then
+if [[ "$PROJECT_ID" != "debageri-portal" ]]; then
   echo "Refusing unexpected project: $PROJECT_ID" >&2
   exit 1
 fi
@@ -43,6 +44,13 @@ for role in roles/datastore.user roles/firebaseauth.admin; do
     --condition=None >/dev/null
 done
 
+PREVIEW_EMAIL="${PREVIEW_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com"
+if ! gcloud iam service-accounts describe "$PREVIEW_EMAIL" >/dev/null 2>&1; then
+  gcloud iam service-accounts create "$PREVIEW_SERVICE_ACCOUNT" \
+    --display-name "Debageri Portal branch preview (no data access)"
+fi
+
 echo "Base production resources are ready."
 echo "Runtime identity: $RUNTIME_EMAIL"
-echo "Next: configure Firebase products, GitHub WIF, repository environment values, and run Deploy production."
+echo "Preview identity: $PREVIEW_EMAIL (intentionally has no Firebase data roles)"
+echo "Next: configure Firebase products, GitHub WIF, repository values, and push a branch."
