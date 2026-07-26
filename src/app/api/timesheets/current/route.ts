@@ -159,7 +159,7 @@ async function loadCurrent(request: Request) {
   }, 0);
   let sheet = sheetDoc.data() as Omit<Timesheet, "id"> | undefined;
   if (!sheetDoc.exists) {
-    const newSheet = {
+    sheet = {
       organizationId: user.organizationId,
       userId: user.id,
       managerId: user.managerId,
@@ -176,19 +176,11 @@ async function loadCurrent(request: Request) {
       absenceMinutes: 0,
       rejectionReason: null,
       version: 0,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
     };
-    await db.collection("timesheets").doc(id).create(newSheet);
-    sheet = newSheet;
   } else if (
     sheet?.status === "draft" &&
     sheet?.expectedMinutes !== expectedMinutes
   ) {
-    await sheetDoc.ref.update({
-      expectedMinutes,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
     sheet = { ...sheet!, expectedMinutes };
   }
   const entryDocs = await db
@@ -247,6 +239,7 @@ async function loadCurrent(request: Request) {
   return {
     user,
     id,
+    sheetExists: sheetDoc.exists,
     dates,
     part: selectedPart,
     partCount: parts.length,
@@ -362,12 +355,34 @@ async function saveCurrent(request: Request) {
       updatedAt: FieldValue.serverTimestamp(),
     });
   }
-  batch.update(db.collection("timesheets").doc(loaded.id), {
+  const sheetRef = db.collection("timesheets").doc(loaded.id);
+  const totals = {
+    expectedMinutes: loaded.sheet.expectedMinutes,
     reportedMinutes,
     workedMinutes,
     absenceMinutes,
     updatedAt: FieldValue.serverTimestamp(),
-  });
+  };
+  if (loaded.sheetExists) {
+    batch.update(sheetRef, totals);
+  } else {
+    batch.create(sheetRef, {
+      organizationId: loaded.user.organizationId,
+      userId: loaded.user.id,
+      managerId: loaded.user.managerId,
+      isoYear: loaded.sheet.isoYear,
+      isoWeek: loaded.sheet.isoWeek,
+      part: loaded.part,
+      partCount: loaded.partCount,
+      periodStart: loaded.dates[0],
+      periodEnd: loaded.dates.at(-1),
+      status: "draft",
+      rejectionReason: null,
+      version: 0,
+      ...totals,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
   await batch.commit();
   return NextResponse.json({ ok: true });
 }

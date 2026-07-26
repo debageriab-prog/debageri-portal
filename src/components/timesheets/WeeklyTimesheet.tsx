@@ -673,9 +673,6 @@ export function WeeklyTimesheet() {
               Add row
             </button>
             <span className="actions-spacer" />
-            <button className="button secondary" onClick={() => void save()}>
-              Save
-            </button>
             <button
               className="button"
               disabled={
