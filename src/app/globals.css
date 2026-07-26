@@ -694,6 +694,40 @@ th {
   }
 }
 
+.timesheet-grid {
+  min-width: 1050px;
+}
+
+.timesheet-grid th:not(:first-child),
+.timesheet-grid td:not(:first-child) {
+  text-align: center;
+}
+
+.timesheet-grid th small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.timesheet-grid td:first-child {
+  min-width: 220px;
+}
+
+.time-cell {
+  min-width: 68px;
+  padding-inline: 8px;
+  text-align: center;
+}
+
+.timesheet-actions {
+  margin-top: 20px;
+}
+
+.actions-spacer {
+  flex: 1;
+}
+
 @media (max-width: 900px) {
   .shell {
     display: block;

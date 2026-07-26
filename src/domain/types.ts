@@ -43,6 +43,7 @@ export interface EmploymentTerm {
   userId: string;
   validFrom: string;
   validTo: string | null;
+  reportingStartDate?: string;
   employmentPercentage: number;
   weeklyMinutes: number;
   schedule: WeeklySchedule;
@@ -62,6 +63,7 @@ export interface TimeCode {
   validFrom: string;
   validTo: string | null;
   sortOrder: number;
+  hourlyRate?: number;
 }
 
 export interface TimeCodeSnapshot {
@@ -70,6 +72,7 @@ export interface TimeCodeSnapshot {
   category: TimeCategory;
   countsAsWorkedTime: boolean;
   countsTowardExpectedTime: boolean;
+  hourlyRate?: number;
 }
 
 export interface TimeEntry {

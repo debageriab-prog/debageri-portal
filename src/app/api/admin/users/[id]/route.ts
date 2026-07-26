@@ -10,6 +10,9 @@ const updateSchema = z.object({
   employeeNumber: z.string().trim().min(1).max(30),
   role: z.enum(["employee", "manager", "admin"]),
   status: z.enum(["active", "inactive"]),
+  employmentStartDate: z.iso.date(),
+  employmentEndDate: z.iso.date().nullable(),
+  reportingStartDate: z.iso.date(),
 });
 
 async function loadTarget(id: string) {
@@ -42,6 +45,18 @@ export async function PATCH(
       { error: "Check the employee details and try again." },
       { status: 400 },
     );
+  if (id === loaded.actor.id) {
+    const current = loaded.target.data()!;
+    if (
+      parsed.data.employeeNumber !== current.employeeNumber ||
+      parsed.data.role !== current.role ||
+      parsed.data.status !== current.status
+    )
+      return NextResponse.json(
+        { error: "You can only change your own full name and email." },
+        { status: 403 },
+      );
+  }
 
   try {
     await loaded.auth.updateUser(id, {
@@ -53,11 +68,29 @@ export async function PATCH(
       role: parsed.data.role,
       organizationId: loaded.actor.organizationId,
     });
+    const terms = await loaded.db
+      .collection("employmentTerms")
+      .where("userId", "==", id)
+      .get();
+    const term = terms.docs.sort((a, b) =>
+      String(b.data().validFrom).localeCompare(String(a.data().validFrom)),
+    )[0];
     const batch = loaded.db.batch();
     batch.update(loaded.target.ref, {
-      ...parsed.data,
+      displayName: parsed.data.displayName,
+      email: parsed.data.email,
+      employeeNumber: parsed.data.employeeNumber,
+      role: parsed.data.role,
+      status: parsed.data.status,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    if (term)
+      batch.update(term.ref, {
+        validFrom: parsed.data.employmentStartDate,
+        validTo: parsed.data.employmentEndDate,
+        reportingStartDate: parsed.data.reportingStartDate,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     batch.create(loaded.db.collection("auditLogs").doc(), {
       organizationId: loaded.actor.organizationId,
       actorUserId: loaded.actor.id,
@@ -87,7 +120,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
@@ -103,6 +136,14 @@ export async function DELETE(
     return NextResponse.json(
       { error: "You cannot delete your own account." },
       { status: 409 },
+    );
+  const confirmation = (await request.json().catch(() => null)) as {
+    confirmation?: unknown;
+  } | null;
+  if (confirmation?.confirmation !== "I am sure")
+    return NextResponse.json(
+      { error: 'Type "I am sure" to confirm deletion.' },
+      { status: 400 },
     );
 
   try {

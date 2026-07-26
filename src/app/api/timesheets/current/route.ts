@@ -40,13 +40,28 @@ async function loadCurrent() {
     .filter(
       (item) =>
         item.validFrom <= dates[6]! &&
-        (!item.validTo || item.validTo >= dates[0]!),
+        (!item.validTo || item.validTo >= dates[0]!) &&
+        String(item.reportingStartDate ?? item.validFrom) <= dates[6]!,
     )
     .sort((a, b) => String(b.validFrom).localeCompare(String(a.validFrom)))[0];
   if (!term)
     return { user, error: "No active employment terms are configured." };
   let sheet = sheetDoc.data() as Omit<Timesheet, "id"> | undefined;
   if (!sheetDoc.exists) {
+    const scheduleKeys = [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday",
+    ];
+    const expectedMinutes = dates.reduce((total, date, index) => {
+      const begins = String(term.reportingStartDate ?? term.validFrom);
+      if (date < begins || (term.validTo && date > term.validTo)) return total;
+      return total + Number(term.schedule?.[scheduleKeys[index]!] ?? 0);
+    }, 0);
     const newSheet = {
       organizationId: user.organizationId,
       userId: user.id,
@@ -56,7 +71,7 @@ async function loadCurrent() {
       periodStart: dates[0]!,
       periodEnd: dates[6]!,
       status: "draft" as const,
-      expectedMinutes: term.weeklyMinutes,
+      expectedMinutes,
       reportedMinutes: 0,
       workedMinutes: 0,
       absenceMinutes: 0,
@@ -163,6 +178,7 @@ export async function PUT(request: Request) {
         category: code.category,
         countsAsWorkedTime: code.countsAsWorkedTime,
         countsTowardExpectedTime: code.countsTowardExpectedTime,
+        hourlyRate: Number(code.hourlyRate ?? 0),
       },
       minutes: entry.minutes,
       comment: entry.comment || null,

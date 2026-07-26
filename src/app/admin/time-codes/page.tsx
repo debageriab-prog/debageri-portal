@@ -1,5 +1,7 @@
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
+import { TimeCodeManagement } from "./TimeCodeManagement";
+
 export default async function TimeCodesPage() {
   const user = (await verifySession())!;
   const { db } = getAdminServices();
@@ -7,47 +9,20 @@ export default async function TimeCodesPage() {
     .collection("timeCodes")
     .where("organizationId", "==", user.organizationId)
     .get();
-  return (
-    <>
-      <div className="topbar">
-        <div>
-          <div className="eyebrow">Admin</div>
-          <h1>Time codes</h1>
-          <p className="muted page-description">
-            See the work and absence categories employees can select when
-            reporting their time.
-          </p>
-        </div>
-      </div>
-      <section className="card table-wrap">
-        {snapshot.empty ? (
-          <p>No time codes are configured.</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Category</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {snapshot.docs.map((doc) => {
-                const code = doc.data();
-                return (
-                  <tr key={doc.id}>
-                    <td>{code.code}</td>
-                    <td>{code.name?.en ?? code.name?.sv}</td>
-                    <td>{code.category}</td>
-                    <td>{code.active ? "Active" : "Inactive"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </>
-  );
+  const codes = snapshot.docs
+    .map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        code: String(data.code),
+        name: String(data.name?.en ?? data.name?.sv ?? data.code),
+        category: String(data.category),
+        hourlyRate: Number(data.hourlyRate ?? 0),
+        active: Boolean(data.active),
+        requiresComment: Boolean(data.requiresComment),
+        countsAsWorkedTime: Boolean(data.countsAsWorkedTime),
+      };
+    })
+    .sort((a, b) => a.code.localeCompare(b.code));
+  return <TimeCodeManagement codes={codes} />;
 }

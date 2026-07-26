@@ -13,9 +13,10 @@ export function EmployeeForm({
   const [busy, setBusy] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setBusy(true);
     setError("");
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(formElement);
     try {
       const response = await fetch("/api/admin/users", {
         method: "POST",
@@ -26,6 +27,8 @@ export function EmployeeForm({
           employeeNumber: form.get("employeeNumber"),
           password: form.get("password"),
           weeklyHours: Number(form.get("weeklyHours")),
+          employmentStartDate: form.get("employmentStartDate"),
+          reportingStartDate: form.get("reportingStartDate"),
         }),
       });
       const result = (await response.json().catch(() => ({}))) as {
@@ -36,7 +39,7 @@ export function EmployeeForm({
           result.error ??
             "The employee could not be created. Please try again.",
         );
-      event.currentTarget.reset();
+      formElement.reset();
       setOpen(false);
       onCreated("Employee created successfully.");
       router.refresh();
@@ -121,6 +124,30 @@ export function EmployeeForm({
                     placeholder="40"
                     required
                   />
+                </label>
+                <label>
+                  Employment start date
+                  <input
+                    className="field"
+                    name="employmentStartDate"
+                    type="date"
+                    defaultValue={new Date().toISOString().slice(0, 10)}
+                    required
+                  />
+                </label>
+                <label>
+                  Time reporting start date
+                  <input
+                    className="field"
+                    name="reportingStartDate"
+                    type="date"
+                    defaultValue={new Date().toISOString().slice(0, 10)}
+                    required
+                  />
+                  <small>
+                    The first date from which this employee is expected to
+                    submit time.
+                  </small>
                 </label>
                 <label className="form-wide">
                   Temporary password

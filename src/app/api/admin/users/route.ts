@@ -10,6 +10,8 @@ const inputSchema = z.object({
   employeeNumber: z.string().trim().min(1).max(30),
   password: z.string().min(8).max(128),
   weeklyHours: z.number().positive().max(168),
+  employmentStartDate: z.iso.date(),
+  reportingStartDate: z.iso.date(),
 });
 
 export async function POST(request: Request) {
@@ -56,8 +58,9 @@ export async function POST(request: Request) {
     batch.create(db.collection("employmentTerms").doc(), {
       organizationId: actor.organizationId,
       userId: uid,
-      validFrom: new Date().toISOString().slice(0, 10),
+      validFrom: parsed.data.employmentStartDate,
       validTo: null,
+      reportingStartDate: parsed.data.reportingStartDate,
       employmentPercentage: Math.round((weeklyMinutes / 2400) * 100),
       weeklyMinutes,
       schedule: {

@@ -11,6 +11,10 @@ export interface ManagedUser {
   employeeNumber: string;
   role: string;
   status: string;
+  createdAt: number;
+  employmentStartDate: string;
+  employmentEndDate: string;
+  reportingStartDate: string;
 }
 
 export function UserManagement({
@@ -26,6 +30,7 @@ export function UserManagement({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   function showSuccess(value: string) {
     setError("");
@@ -48,9 +53,17 @@ export function UserManagement({
           body: JSON.stringify({
             displayName: form.get("displayName"),
             email: form.get("email"),
-            employeeNumber: form.get("employeeNumber"),
-            role: form.get("role"),
-            status: form.get("status"),
+            employeeNumber:
+              form.get("employeeNumber") ?? editing.employeeNumber,
+            role: form.get("role") ?? editing.role,
+            status: form.get("status") ?? editing.status,
+            employmentStartDate:
+              form.get("employmentStartDate") ?? editing.employmentStartDate,
+            employmentEndDate:
+              (form.get("employmentEndDate") ?? editing.employmentEndDate) ||
+              null,
+            reportingStartDate:
+              form.get("reportingStartDate") ?? editing.reportingStartDate,
           }),
         },
       );
@@ -81,7 +94,11 @@ export function UserManagement({
     try {
       const response = await fetch(
         `/api/admin/users/${encodeURIComponent(deleting.id)}`,
-        { method: "DELETE" },
+        {
+          method: "DELETE",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ confirmation: deleteConfirmation }),
+        },
       );
       const result = (await response.json().catch(() => ({}))) as {
         error?: string;
@@ -186,6 +203,7 @@ export function UserManagement({
                         }
                         onClick={() => {
                           setError("");
+                          setDeleteConfirmation("");
                           setDeleting(user);
                         }}
                       >
@@ -254,6 +272,7 @@ export function UserManagement({
                     name="employeeNumber"
                     defaultValue={editing.employeeNumber}
                     required
+                    disabled={editing.id === currentUserId}
                   />
                 </label>
                 <label>
@@ -262,6 +281,7 @@ export function UserManagement({
                     className="field"
                     name="role"
                     defaultValue={editing.role}
+                    disabled={editing.id === currentUserId}
                   >
                     <option value="employee">Employee</option>
                     <option value="manager">Manager</option>
@@ -274,6 +294,7 @@ export function UserManagement({
                     className="field"
                     name="status"
                     defaultValue={editing.status}
+                    disabled={editing.id === currentUserId}
                   >
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
@@ -282,6 +303,44 @@ export function UserManagement({
                     Inactive accounts cannot sign in until they are reactivated.
                   </small>
                 </label>
+                <label>
+                  Employment start date
+                  <input
+                    className="field"
+                    name="employmentStartDate"
+                    type="date"
+                    defaultValue={editing.employmentStartDate}
+                    disabled={editing.id === currentUserId}
+                    required
+                  />
+                </label>
+                <label>
+                  Employment end date
+                  <input
+                    className="field"
+                    name="employmentEndDate"
+                    type="date"
+                    defaultValue={editing.employmentEndDate}
+                    disabled={editing.id === currentUserId}
+                  />
+                </label>
+                <label className="form-wide">
+                  Time reporting start date
+                  <input
+                    className="field"
+                    name="reportingStartDate"
+                    type="date"
+                    defaultValue={editing.reportingStartDate}
+                    disabled={editing.id === currentUserId}
+                    required
+                  />
+                </label>
+                {editing.id === currentUserId && (
+                  <p className="notice form-wide">
+                    For your own account, only full name and email can be
+                    changed.
+                  </p>
+                )}
               </div>
               {error && (
                 <p className="notice notice-error" role="alert">
@@ -330,16 +389,29 @@ export function UserManagement({
                 {error}
               </p>
             )}
+            <label>
+              Type <strong>I am sure</strong> to confirm
+              <input
+                className="field"
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                autoComplete="off"
+                autoFocus
+              />
+            </label>
             <footer className="modal-actions">
               <button
                 className="button secondary"
-                onClick={() => setDeleting(null)}
+                onClick={() => {
+                  setDeleting(null);
+                  setDeleteConfirmation("");
+                }}
               >
                 Keep employee
               </button>
               <button
                 className="button danger"
-                disabled={busy}
+                disabled={busy || deleteConfirmation !== "I am sure"}
                 onClick={remove}
               >
                 {busy ? "Deleting..." : "Delete employee"}
