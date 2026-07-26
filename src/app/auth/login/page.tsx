@@ -3,8 +3,10 @@
 import { FormEvent, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 export default function LoginPage() {
+  const { t } = useLocale();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -24,12 +26,10 @@ export default function LoginPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ idToken: await credential.user.getIdToken() }),
       });
-      if (!response.ok) throw new Error("Kontot saknar åtkomst.");
+      if (!response.ok) throw new Error(t("accessDenied"));
       window.location.assign("/employee");
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Inloggningen misslyckades.",
-      );
+      setError(reason instanceof Error ? reason.message : t("loginFailed"));
     } finally {
       setBusy(false);
     }
@@ -42,13 +42,13 @@ export default function LoginPage() {
           <span>Debageri Portal</span>
         </div>
         <div style={{ margin: "35px 0 22px" }}>
-          <div className="eyebrow">Medarbetarportal</div>
-          <h1>Välkommen tillbaka</h1>
-          <p className="muted">Logga in med ditt Debageri-konto.</p>
+          <div className="eyebrow">{t("employeePortal")}</div>
+          <h1>{t("welcomeBack")}</h1>
+          <p className="muted">{t("loginIntro")}</p>
         </div>
         <form onSubmit={submit} style={{ display: "grid", gap: 14 }}>
           <label>
-            E-post
+            {t("email")}
             <input
               className="field"
               name="email"
@@ -58,7 +58,7 @@ export default function LoginPage() {
             />
           </label>
           <label>
-            Lösenord
+            {t("password")}
             <input
               className="field"
               name="password"
@@ -73,7 +73,7 @@ export default function LoginPage() {
             </p>
           )}
           <button className="button" disabled={busy}>
-            {busy ? "Loggar in…" : "Logga in"}
+            {busy ? t("signingIn") : t("signIn")}
           </button>
         </form>
       </section>

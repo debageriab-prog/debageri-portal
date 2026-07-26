@@ -2,17 +2,9 @@
 
 import { useMemo, useRef, useState } from "react";
 import { formatDuration } from "@/lib/durations/duration";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 type Entry = { id: number; code: string; minutes: number; comment: string };
-const days = [
-  ["Måndag", "27 juli"],
-  ["Tisdag", "28 juli"],
-  ["Onsdag", "29 juli"],
-  ["Torsdag", "30 juli"],
-  ["Fredag", "31 juli"],
-  ["Lördag", "1 augusti"],
-  ["Söndag", "2 augusti"],
-];
 const codes = [
   "REG",
   "VAC",
@@ -33,6 +25,16 @@ const initial: Record<number, Entry[]> = {
 };
 
 export function WeeklyTimesheet() {
+  const { locale, t } = useLocale();
+  const days = [
+    [t("monday"), t("july27")],
+    [t("tuesday"), t("july28")],
+    [t("wednesday"), t("july29")],
+    [t("thursday"), t("july30")],
+    [t("friday"), t("july31")],
+    [t("saturday"), t("august1")],
+    [t("sunday"), t("august2")],
+  ];
   const [entries, setEntries] = useState(initial);
   const [saved, setSaved] = useState(false);
   const nextEntryId = useRef(10);
@@ -81,50 +83,51 @@ export function WeeklyTimesheet() {
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Tidrapportering</div>
-          <h1>Vecka 31</h1>
-          <div className="muted">27 juli–2 augusti 2026 · Europe/Stockholm</div>
+          <div className="eyebrow">{t("timeReporting")}</div>
+          <h1>{t("week")} 31</h1>
+          <div className="muted">{t("dateRange")}</div>
         </div>
-        <span className="status">Utkast</span>
+        <span className="status">{t("draft")}</span>
       </div>
-      <section className="metrics" aria-label="Veckosammanfattning">
+      <section className="metrics" aria-label={t("weekSummary")}>
         {[
-          ["Förväntat", expected],
-          ["Rapporterat", reported],
-          ["Arbetat", worked],
-          ["Frånvaro", reported - worked],
-          ["Differens", reported - expected],
+          [t("expected"), expected],
+          [t("reported"), reported],
+          [t("worked"), worked],
+          [t("absence"), reported - worked],
+          [t("difference"), reported - expected],
         ].map(([label, value]) => (
           <div className="metric" key={label}>
             <span className="muted">{label}</span>
-            <strong>{formatDuration(value as number)}</strong>
+            <strong>{formatDuration(value as number, locale)}</strong>
           </div>
         ))}
       </section>
       <section className="card">
         <div className="week-head">
           <div className="week-nav">
-            <button className="icon-button" aria-label="Föregående vecka">
+            <button className="icon-button" aria-label={t("previousWeek")}>
               ←
             </button>
-            <button className="icon-button" aria-label="Nästa vecka">
+            <button className="icon-button" aria-label={t("nextWeek")}>
               →
             </button>
           </div>
           <div className="actions">
             <button className="button secondary" onClick={() => setSaved(true)}>
-              {saved ? "Sparat ✓" : "Spara utkast"}
+              {saved ? t("saved") : t("save")}
             </button>
             <button className="button" disabled={reported !== expected}>
-              Skicka in veckan
+              {t("submitWeek")}
             </button>
           </div>
         </div>
         {reported !== expected && (
           <p className="notice" role="status">
-            Rapporterad tid skiljer sig från förväntad tid med{" "}
-            {formatDuration(reported - expected)}. Kontrollera veckan före
-            inskick.
+            {t("expectedShortfall").replace(
+              "{duration}",
+              formatDuration(reported - expected, locale),
+            )}
           </p>
         )}
         <div className="days">
@@ -142,15 +145,15 @@ export function WeeklyTimesheet() {
                     <div className="muted">{date}</div>
                   </div>
                   <span className="muted">
-                    Förväntat {day < 5 ? "8 h" : "0 min"}
+                    {t("expected")} {day < 5 ? "8 h" : "0 min"}
                   </span>
-                  <strong>{formatDuration(total)}</strong>
+                  <strong>{formatDuration(total, locale)}</strong>
                 </header>
                 {dayEntries.map((entry) => (
                   <div className="entry" key={entry.id}>
                     <select
                       className="field"
-                      aria-label={`Tidkod ${name}`}
+                      aria-label={`${t("code")} ${name}`}
                       value={entry.code}
                       onChange={(event) =>
                         patch(day, entry.id, { code: event.target.value })
@@ -162,7 +165,7 @@ export function WeeklyTimesheet() {
                     </select>
                     <input
                       className="field"
-                      aria-label={`Minuter ${name}`}
+                      aria-label={`${t("minutes")} ${name}`}
                       type="number"
                       min="1"
                       max="1440"
@@ -175,9 +178,9 @@ export function WeeklyTimesheet() {
                     />
                     <input
                       className="field"
-                      aria-label={`Kommentar ${name}`}
+                      aria-label={`${t("comment")} ${name}`}
                       type="text"
-                      placeholder="Kommentar (valfri)"
+                      placeholder={t("optionalComment")}
                       value={entry.comment}
                       onChange={(event) =>
                         patch(day, entry.id, { comment: event.target.value })
@@ -185,7 +188,7 @@ export function WeeklyTimesheet() {
                     />
                     <button
                       className="icon-button"
-                      aria-label={`Ta bort rad ${name}`}
+                      aria-label={`${t("removeEntry")} ${name}`}
                       onClick={() => remove(day, entry.id)}
                     >
                       ×
@@ -194,7 +197,7 @@ export function WeeklyTimesheet() {
                 ))}
                 <div className="entry-empty">
                   <button className="button secondary" onClick={() => add(day)}>
-                    + Lägg till rad
+                    {t("addEntry")}
                   </button>
                 </div>
               </article>
