@@ -8,26 +8,38 @@ The only cloud project is `debageri-portal`. Images live in its `debageri-portal
 
 Configure these under repository **Settings → Secrets and variables → Actions → Secrets**:
 
-| Name                                                | Value                                                    |
-| --------------------------------------------------- | -------------------------------------------------------- |
-| `GCP_PROJECT_ID`                                    | `debageri-portal`                                        |
-| `GCP_REGION`                                        | `europe-west1`                                           |
-| `GCP_WORKLOAD_IDENTITY_PROVIDER`                    | Full Workload Identity Provider resource name            |
-| `GCP_DEPLOYER_SERVICE_ACCOUNT`                      | GitHub deployer service-account email                    |
-| `GCP_RUNTIME_SERVICE_ACCOUNT`                       | `portal-runtime@debageri-portal.iam.gserviceaccount.com` |
-| `GCP_PREVIEW_SERVICE_ACCOUNT`                       | `portal-preview@debageri-portal.iam.gserviceaccount.com` |
-| `NEXT_PUBLIC_FIREBASE_API_KEY`                      | Firebase Web App API key                                 |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`                  | Firebase Web App auth domain                             |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`               | Firebase Web App Storage bucket                          |
-| `NEXT_PUBLIC_FIREBASE_APP_ID`                       | Firebase Web App ID                                      |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`          | Firebase Web App sender ID                               |
-| `NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY` | App Check web provider site key                          |
+| Name                                                | Value                                                                                                        |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `GCP_PROJECT_ID`                                    | `debageri-portal`                                                                                            |
+| `GCP_REGION`                                        | `europe-west1`                                                                                               |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER`                    | Full provider name: `projects/NUMBER/locations/global/workloadIdentityPools/github/providers/github-actions` |
+| `GCP_DEPLOYER_SERVICE_ACCOUNT`                      | GitHub deployer service-account email                                                                        |
+| `GCP_RUNTIME_SERVICE_ACCOUNT`                       | `portal-runtime@debageri-portal.iam.gserviceaccount.com`                                                     |
+| `GCP_PREVIEW_SERVICE_ACCOUNT`                       | `portal-preview@debageri-portal.iam.gserviceaccount.com`                                                     |
+| `NEXT_PUBLIC_FIREBASE_API_KEY`                      | Firebase Web App API key                                                                                     |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`                  | Firebase Web App auth domain                                                                                 |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`               | Firebase Web App Storage bucket                                                                              |
+| `NEXT_PUBLIC_FIREBASE_APP_ID`                       | Firebase Web App ID                                                                                          |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`          | Firebase Web App sender ID                                                                                   |
+| `NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY` | App Check web provider site key                                                                              |
 
 Firebase web values are public application configuration, but GitHub secrets keep build configuration consistent and avoid accidental logging. Do not add a Firebase Admin JSON key.
 
 ## Workload Identity Federation and IAM
 
 Create a deployer service account and a Workload Identity Pool/Provider that trusts only `debageriab-prog/debageri-portal`. Bind the repository principal to the deployer with Workload Identity User.
+
+Copy the provider name into the GitHub secret exactly as returned by:
+
+```bash
+gcloud iam workload-identity-pools providers describe github-actions \
+  --project=debageri-portal \
+  --location=global \
+  --workload-identity-pool=github \
+  --format='value(name)'
+```
+
+The value must include the numeric project number, pool, and provider. Do not prefix it with `//iam.googleapis.com/`, use a provider URL, or use only the pool name.
 
 The deployer needs narrowly scoped permission to:
 
