@@ -72,14 +72,33 @@ export async function POST(request: Request) {
       createdAt: FieldValue.serverTimestamp(),
       createdBy: actor.id,
     });
+    batch.create(db.collection("auditLogs").doc(), {
+      organizationId: actor.organizationId,
+      actorUserId: actor.id,
+      action: "user.created",
+      entityType: "user",
+      entityId: uid,
+      timestamp: FieldValue.serverTimestamp(),
+      metadata: { role: "employee" },
+    });
     await batch.commit();
     return NextResponse.json({ id: uid }, { status: 201 });
   } catch (error) {
     if (uid) await auth.deleteUser(uid).catch(() => undefined);
-    const message =
-      error instanceof Error && error.message.includes("email-already-exists")
-        ? "Email already exists"
-        : "Employee could not be created";
-    return NextResponse.json({ error: message }, { status: 409 });
+    const code =
+      typeof error === "object" && error && "code" in error
+        ? String(error.code)
+        : "";
+    const emailExists =
+      code === "auth/email-already-exists" ||
+      (error instanceof Error &&
+        error.message.includes("email-already-exists"));
+    const message = emailExists
+      ? "That email address is already used by another account."
+      : "The employee could not be created. Please try again.";
+    return NextResponse.json(
+      { error: message },
+      { status: emailExists ? 409 : 500 },
+    );
   }
 }

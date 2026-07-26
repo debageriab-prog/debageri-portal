@@ -566,6 +566,122 @@ th {
   padding-top: 20px;
   border-top: 1px solid var(--border);
 }
+.modal-small {
+  width: min(520px, 100%);
+}
+.toast {
+  position: fixed;
+  z-index: 120;
+  top: 24px;
+  right: 28px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  max-width: min(420px, calc(100vw - 40px));
+  padding: 13px 15px;
+  border: 1px solid #bbd8c5;
+  border-radius: 14px;
+  background: #f4fbf6;
+  color: #28543b;
+  box-shadow: 0 16px 45px rgb(39 77 54 / 16%);
+  animation: modal-in 220ms ease;
+  font-size: 14px;
+  font-weight: 650;
+}
+.toast-icon {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #dcefe2;
+}
+.toast button {
+  margin-left: 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 20px;
+}
+.row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.table-action {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 6px 10px;
+  background: #fff;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.table-action:hover {
+  border-color: #b99a83;
+  background: #faf6f2;
+}
+.table-action-danger {
+  color: var(--danger);
+}
+.table-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.self-label {
+  display: inline-block;
+  margin-left: 8px;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.capitalize {
+  text-transform: capitalize;
+}
+.status-active {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.status-inactive {
+  background: #eeeae7;
+  color: #6e625a;
+}
+.notice-error {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.danger-text {
+  color: var(--danger);
+}
+.empty-state {
+  padding: 46px 20px;
+  text-align: center;
+}
+.empty-state > span {
+  display: inline-grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 20px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.empty-state h2 {
+  margin-bottom: 6px;
+}
+.empty-state p {
+  margin: 0;
+  color: var(--muted);
+}
 @keyframes fade-in {
   from {
     opacity: 0;

@@ -2,7 +2,11 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function EmployeeForm() {
+export function EmployeeForm({
+  onCreated,
+}: {
+  onCreated: (message: string) => void;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
@@ -12,23 +16,37 @@ export function EmployeeForm() {
     setBusy(true);
     setError("");
     const form = new FormData(event.currentTarget);
-    const response = await fetch("/api/admin/users", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        displayName: form.get("displayName"),
-        email: form.get("email"),
-        employeeNumber: form.get("employeeNumber"),
-        password: form.get("password"),
-        weeklyHours: Number(form.get("weeklyHours")),
-      }),
-    });
-    const result = await response.json();
-    setBusy(false);
-    if (!response.ok) return setError(result.error);
-    event.currentTarget.reset();
-    setOpen(false);
-    router.refresh();
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          displayName: form.get("displayName"),
+          email: form.get("email"),
+          employeeNumber: form.get("employeeNumber"),
+          password: form.get("password"),
+          weeklyHours: Number(form.get("weeklyHours")),
+        }),
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok)
+        return setError(
+          result.error ??
+            "The employee could not be created. Please try again.",
+        );
+      event.currentTarget.reset();
+      setOpen(false);
+      onCreated("Employee created successfully.");
+      router.refresh();
+    } catch {
+      setError(
+        "We could not reach the server. Check your connection and try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <>
