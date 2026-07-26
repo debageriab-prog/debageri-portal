@@ -27,6 +27,14 @@ type Data = {
   codes: Code[];
   entries: StoredEntry[];
   copyEntries: StoredEntry[];
+  part: number;
+  partCount: number;
+  latestReported: {
+    isoYear: number;
+    isoWeek: number;
+    periodStart: string;
+    periodEnd: string;
+  } | null;
 };
 const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -36,7 +44,7 @@ function entriesToRows(data: Data, entries: StoredEntry[]): Row[] {
     const row = rows.get(entry.timeCodeId) ?? {
       key: entry.timeCodeId,
       timeCodeId: entry.timeCodeId,
-      minutes: Array(7).fill(0) as number[],
+      minutes: Array(data.dates.length).fill(0) as number[],
     };
     const day = data.dates.indexOf(entry.date);
     if (day >= 0) row.minutes[day] = (row.minutes[day] ?? 0) + entry.minutes;
@@ -47,7 +55,7 @@ function entriesToRows(data: Data, entries: StoredEntry[]): Row[] {
     rows.set(workCode.id, {
       key: workCode.id,
       timeCodeId: workCode.id,
-      minutes: Array(7).fill(0) as number[],
+      minutes: Array(data.dates.length).fill(0) as number[],
     });
   return [...rows.values()].sort(
     (a, b) =>
@@ -72,12 +80,15 @@ export function WeeklyTimesheet() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [success, setSuccess] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const editable = data && data.sheet.status === "draft";
 
   async function loadWeek(
     year?: number,
     week?: number,
     copy?: { year: number; week: number },
+    part?: number,
   ) {
     setMessage("Loading...");
     const query = new URLSearchParams();
@@ -89,6 +100,7 @@ export function WeeklyTimesheet() {
       query.set("copyYear", String(copy.year));
       query.set("copyWeek", String(copy.week));
     }
+    if (part) query.set("part", String(part));
     try {
       const response = await fetch(`/api/timesheets/current?${query}`);
       if (response.status === 401) return router.replace("/auth/login");
@@ -115,10 +127,16 @@ export function WeeklyTimesheet() {
     const params = new URLSearchParams(window.location.search);
     const selectedYear = Number(params.get("year"));
     const selectedWeek = Number(params.get("week"));
+    const selectedPart = Number(params.get("part"));
     const timeout = window.setTimeout(() => {
       if (selectedYear && selectedWeek) {
         setWeekMode("number");
-        void loadWeek(selectedYear, selectedWeek);
+        void loadWeek(
+          selectedYear,
+          selectedWeek,
+          undefined,
+          selectedPart || undefined,
+        );
       } else void loadWeek();
     }, 0);
     return () => window.clearTimeout(timeout);
@@ -177,7 +195,7 @@ export function WeeklyTimesheet() {
       {
         key: crypto.randomUUID(),
         timeCodeId: unused.id,
-        minutes: Array(7).fill(0) as number[],
+        minutes: Array(data.dates.length).fill(0) as number[],
       },
     ]);
   }
@@ -215,6 +233,7 @@ export function WeeklyTimesheet() {
       const query = new URLSearchParams({
         year: String(data.sheet.isoYear),
         week: String(data.sheet.isoWeek),
+        part: String(data.part),
       });
       const response = await fetch(`/api/timesheets/current?${query}`, {
         method: "PUT",
@@ -222,36 +241,52 @@ export function WeeklyTimesheet() {
         body: JSON.stringify({ entries }),
       });
       const result = await response.json().catch(() => ({}));
-      setMessage(response.ok ? "Saved." : result.error);
+      const feedback = response.ok
+        ? "Saved."
+        : (result.error ?? "The time report could not be saved.");
+      setMessage(feedback);
+      if (!response.ok) setSubmitError(feedback);
       return response.ok;
     } catch {
-      setMessage("The time report could not be saved. Please try again.");
+      const feedback = "The time report could not be saved. Please try again.";
+      setMessage(feedback);
+      setSubmitError(feedback);
       return false;
     }
   }
 
   async function performSubmit() {
-    if (!(await save()) || !data) return;
-    const response = await fetch(`/api/timesheets/${data.id}/submit`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}",
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      return setMessage(
-        result.error ??
-          "You already reported this week. Delete the draft to report again, or edit the existing draft.",
-      );
-    setConfirmOpen(false);
-    setConfirmation("");
-    setRows([]);
-    setSuccess("Time reported successfully");
-    const nextMonday = new Date(`${data.dates[0]}T12:00:00Z`);
-    nextMonday.setUTCDate(nextMonday.getUTCDate() + 7);
-    const next = getIsoWeek(nextMonday);
-    setWeekMode("number");
-    await loadWeek(next.isoYear, next.isoWeek);
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      if (!(await save()) || !data) return;
+      const response = await fetch(`/api/timesheets/${data.id}/submit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const feedback =
+          result.error ??
+          "You already reported this week. Delete the draft to report again, or edit the existing draft.";
+        setMessage(feedback);
+        setSubmitError(feedback);
+        return;
+      }
+      setConfirmOpen(false);
+      setConfirmation("");
+      setRows([]);
+      setSuccess("Time reported successfully");
+      await loadWeek();
+    } catch {
+      const feedback =
+        "The report could not be submitted. Please try again. Your draft is still saved.";
+      setMessage(feedback);
+      setSubmitError(feedback);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function selectCalendarDate(value: string) {
@@ -284,11 +319,10 @@ export function WeeklyTimesheet() {
       <div className="topbar">
         <div>
           <div className="eyebrow">Time reporting</div>
-          <h1>
-            Week {data.sheet.isoWeek}, {data.sheet.isoYear}
-          </h1>
-          <p className="muted">
-            {data.dates[0]} to {data.dates[6]}
+          <h1>Report time</h1>
+          <p className="muted page-description">
+            Choose a reporting period, enter hours by time code and review the
+            report before submitting it for approval.
           </p>
         </div>
         <span className="status">{data.sheet.status}</span>
@@ -303,6 +337,16 @@ export function WeeklyTimesheet() {
         </div>
       )}
       <section className="card timesheet-controls">
+        {data.latestReported && (
+          <p className="latest-report-hint">
+            <span>Latest submitted report</span>
+            <strong>
+              Week {data.latestReported.isoWeek}:{" "}
+              {data.latestReported.periodStart.replaceAll("-", "/")} to{" "}
+              {data.latestReported.periodEnd.replaceAll("-", "/")}
+            </strong>
+          </p>
+        )}
         <div>
           <strong>Reporting week</strong>
           <div
@@ -440,6 +484,21 @@ export function WeeklyTimesheet() {
         </div>
       </section>
       <section className="card table-wrap">
+        <div className="timesheet-table-header">
+          <div>
+            <span className="eyebrow">Reporting period</span>
+            <strong>
+              Week {data.sheet.isoWeek}
+              {data.partCount > 1
+                ? `-${String(data.part).padStart(2, "0")}`
+                : ""}
+            </strong>
+          </div>
+          <span>
+            From {data.dates[0]?.replaceAll("-", "/")} to{" "}
+            {data.dates.at(-1)?.replaceAll("-", "/")}
+          </span>
+        </div>
         <table className="timesheet-grid">
           <thead>
             <tr>
@@ -449,7 +508,11 @@ export function WeeklyTimesheet() {
                   key={date}
                   className={data.redDays[day]?.isRed ? "red-day" : ""}
                 >
-                  {dayNames[day]}
+                  {
+                    dayNames[
+                      (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7
+                    ]
+                  }
                   <small>{date.slice(8, 10)}</small>
                 </th>
               ))}
@@ -504,7 +567,7 @@ export function WeeklyTimesheet() {
                       value={minutes ? minutes / 60 : ""}
                       placeholder="0"
                       disabled={!editable}
-                      aria-label={`${dayNames[day]} hours`}
+                      aria-label={`${data.dates[day]} hours`}
                       onChange={(event) =>
                         changeMinutes(row, day, Number(event.target.value))
                       }
@@ -613,6 +676,11 @@ export function WeeklyTimesheet() {
                 <li key={warning}>{warning}</li>
               ))}
             </ul>
+            {submitError && (
+              <p className="notice notice-error" role="alert">
+                {submitError}
+              </p>
+            )}
             <label>
               Type <strong>I am sure</strong> to submit
               <input
@@ -631,10 +699,10 @@ export function WeeklyTimesheet() {
               </button>
               <button
                 className="button danger"
-                disabled={confirmation !== "I am sure"}
+                disabled={confirmation !== "I am sure" || submitting}
                 onClick={() => void performSubmit()}
               >
-                Submit anyway
+                {submitting ? "Submitting..." : "Submit anyway"}
               </button>
             </footer>
           </section>

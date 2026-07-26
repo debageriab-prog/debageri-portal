@@ -29,10 +29,15 @@ export default async function ReviewPage({
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Week {sheet.isoWeek}</div>
+          <div className="eyebrow">
+            Week {sheet.isoWeek}
+            {Number(sheet.partCount ?? 1) > 1
+              ? `-${String(sheet.part ?? 1).padStart(2, "0")}`
+              : ""}
+          </div>
           <h1>{String(user?.displayName ?? user?.email ?? sheet.userId)}</h1>
           <p className="muted">
-            {sheet.periodStart} – {sheet.periodEnd}
+            {sheet.periodStart} to {sheet.periodEnd}
           </p>
           <p className="muted page-description">
             Compare the employee&apos;s entries with expected hours, then

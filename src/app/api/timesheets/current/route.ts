@@ -2,7 +2,12 @@ import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminServices } from "@/lib/firebase/admin";
-import { getIsoWeek, getIsoWeekDates, timesheetId } from "@/lib/dates/iso-week";
+import {
+  getIsoWeek,
+  getIsoWeekDates,
+  splitWeekByMonth,
+  timesheetPartId,
+} from "@/lib/dates/iso-week";
 import { verifySession } from "@/server/auth/session";
 import type { TimeCode, Timesheet } from "@/domain/types";
 
@@ -24,6 +29,7 @@ const weekQuerySchema = z.object({
   week: z.coerce.number().int().min(1).max(53).optional(),
   copyYear: z.coerce.number().int().min(2000).max(2200).optional(),
   copyWeek: z.coerce.number().int().min(1).max(53).optional(),
+  part: z.coerce.number().int().min(1).max(2).optional(),
 });
 
 async function loadCurrent(request: Request) {
@@ -31,21 +37,71 @@ async function loadCurrent(request: Request) {
   if (!user) return null;
   const { db } = getAdminServices();
   const today = new Date().toISOString().slice(0, 10);
-  const current = getIsoWeek(today);
+  let current = getIsoWeek(today);
   const url = new URL(request.url);
   const query = weekQuerySchema.safeParse(Object.fromEntries(url.searchParams));
   if (!query.success) return { user, error: "Invalid week selection." };
+  const existingSheets = await db
+    .collection("timesheets")
+    .where("userId", "==", user.id)
+    .get();
+  const latest = existingSheets.docs
+    .map((doc) => doc.data())
+    .filter((sheet) => sheet.status !== "draft")
+    .sort((a, b) => String(b.periodEnd).localeCompare(String(a.periodEnd)))[0];
+  if (!query.data.year && !query.data.week) {
+    if (latest) {
+      const next = new Date(`${latest.periodEnd}T12:00:00Z`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      current = getIsoWeek(next);
+    }
+  }
   const isoYear = query.data.year ?? current.isoYear;
   const isoWeek = query.data.week ?? current.isoWeek;
-  let dates: string[];
+  let fullDates: string[];
   try {
-    dates = getIsoWeekDates(isoYear, isoWeek);
+    fullDates = getIsoWeekDates(isoYear, isoWeek);
   } catch {
     return { user, error: "The selected ISO week does not exist." };
   }
-  const id = timesheetId(user.organizationId, user.id, isoYear, isoWeek);
-  const [sheetDoc, termDocs, codeDocs, holidayDocs] = await Promise.all([
-    db.collection("timesheets").doc(id).get(),
+  const parts = splitWeekByMonth(fullDates);
+  const partDocs = await db.getAll(
+    ...parts.map((_, index) =>
+      db
+        .collection("timesheets")
+        .doc(
+          timesheetPartId(
+            user.organizationId,
+            user.id,
+            isoYear,
+            isoWeek,
+            index + 1,
+            parts.length,
+          ),
+        ),
+    ),
+  );
+  const selectedPart =
+    query.data.part ??
+    Math.max(
+      1,
+      partDocs.findIndex(
+        (doc) => !doc.exists || doc.data()?.status === "draft",
+      ) + 1 || parts.length,
+    );
+  if (selectedPart > parts.length)
+    return { user, error: "The selected week part does not exist." };
+  const dates = parts[selectedPart - 1]!;
+  const id = timesheetPartId(
+    user.organizationId,
+    user.id,
+    isoYear,
+    isoWeek,
+    selectedPart,
+    parts.length,
+  );
+  const sheetDoc = partDocs[selectedPart - 1]!;
+  const [termDocs, codeDocs, holidayDocs] = await Promise.all([
     db.collection("employmentTerms").where("userId", "==", user.id).get(),
     db
       .collection("timeCodes")
@@ -62,30 +118,33 @@ async function loadCurrent(request: Request) {
       String(doc.data().name),
     ]),
   );
-  const redDays = dates.map((date, index) => ({
-    date,
-    isRed: index >= 5 || holidayNames.has(date),
-    reason: holidayNames.get(date) ?? (index >= 5 ? "Weekend" : null),
-  }));
+  const redDays = dates.map((date) => {
+    const weekend = [0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay());
+    return {
+      date,
+      isRed: weekend || holidayNames.has(date),
+      reason: holidayNames.get(date) ?? (weekend ? "Weekend" : null),
+    };
+  });
   const term = termDocs.docs
     .map((doc) => doc.data())
     .filter(
       (item) =>
-        item.validFrom <= dates[6]! &&
+        item.validFrom <= dates.at(-1)! &&
         (!item.validTo || item.validTo >= dates[0]!) &&
-        String(item.reportingStartDate ?? item.validFrom) <= dates[6]!,
+        String(item.reportingStartDate ?? item.validFrom) <= dates.at(-1)!,
     )
     .sort((a, b) => String(b.validFrom).localeCompare(String(a.validFrom)))[0];
   if (!term)
     return { user, error: "No active employment terms are configured." };
   const scheduleKeys = [
+    "sunday",
     "monday",
     "tuesday",
     "wednesday",
     "thursday",
     "friday",
     "saturday",
-    "sunday",
   ];
   const expectedMinutes = dates.reduce((total, date, index) => {
     const begins = String(term.reportingStartDate ?? term.validFrom);
@@ -95,7 +154,8 @@ async function loadCurrent(request: Request) {
       redDays[index]?.isRed
     )
       return total;
-    return total + Number(term.schedule?.[scheduleKeys[index]!] ?? 0);
+    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+    return total + Number(term.schedule?.[scheduleKeys[weekday]!] ?? 0);
   }, 0);
   let sheet = sheetDoc.data() as Omit<Timesheet, "id"> | undefined;
   if (!sheetDoc.exists) {
@@ -105,8 +165,10 @@ async function loadCurrent(request: Request) {
       managerId: user.managerId,
       isoYear,
       isoWeek,
+      part: selectedPart,
+      partCount: parts.length,
       periodStart: dates[0]!,
-      periodEnd: dates[6]!,
+      periodEnd: dates.at(-1)!,
       status: "draft" as const,
       expectedMinutes,
       reportedMinutes: 0,
@@ -157,26 +219,27 @@ async function loadCurrent(request: Request) {
         query.data.copyYear,
         query.data.copyWeek,
       );
-      const copyId = timesheetId(
-        user.organizationId,
-        user.id,
-        query.data.copyYear,
-        query.data.copyWeek,
-      );
       const sourceEntries = await db
         .collection("timeEntries")
-        .where("timesheetId", "==", copyId)
+        .where("userId", "==", user.id)
         .get();
       const allowedCodes = new Set(codes.map((code) => code.id));
       copyEntries = sourceEntries.docs
         .map((doc) => doc.data())
-        .filter((entry) => allowedCodes.has(String(entry.timeCodeId)))
+        .filter(
+          (entry) =>
+            Number(entry.isoYear) === query.data.copyYear &&
+            Number(entry.isoWeek) === query.data.copyWeek &&
+            allowedCodes.has(String(entry.timeCodeId)),
+        )
         .map((entry) => ({
           ...entry,
           id: `copy-${crypto.randomUUID()}`,
-          date: dates[copyDates.indexOf(String(entry.date))],
+          date: fullDates[copyDates.indexOf(String(entry.date))],
         }))
-        .filter((entry) => Boolean(entry.date));
+        .filter(
+          (entry) => Boolean(entry.date) && dates.includes(String(entry.date)),
+        );
     } catch {
       return { user, error: "The copy-from week does not exist." };
     }
@@ -185,12 +248,22 @@ async function loadCurrent(request: Request) {
     user,
     id,
     dates,
+    part: selectedPart,
+    partCount: parts.length,
     redDays,
     schedule: term.schedule,
     sheet: { id, ...sheet },
     entries: entryDocs.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
     copyEntries,
     codes,
+    latestReported: latest
+      ? {
+          isoYear: Number(latest.isoYear),
+          isoWeek: Number(latest.isoWeek),
+          periodStart: String(latest.periodStart),
+          periodEnd: String(latest.periodEnd),
+        }
+      : null,
   };
 }
 

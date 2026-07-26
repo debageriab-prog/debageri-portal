@@ -37,6 +37,8 @@ export default async function HistoryPage() {
         id: doc.id,
         isoYear: Number(data.isoYear),
         isoWeek: Number(data.isoWeek),
+        part: Number(data.part ?? 1),
+        partCount: Number(data.partCount ?? 1),
         periodStart: String(data.periodStart),
         periodEnd: String(data.periodEnd),
         reportedMinutes: entryTotals.get(doc.id) ?? 0,
@@ -44,7 +46,10 @@ export default async function HistoryPage() {
         status: String(data.status),
       };
     })
-    .sort((a, b) => b.isoYear - a.isoYear || b.isoWeek - a.isoWeek);
+    .sort(
+      (a, b) =>
+        b.isoYear - a.isoYear || b.isoWeek - a.isoWeek || b.part - a.part,
+    );
   const today = new Date().toISOString().slice(0, 10);
   const current = getIsoWeek(today);
   return (

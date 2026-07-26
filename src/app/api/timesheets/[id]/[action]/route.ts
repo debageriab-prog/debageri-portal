@@ -32,6 +32,7 @@ export async function POST(
     const result = await transitionTimesheet(actor, id, target, reason);
     return NextResponse.json({ data: result });
   } catch (error) {
+    console.error("Timesheet transition failed", error);
     const code = error instanceof Error ? error.message : "INTERNAL";
     const status =
       code === "FORBIDDEN" ? 403 : code === "NOT_FOUND" ? 404 : 409;

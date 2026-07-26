@@ -9,6 +9,8 @@ type HistorySheet = {
   id: string;
   isoYear: number;
   isoWeek: number;
+  part: number;
+  partCount: number;
   periodStart: string;
   periodEnd: string;
   reportedMinutes: number;
@@ -56,16 +58,19 @@ export function HistoryView({
   holidayDates: string[];
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"week" | "month">("week");
+  const [mode, setMode] = useState<"latest" | "month" | "week">("latest");
+  const [page, setPage] = useState(1);
   const [year, setYear] = useState(currentYear);
   const [week, setWeek] = useState(currentWeek);
   const [month, setMonth] = useState(currentMonth);
   const [deleting, setDeleting] = useState<HistorySheet | null>(null);
   const [error, setError] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   const weeklySheets = sheets.filter(
     (sheet) => sheet.isoYear === year && sheet.isoWeek === week,
   );
+  const latestSheets = sheets.slice((page - 1) * 10, page * 10);
   const monthEntries = entries.filter((entry) => entry.date.startsWith(month));
   const monthSheets = sheets.filter((sheet) =>
     sheet.periodStart.startsWith(month),
@@ -109,15 +114,47 @@ export function HistoryView({
       total: Math.max(expected, reported, 1),
     };
   }, [holidayDates, month, monthEntries, terms]);
+  const weeklyEntries = entries.filter((entry) =>
+    weeklySheets.some((sheet) => sheet.id === entry.timesheetId),
+  );
+  const chartTotals =
+    mode === "week"
+      ? {
+          worked: weeklyEntries
+            .filter((entry) => entry.countsAsWorkedTime)
+            .reduce((sum, entry) => sum + entry.minutes, 0),
+          unreported: Math.max(
+            0,
+            weeklySheets.reduce(
+              (sum, sheet) => sum + sheet.expectedMinutes,
+              0,
+            ) - weeklyEntries.reduce((sum, entry) => sum + entry.minutes, 0),
+          ),
+          byCode: weeklyEntries
+            .filter((entry) => !entry.countsAsWorkedTime)
+            .reduce((totals, entry) => {
+              totals.set(
+                entry.code,
+                (totals.get(entry.code) ?? 0) + entry.minutes,
+              );
+              return totals;
+            }, new Map<string, number>()),
+          total: Math.max(
+            weeklySheets.reduce((sum, sheet) => sum + sheet.expectedMinutes, 0),
+            weeklyEntries.reduce((sum, entry) => sum + entry.minutes, 0),
+            1,
+          ),
+        }
+      : monthTotals;
 
   const segments = [
-    { label: "Worked", value: monthTotals.worked, color: "#35634a" },
+    { label: "Worked", value: chartTotals.worked, color: "#35634a" },
     {
       label: "Not reported",
-      value: monthTotals.unreported,
+      value: chartTotals.unreported,
       color: "#ddd3ca",
     },
-    ...[...monthTotals.byCode].map(([label, value], index) => ({
+    ...[...chartTotals.byCode].map(([label, value], index) => ({
       label,
       value,
       color: ["#a56f4e", "#b88b5d", "#8a7186", "#668a91"][index % 4]!,
@@ -126,9 +163,9 @@ export function HistoryView({
   let cursor = 0;
   const gradient = segments
     .map((segment) => {
-      const start = (cursor / monthTotals.total) * 360;
+      const start = (cursor / chartTotals.total) * 360;
       cursor += segment.value;
-      const end = (cursor / monthTotals.total) * 360;
+      const end = (cursor / chartTotals.total) * 360;
       return `${segment.color} ${start}deg ${end}deg`;
     })
     .join(", ");
@@ -137,7 +174,11 @@ export function HistoryView({
     if (!deleting) return;
     const response = await fetch(
       `/api/timesheets/${encodeURIComponent(deleting.id)}`,
-      { method: "DELETE" },
+      {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirmation: deleteConfirmation }),
+      },
     );
     const result = await response.json().catch(() => ({}));
     if (!response.ok)
@@ -165,6 +206,9 @@ export function HistoryView({
             <tr key={sheet.id}>
               <td>
                 {sheet.isoYear}-W{String(sheet.isoWeek).padStart(2, "0")}
+                {sheet.partCount > 1
+                  ? `-${String(sheet.part).padStart(2, "0")}`
+                  : ""}
               </td>
               <td>
                 {sheet.periodStart} to {sheet.periodEnd}
@@ -178,7 +222,7 @@ export function HistoryView({
                   <div className="row-actions">
                     <Link
                       className="table-action"
-                      href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}`}
+                      href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
                     >
                       Edit
                     </Link>
@@ -186,6 +230,7 @@ export function HistoryView({
                       className="table-action table-action-danger"
                       onClick={() => {
                         setError("");
+                        setDeleteConfirmation("");
                         setDeleting(sheet);
                       }}
                     >
@@ -216,18 +261,24 @@ export function HistoryView({
         </div>
       </div>
       <section className="card history-controls">
-        <div className="week-mode-picker">
+        <div className="week-mode-picker history-mode-picker">
           <button
-            className={mode === "week" ? "selected" : ""}
-            onClick={() => setMode("week")}
+            className={mode === "latest" ? "selected" : ""}
+            onClick={() => setMode("latest")}
           >
-            Week
+            Latest
           </button>
           <button
             className={mode === "month" ? "selected" : ""}
             onClick={() => setMode("month")}
           >
             Month
+          </button>
+          <button
+            className={mode === "week" ? "selected" : ""}
+            onClick={() => setMode("week")}
+          >
+            Week
           </button>
         </div>
         {mode === "week" ? (
@@ -253,7 +304,7 @@ export function HistoryView({
               />
             </label>
           </div>
-        ) : (
+        ) : mode === "month" ? (
           <label>
             Month
             <input
@@ -263,9 +314,9 @@ export function HistoryView({
               onChange={(event) => setMonth(event.target.value)}
             />
           </label>
-        )}
+        ) : null}
       </section>
-      {mode === "month" && (
+      {mode !== "latest" && (
         <section className="card month-summary">
           <div
             className="donut"
@@ -276,7 +327,10 @@ export function HistoryView({
             <div>
               <strong>
                 {formatDuration(
-                  monthEntries.reduce((sum, entry) => sum + entry.minutes, 0),
+                  (mode === "month" ? monthEntries : weeklyEntries).reduce(
+                    (sum, entry) => sum + entry.minutes,
+                    0,
+                  ),
                 )}
               </strong>
               <span>reported</span>
@@ -294,7 +348,34 @@ export function HistoryView({
         </section>
       )}
       <section className="card table-wrap">
-        {table(mode === "week" ? weeklySheets : monthSheets)}
+        {table(
+          mode === "latest"
+            ? latestSheets
+            : mode === "week"
+              ? weeklySheets
+              : monthSheets,
+        )}
+        {mode === "latest" && sheets.length > 10 && (
+          <div className="pagination">
+            <button
+              className="button secondary"
+              disabled={page === 1}
+              onClick={() => setPage((value) => value - 1)}
+            >
+              Previous
+            </button>
+            <span>
+              Page {page} of {Math.ceil(sheets.length / 10)}
+            </span>
+            <button
+              className="button secondary"
+              disabled={page * 10 >= sheets.length}
+              onClick={() => setPage((value) => value + 1)}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </section>
       {deleting && (
         <div className="modal-backdrop">
@@ -313,6 +394,15 @@ export function HistoryView({
               </div>
             </header>
             {error && <p className="notice notice-error">{error}</p>}
+            <label>
+              Type <strong>I am sure</strong> to confirm
+              <input
+                className="field"
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                autoFocus
+              />
+            </label>
             <footer className="modal-actions">
               <button
                 className="button secondary"
@@ -320,7 +410,11 @@ export function HistoryView({
               >
                 Keep draft
               </button>
-              <button className="button danger" onClick={() => void remove()}>
+              <button
+                className="button danger"
+                disabled={deleteConfirmation !== "I am sure"}
+                onClick={() => void remove()}
+              >
                 Delete draft
               </button>
             </footer>

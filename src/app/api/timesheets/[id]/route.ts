@@ -3,7 +3,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const user = await verifySession();
@@ -24,6 +24,14 @@ export async function DELETE(
     return NextResponse.json(
       { error: "Only draft timesheets can be deleted." },
       { status: 409 },
+    );
+  const body = (await request.json().catch(() => null)) as {
+    confirmation?: unknown;
+  } | null;
+  if (body?.confirmation !== "I am sure")
+    return NextResponse.json(
+      { error: 'Type "I am sure" to confirm deletion.' },
+      { status: 400 },
     );
   const entries = await db
     .collection("timeEntries")
