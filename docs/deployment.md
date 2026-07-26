@@ -100,11 +100,12 @@ Cloud Run allows unauthenticated HTTP invocation because the login page and Fire
 
 ## Custom domain
 
-The production hostname is `portal.debageri.se`. Use the global external
-Application Load Balancer setup documented in
-[Portal custom domain](custom-domain.md). The runbook includes Google Cloud,
-one.com DNS, managed TLS, Firebase Authentication, browser API key, App Check,
-verification, and troubleshooting steps.
+The production hostname is `portal.debageri.se`. Use the direct Cloud Run
+domain-mapping setup documented in
+[Portal custom domain](custom-domain.md). This matches the approach used by
+`debageri-web`. The runbook includes Google Cloud, one.com DNS, managed TLS,
+Firebase Authentication, browser API key, App Check, verification, and
+troubleshooting steps.
 
 ## Rollback
 

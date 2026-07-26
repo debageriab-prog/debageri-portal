@@ -10,102 +10,103 @@ The domain is managed at one.com. The application runs in Google Cloud project
 `debageri-portal`, region `europe-west1`, as Cloud Run service
 `debageri-portal`.
 
-## Recommended architecture
+## Architecture
 
-Use a global external Application Load Balancer with:
+Use a direct Cloud Run domain mapping, matching the setup used by
+`debageri-web` for `debageri.se` and `www.debageri.se`.
 
-- a reserved global IPv4 address;
-- a serverless network endpoint group pointing to Cloud Run;
-- a Google-managed TLS certificate for `portal.debageri.se`;
-- an HTTPS frontend on port 443;
-- an optional HTTP frontend that redirects to HTTPS.
+Cloud Run direct domain mapping is currently a Preview feature. It is the
+simplest option and keeps the portal consistent with the public site. Google
+recommends an external Application Load Balancer for production workloads that
+require a generally available domain-routing product.
 
-Google recommends this option for production. Direct Cloud Run domain mappings
-are still a Preview feature and Google does not recommend them for production
-services.
+## 1. Confirm ownership of `debageri.se`
 
-## 1. Create the load balancer in Google Cloud
+Domain ownership was already verified when the `debageri-web` custom domain was
+configured. Google associates verification with the Google account that
+completed it.
 
-Sign in to the
-[Google Cloud console](https://console.cloud.google.com/) and select project
-`debageri-portal`.
+1. Open [Google Cloud Console](https://console.cloud.google.com/).
+2. Select project `debageri-portal`.
+3. Open **Cloud Run**, then **Domain mappings**.
+4. Click **Add mapping** and select production service `debageri-portal`.
+5. Choose the already verified base domain `debageri.se`.
 
-1. Open **Network services**, then **Load balancing**.
-2. Click **Create load balancer**.
-3. Choose **Application Load Balancer (HTTP/HTTPS)**.
-4. Choose **Public facing (external)** and **Global**.
-5. Select the global external managed load balancer when asked for the
-   generation.
-6. Give it a recognizable name, such as `debageri-portal`.
+If `debageri.se` is not available:
 
-### Backend
+1. Choose **Verify a new domain** and enter `debageri.se`.
+2. Google provides a TXT verification record.
+3. In one.com, open **DNS settings**, then **DNS records**.
+4. Add the TXT record. Leave **Hostname** empty because verification applies to
+   the root domain.
+5. Return to Google Cloud and finish verification.
 
-1. Create a backend service, such as `debageri-portal-backend`.
-2. For the backend type, choose a **serverless network endpoint group**.
-3. Create the serverless NEG in `europe-west1`.
-4. Select **Cloud Run** and service `debageri-portal`.
-5. Do not configure a URL mask.
-6. Keep Cloud CDN disabled because this portal contains authenticated,
-   employee-specific pages.
+Do not remove the existing verification TXT record. A verification TXT record
+does not route website traffic and does not interfere with the public website
+or email.
 
-### Frontend and certificate
+## 2. Create the portal domain mapping
 
-1. Reserve a new **global static external IPv4 address**. Record this address.
-   It is the value that will be entered at one.com.
-2. Create an HTTPS frontend on port 443 using that address.
-3. Create a **Google-managed certificate** containing only
-   `portal.debageri.se`.
-4. Attach the certificate to the HTTPS frontend.
-5. Optionally create an HTTP frontend on port 80 and enable redirect to HTTPS.
-6. Review and create the load balancer.
+In the Cloud Run domain-mapping form:
 
-Do not change Cloud Run ingress to `internal-and-cloud-load-balancing` yet.
-Branch preview revisions currently use tagged `run.app` URLs and require direct
-Cloud Run ingress. Restricting ingress would make those previews inaccessible.
+1. Select production service `debageri-portal`.
+2. Select verified domain `debageri.se`.
+3. Enter only `portal` in the subdomain field.
+4. Confirm that the resulting hostname is `portal.debageri.se`.
+5. Create the mapping.
 
-## 2. Add the DNS record at one.com
+If the console rejects the valid subdomain, open Cloud Shell and run:
 
-Wait until the load balancer has a reserved IPv4 address.
-
-1. Sign in to the [one.com control panel](https://www.one.com/admin/).
-2. Open **DNS settings** under **Advanced settings**.
-3. Open **DNS records**.
-4. Check for an existing `portal` A, AAAA, CNAME, web forward, or web alias
-   record. Remove the conflicting record only if it is not used by another
-   service.
-5. Create an **A** record with:
-
-| one.com field          | Value                                              |
-| ---------------------- | -------------------------------------------------- |
-| Hostname               | `portal`                                           |
-| Points to / IP address | The global static IPv4 address from Google Cloud   |
-| TTL                    | Leave empty for the one.com default, or use `3600` |
-
-Do not enter `portal.debageri.se` in the Hostname field. one.com expects only
-the subdomain label `portal`.
-
-Do not point the record directly to a temporary Cloud Run IP address. Cloud Run
-does not provide a stable service IP. The record must point to the load
-balancer's reserved global address.
-
-## 3. Wait for DNS and TLS
-
-Check DNS from a terminal:
-
-```powershell
-Resolve-DnsName portal.debageri.se -Type A
+```bash
+gcloud config set project debageri-portal
+gcloud beta run domain-mappings create \
+  --service debageri-portal \
+  --domain portal.debageri.se \
+  --region europe-west1
 ```
 
-The returned address must equal the load balancer address. DNS commonly updates
-within minutes but can take several hours. Google can issue the managed
-certificate only after public DNS points to the load balancer. Certificate
-provisioning commonly takes about 15 minutes but can take up to 24 hours.
+Never map the hostname to a branch preview revision. The mapping must target
+the production `debageri-portal` service.
 
-In Google Cloud, open **Certificate Manager** or the load balancer frontend and
-wait until the certificate status is **Active**. Do not test production login
-until `https://portal.debageri.se` loads with a valid certificate.
+## 3. Add the CNAME at one.com
 
-## 4. Authorize the domain in Firebase Authentication
+Cloud Run displays the required DNS record after creating the mapping. Open the
+mapping's three-dot menu and select **DNS Records**.
+
+In one.com:
+
+1. Open **DNS settings** under **Advanced settings**.
+2. Open **DNS records**.
+3. Check for an existing `portal` A, AAAA, CNAME, web-forward, or web-alias
+   record. Remove it only if it is not used by another service.
+4. Create the CNAME shown by Cloud Run.
+
+The expected record is:
+
+```text
+Type: CNAME
+Hostname: portal
+Is an alias of: ghs.googlehosted.com
+TTL: default
+```
+
+Always use the exact target currently displayed by Cloud Run. If Cloud Run
+displays `ghs.googlehosted.com.`, remove the final dot if one.com rejects it.
+
+Do not enter:
+
+- `portal.debageri.se` in the one.com Hostname field;
+- `https://` or a URL path;
+- a Cloud Run `run.app` hostname unless Cloud Run explicitly displays it as the
+  required DNS target;
+- an A record copied from the `debageri.se` apex mapping.
+
+The CNAME affects only `portal.debageri.se`. It does not change
+`debageri.se`, `www.debageri.se`, email, or other subdomains.
+
+## 4. Authorize the hostname
+
+### Firebase Authentication
 
 1. Open the [Firebase console](https://console.firebase.google.com/).
 2. Select project `debageri-portal`.
@@ -116,86 +117,100 @@ until `https://portal.debageri.se` loads with a valid certificate.
 portal.debageri.se
 ```
 
-Enter the hostname only, without `https://` or a path.
+Use the hostname only, without protocol, path, or trailing slash.
 
-The portal currently uses email and password authentication, so the existing
-Firebase `authDomain` can remain unchanged. If OAuth redirect providers are
-added later, their authorized redirect URIs must also be configured for the
-custom domain.
+### Firebase App Check and reCAPTCHA
 
-## 5. Update browser-key and App Check restrictions
+If App Check uses reCAPTCHA:
+
+1. Open the reCAPTCHA key associated with
+   `NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY`.
+2. Add `portal.debageri.se` to its allowed-domain list.
+3. Keep the Cloud Run preview hostnames required for branch testing.
+
+If App Check rejects a domain, token exchange returns 403 before the
+application request reaches the backend. After correcting the domain, use a
+fresh private window or clear that site's browser storage to reset any local
+retry backoff.
+
+### Firebase browser API key
 
 If the Firebase browser API key has HTTP referrer restrictions:
 
 1. Open **Google Cloud**, then **APIs and services**, then **Credentials**.
 2. Open the browser API key used by the portal.
-3. Add this allowed website referrer:
+3. Add:
 
 ```text
 https://portal.debageri.se/*
 ```
 
-If Firebase App Check uses reCAPTCHA:
-
-1. Open the reCAPTCHA key associated with
-   `NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY`.
-2. Add `portal.debageri.se` to its allowed domains.
-3. Keep the existing Cloud Run preview domains that are needed for branch
-   testing.
-
 No GitHub secret needs to change merely because the public hostname changes.
+The existing Firebase `authDomain` also remains unchanged for email and
+password authentication.
 
-## 6. Verify the completed setup
+## 5. Verify DNS and HTTPS
+
+On Windows:
+
+```powershell
+Resolve-DnsName portal.debageri.se -Type CNAME
+```
+
+The result must match the DNS target displayed by Cloud Run. one.com remaining
+the nameserver provider is expected.
+
+Cloud Run issues and renews a Google-managed TLS certificate after DNS is
+correct. Provisioning commonly takes about 15 minutes but can take up to 24
+hours. Do not bypass certificate warnings or submit credentials until the
+mapping reports that the certificate is active. Avoid deleting and recreating
+a pending mapping because that can restart certificate provisioning.
 
 Use a private browser window and verify:
 
-1. `http://portal.debageri.se` redirects to HTTPS.
-2. `https://portal.debageri.se/auth/login` has a valid certificate.
-3. An employee can sign in and open the time-reporting page.
-4. An admin can sign in and open the admin pages.
-5. A time report can be submitted and appears in history.
-6. Browser developer tools show no mixed-content, Firebase authorized-domain,
-   API-key referrer, or App Check errors.
-7. Refreshing a protected page keeps the session active.
+1. `https://portal.debageri.se/auth/login` opens with a valid certificate.
+2. An employee can sign in and open time reporting.
+3. An admin can sign in and open the admin pages.
+4. A time report can be submitted and appears in history.
+5. Refreshing a protected page keeps the session active.
+6. Developer tools show no authorized-domain, API-key, or App Check errors.
 
-Keep the original `run.app` URL available for deployment diagnostics and branch
+Keep the original `run.app` URL for deployment diagnostics and branch
 previews.
 
 ## Troubleshooting
 
-### DNS does not resolve to the load balancer
+### `debageri.se` is not available as a verified domain
 
-- Confirm the one.com hostname is `portal`, not the full hostname.
-- Remove conflicting `portal` CNAME, AAAA, web-forward, or web-alias records.
-- Confirm the A record contains the reserved global load balancer address.
+Use the same Google account that verified the domain for `debageri-web`, or
+complete the TXT verification step at one.com.
+
+### DNS does not show the Cloud Run target
+
+- Confirm the one.com hostname is `portal`.
+- Remove conflicting records for the `portal` host.
+- Confirm the CNAME target exactly matches Cloud Run's DNS Records dialog.
+- Allow several hours for DNS propagation.
 
 ### Certificate remains in provisioning
 
-- Confirm public DNS resolves to the load balancer address.
+- Confirm the public CNAME matches the value from Cloud Run.
 - Wait up to 24 hours.
-- Confirm the certificate contains exactly `portal.debageri.se`.
-- Check whether a restrictive CAA record prevents Google from issuing the
-  certificate.
+- Confirm no proxy or web-forward record intercepts `portal`.
+- Avoid deleting and recreating the mapping while provisioning.
 
 ### Login reports an unauthorized domain
 
 Add `portal.debageri.se` under Firebase Authentication **Authorized domains**.
 
-### Firebase requests are blocked
+### Firebase requests return 403
 
-Add `https://portal.debageri.se/*` to the browser API key's allowed referrers
-and add the hostname to the App Check reCAPTCHA key.
-
-### The load balancer returns a 404 or 5xx response
-
-- Confirm the serverless NEG targets service `debageri-portal` in
-  `europe-west1`.
-- Confirm the URL map sends the default host and path to the portal backend.
-- Confirm the latest Cloud Run revision is healthy at its `run.app` URL.
+Add `portal.debageri.se` to the App Check reCAPTCHA allowed-domain list. If the
+browser API key is restricted, also add
+`https://portal.debageri.se/*` to its allowed referrers.
 
 ## Official references
 
 - [Google Cloud: Mapping custom domains](https://cloud.google.com/run/docs/mapping-custom-domains)
-- [Google Cloud: Set up a global external Application Load Balancer with Cloud Run](https://cloud.google.com/load-balancing/docs/https/setting-up-https-serverless)
-- [one.com: Manage DNS settings](https://help.one.com/hc/en-us/articles/115005595925-Manage-your-DNS-settings)
+- [one.com: Create a CNAME record](https://help.one.com/hc/en-us/articles/360000803517-How-do-I-create-a-CNAME-record)
 - [Firebase Authentication: Authorized domains](https://firebase.google.com/docs/auth/web/multi-factor#enabling_multi-factor_authentication)
