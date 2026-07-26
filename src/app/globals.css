@@ -33,6 +33,34 @@ select,
 textarea {
   font: inherit;
 }
+
+.language-picker {
+  position: fixed;
+  top: 18px;
+  right: 22px;
+  z-index: 20;
+}
+
+.language-picker select {
+  border: 1px solid #d8c9ba;
+  border-radius: 999px;
+  background: #fffaf5;
+  color: #3d3027;
+  padding: 8px 30px 8px 12px;
+  font: inherit;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 button,
 a {
   -webkit-tap-highlight-color: transparent;

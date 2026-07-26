@@ -1,15 +1,19 @@
-import Link from "next/link";
+"use client";
 
-const nav = [
-  ["Översikt", "/employee"],
-  ["Tidrapport", "/employee/timesheets/current"],
-  ["Historik", "/employee/timesheets"],
-  ["Rapporter", "/employee/reports"],
-  ["Godkännanden", "/manager/approvals"],
-  ["Administration", "/admin"],
-];
+import Link from "next/link";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 export function PortalShell({ children }: { children: React.ReactNode }) {
+  const { t } = useLocale();
+  const nav = [
+    [t("dashboard"), "/employee"],
+    [t("timesheet"), "/employee/timesheets/current"],
+    [t("history"), "/employee/timesheets"],
+    [t("reports"), "/employee/reports"],
+    [t("approvals"), "/manager/approvals"],
+    [t("admin"), "/admin"],
+  ];
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -21,7 +25,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             Portal
           </span>
         </div>
-        <nav aria-label="Huvudmeny">
+        <nav aria-label={t("mainMenu")}>
           {nav.map(([label, href], index) => (
             <Link
               className={`nav-link ${index === 1 ? "active" : ""}`}
@@ -40,11 +44,11 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             fontSize: 12,
           }}
         >
-          Debageri AB · Internt
+          Debageri AB · {t("internal")}
         </p>
       </aside>
       <main className="main">{children}</main>
-      <nav className="mobilebar" aria-label="Mobilmeny">
+      <nav className="mobilebar" aria-label={t("mobileMenu")}>
         {nav.slice(0, 4).map(([label, href]) => (
           <Link href={href!} key={href}>
             {label}

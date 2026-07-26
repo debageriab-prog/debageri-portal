@@ -1,11 +1,13 @@
+"use client";
+import { useLocale } from "@/components/localization/LocaleProvider";
+
 export default function DisabledPage() {
+  const { t } = useLocale();
   return (
     <main className="login">
       <section className="card login-card">
-        <h1>Kontot är inaktiverat</h1>
-        <p className="muted">
-          Kontakta en administratör om du behöver åtkomst.
-        </p>
+        <h1>{t("accountDisabled")}</h1>
+        <p className="muted">{t("accountDisabledHelp")}</p>
       </section>
     </main>
   );

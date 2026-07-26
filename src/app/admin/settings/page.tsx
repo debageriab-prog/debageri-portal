@@ -1,33 +1,37 @@
+"use client";
+import { useLocale } from "@/components/localization/LocaleProvider";
+
 export default function SettingsPage() {
+  const { locale, t } = useLocale();
   return (
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Administration</div>
-          <h1>Organisation</h1>
+          <div className="eyebrow">{t("admin")}</div>
+          <h1>{t("organization")}</h1>
         </div>
       </div>
       <section className="card">
         <h2>Debageri AB</h2>
         <p>
-          <strong>Organisations-ID</strong>
+          <strong>{t("organizationId")}</strong>
           <br />
           debageri
         </p>
         <p>
-          <strong>Tidszon</strong>
+          <strong>{t("timezone")}</strong>
           <br />
           Europe/Stockholm
         </p>
         <p>
-          <strong>Standardspråk</strong>
+          <strong>{t("defaultLanguage")}</strong>
           <br />
-          Svenska (sv-SE)
+          {locale === "en-SE" ? "English (en-SE)" : "Svenska (sv-SE)"}
         </p>
         <p>
-          <strong>Veckostart</strong>
+          <strong>{t("weekStarts")}</strong>
           <br />
-          Måndag
+          {t("mondayValue")}
         </p>
       </section>
     </>

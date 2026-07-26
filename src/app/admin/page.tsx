@@ -1,22 +1,26 @@
+"use client";
 import Link from "next/link";
+import { useLocale } from "@/components/localization/LocaleProvider";
+
 export default function AdminPage() {
+  const { t } = useLocale();
   const cards = [
-    ["Användare", "Hantera roller, status och chefsrelationer", "/admin/users"],
+    [t("users"), t("usersDescription"), "/admin/users"],
     [
-      "Anställningsvillkor",
-      "Datumsatta scheman och sysselsättningsgrad",
+      t("employmentTerms"),
+      t("employmentTermsDescription"),
       "/admin/employment-terms",
     ],
-    ["Tidkoder", "Konfigurera valbara rapporteringskoder", "/admin/time-codes"],
-    ["Organisation", "Inställningar för Debageri", "/admin/settings"],
-    ["Revisionshistorik", "Spårbara känsliga händelser", "/admin/audit"],
+    [t("timeCodes"), t("timeCodesDescription"), "/admin/time-codes"],
+    [t("organization"), t("organizationDescription"), "/admin/settings"],
+    [t("auditHistory"), t("auditHistoryDescription"), "/admin/audit"],
   ];
   return (
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Administration</div>
-          <h1>Portalinställningar</h1>
+          <div className="eyebrow">{t("admin")}</div>
+          <h1>{t("portalSettings")}</h1>
         </div>
       </div>
       <div className="grid-2">

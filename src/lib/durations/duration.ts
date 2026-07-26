@@ -15,7 +15,7 @@ export function parseDuration(hours: number, minutes: number): number {
 
 export function formatDuration(
   totalMinutes: number,
-  locale: "sv-SE" | "en-SE" = "sv-SE",
+  locale: "sv-SE" | "en-SE" = "en-SE",
 ): string {
   const sign = totalMinutes < 0 ? "−" : "";
   const absolute = Math.abs(totalMinutes);
