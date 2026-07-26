@@ -21,6 +21,10 @@ export default async function EmploymentTermsPage() {
         <div>
           <div className="eyebrow">Admin</div>
           <h1>Employment terms</h1>
+          <p className="muted page-description">
+            Review working hours and effective dates used to calculate each
+            employee&apos;s expected time.
+          </p>
         </div>
       </div>
       <section className="card table-wrap">

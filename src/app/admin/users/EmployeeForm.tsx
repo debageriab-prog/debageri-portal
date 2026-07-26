@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 
 export function EmployeeForm() {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -26,55 +27,120 @@ export function EmployeeForm() {
     setBusy(false);
     if (!response.ok) return setError(result.error);
     event.currentTarget.reset();
+    setOpen(false);
     router.refresh();
   }
   return (
-    <form className="card" onSubmit={submit}>
-      <h2>Add employee</h2>
-      <div className="form-grid">
-        <label>
-          Name
-          <input className="field" name="displayName" required />
-        </label>
-        <label>
-          Email
-          <input className="field" name="email" type="email" required />
-        </label>
-        <label>
-          Employee number
-          <input className="field" name="employeeNumber" required />
-        </label>
-        <label>
-          Weekly hours
-          <input
-            className="field"
-            name="weeklyHours"
-            type="number"
-            min="1"
-            max="168"
-            step=".25"
-            required
-          />
-        </label>
-        <label>
-          Temporary password
-          <input
-            className="field"
-            name="password"
-            type="password"
-            minLength={8}
-            required
-          />
-        </label>
-      </div>
-      {error && (
-        <p className="notice" role="alert">
-          {error}
-        </p>
-      )}
-      <button className="button" disabled={busy}>
-        {busy ? "Creating…" : "Create employee"}
+    <>
+      <button className="button" onClick={() => setOpen(true)}>
+        <span aria-hidden="true">＋</span> Add employee
       </button>
-    </form>
+      {open && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-employee-title"
+          >
+            <header className="modal-header">
+              <div>
+                <span className="eyebrow">New team member</span>
+                <h2 id="new-employee-title">Add an employee</h2>
+                <p>
+                  Create secure portal access and set the employee&apos;s
+                  standard working week.
+                </p>
+              </div>
+              <button
+                className="modal-close"
+                aria-label="Close"
+                onClick={() => setOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+            <form onSubmit={submit}>
+              <div className="form-grid">
+                <label>
+                  Full name
+                  <input
+                    className="field"
+                    name="displayName"
+                    placeholder="e.g. Anna Andersson"
+                    autoFocus
+                    required
+                  />
+                </label>
+                <label>
+                  Work email
+                  <input
+                    className="field"
+                    name="email"
+                    type="email"
+                    placeholder="anna@debageri.se"
+                    required
+                  />
+                </label>
+                <label>
+                  Employee number
+                  <input
+                    className="field"
+                    name="employeeNumber"
+                    placeholder="DB-006"
+                    required
+                  />
+                </label>
+                <label>
+                  Weekly hours
+                  <input
+                    className="field"
+                    name="weeklyHours"
+                    type="number"
+                    min="1"
+                    max="168"
+                    step=".25"
+                    placeholder="40"
+                    required
+                  />
+                </label>
+                <label className="form-wide">
+                  Temporary password
+                  <input
+                    className="field"
+                    name="password"
+                    type="password"
+                    minLength={8}
+                    placeholder="At least 8 characters"
+                    required
+                  />
+                  <small>
+                    Share this securely. The employee uses it for their first
+                    sign-in.
+                  </small>
+                </label>
+              </div>
+              {error && (
+                <p className="notice" role="alert">
+                  {error}
+                </p>
+              )}
+              <footer className="modal-actions">
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => setOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button className="button" disabled={busy}>
+                  {busy ? "Creating…" : "Create employee"}
+                </button>
+              </footer>
+            </form>
+          </section>
+        </div>
+      )}
+    </>
   );
 }

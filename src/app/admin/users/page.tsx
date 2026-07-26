@@ -23,10 +23,14 @@ export default async function UsersPage() {
         <div>
           <div className="eyebrow">Admin</div>
           <h1>Employees</h1>
+          <p className="muted page-description">
+            Add team members, review their access and see who can use the
+            employee portal.
+          </p>
         </div>
+        <EmployeeForm />
       </div>
-      <EmployeeForm />
-      <section className="card table-wrap" style={{ marginTop: 18 }}>
+      <section className="card table-wrap">
         {users.length === 0 ? (
           <p>No employees have been added.</p>
         ) : (

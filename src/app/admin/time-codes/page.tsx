@@ -13,6 +13,10 @@ export default async function TimeCodesPage() {
         <div>
           <div className="eyebrow">Admin</div>
           <h1>Time codes</h1>
+          <p className="muted page-description">
+            See the work and absence categories employees can select when
+            reporting their time.
+          </p>
         </div>
       </div>
       <section className="card table-wrap">

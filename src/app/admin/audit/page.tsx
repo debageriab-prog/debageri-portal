@@ -29,6 +29,10 @@ export default async function AuditPage() {
         <div>
           <div className="eyebrow">Admin</div>
           <h1>Audit history</h1>
+          <p className="muted page-description">
+            Follow important portal events and retain a clear record of who did
+            what and when.
+          </p>
         </div>
       </div>
       <section className="card table-wrap">

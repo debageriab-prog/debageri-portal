@@ -21,6 +21,10 @@ export default function AdminPage() {
         <div>
           <div className="eyebrow">{t("admin")}</div>
           <h1>{t("portalSettings")}</h1>
+          <p className="muted page-description">
+            Manage your people, working agreements, reporting categories and
+            organization-wide portal settings.
+          </p>
         </div>
       </div>
       <div className="grid-2">

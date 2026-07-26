@@ -20,6 +20,10 @@ export default async function ReportsPage() {
         <div>
           <div className="eyebrow">Reports</div>
           <h1>My reported time</h1>
+          <p className="muted page-description">
+            Understand how your submitted time is distributed across work and
+            absence categories.
+          </p>
         </div>
       </div>
       <section className="card table-wrap">

@@ -147,6 +147,10 @@ export function WeeklyTimesheet() {
           <p className="muted">
             {data.dates[0]} – {data.dates[6]}
           </p>
+          <p className="muted page-description">
+            Add time for each day, save as you go and submit the completed week
+            for approval.
+          </p>
         </div>
         <span className="status">{data.sheet.status}</span>
       </div>
