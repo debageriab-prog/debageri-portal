@@ -377,11 +377,11 @@ export function WeeklyTimesheet() {
             </div>
           )}
         </div>
-        <div>
-          <strong>Copy from</strong>
-          <div className="actions">
+        <div className="copy-from-control">
+          <div className="actions copy-from-row">
+            <strong>Copy from</strong>
             <select
-              className="field"
+              className="field copy-from-select"
               value={copyMode}
               onChange={(event) => {
                 setCopyMode(event.target.value);

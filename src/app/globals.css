@@ -739,6 +739,19 @@ th {
   gap: 9px;
 }
 
+.copy-from-row {
+  align-items: center;
+}
+
+.copy-from-row > strong {
+  white-space: nowrap;
+}
+
+.copy-from-select {
+  width: 210px;
+  flex: 0 0 210px;
+}
+
 .timesheet-controls label {
   display: flex;
   align-items: center;
