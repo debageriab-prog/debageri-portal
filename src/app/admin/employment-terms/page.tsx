@@ -51,7 +51,7 @@ export default async function EmploymentTermsPage() {
                       )}
                     </td>
                     <td>{term.validFrom}</td>
-                    <td>{term.validTo ?? "—"}</td>
+                    <td>{term.validTo ?? "No end date"}</td>
                     <td>{formatDuration(term.weeklyMinutes)}</td>
                   </tr>
                 );

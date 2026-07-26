@@ -69,7 +69,7 @@ export default function LoginPage() {
           <h1>Everything about your workday, in one calm place.</h1>
           <p>
             Report time, follow approvals and keep employment information
-            organized—securely and without unnecessary administration.
+            organized, securely and without unnecessary administration.
           </p>
         </div>
         <div className="login-benefits">

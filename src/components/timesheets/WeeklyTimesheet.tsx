@@ -199,7 +199,7 @@ export function WeeklyTimesheet() {
                   >
                     {data.codes.map((code) => (
                       <option value={code.id} key={code.id}>
-                        {code.code} — {code.name.en ?? code.name.sv}
+                        {code.code}: {code.name.en ?? code.name.sv}
                       </option>
                     ))}
                   </select>

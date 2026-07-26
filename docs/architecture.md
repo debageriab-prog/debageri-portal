@@ -32,6 +32,6 @@ sequenceDiagram
   DB-->>E: Typed result
 ```
 
-Errors use stable public messages and avoid internal details. Structured logs should carry correlation ID, action, actor ID, organization ID, result, and error class—not entry comments or employee details. Cloud Run is recommended for standalone Next.js; Firebase Hosting may proxy it. App Check, rate limiting, monitoring, alerts, PITR/export backups, and retention policies are production gates.
+Errors use stable public messages and avoid internal details. Structured logs should carry correlation ID, action, actor ID, organization ID, result, and error class, but not entry comments or employee details. Cloud Run is recommended for standalone Next.js; Firebase Hosting may proxy it. App Check, rate limiting, monitoring, alerts, PITR/export backups, and retention policies are production gates.
 
 Top-level collections support manager/report queries and future summary jobs. Precomputed `reportSummaries` can be introduced behind the reporting service. Payslips/documents use separate private Storage paths plus metadata in future collections. No architecture dependency is time-reporting-specific.
