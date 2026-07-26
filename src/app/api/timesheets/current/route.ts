@@ -279,7 +279,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ data });
 }
 
-export async function PUT(request: Request) {
+async function saveCurrent(request: Request) {
   const loaded = await loadCurrent(request);
   if (!loaded)
     return NextResponse.json(
@@ -326,8 +326,15 @@ export async function PUT(request: Request) {
     absenceMinutes = 0;
   for (const entry of parsed.data.entries) {
     const code = codeMap.get(entry.timeCodeId)!;
+    const countsAsWorkedTime = code.countsAsWorkedTime === true;
+    const countsTowardExpectedTime = code.countsTowardExpectedTime !== false;
+    const category = code.category ?? (countsAsWorkedTime ? "work" : "other");
+    const localizedName =
+      typeof code.name === "string"
+        ? code.name
+        : (code.name?.sv ?? code.name?.en ?? code.code);
     reportedMinutes += entry.minutes;
-    if (code.countsAsWorkedTime) workedMinutes += entry.minutes;
+    if (countsAsWorkedTime) workedMinutes += entry.minutes;
     else absenceMinutes += entry.minutes;
     const date = new Date(`${entry.date}T12:00:00Z`);
     batch.create(db.collection("timeEntries").doc(), {
@@ -342,10 +349,10 @@ export async function PUT(request: Request) {
       timeCodeId: entry.timeCodeId,
       timeCodeSnapshot: {
         code: code.code,
-        name: code.name?.sv ?? code.code,
-        category: code.category,
-        countsAsWorkedTime: code.countsAsWorkedTime,
-        countsTowardExpectedTime: code.countsTowardExpectedTime,
+        name: localizedName,
+        category,
+        countsAsWorkedTime,
+        countsTowardExpectedTime,
         hourlyRate: Number(code.hourlyRate ?? 0),
       },
       minutes: entry.minutes,
@@ -363,4 +370,19 @@ export async function PUT(request: Request) {
   });
   await batch.commit();
   return NextResponse.json({ ok: true });
+}
+
+export async function PUT(request: Request) {
+  try {
+    return await saveCurrent(request);
+  } catch (error) {
+    console.error("Saving time report failed", error);
+    return NextResponse.json(
+      {
+        error:
+          "The time report could not be saved. Please try again. If the problem continues, contact an administrator.",
+      },
+      { status: 500 },
+    );
+  }
 }
