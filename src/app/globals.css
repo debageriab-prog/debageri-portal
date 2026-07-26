@@ -928,6 +928,11 @@ th {
   background: linear-gradient(135deg, #f5ece4, #fbf8f5);
 }
 
+.timesheet-table-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .timesheet-table-header strong,
 .timesheet-table-header span {
   display: block;

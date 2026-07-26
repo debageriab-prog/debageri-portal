@@ -307,6 +307,17 @@ export function WeeklyTimesheet() {
     });
   }
 
+  function goToNextWeek() {
+    if (!data) return;
+    const next = new Date(`${data.dates[0]}T12:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 7);
+    const selected = getIsoWeek(next);
+    setWeekMode("number");
+    setCopyMode("");
+    setSuccess("");
+    void loadWeek(selected.isoYear, selected.isoWeek);
+  }
+
   if (!data)
     return (
       <section className="card">
@@ -483,6 +494,11 @@ export function WeeklyTimesheet() {
           <strong>{formatDuration(reported)}</strong>
         </div>
       </section>
+      <div className="timesheet-table-actions">
+        <button className="button secondary" onClick={goToNextWeek}>
+          Go to next week
+        </button>
+      </div>
       <section className="card table-wrap">
         <div className="timesheet-table-header">
           <div>
