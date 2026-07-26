@@ -10,6 +10,8 @@ const inputSchema = z.object({
   employeeNumber: z.string().trim().min(1).max(30),
   password: z.string().min(8).max(128),
   weeklyHours: z.number().positive().max(168),
+  employmentStartDate: z.iso.date(),
+  reportingStartDate: z.iso.date(),
 });
 
 export async function POST(request: Request) {
@@ -56,8 +58,9 @@ export async function POST(request: Request) {
     batch.create(db.collection("employmentTerms").doc(), {
       organizationId: actor.organizationId,
       userId: uid,
-      validFrom: new Date().toISOString().slice(0, 10),
+      validFrom: parsed.data.employmentStartDate,
       validTo: null,
+      reportingStartDate: parsed.data.reportingStartDate,
       employmentPercentage: Math.round((weeklyMinutes / 2400) * 100),
       weeklyMinutes,
       schedule: {
@@ -72,14 +75,33 @@ export async function POST(request: Request) {
       createdAt: FieldValue.serverTimestamp(),
       createdBy: actor.id,
     });
+    batch.create(db.collection("auditLogs").doc(), {
+      organizationId: actor.organizationId,
+      actorUserId: actor.id,
+      action: "user.created",
+      entityType: "user",
+      entityId: uid,
+      timestamp: FieldValue.serverTimestamp(),
+      metadata: { role: "employee" },
+    });
     await batch.commit();
     return NextResponse.json({ id: uid }, { status: 201 });
   } catch (error) {
     if (uid) await auth.deleteUser(uid).catch(() => undefined);
-    const message =
-      error instanceof Error && error.message.includes("email-already-exists")
-        ? "Email already exists"
-        : "Employee could not be created";
-    return NextResponse.json({ error: message }, { status: 409 });
+    const code =
+      typeof error === "object" && error && "code" in error
+        ? String(error.code)
+        : "";
+    const emailExists =
+      code === "auth/email-already-exists" ||
+      (error instanceof Error &&
+        error.message.includes("email-already-exists"));
+    const message = emailExists
+      ? "That email address is already used by another account."
+      : "The employee could not be created. Please try again.";
+    return NextResponse.json(
+      { error: message },
+      { status: emailExists ? 409 : 500 },
+    );
   }
 }

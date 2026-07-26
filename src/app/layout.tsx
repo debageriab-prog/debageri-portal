@@ -11,6 +11,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { default: "Debageri Portal", template: "%s · Debageri Portal" },
   description: "Debageri Employee Portal",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default async function RootLayout({

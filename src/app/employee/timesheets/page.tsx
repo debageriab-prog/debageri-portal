@@ -23,6 +23,10 @@ export default async function HistoryPage() {
         <div>
           <div className="eyebrow">Time reporting</div>
           <h1>History</h1>
+          <p className="muted page-description">
+            Review previous weeks, reported totals and the current approval
+            status of every timesheet.
+          </p>
         </div>
       </div>
       <section className="card table-wrap">

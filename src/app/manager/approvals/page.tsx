@@ -29,6 +29,10 @@ export default async function ApprovalsPage() {
         <div>
           <div className="eyebrow">Approvals</div>
           <h1>Submitted timesheets</h1>
+          <p className="muted page-description">
+            Review completed weeks, confirm reported hours and return anything
+            that needs correction.
+          </p>
         </div>
       </div>
       <section className="card table-wrap">

@@ -14,6 +14,10 @@ export default async function SettingsPage() {
         <div>
           <div className="eyebrow">Admin</div>
           <h1>Organization</h1>
+          <p className="muted page-description">
+            Review the shared settings that control language, timezone and
+            organization identity.
+          </p>
         </div>
       </div>
       <section className="card">

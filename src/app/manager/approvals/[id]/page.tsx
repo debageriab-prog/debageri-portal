@@ -34,6 +34,10 @@ export default async function ReviewPage({
           <p className="muted">
             {sheet.periodStart} – {sheet.periodEnd}
           </p>
+          <p className="muted page-description">
+            Compare the employee&apos;s entries with expected hours, then
+            approve the week or return it with a clear reason.
+          </p>
         </div>
         <span className="status">{sheet.status}</span>
       </div>

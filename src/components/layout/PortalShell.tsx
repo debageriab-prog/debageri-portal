@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { PortalUser } from "@/domain/types";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 export function PortalShell({
   children,
@@ -28,10 +29,8 @@ export function PortalShell({
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">D</span>
-          <span>Debageri Portal</span>
-        </div>
+        <BrandLogo inverse />
+        <p className="sidebar-intro">Your workday, clearly organized.</p>
         <nav aria-label={t("mainMenu")}>
           {nav.map(([label, href]) => (
             <Link className="nav-link" href={href} key={href}>
@@ -40,9 +39,15 @@ export function PortalShell({
           ))}
         </nav>
         <div style={{ position: "absolute", bottom: 24, fontSize: 12 }}>
-          <div>{user.displayName}</div>
+          <div className="user-chip">
+            <span className="avatar">{user.displayName.charAt(0)}</span>
+            <span>
+              <strong>{user.displayName}</strong>
+              <small>{user.role}</small>
+            </span>
+          </div>
           <button className="nav-link" onClick={logout}>
-            Log out
+            <span aria-hidden="true">↗</span> Log out
           </button>
         </div>
       </aside>

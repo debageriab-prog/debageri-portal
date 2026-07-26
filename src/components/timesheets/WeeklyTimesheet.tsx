@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
@@ -7,14 +8,17 @@ type Code = {
   id: string;
   code: string;
   name: { sv?: string; en?: string };
-  requiresComment: boolean;
 };
-type Entry = {
-  key: string;
+type StoredEntry = {
+  id: string;
   date: string;
   timeCodeId: string;
   minutes: number;
-  comment: string;
+};
+type Row = {
+  key: string;
+  timeCodeId: string;
+  minutes: number[];
 };
 type Data = {
   id: string;
@@ -28,100 +32,118 @@ type Data = {
     rejectionReason?: string | null;
   };
   codes: Code[];
-  entries: Array<Entry & { id: string }>;
+  entries: StoredEntry[];
 };
-const dayNames = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-];
-const scheduleKeys = [
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-  "sunday",
-];
+const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function entriesToRows(data: Data): Row[] {
+  const rows = new Map<string, Row>();
+  for (const entry of data.entries) {
+    const row = rows.get(entry.timeCodeId) ?? {
+      key: entry.timeCodeId,
+      timeCodeId: entry.timeCodeId,
+      minutes: Array(7).fill(0) as number[],
+    };
+    const day = data.dates.indexOf(entry.date);
+    if (day >= 0) row.minutes[day] = (row.minutes[day] ?? 0) + entry.minutes;
+    rows.set(entry.timeCodeId, row);
+  }
+  return [...rows.values()];
+}
 
 export function WeeklyTimesheet() {
   const router = useRouter();
   const [data, setData] = useState<Data | null>(null);
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [message, setMessage] = useState("Loading…");
+  const [rows, setRows] = useState<Row[]>([]);
+  const [message, setMessage] = useState("Loading...");
   const editable =
     data && ["draft", "rejected", "reopened"].includes(data.sheet.status);
+
   useEffect(() => {
-    fetch("/api/timesheets/current").then(async (response) => {
-      if (response.status === 401) return router.replace("/auth/login");
-      const result = await response.json();
-      if (!response.ok) return setMessage(result.error);
-      setData(result.data);
-      setEntries(
-        result.data.entries.map((entry: Entry & { id: string }) => ({
-          ...entry,
-          key: entry.id,
-          comment: entry.comment ?? "",
-        })),
-      );
-      setMessage("");
-    });
+    fetch("/api/timesheets/current")
+      .then(async (response) => {
+        if (response.status === 401) return router.replace("/auth/login");
+        const result = await response.json();
+        if (!response.ok) return setMessage(result.error);
+        setData(result.data);
+        setRows(entriesToRows(result.data));
+        setMessage("");
+      })
+      .catch(() => setMessage("The time report could not be loaded."));
   }, [router]);
+
   const reported = useMemo(
-    () => entries.reduce((sum, entry) => sum + entry.minutes, 0),
-    [entries],
+    () =>
+      rows.reduce(
+        (total, row) =>
+          total + row.minutes.reduce((sum, minutes) => sum + minutes, 0),
+        0,
+      ),
+    [rows],
   );
-  function add(date: string) {
+
+  function addRow() {
     if (!data?.codes.length) return;
-    setEntries((current) => [
+    const unused =
+      data.codes.find(
+        (code) => !rows.some((row) => row.timeCodeId === code.id),
+      ) ?? data.codes[0]!;
+    setRows((current) => [
       ...current,
       {
         key: crypto.randomUUID(),
-        date,
-        timeCodeId: data.codes[0]!.id,
-        minutes: 60,
-        comment: "",
+        timeCodeId: unused.id,
+        minutes: Array(7).fill(0) as number[],
       },
     ]);
   }
-  function patch(key: string, value: Partial<Entry>) {
-    setEntries((current) =>
-      current.map((entry) =>
-        entry.key === key ? { ...entry, ...value } : entry,
-      ),
+
+  function patchRow(key: string, patch: Partial<Row>) {
+    setRows((current) =>
+      current.map((row) => (row.key === key ? { ...row, ...patch } : row)),
     );
   }
+
   async function save() {
-    setMessage("Saving…");
-    const response = await fetch("/api/timesheets/current", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        entries: entries.map(({ date, timeCodeId, minutes, comment }) => ({
-          date,
-          timeCodeId,
-          minutes,
-          comment: comment || null,
-        })),
-      }),
-    });
-    const result = await response.json();
-    setMessage(response.ok ? "Saved." : result.error);
-    return response.ok;
+    if (!data) return false;
+    setMessage("Saving...");
+    try {
+      const entries = rows.flatMap((row) =>
+        row.minutes.flatMap((minutes, day) =>
+          minutes > 0
+            ? [
+                {
+                  date: data.dates[day],
+                  timeCodeId: row.timeCodeId,
+                  minutes,
+                  comment: null,
+                },
+              ]
+            : [],
+        ),
+      );
+      const response = await fetch("/api/timesheets/current", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ entries }),
+      });
+      const result = await response.json().catch(() => ({}));
+      setMessage(response.ok ? "Saved." : result.error);
+      return response.ok;
+    } catch {
+      setMessage("The time report could not be saved. Please try again.");
+      return false;
+    }
   }
+
   async function submit() {
-    if (!(await save())) return;
-    const response = await fetch(`/api/timesheets/${data!.id}/submit`, {
+    if (!(await save()) || !data) return;
+    const response = await fetch(`/api/timesheets/${data.id}/submit`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: "{}",
     });
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) return setMessage(result.error);
     setData((current) =>
       current
@@ -130,12 +152,14 @@ export function WeeklyTimesheet() {
     );
     setMessage("Submitted for approval.");
   }
+
   if (!data)
     return (
       <section className="card">
         <p>{message}</p>
       </section>
     );
+
   return (
     <>
       <div className="topbar">
@@ -145,7 +169,11 @@ export function WeeklyTimesheet() {
             Week {data.sheet.isoWeek}, {data.sheet.isoYear}
           </h1>
           <p className="muted">
-            {data.dates[0]} – {data.dates[6]}
+            {data.dates[0]} to {data.dates[6]}
+          </p>
+          <p className="muted page-description">
+            Use one row per time code and enter hours under each day. Add
+            separate rows for work, vacation, parental leave or other time.
           </p>
         </div>
         <span className="status">{data.sheet.status}</span>
@@ -163,95 +191,100 @@ export function WeeklyTimesheet() {
           <strong>{formatDuration(reported)}</strong>
         </div>
       </section>
-      <section className="card">
+      <section className="card table-wrap">
         {!data.codes.length && (
-          <p className="notice">
-            No active time codes are configured. Ask an administrator to add
-            one.
-          </p>
+          <p className="notice">No active time codes are configured.</p>
         )}
-        {data.dates.map((date, day) => (
-          <article className="day" key={date}>
-            <header className="day-head">
-              <strong>
-                {dayNames[day]} · {date}
-              </strong>
-              <span>
-                Expected{" "}
-                {formatDuration(Number(data.schedule[scheduleKeys[day]!] ?? 0))}
-              </span>
-            </header>
-            {entries
-              .filter((entry) => entry.date === date)
-              .map((entry) => (
-                <div className="entry" key={entry.key}>
+        <table className="timesheet-grid">
+          <thead>
+            <tr>
+              <th>Time code</th>
+              {data.dates.map((date, day) => (
+                <th key={date}>
+                  {dayNames[day]}
+                  <small>{date.slice(8, 10)}</small>
+                </th>
+              ))}
+              <th>Total</th>
+              <th>
+                <span className="sr-only">Remove</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <td>
                   <select
                     className="field"
-                    value={entry.timeCodeId}
+                    value={row.timeCodeId}
                     disabled={!editable}
                     onChange={(event) =>
-                      patch(entry.key, { timeCodeId: event.target.value })
+                      patchRow(row.key, { timeCodeId: event.target.value })
                     }
                   >
                     {data.codes.map((code) => (
-                      <option value={code.id} key={code.id}>
-                        {code.code} — {code.name.en ?? code.name.sv}
+                      <option key={code.id} value={code.id}>
+                        {code.code}: {code.name.en ?? code.name.sv}
                       </option>
                     ))}
                   </select>
-                  <input
-                    className="field"
-                    type="number"
-                    min="1"
-                    max="1440"
-                    value={entry.minutes}
-                    disabled={!editable}
-                    onChange={(event) =>
-                      patch(entry.key, { minutes: Number(event.target.value) })
-                    }
-                  />
-                  <input
-                    className="field"
-                    value={entry.comment}
-                    disabled={!editable}
-                    placeholder="Comment"
-                    onChange={(event) =>
-                      patch(entry.key, { comment: event.target.value })
-                    }
-                  />
+                </td>
+                {row.minutes.map((minutes, day) => (
+                  <td key={data.dates[day]}>
+                    <input
+                      className="field time-cell"
+                      type="number"
+                      min="0"
+                      max="24"
+                      step=".25"
+                      value={minutes ? minutes / 60 : ""}
+                      placeholder="0"
+                      disabled={!editable}
+                      aria-label={`${dayNames[day]} hours`}
+                      onChange={(event) => {
+                        const next = [...row.minutes];
+                        next[day] = Math.round(Number(event.target.value) * 60);
+                        patchRow(row.key, { minutes: next });
+                      }}
+                    />
+                  </td>
+                ))}
+                <td>
+                  <strong>
+                    {formatDuration(
+                      row.minutes.reduce((sum, value) => sum + value, 0),
+                    )}
+                  </strong>
+                </td>
+                <td>
                   <button
                     className="icon-button"
                     disabled={!editable}
+                    aria-label="Remove row"
                     onClick={() =>
-                      setEntries((current) =>
-                        current.filter((item) => item.key !== entry.key),
+                      setRows((current) =>
+                        current.filter((item) => item.key !== row.key),
                       )
                     }
                   >
                     ×
                   </button>
-                </div>
-              ))}
-            {editable && (
-              <div className="entry-empty">
-                <button
-                  className="button secondary"
-                  disabled={!data.codes.length}
-                  onClick={() => add(date)}
-                >
-                  Add entry
-                </button>
-              </div>
-            )}
-          </article>
-        ))}
-        {message && (
-          <p className="notice" role="status">
-            {message}
-          </p>
-        )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
         {editable && (
-          <div className="actions" style={{ marginTop: 18 }}>
+          <div className="actions timesheet-actions">
+            <button
+              className="button secondary"
+              disabled={!data.codes.length}
+              onClick={addRow}
+            >
+              Add row
+            </button>
+            <span className="actions-spacer" />
             <button className="button secondary" onClick={save}>
               Save
             </button>
@@ -265,6 +298,11 @@ export function WeeklyTimesheet() {
               Submit
             </button>
           </div>
+        )}
+        {message && (
+          <p className="notice" role="status">
+            {message}
+          </p>
         )}
       </section>
     </>
