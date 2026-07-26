@@ -9,7 +9,12 @@ import {
   splitWeekByMonth,
 } from "@/lib/dates/iso-week";
 
-type Code = { id: string; code: string; category: string };
+type Code = {
+  id: string;
+  code: string;
+  category: string;
+  countsAsWorkedTime: boolean;
+};
 type StoredEntry = {
   id: string;
   date: string;
@@ -89,6 +94,11 @@ export function WeeklyTimesheet() {
   const [nonWorkingOpen, setNonWorkingOpen] = useState(false);
   const [autoApproving, setAutoApproving] = useState(false);
   const editable = data && data.sheet.status === "draft";
+  const periodLabel = data
+    ? `Week ${data.sheet.isoWeek}${
+        data.partCount > 1 ? `-${String(data.part).padStart(2, "0")}` : ""
+      }`
+    : "";
 
   async function loadWeek(
     year?: number,
@@ -221,6 +231,33 @@ export function WeeklyTimesheet() {
         item.key === row.key ? { ...item, minutes: next } : item,
       ),
     );
+  }
+
+  function changeTimeCode(row: Row, timeCodeId: string) {
+    if (!data) return;
+    const code = data.codes.find((item) => item.id === timeCodeId);
+    const minutes =
+      code?.countsAsWorkedTime === true
+        ? row.minutes
+        : row.minutes.map((value, day) =>
+            data.redDays[day]?.isRed ? 0 : value,
+          );
+    setRows((current) =>
+      current.map((item) =>
+        item.key === row.key ? { ...item, timeCodeId, minutes } : item,
+      ),
+    );
+  }
+
+  function formatReportingDay(date: string) {
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone: "UTC",
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    })
+      .format(new Date(`${date}T12:00:00Z`))
+      .replace(",", "");
   }
 
   async function save() {
@@ -633,19 +670,9 @@ export function WeeklyTimesheet() {
                   <select
                     className="field"
                     value={row.timeCodeId}
-                    disabled={
-                      !editable ||
-                      data.codes.find((code) => code.id === row.timeCodeId)
-                        ?.category === "work"
-                    }
+                    disabled={!editable}
                     onChange={(event) =>
-                      setRows((current) =>
-                        current.map((item) =>
-                          item.key === row.key
-                            ? { ...item, timeCodeId: event.target.value }
-                            : item,
-                        ),
-                      )
+                      changeTimeCode(row, event.target.value)
                     }
                   >
                     {data.codes.map((code) => (
@@ -670,7 +697,12 @@ export function WeeklyTimesheet() {
                       step=".25"
                       value={minutes ? minutes / 60 : ""}
                       placeholder="0"
-                      disabled={!editable}
+                      disabled={
+                        !editable ||
+                        (data.redDays[day]?.isRed &&
+                          data.codes.find((code) => code.id === row.timeCodeId)
+                            ?.countsAsWorkedTime !== true)
+                      }
                       aria-label={`${data.dates[day]} hours`}
                       onChange={(event) =>
                         changeMinutes(row, day, Number(event.target.value))
@@ -688,11 +720,7 @@ export function WeeklyTimesheet() {
                 <td>
                   <button
                     className="icon-button"
-                    disabled={
-                      !editable ||
-                      data.codes.find((code) => code.id === row.timeCodeId)
-                        ?.category === "work"
-                    }
+                    disabled={!editable}
                     aria-label="Remove row"
                     onClick={() =>
                       setRows((current) =>
@@ -723,7 +751,10 @@ export function WeeklyTimesheet() {
                 reported < data.sheet.expectedMinutes || !data.codes.length
               }
               onClick={() => {
-                if (submitWarnings.length) {
+                if (reported === 0 && data.sheet.expectedMinutes === 0) {
+                  setSubmitError("");
+                  setNonWorkingOpen(true);
+                } else if (submitWarnings.length) {
                   setConfirmation("");
                   setConfirmOpen(true);
                 } else void performSubmit();
@@ -824,9 +855,17 @@ export function WeeklyTimesheet() {
                   This week has only non-working days
                 </h2>
                 <p>
-                  Would you like to report 0 working hours for this period? The
-                  report will be approved automatically and will not require
-                  manager review.
+                  Days to report in {periodLabel}:{" "}
+                  <strong>
+                    {data.dates.map(formatReportingDay).join(", ")}
+                  </strong>
+                  .
+                </p>
+                <p>
+                  Would you like to report 0 working hours? The report will be
+                  approved automatically and will not require manager review.
+                  Select No if you worked on one of these red days and need to
+                  enter working time.
                 </p>
               </div>
             </header>

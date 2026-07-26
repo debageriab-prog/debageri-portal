@@ -296,15 +296,14 @@ async function saveCurrent(request: Request) {
       { error: "Invalid time entries." },
       { status: 400 },
     );
-  if (loaded.sheet.expectedMinutes === 0) {
-    if (
-      parsed.data.autoApproveNonWorking !== true ||
-      parsed.data.entries.length > 0
-    )
+  if (
+    loaded.sheet.expectedMinutes === 0 &&
+    parsed.data.autoApproveNonWorking === true
+  ) {
+    if (parsed.data.entries.length > 0)
       return NextResponse.json(
         {
-          error:
-            "This period contains only non-working days. Confirm reporting 0 hours to continue.",
+          error: "A zero-hour report cannot contain time entries.",
         },
         { status: 400 },
       );
@@ -377,6 +376,14 @@ async function saveCurrent(request: Request) {
     await batch.commit();
     return NextResponse.json({ ok: true, status: "approved" });
   }
+  if (loaded.sheet.expectedMinutes === 0 && parsed.data.entries.length === 0)
+    return NextResponse.json(
+      {
+        error:
+          "This period contains only non-working days. Confirm reporting 0 hours to continue.",
+      },
+      { status: 400 },
+    );
   const dateSet = new Set(loaded.dates);
   const codeMap = new Map(loaded.codes.map((code) => [String(code.id), code]));
   if (
@@ -386,6 +393,23 @@ async function saveCurrent(request: Request) {
   )
     return NextResponse.json(
       { error: "An entry contains an invalid date or time code." },
+      { status: 400 },
+    );
+  const redDateSet = new Set(
+    loaded.redDays.filter((day) => day.isRed).map((day) => day.date),
+  );
+  if (
+    parsed.data.entries.some(
+      (entry) =>
+        redDateSet.has(entry.date) &&
+        codeMap.get(entry.timeCodeId)?.countsAsWorkedTime !== true,
+    )
+  )
+    return NextResponse.json(
+      {
+        error:
+          "Only working-time codes can be reported on red or non-working days.",
+      },
       { status: 400 },
     );
 
