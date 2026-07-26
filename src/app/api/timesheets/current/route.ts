@@ -19,22 +19,54 @@ const saveSchema = z.object({
     .max(100),
 });
 
-async function loadCurrent() {
+const weekQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2200).optional(),
+  week: z.coerce.number().int().min(1).max(53).optional(),
+  copyYear: z.coerce.number().int().min(2000).max(2200).optional(),
+  copyWeek: z.coerce.number().int().min(1).max(53).optional(),
+});
+
+async function loadCurrent(request: Request) {
   const user = await verifySession();
   if (!user) return null;
   const { db } = getAdminServices();
   const today = new Date().toISOString().slice(0, 10);
-  const { isoYear, isoWeek } = getIsoWeek(today);
-  const dates = getIsoWeekDates(isoYear, isoWeek);
+  const current = getIsoWeek(today);
+  const url = new URL(request.url);
+  const query = weekQuerySchema.safeParse(Object.fromEntries(url.searchParams));
+  if (!query.success) return { user, error: "Invalid week selection." };
+  const isoYear = query.data.year ?? current.isoYear;
+  const isoWeek = query.data.week ?? current.isoWeek;
+  let dates: string[];
+  try {
+    dates = getIsoWeekDates(isoYear, isoWeek);
+  } catch {
+    return { user, error: "The selected ISO week does not exist." };
+  }
   const id = timesheetId(user.organizationId, user.id, isoYear, isoWeek);
-  const [sheetDoc, termDocs, codeDocs] = await Promise.all([
+  const [sheetDoc, termDocs, codeDocs, holidayDocs] = await Promise.all([
     db.collection("timesheets").doc(id).get(),
     db.collection("employmentTerms").where("userId", "==", user.id).get(),
     db
       .collection("timeCodes")
       .where("organizationId", "==", user.organizationId)
       .get(),
+    db
+      .collection("holidays")
+      .where("organizationId", "==", user.organizationId)
+      .get(),
   ]);
+  const holidayNames = new Map(
+    holidayDocs.docs.map((doc) => [
+      String(doc.data().date),
+      String(doc.data().name),
+    ]),
+  );
+  const redDays = dates.map((date, index) => ({
+    date,
+    isRed: index >= 5 || holidayNames.has(date),
+    reason: holidayNames.get(date) ?? (index >= 5 ? "Weekend" : null),
+  }));
   const term = termDocs.docs
     .map((doc) => doc.data())
     .filter(
@@ -46,22 +78,27 @@ async function loadCurrent() {
     .sort((a, b) => String(b.validFrom).localeCompare(String(a.validFrom)))[0];
   if (!term)
     return { user, error: "No active employment terms are configured." };
+  const scheduleKeys = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+  ];
+  const expectedMinutes = dates.reduce((total, date, index) => {
+    const begins = String(term.reportingStartDate ?? term.validFrom);
+    if (
+      date < begins ||
+      (term.validTo && date > term.validTo) ||
+      redDays[index]?.isRed
+    )
+      return total;
+    return total + Number(term.schedule?.[scheduleKeys[index]!] ?? 0);
+  }, 0);
   let sheet = sheetDoc.data() as Omit<Timesheet, "id"> | undefined;
   if (!sheetDoc.exists) {
-    const scheduleKeys = [
-      "monday",
-      "tuesday",
-      "wednesday",
-      "thursday",
-      "friday",
-      "saturday",
-      "sunday",
-    ];
-    const expectedMinutes = dates.reduce((total, date, index) => {
-      const begins = String(term.reportingStartDate ?? term.validFrom);
-      if (date < begins || (term.validTo && date > term.validTo)) return total;
-      return total + Number(term.schedule?.[scheduleKeys[index]!] ?? 0);
-    }, 0);
     const newSheet = {
       organizationId: user.organizationId,
       userId: user.id,
@@ -82,6 +119,15 @@ async function loadCurrent() {
     };
     await db.collection("timesheets").doc(id).create(newSheet);
     sheet = newSheet;
+  } else if (
+    ["draft", "rejected", "reopened"].includes(String(sheet?.status)) &&
+    sheet?.expectedMinutes !== expectedMinutes
+  ) {
+    await sheetDoc.ref.update({
+      expectedMinutes,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    sheet = { ...sheet!, expectedMinutes };
   }
   const entryDocs = await db
     .collection("timeEntries")
@@ -95,20 +141,61 @@ async function loadCurrent() {
         code.employeeCanSelect !== false &&
         (!code.assignedUserId || code.assignedUserId === user.id),
     )
-    .sort((a, b) => Number(a.sortOrder) - Number(b.sortOrder));
+    .sort((a, b) => {
+      const rank = (code: TimeCode) =>
+        code.category === "work" ? 0 : code.category === "vacation" ? 1 : 2;
+      return (
+        rank(a) - rank(b) ||
+        Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) ||
+        a.id.localeCompare(b.id)
+      );
+    });
+  let copyEntries: Array<Record<string, unknown>> = [];
+  if (query.data.copyYear && query.data.copyWeek) {
+    try {
+      const copyDates = getIsoWeekDates(
+        query.data.copyYear,
+        query.data.copyWeek,
+      );
+      const copyId = timesheetId(
+        user.organizationId,
+        user.id,
+        query.data.copyYear,
+        query.data.copyWeek,
+      );
+      const sourceEntries = await db
+        .collection("timeEntries")
+        .where("timesheetId", "==", copyId)
+        .get();
+      const allowedCodes = new Set(codes.map((code) => code.id));
+      copyEntries = sourceEntries.docs
+        .map((doc) => doc.data())
+        .filter((entry) => allowedCodes.has(String(entry.timeCodeId)))
+        .map((entry) => ({
+          ...entry,
+          id: `copy-${crypto.randomUUID()}`,
+          date: dates[copyDates.indexOf(String(entry.date))],
+        }))
+        .filter((entry) => Boolean(entry.date));
+    } catch {
+      return { user, error: "The copy-from week does not exist." };
+    }
+  }
   return {
     user,
     id,
     dates,
+    redDays,
     schedule: term.schedule,
     sheet: { id, ...sheet },
     entries: entryDocs.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+    copyEntries,
     codes,
   };
 }
 
-export async function GET() {
-  const data = await loadCurrent();
+export async function GET(request: Request) {
+  const data = await loadCurrent(request);
   if (!data)
     return NextResponse.json(
       { error: "Authentication required" },
@@ -120,7 +207,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const loaded = await loadCurrent();
+  const loaded = await loadCurrent(request);
   if (!loaded)
     return NextResponse.json(
       { error: "Authentication required" },

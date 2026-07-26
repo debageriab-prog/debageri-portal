@@ -3,27 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
+import { getIsoWeek } from "@/lib/dates/iso-week";
 
-type Code = {
-  id: string;
-  code: string;
-  name: { sv?: string; en?: string };
-};
+type Code = { id: string; code: string; category: string };
 type StoredEntry = {
   id: string;
   date: string;
   timeCodeId: string;
   minutes: number;
 };
-type Row = {
-  key: string;
-  timeCodeId: string;
-  minutes: number[];
-};
+type Row = { key: string; timeCodeId: string; minutes: number[] };
 type Data = {
   id: string;
   dates: string[];
-  schedule: Record<string, number>;
+  redDays: Array<{ date: string; isRed: boolean; reason: string | null }>;
   sheet: {
     isoYear: number;
     isoWeek: number;
@@ -33,12 +26,13 @@ type Data = {
   };
   codes: Code[];
   entries: StoredEntry[];
+  copyEntries: StoredEntry[];
 };
 const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function entriesToRows(data: Data): Row[] {
+function entriesToRows(data: Data, entries: StoredEntry[]): Row[] {
   const rows = new Map<string, Row>();
-  for (const entry of data.entries) {
+  for (const entry of entries) {
     const row = rows.get(entry.timeCodeId) ?? {
       key: entry.timeCodeId,
       timeCodeId: entry.timeCodeId,
@@ -48,7 +42,18 @@ function entriesToRows(data: Data): Row[] {
     if (day >= 0) row.minutes[day] = (row.minutes[day] ?? 0) + entry.minutes;
     rows.set(entry.timeCodeId, row);
   }
-  return [...rows.values()];
+  const workCode = data.codes.find((code) => code.category === "work");
+  if (workCode && !rows.has(workCode.id))
+    rows.set(workCode.id, {
+      key: workCode.id,
+      timeCodeId: workCode.id,
+      minutes: Array(7).fill(0) as number[],
+    });
+  return [...rows.values()].sort(
+    (a, b) =>
+      data.codes.findIndex((code) => code.id === a.timeCodeId) -
+      data.codes.findIndex((code) => code.id === b.timeCodeId),
+  );
 }
 
 export function WeeklyTimesheet() {
@@ -56,21 +61,58 @@ export function WeeklyTimesheet() {
   const [data, setData] = useState<Data | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [message, setMessage] = useState("Loading...");
+  const [yearInput, setYearInput] = useState(new Date().getUTCFullYear());
+  const [weekInput, setWeekInput] = useState(1);
+  const [copyMode, setCopyMode] = useState("");
+  const [copyYear, setCopyYear] = useState(new Date().getUTCFullYear());
+  const [copyWeek, setCopyWeek] = useState(1);
   const editable =
     data && ["draft", "rejected", "reopened"].includes(data.sheet.status);
 
+  async function loadWeek(
+    year?: number,
+    week?: number,
+    copy?: { year: number; week: number },
+  ) {
+    setMessage("Loading...");
+    const query = new URLSearchParams();
+    if (year && week) {
+      query.set("year", String(year));
+      query.set("week", String(week));
+    }
+    if (copy) {
+      query.set("copyYear", String(copy.year));
+      query.set("copyWeek", String(copy.week));
+    }
+    try {
+      const response = await fetch(`/api/timesheets/current?${query}`);
+      if (response.status === 401) return router.replace("/auth/login");
+      const result = await response.json();
+      if (!response.ok) return setMessage(result.error);
+      const loaded = result.data as Data;
+      setData(loaded);
+      setYearInput(loaded.sheet.isoYear);
+      setWeekInput(loaded.sheet.isoWeek);
+      setRows(
+        entriesToRows(loaded, copy ? loaded.copyEntries : loaded.entries),
+      );
+      setMessage(
+        copy
+          ? "Copied entries are ready. Review, save and submit when finished."
+          : "",
+      );
+    } catch {
+      setMessage("The time report could not be loaded.");
+    }
+  }
+
   useEffect(() => {
-    fetch("/api/timesheets/current")
-      .then(async (response) => {
-        if (response.status === 401) return router.replace("/auth/login");
-        const result = await response.json();
-        if (!response.ok) return setMessage(result.error);
-        setData(result.data);
-        setRows(entriesToRows(result.data));
-        setMessage("");
-      })
-      .catch(() => setMessage("The time report could not be loaded."));
-  }, [router]);
+    // The async loader updates state only after the request resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadWeek();
+    // Initial load only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const reported = useMemo(
     () =>
@@ -81,6 +123,11 @@ export function WeeklyTimesheet() {
       ),
     [rows],
   );
+  const reportedRedDays =
+    data?.redDays.filter(
+      (redDay, day) =>
+        redDay.isRed && rows.some((row) => (row.minutes[day] ?? 0) > 0),
+    ) ?? [];
 
   function addRow() {
     if (!data?.codes.length) return;
@@ -98,14 +145,48 @@ export function WeeklyTimesheet() {
     ]);
   }
 
-  function patchRow(key: string, patch: Partial<Row>) {
+  function changeMinutes(row: Row, day: number, hours: number) {
+    if (!data) return;
+    const minutes = Math.round(hours * 60);
+    if (
+      minutes > 0 &&
+      !row.minutes[day] &&
+      data.redDays[day]?.isRed &&
+      !window.confirm(
+        `You are reporting time on a red day (${data.redDays[day]?.reason}). Are you sure you want to proceed?`,
+      )
+    )
+      return;
+    const next = [...row.minutes];
+    next[day] = minutes;
     setRows((current) =>
-      current.map((row) => (row.key === key ? { ...row, ...patch } : row)),
+      current.map((item) =>
+        item.key === row.key ? { ...item, minutes: next } : item,
+      ),
     );
   }
 
-  async function save() {
+  function confirmWarnings(action: "proceed" | "submit") {
+    if (
+      reportedRedDays.length &&
+      !window.confirm(
+        `This report includes time on ${reportedRedDays.length} red ${reportedRedDays.length === 1 ? "day" : "days"}. Are you sure you want to ${action}?`,
+      )
+    )
+      return false;
+    if (
+      reported > 2400 &&
+      !window.confirm(
+        `Total reported time exceeds 40 hours for this week. Are you sure you want to ${action}?`,
+      )
+    )
+      return false;
+    return true;
+  }
+
+  async function save(confirmBeforeSave = true) {
     if (!data) return false;
+    if (confirmBeforeSave && !confirmWarnings("proceed")) return false;
     setMessage("Saving...");
     try {
       const entries = rows.flatMap((row) =>
@@ -122,7 +203,11 @@ export function WeeklyTimesheet() {
             : [],
         ),
       );
-      const response = await fetch("/api/timesheets/current", {
+      const query = new URLSearchParams({
+        year: String(data.sheet.isoYear),
+        week: String(data.sheet.isoWeek),
+      });
+      const response = await fetch(`/api/timesheets/current?${query}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ entries }),
@@ -137,7 +222,8 @@ export function WeeklyTimesheet() {
   }
 
   async function submit() {
-    if (!(await save()) || !data) return;
+    if (!confirmWarnings("submit")) return;
+    if (!(await save(false)) || !data) return;
     const response = await fetch(`/api/timesheets/${data.id}/submit`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -151,6 +237,29 @@ export function WeeklyTimesheet() {
         : current,
     );
     setMessage("Submitted for approval.");
+  }
+
+  function selectMonday(value: string) {
+    if (!value) return;
+    const date = new Date(`${value}T12:00:00Z`);
+    if (date.getUTCDay() !== 1) {
+      setMessage("Select a Monday as the start of the reporting week.");
+      return;
+    }
+    const selected = getIsoWeek(value);
+    setCopyMode("");
+    void loadWeek(selected.isoYear, selected.isoWeek);
+  }
+
+  function copyPrevious() {
+    if (!data) return;
+    const previous = new Date(`${data.dates[0]}T12:00:00Z`);
+    previous.setUTCDate(previous.getUTCDate() - 7);
+    const selected = getIsoWeek(previous);
+    void loadWeek(data.sheet.isoYear, data.sheet.isoWeek, {
+      year: selected.isoYear,
+      week: selected.isoWeek,
+    });
   }
 
   if (!data)
@@ -171,16 +280,120 @@ export function WeeklyTimesheet() {
           <p className="muted">
             {data.dates[0]} to {data.dates[6]}
           </p>
-          <p className="muted page-description">
-            Use one row per time code and enter hours under each day. Add
-            separate rows for work, vacation, parental leave or other time.
-          </p>
         </div>
         <span className="status">{data.sheet.status}</span>
       </div>
+      <section className="card timesheet-controls">
+        <div>
+          <strong>Reporting week</strong>
+          <div className="actions">
+            <button
+              className="button secondary"
+              onClick={() => {
+                setCopyMode("");
+                void loadWeek();
+              }}
+            >
+              Current week
+            </button>
+            <input
+              className="field compact-field"
+              type="number"
+              value={yearInput}
+              onChange={(event) => setYearInput(Number(event.target.value))}
+              aria-label="ISO year"
+            />
+            <input
+              className="field compact-field"
+              type="number"
+              min="1"
+              max="53"
+              value={weekInput}
+              onChange={(event) => setWeekInput(Number(event.target.value))}
+              aria-label="ISO week"
+            />
+            <button
+              className="button secondary"
+              onClick={() => {
+                setCopyMode("");
+                void loadWeek(yearInput, weekInput);
+              }}
+            >
+              Open week
+            </button>
+            <label>
+              Week starts{" "}
+              <input
+                className="field"
+                type="date"
+                onChange={(event) => selectMonday(event.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+        <div>
+          <strong>Copy from</strong>
+          <div className="actions">
+            <select
+              className="field"
+              value={copyMode}
+              onChange={(event) => {
+                setCopyMode(event.target.value);
+                if (event.target.value === "previous") copyPrevious();
+              }}
+            >
+              <option value="">Enter manually</option>
+              <option value="previous">Previous week</option>
+              <option value="custom">Choose week number</option>
+            </select>
+            {copyMode === "custom" && (
+              <>
+                <input
+                  className="field compact-field"
+                  type="number"
+                  value={copyYear}
+                  onChange={(event) => setCopyYear(Number(event.target.value))}
+                  aria-label="Copy year"
+                />
+                <input
+                  className="field compact-field"
+                  type="number"
+                  min="1"
+                  max="53"
+                  value={copyWeek}
+                  onChange={(event) => setCopyWeek(Number(event.target.value))}
+                  aria-label="Copy week"
+                />
+                <button
+                  className="button secondary"
+                  onClick={() =>
+                    void loadWeek(data.sheet.isoYear, data.sheet.isoWeek, {
+                      year: copyYear,
+                      week: copyWeek,
+                    })
+                  }
+                >
+                  Copy
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
       {data.sheet.rejectionReason && (
         <p className="notice">Rejected: {data.sheet.rejectionReason}</p>
       )}
+      {reported > 2400 && (
+        <p className="notice notice-warning">
+          This week exceeds 40 reported hours. Confirm the warning before saving
+          or submitting.
+        </p>
+      )}
+      {reportedRedDays.map((day) => (
+        <p className="notice notice-warning" key={day.date}>
+          You are reporting time on {day.date}, a red day ({day.reason}).
+        </p>
+      ))}
       <section className="metrics">
         <div className="metric">
           <span>Expected</span>
@@ -192,15 +405,15 @@ export function WeeklyTimesheet() {
         </div>
       </section>
       <section className="card table-wrap">
-        {!data.codes.length && (
-          <p className="notice">No active time codes are configured.</p>
-        )}
         <table className="timesheet-grid">
           <thead>
             <tr>
               <th>Time code</th>
               {data.dates.map((date, day) => (
-                <th key={date}>
+                <th
+                  key={date}
+                  className={data.redDays[day]?.isRed ? "red-day" : ""}
+                >
                   {dayNames[day]}
                   <small>{date.slice(8, 10)}</small>
                 </th>
@@ -218,20 +431,35 @@ export function WeeklyTimesheet() {
                   <select
                     className="field"
                     value={row.timeCodeId}
-                    disabled={!editable}
+                    disabled={
+                      !editable ||
+                      data.codes.find((code) => code.id === row.timeCodeId)
+                        ?.category === "work"
+                    }
                     onChange={(event) =>
-                      patchRow(row.key, { timeCodeId: event.target.value })
+                      setRows((current) =>
+                        current.map((item) =>
+                          item.key === row.key
+                            ? { ...item, timeCodeId: event.target.value }
+                            : item,
+                        ),
+                      )
                     }
                   >
                     {data.codes.map((code) => (
                       <option key={code.id} value={code.id}>
-                        {code.code}: {code.name.en ?? code.name.sv}
+                        {code.code}
                       </option>
                     ))}
                   </select>
                 </td>
                 {row.minutes.map((minutes, day) => (
-                  <td key={data.dates[day]}>
+                  <td
+                    key={data.dates[day]}
+                    className={
+                      data.redDays[day]?.isRed ? "red-day red-day-cell" : ""
+                    }
+                  >
                     <input
                       className="field time-cell"
                       type="number"
@@ -242,11 +470,9 @@ export function WeeklyTimesheet() {
                       placeholder="0"
                       disabled={!editable}
                       aria-label={`${dayNames[day]} hours`}
-                      onChange={(event) => {
-                        const next = [...row.minutes];
-                        next[day] = Math.round(Number(event.target.value) * 60);
-                        patchRow(row.key, { minutes: next });
-                      }}
+                      onChange={(event) =>
+                        changeMinutes(row, day, Number(event.target.value))
+                      }
                     />
                   </td>
                 ))}
@@ -260,7 +486,11 @@ export function WeeklyTimesheet() {
                 <td>
                   <button
                     className="icon-button"
-                    disabled={!editable}
+                    disabled={
+                      !editable ||
+                      data.codes.find((code) => code.id === row.timeCodeId)
+                        ?.category === "work"
+                    }
                     aria-label="Remove row"
                     onClick={() =>
                       setRows((current) =>
@@ -285,15 +515,15 @@ export function WeeklyTimesheet() {
               Add row
             </button>
             <span className="actions-spacer" />
-            <button className="button secondary" onClick={save}>
+            <button className="button secondary" onClick={() => void save()}>
               Save
             </button>
             <button
               className="button"
               disabled={
-                reported !== data.sheet.expectedMinutes || !data.codes.length
+                reported < data.sheet.expectedMinutes || !data.codes.length
               }
-              onClick={submit}
+              onClick={() => void submit()}
             >
               Submit
             </button>

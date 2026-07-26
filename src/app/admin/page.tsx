@@ -12,6 +12,11 @@ export default function AdminPage() {
       "/admin/employment-terms",
     ],
     [t("timeCodes"), t("timeCodesDescription"), "/admin/time-codes"],
+    [
+      "Red days",
+      "Configure holidays and non-working dates by year",
+      "/admin/red-days",
+    ],
     [t("organization"), t("organizationDescription"), "/admin/settings"],
     [t("auditHistory"), t("auditHistoryDescription"), "/admin/audit"],
   ];
