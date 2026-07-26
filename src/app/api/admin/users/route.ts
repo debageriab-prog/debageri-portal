@@ -18,7 +18,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const parsed = inputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success)
-    return NextResponse.json({ error: "Invalid employee details" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid employee details" },
+      { status: 400 },
+    );
 
   const { auth, db } = getAdminServices();
   let uid: string | null = null;

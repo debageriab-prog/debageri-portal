@@ -32,14 +32,49 @@ export function EmployeeForm() {
     <form className="card" onSubmit={submit}>
       <h2>Add employee</h2>
       <div className="form-grid">
-        <label>Name<input className="field" name="displayName" required /></label>
-        <label>Email<input className="field" name="email" type="email" required /></label>
-        <label>Employee number<input className="field" name="employeeNumber" required /></label>
-        <label>Weekly hours<input className="field" name="weeklyHours" type="number" min="1" max="168" step=".25" required /></label>
-        <label>Temporary password<input className="field" name="password" type="password" minLength={8} required /></label>
+        <label>
+          Name
+          <input className="field" name="displayName" required />
+        </label>
+        <label>
+          Email
+          <input className="field" name="email" type="email" required />
+        </label>
+        <label>
+          Employee number
+          <input className="field" name="employeeNumber" required />
+        </label>
+        <label>
+          Weekly hours
+          <input
+            className="field"
+            name="weeklyHours"
+            type="number"
+            min="1"
+            max="168"
+            step=".25"
+            required
+          />
+        </label>
+        <label>
+          Temporary password
+          <input
+            className="field"
+            name="password"
+            type="password"
+            minLength={8}
+            required
+          />
+        </label>
       </div>
-      {error && <p className="notice" role="alert">{error}</p>}
-      <button className="button" disabled={busy}>{busy ? "Creating…" : "Create employee"}</button>
+      {error && (
+        <p className="notice" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="button" disabled={busy}>
+        {busy ? "Creating…" : "Create employee"}
+      </button>
     </form>
   );
 }

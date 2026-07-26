@@ -49,7 +49,9 @@ export function PortalShell({
       <main className="main">{children}</main>
       <nav className="mobilebar" aria-label={t("mobileMenu")}>
         {nav.map(([label, href]) => (
-          <Link href={href} key={href}>{label}</Link>
+          <Link href={href} key={href}>
+            {label}
+          </Link>
         ))}
       </nav>
     </div>
