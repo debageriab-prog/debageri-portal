@@ -86,6 +86,8 @@ export function WeeklyTimesheet() {
   const [success, setSuccess] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [nonWorkingOpen, setNonWorkingOpen] = useState(false);
+  const [autoApproving, setAutoApproving] = useState(false);
   const editable = data && data.sheet.status === "draft";
 
   async function loadWeek(
@@ -116,6 +118,11 @@ export function WeeklyTimesheet() {
       setWeekInput(loaded.sheet.isoWeek);
       setRows(
         entriesToRows(loaded, copy ? loaded.copyEntries : loaded.entries),
+      );
+      setNonWorkingOpen(
+        loaded.sheet.status === "draft" &&
+          loaded.sheet.expectedMinutes === 0 &&
+          !copy,
       );
       setMessage(
         copy
@@ -293,6 +300,43 @@ export function WeeklyTimesheet() {
     }
   }
 
+  async function approveNonWorkingPeriod() {
+    if (!data) return;
+    setAutoApproving(true);
+    setSubmitError("");
+    const query = new URLSearchParams({
+      year: String(data.sheet.isoYear),
+      week: String(data.sheet.isoWeek),
+      part: String(data.part),
+    });
+    try {
+      const response = await fetch(`/api/timesheets/current?${query}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          entries: [],
+          autoApproveNonWorking: true,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setSubmitError(
+          result.error ?? "The zero-hour report could not be created.",
+        );
+        return;
+      }
+      setNonWorkingOpen(false);
+      setSuccess("0 hours reported and approved successfully");
+      await loadWeek();
+    } catch {
+      setSubmitError(
+        "The zero-hour report could not be created. Please try again.",
+      );
+    } finally {
+      setAutoApproving(false);
+    }
+  }
+
   function selectCalendarDate(value: string) {
     if (!value) return;
     const selected = getIsoWeek(value);
@@ -420,7 +464,7 @@ export function WeeklyTimesheet() {
                   }}
                 />
                 {mode === "current"
-                  ? "Current week"
+                  ? "Current or next available week"
                   : mode === "number"
                     ? "Week number"
                     : "Calendar date"}
@@ -760,6 +804,52 @@ export function WeeklyTimesheet() {
                 onClick={() => void performSubmit()}
               >
                 {submitting ? "Submitting..." : "Submit anyway"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+      {nonWorkingOpen && data.sheet.status === "draft" && (
+        <div className="modal-backdrop">
+          <section
+            className="modal modal-small"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="non-working-title"
+          >
+            <header className="modal-header">
+              <div>
+                <span className="eyebrow">Non-working period</span>
+                <h2 id="non-working-title">
+                  This week has only non-working days
+                </h2>
+                <p>
+                  Would you like to report 0 working hours for this period? The
+                  report will be approved automatically and will not require
+                  manager review.
+                </p>
+              </div>
+            </header>
+            {submitError && (
+              <p className="notice notice-error">{submitError}</p>
+            )}
+            <footer className="modal-actions">
+              <button
+                className="button secondary"
+                disabled={autoApproving}
+                onClick={() => {
+                  setSubmitError("");
+                  setNonWorkingOpen(false);
+                }}
+              >
+                No
+              </button>
+              <button
+                className="button"
+                disabled={autoApproving}
+                onClick={() => void approveNonWorkingPeriod()}
+              >
+                {autoApproving ? "Reporting..." : "Yes, report 0 hours"}
               </button>
             </footer>
           </section>

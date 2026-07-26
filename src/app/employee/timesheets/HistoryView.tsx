@@ -215,7 +215,9 @@ export function HistoryView({
               </td>
               <td>{formatDuration(sheet.reportedMinutes)}</td>
               <td>
-                <span className="status">{sheet.status}</span>
+                <span className={`status status-${sheet.status}`}>
+                  {sheet.status}
+                </span>
               </td>
               <td>
                 {["draft", "submitted"].includes(sheet.status) && (

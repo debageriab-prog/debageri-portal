@@ -328,6 +328,18 @@ a.card:hover {
   background: var(--warning-bg);
   color: var(--warning);
 }
+
+.status-approved {
+  border-color: #b9d8c4;
+  background: #eaf6ee;
+  color: #24613c;
+}
+
+.status-rejected {
+  border-color: #efc3c0;
+  background: #fff0ef;
+  color: #a1352f;
+}
 .status::before {
   content: "";
   width: 7px;

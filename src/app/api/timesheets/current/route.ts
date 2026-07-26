@@ -12,6 +12,7 @@ import { verifySession } from "@/server/auth/session";
 import type { TimeCode, Timesheet } from "@/domain/types";
 
 const saveSchema = z.object({
+  autoApproveNonWorking: z.boolean().optional(),
   entries: z
     .array(
       z.object({
@@ -295,6 +296,87 @@ async function saveCurrent(request: Request) {
       { error: "Invalid time entries." },
       { status: 400 },
     );
+  if (loaded.sheet.expectedMinutes === 0) {
+    if (
+      parsed.data.autoApproveNonWorking !== true ||
+      parsed.data.entries.length > 0
+    )
+      return NextResponse.json(
+        {
+          error:
+            "This period contains only non-working days. Confirm reporting 0 hours to continue.",
+        },
+        { status: 400 },
+      );
+
+    const { db } = getAdminServices();
+    const existing = await db
+      .collection("timeEntries")
+      .where("timesheetId", "==", loaded.id)
+      .get();
+    const batch = db.batch();
+    existing.docs.forEach((doc) => batch.delete(doc.ref));
+    const now = FieldValue.serverTimestamp();
+    const sheetRef = db.collection("timesheets").doc(loaded.id);
+    const approvedValues = {
+      expectedMinutes: 0,
+      reportedMinutes: 0,
+      workedMinutes: 0,
+      absenceMinutes: 0,
+      status: "approved",
+      rejectionReason: null,
+      version: Number(loaded.sheet.version ?? 0) + 1,
+      submittedAt: now,
+      submittedBy: loaded.user.id,
+      reviewedAt: now,
+      reviewedBy: loaded.user.id,
+      updatedAt: now,
+    };
+    if (loaded.sheetExists) {
+      batch.update(sheetRef, approvedValues);
+    } else {
+      batch.create(sheetRef, {
+        organizationId: loaded.user.organizationId,
+        userId: loaded.user.id,
+        managerId: loaded.user.managerId,
+        isoYear: loaded.sheet.isoYear,
+        isoWeek: loaded.sheet.isoWeek,
+        part: loaded.part,
+        partCount: loaded.partCount,
+        periodStart: loaded.dates[0],
+        periodEnd: loaded.dates.at(-1),
+        ...approvedValues,
+        createdAt: now,
+      });
+    }
+    batch.create(db.collection("approvalEvents").doc(), {
+      organizationId: loaded.user.organizationId,
+      timesheetId: loaded.id,
+      userId: loaded.user.id,
+      action: "approved",
+      fromStatus: "draft",
+      toStatus: "approved",
+      comment: "Automatically approved because the period has no working days.",
+      performedBy: loaded.user.id,
+      performedAt: now,
+      timesheetVersion: approvedValues.version,
+    });
+    batch.create(db.collection("auditLogs").doc(), {
+      organizationId: loaded.user.organizationId,
+      actorUserId: loaded.user.id,
+      action: "timesheet.auto_approved_non_working",
+      entityType: "timesheet",
+      entityId: loaded.id,
+      timestamp: now,
+      metadata: {
+        isoYear: loaded.sheet.isoYear,
+        isoWeek: loaded.sheet.isoWeek,
+        part: loaded.part,
+      },
+    });
+    await batch.commit();
+    return NextResponse.json({ ok: true, status: "approved" });
+  }
   const dateSet = new Set(loaded.dates);
   const codeMap = new Map(loaded.codes.map((code) => [String(code.id), code]));
   if (
