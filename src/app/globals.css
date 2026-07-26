@@ -930,7 +930,8 @@ th {
 
 .timesheet-table-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .timesheet-table-header strong,

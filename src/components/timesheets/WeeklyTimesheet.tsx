@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
-import { getIsoWeek } from "@/lib/dates/iso-week";
+import {
+  getIsoWeek,
+  getIsoWeekDates,
+  splitWeekByMonth,
+} from "@/lib/dates/iso-week";
 
 type Code = { id: string; code: string; category: string };
 type StoredEntry = {
@@ -309,13 +313,50 @@ export function WeeklyTimesheet() {
 
   function goToNextWeek() {
     if (!data) return;
-    const next = new Date(`${data.dates[0]}T12:00:00Z`);
-    next.setUTCDate(next.getUTCDate() + 7);
-    const selected = getIsoWeek(next);
     setWeekMode("number");
     setCopyMode("");
     setSuccess("");
+    if (data.part < data.partCount) {
+      void loadWeek(
+        data.sheet.isoYear,
+        data.sheet.isoWeek,
+        undefined,
+        data.part + 1,
+      );
+      return;
+    }
+    const next = new Date(`${data.dates[0]}T12:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 7);
+    const selected = getIsoWeek(next);
     void loadWeek(selected.isoYear, selected.isoWeek);
+  }
+
+  function goToPreviousWeek() {
+    if (!data) return;
+    setWeekMode("number");
+    setCopyMode("");
+    setSuccess("");
+    if (data.part > 1) {
+      void loadWeek(
+        data.sheet.isoYear,
+        data.sheet.isoWeek,
+        undefined,
+        data.part - 1,
+      );
+      return;
+    }
+    const previous = new Date(`${data.dates[0]}T12:00:00Z`);
+    previous.setUTCDate(previous.getUTCDate() - 7);
+    const selected = getIsoWeek(previous);
+    const previousPartCount = splitWeekByMonth(
+      getIsoWeekDates(selected.isoYear, selected.isoWeek),
+    ).length;
+    void loadWeek(
+      selected.isoYear,
+      selected.isoWeek,
+      undefined,
+      previousPartCount,
+    );
   }
 
   if (!data)
@@ -495,6 +536,9 @@ export function WeeklyTimesheet() {
         </div>
       </section>
       <div className="timesheet-table-actions">
+        <button className="button secondary" onClick={goToPreviousWeek}>
+          Go to previous week
+        </button>
         <button className="button secondary" onClick={goToNextWeek}>
           Go to next week
         </button>
