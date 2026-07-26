@@ -16,7 +16,18 @@ export async function verifySession(): Promise<PortalUser | null> {
     const snapshot = await db.collection("users").doc(token.uid).get();
     const data = snapshot.data();
     if (!snapshot.exists || data?.status !== "active") return null;
-    return { id: token.uid, ...(data as Omit<PortalUser, "id">) };
+    return {
+      id: token.uid,
+      organizationId: data.organizationId,
+      employeeNumber: data.employeeNumber,
+      email: data.email,
+      displayName: data.displayName,
+      role: data.role,
+      status: data.status,
+      managerId: data.managerId ?? null,
+      timezone: data.timezone,
+      locale: data.locale,
+    } as PortalUser;
   } catch {
     return null;
   }
