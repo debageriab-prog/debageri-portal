@@ -80,18 +80,31 @@ jobs:
         if: steps.service.outputs.exists == 'true'
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
-      - name: Build and push data-isolated preview
+      - name: Build and push production-connected preview
         if: steps.service.outputs.exists == 'true'
+        env:
+          FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          APP_CHECK_SITE_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY }}
         run: |
+          test -n "$FIREBASE_API_KEY"
+          test -n "$FIREBASE_AUTH_DOMAIN"
+          test -n "$FIREBASE_STORAGE_BUCKET"
+          test -n "$FIREBASE_APP_ID"
+          test -n "$FIREBASE_MESSAGING_SENDER_ID"
           REGISTRY="${REGION}-docker.pkg.dev"
           IMAGE="${REGISTRY}/${PROJECT_ID}/${AR_REPOSITORY}/${SERVICE}:preview-${{ steps.tag.outputs.slug }}"
           docker build \
-            --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=preview-disabled \
-            --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=debageri-portal-local.firebaseapp.com \
-            --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID=debageri-portal-local \
-            --build-arg NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=debageri-portal-local.firebasestorage.app \
-            --build-arg NEXT_PUBLIC_FIREBASE_APP_ID=1:000000000000:web:preview \
-            --build-arg NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=000000000000 \
+            --build-arg NEXT_PUBLIC_FIREBASE_API_KEY="$FIREBASE_API_KEY" \
+            --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="$FIREBASE_AUTH_DOMAIN" \
+            --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID="$PROJECT_ID" \
+            --build-arg NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="$FIREBASE_STORAGE_BUCKET" \
+            --build-arg NEXT_PUBLIC_FIREBASE_APP_ID="$FIREBASE_APP_ID" \
+            --build-arg NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="$FIREBASE_MESSAGING_SENDER_ID" \
+            --build-arg NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY="$APP_CHECK_SITE_KEY" \
             --tag "$IMAGE" .
           docker push "$IMAGE"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
@@ -99,20 +112,24 @@ jobs:
       - name: Deploy zero-traffic preview revision
         if: steps.service.outputs.exists == 'true'
         env:
-          PREVIEW_SERVICE_ACCOUNT: ${{ secrets.GCP_PREVIEW_SERVICE_ACCOUNT }}
+          RUNTIME_SERVICE_ACCOUNT: ${{ secrets.GCP_RUNTIME_SERVICE_ACCOUNT }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
         run: |
           gcloud run deploy "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
             --image "$IMAGE" \
-            --service-account "$PREVIEW_SERVICE_ACCOUNT" \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --no-traffic \
             --tag "${{ steps.tag.outputs.slug }}" \
             --allow-unauthenticated \
             --port 8080 \
             --memory 512Mi \
             --cpu 1 \
-            --set-env-vars "PORTAL_ENVIRONMENT=test,PORTAL_EXPECTED_PROJECT_ID=debageri-portal-local,FIREBASE_ADMIN_PROJECT_ID=debageri-portal-local,NEXT_PUBLIC_FIREBASE_PROJECT_ID=debageri-portal-local,NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false" \
+            --set-env-vars "PORTAL_ENVIRONMENT=production,PORTAL_EXPECTED_PROJECT_ID=${PROJECT_ID},FIREBASE_ADMIN_PROJECT_ID=${PROJECT_ID},NEXT_PUBLIC_FIREBASE_PROJECT_ID=${PROJECT_ID},NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN},NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET},NEXT_PUBLIC_FIREBASE_APP_ID=${FIREBASE_APP_ID},NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${FIREBASE_MESSAGING_SENDER_ID},NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false" \
             --quiet
 
       - name: Print preview URL
@@ -123,4 +140,4 @@ jobs:
             --region "$REGION" \
             --format="value(status.url)" | sed 's|https://||')
           echo "Preview URL: https://${{ steps.tag.outputs.slug }}---${HOST}"
-          echo "Production traffic and production Firebase data are not available to this preview."
+          echo "This preview is connected to production Firebase data. Test carefully."

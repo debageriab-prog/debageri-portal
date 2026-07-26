@@ -70,14 +70,18 @@ Every non-main branch triggers `.github/workflows/preview.yml`. It validates the
 
 Cloud Run cannot create a new service with `--no-traffic`. Before the first production deployment, the preview workflow therefore completes validation and authentication but skips image creation and deployment with an explanation in the job summary. Merging to `main` creates the service; subsequent branches deploy zero-traffic preview revisions normally.
 
-Unlike the website previews, portal previews use:
+Portal previews use:
 
-- fictitious `debageri-portal-local` Firebase browser configuration;
-- `portal-preview`, which has no employee-data permissions;
-- `PORTAL_ENVIRONMENT=test`;
+- the production Firebase browser configuration;
+- `portal-runtime`, with production Firestore and Authentication permissions;
+- `PORTAL_ENVIRONMENT=production`;
 - no production Firebase rules deployment.
 
-The preview is suitable for visual and interaction review, but login and production-backed workflows are intentionally unavailable. This prevents unreviewed branch code from reading or mutating employee data.
+The preview supports complete login and production-backed workflow testing
+before merge. Because unreviewed branch code can read and mutate employee
+production data, repository write access, workflow changes, preview URLs, and
+GitHub secrets must be strictly controlled. Use dedicated test accounts and
+avoid destructive production changes.
 
 ## Main deployment
 
@@ -96,7 +100,7 @@ Cloud Run allows unauthenticated HTTP invocation because the login page and Fire
 
 ## Custom domain
 
-After the first deployment, map `portal.debageri.se` to the production service using a supported Cloud Run mapping or external HTTPS load balancer. Add the final domain to Firebase Authentication authorized domains and App Check. Preview tag URLs do not receive production Firebase/App Check configuration.
+After the first deployment, map `portal.debageri.se` to the production service using a supported Cloud Run mapping or external HTTPS load balancer. Add the final domain to Firebase Authentication authorized domains and App Check. Preview tag URLs receive production Firebase configuration and must be allowed when Authentication or App Check domain controls are enforced.
 
 ## Rollback
 
