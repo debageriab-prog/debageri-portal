@@ -20,9 +20,12 @@ export async function DELETE(
       { error: "Timesheet not found." },
       { status: 404 },
     );
-  if (sheet.data()?.status !== "draft")
+  if (!["draft", "submitted"].includes(String(sheet.data()?.status)))
     return NextResponse.json(
-      { error: "Only draft timesheets can be deleted." },
+      {
+        error:
+          "Only draft or submitted time reports can be deleted. Approved and rejected reports are protected.",
+      },
       { status: 409 },
     );
   const body = (await request.json().catch(() => null)) as {

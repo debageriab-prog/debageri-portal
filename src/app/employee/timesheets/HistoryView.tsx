@@ -182,7 +182,7 @@ export function HistoryView({
     );
     const result = await response.json().catch(() => ({}));
     if (!response.ok)
-      return setError(result.error ?? "Could not delete draft.");
+      return setError(result.error ?? "Could not delete the time report.");
     setDeleting(null);
     router.refresh();
   }
@@ -218,14 +218,16 @@ export function HistoryView({
                 <span className="status">{sheet.status}</span>
               </td>
               <td>
-                {sheet.status === "draft" && (
+                {["draft", "submitted"].includes(sheet.status) && (
                   <div className="row-actions">
-                    <Link
-                      className="table-action"
-                      href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
-                    >
-                      Edit
-                    </Link>
+                    {sheet.status === "draft" && (
+                      <Link
+                        className="table-action"
+                        href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
+                      >
+                        Edit
+                      </Link>
+                    )}
                     <button
                       className="table-action table-action-danger"
                       onClick={() => {
@@ -386,10 +388,11 @@ export function HistoryView({
           >
             <header className="modal-header">
               <div>
-                <span className="eyebrow danger-text">Delete draft</span>
+                <span className="eyebrow danger-text">Delete time report</span>
                 <h2>Delete week {deleting.isoWeek}?</h2>
                 <p>
-                  The draft and its saved entries will be permanently removed.
+                  This {deleting.status} report and its entries will be
+                  permanently removed.
                 </p>
               </div>
             </header>
@@ -408,14 +411,14 @@ export function HistoryView({
                 className="button secondary"
                 onClick={() => setDeleting(null)}
               >
-                Keep draft
+                Keep report
               </button>
               <button
                 className="button danger"
                 disabled={deleteConfirmation !== "I am sure"}
                 onClick={() => void remove()}
               >
-                Delete draft
+                Delete report
               </button>
             </footer>
           </section>
