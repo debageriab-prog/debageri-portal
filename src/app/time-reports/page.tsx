@@ -31,6 +31,14 @@ export default async function TimeReportsPage({
         displayName: String(data.displayName ?? data.email),
         role: String(data.role),
         reportsTime: data.reportsTime === true,
+        reportingStartDate: data.reportingStartDate
+          ? String(data.reportingStartDate)
+          : data.employmentStartDate
+            ? String(data.employmentStartDate)
+            : null,
+        employmentEndDate: data.employmentEndDate
+          ? String(data.employmentEndDate)
+          : null,
       };
     })
     .filter((user) => visibleUser(actor.role, user))
@@ -58,28 +66,17 @@ export default async function TimeReportsPage({
     name: string;
     countsAsWorkedTime: boolean;
   }> = [];
-  let terms: Array<{
-    validFrom: string;
-    validTo: string | null;
-    reportingStartDate: string;
-    schedule: Record<string, number>;
-  }> = [];
   let holidayDates: string[] = [];
 
   if (selected) {
-    const [sheetSnapshot, entrySnapshot, termSnapshot, holidaySnapshot] =
-      await Promise.all([
-        db.collection("timesheets").where("userId", "==", selected.id).get(),
-        db.collection("timeEntries").where("userId", "==", selected.id).get(),
-        db
-          .collection("employmentTerms")
-          .where("userId", "==", selected.id)
-          .get(),
-        db
-          .collection("holidays")
-          .where("organizationId", "==", actor.organizationId)
-          .get(),
-      ]);
+    const [sheetSnapshot, entrySnapshot, holidaySnapshot] = await Promise.all([
+      db.collection("timesheets").where("userId", "==", selected.id).get(),
+      db.collection("timeEntries").where("userId", "==", selected.id).get(),
+      db
+        .collection("holidays")
+        .where("organizationId", "==", actor.organizationId)
+        .get(),
+    ]);
     const totals = new Map<string, number>();
     entries = entrySnapshot.docs.map((doc) => {
       const data = doc.data();
@@ -118,15 +115,6 @@ export default async function TimeReportsPage({
         (a, b) =>
           b.isoYear - a.isoYear || b.isoWeek - a.isoWeek || b.part - a.part,
       );
-    terms = termSnapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        validFrom: String(data.validFrom),
-        validTo: data.validTo ? String(data.validTo) : null,
-        reportingStartDate: String(data.reportingStartDate ?? data.validFrom),
-        schedule: data.schedule as Record<string, number>,
-      };
-    });
     holidayDates = holidaySnapshot.docs.map((doc) => String(doc.data().date));
   }
 
@@ -171,7 +159,8 @@ export default async function TimeReportsPage({
           currentYear={current.isoYear}
           currentWeek={current.isoWeek}
           currentMonth={today.slice(0, 7)}
-          terms={terms}
+          reportingStartDate={selected.reportingStartDate}
+          employmentEndDate={selected.employmentEndDate}
           holidayDates={holidayDates}
           readOnly
           title={String(selected.displayName)}

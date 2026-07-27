@@ -76,36 +76,22 @@ export async function PATCH(
         (parsed.data.role === "manager" && parsed.data.reportsTime),
       organizationId: loaded.actor.organizationId,
     });
-    const terms = await loaded.db
-      .collection("employmentTerms")
-      .where("userId", "==", id)
-      .get();
-    const term = terms.docs.sort((a, b) =>
-      String(b.data().validFrom).localeCompare(String(a.data().validFrom)),
-    )[0];
     const batch = loaded.db.batch();
     batch.update(loaded.target.ref, {
       displayName: parsed.data.displayName,
       email: parsed.data.email,
       employeeNumber: parsed.data.employeeNumber,
       role: parsed.data.role,
+      reportsTime:
+        parsed.data.role === "consultant" ||
+        parsed.data.role === "employee" ||
+        (parsed.data.role === "manager" && parsed.data.reportsTime),
       status: parsed.data.status,
-      ...(parsed.data.employmentStartDate
-        ? { employmentStartDate: parsed.data.employmentStartDate }
-        : {}),
+      employmentStartDate: parsed.data.employmentStartDate,
+      employmentEndDate: parsed.data.employmentEndDate,
+      reportingStartDate: parsed.data.reportingStartDate,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    if (
-      term &&
-      parsed.data.employmentStartDate &&
-      parsed.data.reportingStartDate
-    )
-      batch.update(term.ref, {
-        validFrom: parsed.data.employmentStartDate,
-        validTo: parsed.data.employmentEndDate,
-        reportingStartDate: parsed.data.reportingStartDate,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
     batch.create(loaded.db.collection("auditLogs").doc(), {
       organizationId: loaded.actor.organizationId,
       actorUserId: loaded.actor.id,
@@ -162,12 +148,7 @@ export async function DELETE(
     );
 
   try {
-    const terms = await loaded.db
-      .collection("employmentTerms")
-      .where("userId", "==", id)
-      .get();
     const batch = loaded.db.batch();
-    terms.docs.forEach((term) => batch.delete(term.ref));
     batch.delete(loaded.target.ref);
     batch.create(loaded.db.collection("auditLogs").doc(), {
       organizationId: loaded.actor.organizationId,

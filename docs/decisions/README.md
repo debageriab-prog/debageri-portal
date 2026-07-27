@@ -10,6 +10,6 @@
 | 006 | Top-level time entries                      |
 | 007 | Immutable time-code snapshots               |
 | 008 | Server-controlled approvals                 |
-| 009 | Date-versioned employment terms             |
+| 009 | Standard 40-hour reporting                  |
 | 010 | Separate Authentication user base           |
 | 011 | Separate private employee-document Storage  |

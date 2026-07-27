@@ -12,7 +12,6 @@ const inputSchema = z
     password: z.string().min(8).max(128),
     role: z.enum(["consultant", "manager", "accountant", "admin"]),
     reportsTime: z.boolean(),
-    weeklyHours: z.number().positive().max(168).nullable(),
     employmentStartDate: z.iso.date(),
     reportingStartDate: z.iso.date().nullable(),
   })
@@ -25,7 +24,7 @@ const inputSchema = z
         code: "custom",
         message: "Invalid time-reporting capability",
       });
-    if (value.reportsTime && (!value.weeklyHours || !value.reportingStartDate))
+    if (value.reportsTime && !value.reportingStartDate)
       context.addIssue({
         code: "custom",
         message: "Reporting details are required",
@@ -56,9 +55,6 @@ export async function POST(request: Request) {
       role: parsed.data.role,
       organizationId: actor.organizationId,
     });
-    const weeklyMinutes = Math.round((parsed.data.weeklyHours ?? 0) * 60);
-    const dailyMinutes = Math.floor(weeklyMinutes / 5);
-    const remainder = weeklyMinutes - dailyMinutes * 5;
     const batch = db.batch();
     batch.create(db.collection("users").doc(uid), {
       organizationId: actor.organizationId,
@@ -68,6 +64,8 @@ export async function POST(request: Request) {
       role: parsed.data.role,
       reportsTime: parsed.data.reportsTime,
       employmentStartDate: parsed.data.employmentStartDate,
+      employmentEndDate: null,
+      reportingStartDate: parsed.data.reportingStartDate,
       status: "active",
       managerId: null,
       timezone: actor.timezone,
@@ -75,27 +73,6 @@ export async function POST(request: Request) {
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    if (parsed.data.reportsTime)
-      batch.create(db.collection("employmentTerms").doc(), {
-        organizationId: actor.organizationId,
-        userId: uid,
-        validFrom: parsed.data.employmentStartDate,
-        validTo: null,
-        reportingStartDate: parsed.data.reportingStartDate,
-        employmentPercentage: Math.round((weeklyMinutes / 2400) * 100),
-        weeklyMinutes,
-        schedule: {
-          monday: dailyMinutes + remainder,
-          tuesday: dailyMinutes,
-          wednesday: dailyMinutes,
-          thursday: dailyMinutes,
-          friday: dailyMinutes,
-          saturday: 0,
-          sunday: 0,
-        },
-        createdAt: FieldValue.serverTimestamp(),
-        createdBy: actor.id,
-      });
     batch.create(db.collection("auditLogs").doc(), {
       organizationId: actor.organizationId,
       actorUserId: actor.id,

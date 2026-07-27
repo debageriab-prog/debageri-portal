@@ -25,30 +25,11 @@ export interface PortalUser {
   status: UserStatus;
   managerId: string | null;
   reportsTime: boolean;
+  employmentStartDate: string | null;
+  employmentEndDate: string | null;
+  reportingStartDate: string | null;
   timezone: "Europe/Stockholm";
   locale: "sv-SE" | "en-SE";
-}
-
-export interface WeeklySchedule {
-  monday: number;
-  tuesday: number;
-  wednesday: number;
-  thursday: number;
-  friday: number;
-  saturday: number;
-  sunday: number;
-}
-
-export interface EmploymentTerm {
-  id: string;
-  organizationId: string;
-  userId: string;
-  validFrom: string;
-  validTo: string | null;
-  reportingStartDate?: string;
-  employmentPercentage: number;
-  weeklyMinutes: number;
-  schedule: WeeklySchedule;
 }
 
 export interface TimeCode {

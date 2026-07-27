@@ -32,10 +32,6 @@ service cloud.firestore {
       allow read: if sameOrg(resource.data) && (own(userId) || isManagerFor(userId) || isAdmin());
       allow write: if false;
     }
-    match /employmentTerms/{termId} {
-      allow read: if sameOrg(resource.data) && (own(resource.data.userId) || isManagerFor(resource.data.userId));
-      allow write: if false;
-    }
     match /timeCodes/{codeId} {
       allow read: if sameOrg(resource.data);
       allow write: if false;

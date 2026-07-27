@@ -25,29 +25,14 @@ type HistoryEntry = {
   name: string;
   countsAsWorkedTime: boolean;
 };
-type HistoryTerm = {
-  validFrom: string;
-  validTo: string | null;
-  reportingStartDate: string;
-  schedule: Record<string, number>;
-};
-const scheduleKeys = [
-  "sunday",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-];
-
 export function HistoryView({
   sheets,
   entries,
   currentYear,
   currentWeek,
   currentMonth,
-  terms,
+  reportingStartDate,
+  employmentEndDate,
   holidayDates,
   readOnly = false,
   title = "History",
@@ -58,7 +43,8 @@ export function HistoryView({
   currentYear: number;
   currentWeek: number;
   currentMonth: string;
-  terms: HistoryTerm[];
+  reportingStartDate: string | null;
+  employmentEndDate: string | null;
   holidayDates: string[];
   readOnly?: boolean;
   title?: string;
@@ -101,15 +87,11 @@ export function HistoryView({
       const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
       if (weekday === 0 || weekday === 6 || holidayDates.includes(date))
         continue;
-      const term = terms
-        .filter(
-          (item) =>
-            item.validFrom <= date &&
-            item.reportingStartDate <= date &&
-            (!item.validTo || item.validTo >= date),
-        )
-        .sort((a, b) => b.validFrom.localeCompare(a.validFrom))[0];
-      if (term) expected += Number(term.schedule[scheduleKeys[weekday]!] ?? 0);
+      if (
+        (!reportingStartDate || date >= reportingStartDate) &&
+        (!employmentEndDate || date <= employmentEndDate)
+      )
+        expected += 480;
     }
     const reported = monthEntries.reduce(
       (sum, entry) => sum + entry.minutes,
@@ -121,7 +103,13 @@ export function HistoryView({
       byCode,
       total: Math.max(expected, reported, 1),
     };
-  }, [holidayDates, month, monthEntries, terms]);
+  }, [
+    employmentEndDate,
+    holidayDates,
+    month,
+    monthEntries,
+    reportingStartDate,
+  ]);
   const weeklyEntries = entries.filter((entry) =>
     weeklySheets.some((sheet) => sheet.id === entry.timesheetId),
   );

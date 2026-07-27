@@ -15,6 +15,6 @@ The approval lifecycle is `draft → submitted → approved`, `submitted → rej
 
 ## Acceptance priorities
 
-Durations are positive integer minutes. Expected time is derived per date from effective employment terms. Codes are effective-dated, snapshots remain immutable, and totals are recomputed by trusted server code. Organization, active-user, role, and manager relationships are checked at every sensitive boundary.
+Durations are positive integer minutes. Every eligible weekday expects eight reported hours, classified across work and absence codes. Codes are effective-dated, snapshots remain immutable, and totals are recomputed by trusted server code. Organization, active-user, role, and manager relationships are checked at every sensitive boundary.
 
 Payslip generation, payroll/provider/accounting integration, leave balance accounting, expenses, billing, candidate migration, native apps, and complex notifications are excluded from V1.

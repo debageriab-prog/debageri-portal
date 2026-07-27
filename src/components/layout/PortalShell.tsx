@@ -34,7 +34,6 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
         items: [
           { label: "Time codes", href: "/admin/time-codes" },
           { label: "Red days", href: "/admin/red-days" },
-          { label: "Employment terms", href: "/admin/employment-terms" },
         ],
       },
       {
