@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
+  signOut,
   updatePassword,
 } from "firebase/auth";
 import type { PortalUser } from "@/domain/types";
@@ -93,7 +94,17 @@ export function AccountMenu({ user }: { user: PortalUser }) {
       );
       await updatePassword(currentUser, newPassword);
       setDialog(null);
-      setSuccess("Your password was changed successfully.");
+      setSuccess(
+        "Your password has been changed. You will be redirected to the login page.",
+      );
+      await appCheckFetch("/api/auth/session", { method: "DELETE" }).catch(
+        () => undefined,
+      );
+      window.setTimeout(() => {
+        void signOut(auth).finally(() => {
+          window.location.assign("/auth/login");
+        });
+      }, 2500);
     } catch (reason) {
       const code =
         typeof reason === "object" && reason && "code" in reason
