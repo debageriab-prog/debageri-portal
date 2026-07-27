@@ -875,6 +875,12 @@ th {
   align-items: center;
 }
 
+.checkbox-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .copy-from-row > strong {
   white-space: nowrap;
 }

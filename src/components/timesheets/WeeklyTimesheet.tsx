@@ -229,13 +229,7 @@ export function WeeklyTimesheet() {
     ...(reported > 2400
       ? ["Total reported time exceeds 40 hours for this week."]
       : []),
-    ...(futureDates.length
-      ? [
-          `Time is reported on ${futureDates.length} future ${
-            futureDates.length === 1 ? "date" : "dates"
-          }.`,
-        ]
-      : []),
+    ...(futureDates.length ? ["You are reporting time on future dates!"] : []),
   ];
 
   function addRow() {
