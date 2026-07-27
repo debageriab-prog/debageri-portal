@@ -25,6 +25,46 @@ type HistoryEntry = {
   name: string;
   countsAsWorkedTime: boolean;
 };
+
+function periodTotals(
+  periodEntries: HistoryEntry[],
+  start: string,
+  end: string,
+  holidayDates: string[],
+  reportingStartDate: string | null,
+  employmentEndDate: string | null,
+) {
+  const byCode = new Map<string, number>();
+  let worked = 0;
+  for (const entry of periodEntries) {
+    if (entry.countsAsWorkedTime) worked += entry.minutes;
+    else byCode.set(entry.name, (byCode.get(entry.name) ?? 0) + entry.minutes);
+  }
+  let expected = 0;
+  const cursor = new Date(`${start}T12:00:00Z`);
+  const last = new Date(`${end}T12:00:00Z`);
+  while (cursor <= last) {
+    const date = cursor.toISOString().slice(0, 10);
+    const weekday = cursor.getUTCDay();
+    if (
+      weekday >= 1 &&
+      weekday <= 5 &&
+      !holidayDates.includes(date) &&
+      (!reportingStartDate || date >= reportingStartDate) &&
+      (!employmentEndDate || date <= employmentEndDate)
+    )
+      expected += 480;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  const reported = periodEntries.reduce((sum, entry) => sum + entry.minutes, 0);
+  return {
+    worked,
+    unreported: Math.max(0, expected - reported),
+    byCode,
+    total: Math.max(expected, reported, 1),
+  };
+}
+
 export function HistoryView({
   sheets,
   entries,
@@ -37,6 +77,7 @@ export function HistoryView({
   readOnly = false,
   title = "History",
   description = "Review weekly reports or explore a monthly breakdown of work, missing time and other time codes.",
+  initialMode = "latest",
 }: {
   sheets: HistorySheet[];
   entries: HistoryEntry[];
@@ -49,9 +90,12 @@ export function HistoryView({
   readOnly?: boolean;
   title?: string;
   description?: string;
+  initialMode?: "latest" | "year" | "month" | "week";
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"latest" | "month" | "week">("latest");
+  const [mode, setMode] = useState<"latest" | "year" | "month" | "week">(
+    initialMode,
+  );
   const [page, setPage] = useState(1);
   const [year, setYear] = useState(currentYear);
   const [week, setWeek] = useState(currentWeek);
@@ -69,40 +113,25 @@ export function HistoryView({
   const monthSheets = sheets.filter((sheet) =>
     sheet.periodStart.startsWith(month),
   );
+  const yearEntries = entries.filter((entry) =>
+    entry.date.startsWith(`${year}-`),
+  );
+  const yearSheets = sheets.filter((sheet) =>
+    sheet.periodStart.startsWith(`${year}-`),
+  );
   const monthTotals = useMemo(() => {
-    const byCode = new Map<string, number>();
-    let worked = 0;
-    for (const entry of monthEntries) {
-      if (entry.countsAsWorkedTime) worked += entry.minutes;
-      else
-        byCode.set(entry.name, (byCode.get(entry.name) ?? 0) + entry.minutes);
-    }
     const [monthYear, monthNumber] = month.split("-").map(Number);
     const daysInMonth = new Date(
       Date.UTC(monthYear!, monthNumber!, 0),
     ).getUTCDate();
-    let expected = 0;
-    for (let day = 1; day <= daysInMonth; day += 1) {
-      const date = `${month}-${String(day).padStart(2, "0")}`;
-      const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
-      if (weekday === 0 || weekday === 6 || holidayDates.includes(date))
-        continue;
-      if (
-        (!reportingStartDate || date >= reportingStartDate) &&
-        (!employmentEndDate || date <= employmentEndDate)
-      )
-        expected += 480;
-    }
-    const reported = monthEntries.reduce(
-      (sum, entry) => sum + entry.minutes,
-      0,
+    return periodTotals(
+      monthEntries,
+      `${month}-01`,
+      `${month}-${String(daysInMonth).padStart(2, "0")}`,
+      holidayDates,
+      reportingStartDate,
+      employmentEndDate,
     );
-    return {
-      worked,
-      unreported: Math.max(0, expected - reported),
-      byCode,
-      total: Math.max(expected, reported, 1),
-    };
   }, [
     employmentEndDate,
     holidayDates,
@@ -110,6 +139,18 @@ export function HistoryView({
     monthEntries,
     reportingStartDate,
   ]);
+  const yearTotals = useMemo(
+    () =>
+      periodTotals(
+        yearEntries,
+        `${year}-01-01`,
+        `${year}-12-31`,
+        holidayDates,
+        reportingStartDate,
+        employmentEndDate,
+      ),
+    [employmentEndDate, holidayDates, reportingStartDate, year, yearEntries],
+  );
   const weeklyEntries = entries.filter((entry) =>
     weeklySheets.some((sheet) => sheet.id === entry.timesheetId),
   );
@@ -141,7 +182,9 @@ export function HistoryView({
             1,
           ),
         }
-      : monthTotals;
+      : mode === "year"
+        ? yearTotals
+        : monthTotals;
 
   const segments = [
     { label: "Worked", value: chartTotals.worked, color: "#35634a" },
@@ -165,6 +208,55 @@ export function HistoryView({
       return `${segment.color} ${start}deg ${end}deg`;
     })
     .join(", ");
+  const selectedEntries =
+    mode === "year"
+      ? yearEntries
+      : mode === "month"
+        ? monthEntries
+        : weeklyEntries;
+  const reportedForSelection = selectedEntries.reduce(
+    (sum, entry) => sum + entry.minutes,
+    0,
+  );
+  const formatDays = (minutes: number) => {
+    const days = minutes / 480;
+    return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? "day" : "days"}`;
+  };
+
+  function summaryChart(unit: "hours" | "days") {
+    return (
+      <div className="summary-chart">
+        <div
+          className="donut"
+          style={{
+            background: gradient ? `conic-gradient(${gradient})` : "#eee",
+          }}
+        >
+          <div>
+            <strong>
+              {unit === "hours"
+                ? formatDuration(reportedForSelection)
+                : formatDays(reportedForSelection)}
+            </strong>
+            <span>reported {unit}</span>
+          </div>
+        </div>
+        <div className="chart-legend">
+          {segments.map((segment) => (
+            <div key={segment.label}>
+              <i style={{ background: segment.color }} />
+              <span>{segment.label}</span>
+              <strong>
+                {unit === "hours"
+                  ? formatDuration(segment.value)
+                  : formatDays(segment.value)}
+              </strong>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   function reportBreakdown(timesheetId: string) {
     const totals = new Map<string, number>();
@@ -301,6 +393,12 @@ export function HistoryView({
             Latest
           </button>
           <button
+            className={mode === "year" ? "selected" : ""}
+            onClick={() => setMode("year")}
+          >
+            Year
+          </button>
+          <button
             className={mode === "month" ? "selected" : ""}
             onClick={() => setMode("month")}
           >
@@ -313,7 +411,17 @@ export function HistoryView({
             Week
           </button>
         </div>
-        {mode === "week" ? (
+        {mode === "year" ? (
+          <label>
+            Year
+            <input
+              className="field compact-field"
+              type="number"
+              value={year}
+              onChange={(event) => setYear(Number(event.target.value))}
+            />
+          </label>
+        ) : mode === "week" ? (
           <div className="actions">
             <label>
               Year
@@ -349,43 +457,22 @@ export function HistoryView({
         ) : null}
       </section>
       {mode !== "latest" && (
-        <section className="card month-summary">
-          <div
-            className="donut"
-            style={{
-              background: gradient ? `conic-gradient(${gradient})` : "#eee",
-            }}
-          >
-            <div>
-              <strong>
-                {formatDuration(
-                  (mode === "month" ? monthEntries : weeklyEntries).reduce(
-                    (sum, entry) => sum + entry.minutes,
-                    0,
-                  ),
-                )}
-              </strong>
-              <span>reported</span>
-            </div>
-          </div>
-          <div className="chart-legend">
-            {segments.map((segment) => (
-              <div key={segment.label}>
-                <i style={{ background: segment.color }} />
-                <span>{segment.label}</span>
-                <strong>{formatDuration(segment.value)}</strong>
-              </div>
-            ))}
-          </div>
+        <section
+          className={`card month-summary${mode === "year" ? " year-summary" : ""}`}
+        >
+          {summaryChart("hours")}
+          {mode === "year" && summaryChart("days")}
         </section>
       )}
       <section className="card table-wrap">
         {table(
           mode === "latest"
             ? latestSheets
-            : mode === "week"
-              ? weeklySheets
-              : monthSheets,
+            : mode === "year"
+              ? yearSheets
+              : mode === "week"
+                ? weeklySheets
+                : monthSheets,
         )}
         {mode === "latest" && sheets.length > 10 && (
           <div className="pagination">
