@@ -933,9 +933,10 @@ th {
 
 .chart-legend > div {
   display: grid;
-  grid-template-columns: 12px 1fr auto;
+  grid-template-columns: 12px max-content max-content;
+  justify-content: start;
   align-items: center;
-  gap: 10px;
+  column-gap: 12px;
 }
 
 .chart-legend i {
