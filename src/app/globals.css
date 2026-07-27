@@ -1152,14 +1152,15 @@ th {
   html,
   body {
     width: 100%;
-    max-width: 100vw;
+    max-width: 100%;
     overflow-x: hidden;
   }
   .shell {
+    position: relative;
     display: block;
     width: 100%;
-    max-width: 100vw;
-    overflow-x: clip;
+    max-width: 100%;
+    overflow-x: hidden;
     contain: inline-size;
     padding-top: 64px;
   }
@@ -1179,9 +1180,12 @@ th {
   }
   .mobile-header {
     display: flex;
-    position: fixed;
+    position: absolute;
     z-index: 60;
-    inset: 0 0 auto;
+    top: 0;
+    left: 0;
+    width: 100%;
+    max-width: 100%;
     height: 64px;
     align-items: center;
     gap: 14px;
@@ -1238,8 +1242,8 @@ th {
   .main {
     width: 100%;
     min-width: 0;
-    max-width: 100vw;
-    overflow-x: clip;
+    max-width: 100%;
+    overflow-x: hidden;
     padding: 24px 14px 48px;
   }
   .main > * {
@@ -1247,6 +1251,7 @@ th {
     max-width: 100%;
   }
   .account-control {
+    position: absolute;
     z-index: 95;
     top: 9px;
     right: 14px;
@@ -1339,7 +1344,7 @@ th {
     min-width: 680px;
   }
   .timesheet-grid {
-    width: 920px;
+    width: auto;
     max-width: none;
     min-width: 920px;
   }
