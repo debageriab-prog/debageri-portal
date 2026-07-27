@@ -55,13 +55,11 @@ export default function LoginPage() {
         reportsTime: boolean;
       };
       const destination =
-        result.role === "admin"
-          ? "/admin"
+        result.role === "admin" || result.role === "manager"
+          ? "/manager/approvals"
           : result.role === "accountant"
             ? "/time-reports"
-            : result.role === "manager" && !result.reportsTime
-              ? "/manager/approvals"
-              : "/employee/timesheets/current";
+            : "/employee/timesheets/current";
       window.location.assign(destination);
     } catch (reason) {
       setError(friendlyAuthError(reason, t("loginFailed")));

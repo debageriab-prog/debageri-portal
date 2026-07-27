@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
-import { ReviewActions } from "@/app/manager/approvals/[id]/ReviewActions";
+import Link from "next/link";
 
 export default async function TimeReportPage({
   params,
@@ -31,7 +31,6 @@ export default async function TimeReportPage({
     (actor.role === "admin" && !adminVisible)
   )
     redirect("/unauthorized");
-  const canAct = ["manager", "admin"].includes(actor.role);
 
   return (
     <>
@@ -71,15 +70,10 @@ export default async function TimeReportPage({
           <p>Expected: {formatDuration(sheet.expectedMinutes)}</p>
           <p>Reported: {formatDuration(sheet.reportedMinutes)}</p>
           <p>Worked: {formatDuration(sheet.workedMinutes)}</p>
-          {canAct && sheet.status === "submitted" ? (
-            <ReviewActions id={id} returnTo="/time-reports" />
-          ) : (
-            <p className="muted">
-              {actor.role === "accountant"
-                ? "This view is read-only."
-                : "This report is not waiting for approval."}
-            </p>
-          )}
+          <p className="muted">This reporting view is read-only.</p>
+          <Link className="button secondary" href="/time-reports">
+            Close
+          </Link>
         </aside>
       </div>
     </>

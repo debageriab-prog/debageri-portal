@@ -3,9 +3,8 @@ import { verifySession } from "@/server/auth/session";
 export default async function Home() {
   const user = await verifySession();
   if (!user) redirect("/auth/login");
-  if (user.role === "admin") redirect("/admin");
-  if (user.role === "accountant") redirect("/time-reports");
-  if (user.role === "manager" && !user.reportsTime)
+  if (user.role === "admin" || user.role === "manager")
     redirect("/manager/approvals");
+  if (user.role === "accountant") redirect("/time-reports");
   redirect("/employee/timesheets/current");
 }

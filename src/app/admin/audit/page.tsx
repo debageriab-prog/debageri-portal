@@ -15,6 +15,7 @@ export default async function AuditPage() {
           timestamp?: FirebaseFirestore.Timestamp;
           actorUserId?: string;
           action?: string;
+          entityType?: string;
           entityId?: string;
         },
     )
@@ -23,6 +24,61 @@ export default async function AuditPage() {
         Number(b.timestamp?.toMillis?.() ?? 0) -
         Number(a.timestamp?.toMillis?.() ?? 0),
     );
+  const userIds = [
+    ...new Set(
+      logs.flatMap((log) => [
+        ...(log.actorUserId ? [log.actorUserId] : []),
+        ...(log.entityType === "user" && log.entityId ? [log.entityId] : []),
+      ]),
+    ),
+  ];
+  const timesheetIds = [
+    ...new Set(
+      logs
+        .filter((log) => log.entityType === "timesheet" && log.entityId)
+        .map((log) => log.entityId!),
+    ),
+  ];
+  const [userDocs, timesheetDocs] = await Promise.all([
+    userIds.length
+      ? db.getAll(...userIds.map((id) => db.collection("users").doc(id)))
+      : Promise.resolve([]),
+    timesheetIds.length
+      ? db.getAll(
+          ...timesheetIds.map((id) => db.collection("timesheets").doc(id)),
+        )
+      : Promise.resolve([]),
+  ]);
+  const userNames = new Map(
+    userDocs.map((doc) => [
+      doc.id,
+      doc.exists
+        ? String(doc.data()?.displayName ?? doc.data()?.email ?? "Unknown user")
+        : "Deleted user",
+    ]),
+  );
+  const timesheetNames = new Map(
+    timesheetDocs.map((doc) => {
+      const data = doc.data();
+      const week = data
+        ? `Week ${data.isoWeek}${Number(data.partCount ?? 1) > 1 ? `-${String(data.part ?? 1).padStart(2, "0")}` : ""}`
+        : "Deleted time report";
+      return [doc.id, week];
+    }),
+  );
+  const actionNames: Record<string, string> = {
+    "user.created": "Created user",
+    "user.updated": "Updated user",
+    "user.deleted": "Deleted user",
+    "user.password_reset": "Changed user password",
+    "timesheet.submitted": "Submitted time report",
+    "timesheet.resubmitted": "Resubmitted time report",
+    "timesheet.approved": "Approved time report",
+    "timesheet.rejected": "Rejected time report",
+    "timesheet.reopened": "Reopened time report",
+    "timesheet.auto_approved_non_working":
+      "Reported non-working period with 0 hours",
+  };
   return (
     <>
       <div className="topbar">
@@ -52,9 +108,18 @@ export default async function AuditPage() {
               {logs.map((log) => (
                 <tr key={log.id}>
                   <td>{log.timestamp?.toDate?.().toISOString() ?? ""}</td>
-                  <td>{String(log.actorUserId)}</td>
-                  <td>{String(log.action)}</td>
-                  <td>{String(log.entityId)}</td>
+                  <td>{userNames.get(String(log.actorUserId)) ?? "System"}</td>
+                  <td>
+                    {actionNames[String(log.action)] ??
+                      String(log.action).replaceAll(".", " ")}
+                  </td>
+                  <td>
+                    {log.entityType === "user"
+                      ? userNames.get(String(log.entityId))
+                      : log.entityType === "timesheet"
+                        ? timesheetNames.get(String(log.entityId))
+                        : String(log.entityId)}
+                  </td>
                 </tr>
               ))}
             </tbody>
