@@ -53,7 +53,24 @@ The deployer needs narrowly scoped permission to:
 - deploy Firestore rules/indexes and Storage rules;
 - read required project/service metadata.
 
-`portal-runtime` receives Firestore and Firebase Authentication roles. `portal-preview` deliberately receives no Firestore, Auth, Storage, or Secret Manager data roles. Do not grant Owner.
+`portal-runtime` receives Firestore, Firebase Authentication, and Storage Object
+User roles. Storage access is needed for private employee avatar uploads and
+downloads through authenticated portal API routes. `portal-preview`
+deliberately receives no Firestore, Auth, Storage, or Secret Manager data roles.
+Do not grant Owner.
+
+For an existing environment created before avatar support, grant the new role
+once from Google Cloud Shell:
+
+```bash
+gcloud projects add-iam-policy-binding debageri-portal \
+  --member="serviceAccount:portal-runtime@debageri-portal.iam.gserviceaccount.com" \
+  --role="roles/storage.objectUser" \
+  --condition=None
+```
+
+New environments receive the same role automatically from
+`scripts/setup-gcp-production.sh`.
 
 ## Continuous integration
 
@@ -77,7 +94,8 @@ Cloud Run cannot create a new service with `--no-traffic`. Before the first prod
 Portal previews use:
 
 - the production Firebase browser configuration;
-- `portal-runtime`, with production Firestore and Authentication permissions;
+- `portal-runtime`, with production Firestore, Authentication, and private
+  avatar Storage permissions;
 - `PORTAL_ENVIRONMENT=production`;
 - no production Firebase rules deployment.
 

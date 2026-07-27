@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { PortalUser } from "@/domain/types";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { BrandLogo } from "@/components/brand/BrandLogo";
-import { appCheckFetch } from "@/lib/firebase/client";
+import { AccountMenu } from "@/components/layout/AccountMenu";
 
 export function PortalShell({
   children,
@@ -22,11 +22,6 @@ export function PortalShell({
     nav.push([t("approvals"), "/manager/approvals"]);
   if (user.role === "admin") nav.push([t("admin"), "/admin"]);
 
-  async function logout() {
-    await appCheckFetch("/api/auth/session", { method: "DELETE" });
-    window.location.assign("/auth/login");
-  }
-
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -39,20 +34,11 @@ export function PortalShell({
             </Link>
           ))}
         </nav>
-        <div style={{ position: "absolute", bottom: 24, fontSize: 12 }}>
-          <div className="user-chip">
-            <span className="avatar">{user.displayName.charAt(0)}</span>
-            <span>
-              <strong>{user.displayName}</strong>
-              <small>{user.role}</small>
-            </span>
-          </div>
-          <button className="nav-link" onClick={logout}>
-            <span aria-hidden="true">↗</span> Log out
-          </button>
-        </div>
       </aside>
-      <main className="main">{children}</main>
+      <main className="main">
+        <AccountMenu user={user} />
+        {children}
+      </main>
       <nav className="mobilebar" aria-label={t("mobileMenu")}>
         {nav.map(([label, href]) => (
           <Link href={href} key={href}>

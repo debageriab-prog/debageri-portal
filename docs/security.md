@@ -8,6 +8,14 @@ Authentication uses revocation-checked server sessions; authorization combines a
 
 Use separate portal projects, least-privilege runtime/deployer service accounts, Workload Identity Federation for CI, Secret Manager, key rotation, and no downloaded runtime keys. Log correlation/action/outcome without comments, tokens, document contents, or unnecessary personal data. Monitor repeated authorization failures, mutation errors, and privileged changes.
 
+Employee avatars are private Storage objects. The browser uploads and downloads
+them through session-authenticated portal API routes; no public object URL or
+download token is created. Uploads accept JPEG, PNG, and WebP images up to 2 MB.
+Password changes require the current password and Firebase reauthentication.
+Administrators can reset another employee's password without seeing the old
+password. A reset revokes the employee's existing Firebase sessions and creates
+an audit entry; password values are never written to Firestore or logs.
+
 Enable Firestore PITR where available plus tested scheduled exports to a portal-only, retention-controlled bucket. Define audit/document retention and deletion policies with the organization. Employee records are personal and potentially sensitive; minimize access and collection.
 
 Security documentation is not a legal-compliance claim. Organizational/legal/privacy/payroll review is required for GDPR lawful basis, employee notice, access/erasure handling, retention, processor agreements, international transfers, audit access, payslip/document classification, backup deletion, union/employment rules, and incident response.

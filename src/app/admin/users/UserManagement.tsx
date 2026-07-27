@@ -28,6 +28,9 @@ export function UserManagement({
   const router = useRouter();
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [deleting, setDeleting] = useState<ManagedUser | null>(null);
+  const [changingPassword, setChangingPassword] = useState<ManagedUser | null>(
+    null,
+  );
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -121,6 +124,48 @@ export function UserManagement({
     }
   }
 
+  async function changeUserPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!changingPassword) return;
+    setBusy(true);
+    setError("");
+    const form = new FormData(event.currentTarget);
+    const password = String(form.get("password"));
+    if (password !== String(form.get("confirmation"))) {
+      setError("The new passwords do not match.");
+      setBusy(false);
+      return;
+    }
+    try {
+      const response = await appCheckFetch(
+        `/api/admin/users/${encodeURIComponent(changingPassword.id)}/password`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ password }),
+        },
+      );
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok)
+        return setError(
+          result.error ??
+            "The password could not be changed. Please try again.",
+        );
+      setChangingPassword(null);
+      showSuccess(
+        `Password changed for ${changingPassword.displayName}. Their existing sessions were signed out.`,
+      );
+    } catch {
+      setError(
+        "We could not reach the server. Check your connection and try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <div className="topbar">
@@ -193,6 +238,21 @@ export function UserManagement({
                         }}
                       >
                         Edit
+                      </button>
+                      <button
+                        className="table-action"
+                        disabled={user.id === currentUserId}
+                        title={
+                          user.id === currentUserId
+                            ? "Change your password from the account menu"
+                            : "Change employee password"
+                        }
+                        onClick={() => {
+                          setError("");
+                          setChangingPassword(user);
+                        }}
+                      >
+                        Password
                       </button>
                       <button
                         className="table-action table-action-danger"
@@ -418,6 +478,81 @@ export function UserManagement({
                 {busy ? "Deleting..." : "Delete employee"}
               </button>
             </footer>
+          </section>
+        </div>
+      )}
+
+      {changingPassword && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="modal modal-small"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="change-employee-password-title"
+          >
+            <header className="modal-header">
+              <div>
+                <span className="eyebrow">Account security</span>
+                <h2 id="change-employee-password-title">
+                  Change password for {changingPassword.displayName}
+                </h2>
+                <p>
+                  Set a temporary password and share it securely. Their existing
+                  sessions will be signed out.
+                </p>
+              </div>
+              <button
+                className="modal-close"
+                aria-label="Close"
+                onClick={() => setChangingPassword(null)}
+              >
+                ×
+              </button>
+            </header>
+            <form onSubmit={changeUserPassword}>
+              <div className="account-form">
+                <label>
+                  New password
+                  <input
+                    className="field"
+                    name="password"
+                    type="password"
+                    minLength={8}
+                    autoComplete="new-password"
+                    autoFocus
+                    required
+                  />
+                </label>
+                <label>
+                  Confirm new password
+                  <input
+                    className="field"
+                    name="confirmation"
+                    type="password"
+                    minLength={8}
+                    autoComplete="new-password"
+                    required
+                  />
+                </label>
+              </div>
+              {error && (
+                <p className="notice notice-error" role="alert">
+                  {error}
+                </p>
+              )}
+              <footer className="modal-actions">
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => setChangingPassword(null)}
+                >
+                  Cancel
+                </button>
+                <button className="button" disabled={busy}>
+                  {busy ? "Changing..." : "Change password"}
+                </button>
+              </footer>
+            </form>
           </section>
         </div>
       )}
