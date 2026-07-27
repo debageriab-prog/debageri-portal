@@ -10,7 +10,27 @@ Local emulator development does not require reCAPTCHA. App Check verification
 is enabled only when `PORTAL_ENVIRONMENT=production` and the site key is
 configured. This allows a staged rollout without locking users out.
 
-## 1. Register the portal web app
+## 1. Create the reCAPTCHA v3 key pair
+
+1. Open the [Google reCAPTCHA Admin Console](https://www.google.com/recaptcha/admin/create).
+2. Set the label to **Debageri Portal**.
+3. Select **Score based (v3)** as the reCAPTCHA type.
+4. Add the production portal hostnames under **Domains**:
+
+   ```text
+   portal.debageri.se
+   debageri-portal-so2zcmdfgq-ew.a.run.app
+   ```
+
+5. Accept the terms and submit the registration.
+6. Copy both generated values:
+   - **Site key**, which is public browser configuration.
+   - **Secret key**, which must remain private.
+
+Do not reuse the key pair from `debageri-web`. The portal has different
+hostnames and a separate Firebase project.
+
+## 2. Register the portal web app
 
 1. Open Firebase Console and select `debageri-portal`.
 2. Open **Security**, **App Check**.
@@ -18,12 +38,15 @@ configured. This allows a staged rollout without locking users out.
 4. Choose **reCAPTCHA** as the provider. In the current Firebase console this
    label is the reCAPTCHA v3 provider used by the portal code. Do not choose
    **reCAPTCHA Enterprise** for this implementation.
-5. Register the app and copy the generated site key.
+5. Paste the private **reCAPTCHA secret key** created in step 1.
+6. Keep the default token time to live unless there is a reviewed reason to
+   change it.
+7. Register the app.
 
-Use the portal provider and site key. Do not reuse a key from the public
-`debageri-web` Firebase project.
+Firebase stores the secret key. Do not add the secret key to GitHub, application
+environment variables, source code, or documentation.
 
-## 2. Configure allowed domains
+## 3. Configure allowed domains
 
 Open the reCAPTCHA key linked from App Check, then add every hostname from which
 people will use the portal:
@@ -48,7 +71,7 @@ testing the preview. After changing allowed domains, use a private browser
 window or clear site data if the SDK is temporarily backing off after earlier
 failed token exchanges.
 
-## 3. Add the GitHub Actions secret
+## 4. Add the GitHub Actions secret
 
 In GitHub, open **debageri-portal**, **Settings**, **Secrets and variables**,
 **Actions**, then create or update this repository secret:
@@ -57,11 +80,11 @@ In GitHub, open **debageri-portal**, **Settings**, **Secrets and variables**,
 NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY
 ```
 
-Paste only the reCAPTCHA v3 site key. This is public browser configuration, not
-the reCAPTCHA secret key. The production and preview workflows pass it into the
-Docker build automatically.
+Paste only the public reCAPTCHA v3 **site key** created in step 1. Do not paste
+the reCAPTCHA secret key. The production and preview workflows pass the site
+key into the Docker build automatically.
 
-## 4. Deploy and verify monitoring
+## 5. Deploy and verify monitoring
 
 Merge the PR to deploy production, then:
 
@@ -78,7 +101,7 @@ The reCAPTCHA token exchange itself is visible in the browser network panel.
 A `403` response there normally means the site key is wrong, belongs to another
 Firebase project, or the current hostname is not allowed.
 
-## 5. Enable Firebase product enforcement gradually
+## 6. Enable Firebase product enforcement gradually
 
 Keep App Check in monitoring mode until normal login and portal workflows show
 valid traffic. Then enable enforcement separately for the Firebase products the
