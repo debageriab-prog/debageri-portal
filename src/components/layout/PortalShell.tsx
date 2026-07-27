@@ -12,7 +12,10 @@ type NavGroup = { label?: string; items: NavItem[] };
 function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
   const reporting: NavItem[] = user.reportsTime
     ? [
-        { label: t("timesheet"), href: "/employee/timesheets/current" },
+        {
+          label: "Current timesheet",
+          href: "/employee/timesheets/current",
+        },
         { label: t("history"), href: "/employee/timesheets" },
       ]
     : [];
@@ -51,7 +54,7 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
     ] satisfies NavGroup[];
   if (user.role === "manager")
     return [
-      ...(reporting.length ? [{ items: reporting }] : []),
+      ...(reporting.length ? [{ label: "Time report", items: reporting }] : []),
       {
         label: "Timereports",
         items: [
@@ -60,7 +63,7 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
         ],
       },
     ] satisfies NavGroup[];
-  return [{ items: reporting }] satisfies NavGroup[];
+  return [{ label: "Time report", items: reporting }] satisfies NavGroup[];
 }
 
 export function PortalShell({
