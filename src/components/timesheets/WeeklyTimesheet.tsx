@@ -481,33 +481,25 @@ export function WeeklyTimesheet() {
           </p>
         )}
         <div>
-          <strong>Reporting week</strong>
-          <div
-            className="week-mode-picker"
-            role="radiogroup"
-            aria-label="Choose how to select a reporting week"
-          >
-            {(["current", "number", "date"] as const).map((mode) => (
-              <label key={mode} className={weekMode === mode ? "selected" : ""}>
-                <input
-                  type="radio"
-                  name="weekMode"
-                  value={mode}
-                  checked={weekMode === mode}
-                  onChange={() => {
-                    setWeekMode(mode);
-                    setCopyMode("");
-                    if (mode === "current") void loadWeek();
-                  }}
-                />
-                {mode === "current"
-                  ? "Current or next available week"
-                  : mode === "number"
-                    ? "Week number"
-                    : "Calendar date"}
-              </label>
-            ))}
-          </div>
+          <label className="reporting-week-selector">
+            <strong>Reporting week</strong>
+            <select
+              className="field"
+              value={weekMode}
+              aria-label="Choose how to select a reporting week"
+              onChange={(event) => {
+                const mode = event.target.value as
+                  "current" | "number" | "date";
+                setWeekMode(mode);
+                setCopyMode("");
+                if (mode === "current") void loadWeek();
+              }}
+            >
+              <option value="current">Current or next available week</option>
+              <option value="number">Week number</option>
+              <option value="date">Calendar date</option>
+            </select>
+          </label>
           {weekMode === "number" && (
             <div className="actions selection-panel">
               <label>

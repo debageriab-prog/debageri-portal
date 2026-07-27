@@ -786,6 +786,17 @@ th {
   gap: 8px;
 }
 
+.reporting-week-selector {
+  width: fit-content;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.reporting-week-selector .field {
+  width: 270px;
+  max-width: 100%;
+}
+
 .compact-field {
   width: 92px;
 }
