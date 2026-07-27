@@ -94,6 +94,7 @@ export function PortalShell({
         </button>
         <BrandLogo inverse />
       </header>
+      <AccountMenu user={user} />
       {mobileMenuOpen && (
         <button
           className="mobile-menu-backdrop"
@@ -135,10 +136,7 @@ export function PortalShell({
           ))}
         </nav>
       </aside>
-      <main className="main">
-        <AccountMenu user={user} />
-        {children}
-      </main>
+      <main className="main">{children}</main>
     </div>
   );
 }
