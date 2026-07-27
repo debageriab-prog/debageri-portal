@@ -4,7 +4,12 @@ Debageri Portal is an employee platform, initially centered on time reporting bu
 
 ## V1 journeys
 
-Employees authenticate, allocate multiple configurable codes to each date, safely draft, submit an ISO week, correct rejected weeks, review history, and report over week/month/year/custom ranges. Managers see only assigned employees, review complete week detail, approve, or reject with a reason. Admins manage user state, roles, manager assignments, date-versioned employment terms, codes, organization settings, and audit history.
+Consultants authenticate, allocate multiple configurable codes to each date,
+safely submit an ISO week, correct rejected weeks, and review history. Managers
+always review consultant reports and may optionally have their own
+time-reporting capability. Admins review consultant reports plus reports from
+time-reporting managers and manage users, terms, codes, organization settings,
+and audit history. Accountants have read-only access to consultant time reports.
 
 The approval lifecycle is `draft → submitted → approved`, `submitted → rejected → submitted`, and `approved → reopened → submitted`. Unsupported transitions fail. Submitted/approved entries are locked.
 

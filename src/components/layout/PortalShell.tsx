@@ -6,6 +6,63 @@ import { useLocale } from "@/components/localization/LocaleProvider";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 
+type NavItem = { label: string; href: string };
+type NavGroup = { label?: string; items: NavItem[] };
+
+function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
+  const reporting: NavItem[] = user.reportsTime
+    ? [
+        { label: t("timesheet"), href: "/employee/timesheets/current" },
+        { label: t("history"), href: "/employee/timesheets" },
+      ]
+    : [];
+  if (user.role === "admin")
+    return [
+      {
+        label: "Time report",
+        items: [
+          { label: "Approvals", href: "/manager/approvals" },
+          { label: "Time reports", href: "/time-reports" },
+        ],
+      },
+      {
+        label: "Time management",
+        items: [
+          { label: "Time codes", href: "/admin/time-codes" },
+          { label: "Red days", href: "/admin/red-days" },
+          { label: "Employment terms", href: "/admin/employment-terms" },
+        ],
+      },
+      {
+        label: "Administration",
+        items: [
+          { label: "Employees", href: "/admin/users" },
+          { label: "Organization", href: "/admin/settings" },
+          { label: "Audit history", href: "/admin/audit" },
+        ],
+      },
+    ] satisfies NavGroup[];
+  if (user.role === "accountant")
+    return [
+      {
+        label: "Time reports",
+        items: [{ label: "Time reports", href: "/time-reports" }],
+      },
+    ] satisfies NavGroup[];
+  if (user.role === "manager")
+    return [
+      ...(reporting.length ? [{ items: reporting }] : []),
+      {
+        label: "Timereports",
+        items: [
+          { label: "Approvals", href: "/manager/approvals" },
+          { label: "Time reports", href: "/time-reports" },
+        ],
+      },
+    ] satisfies NavGroup[];
+  return [{ items: reporting }] satisfies NavGroup[];
+}
+
 export function PortalShell({
   children,
   user,
@@ -14,24 +71,25 @@ export function PortalShell({
   user: PortalUser;
 }) {
   const { t } = useLocale();
-  const nav: Array<[string, string]> = [
-    [t("timesheet"), "/employee/timesheets/current"],
-    [t("history"), "/employee/timesheets"],
-  ];
-  if (["manager", "admin"].includes(user.role))
-    nav.push([t("approvals"), "/manager/approvals"]);
-  if (user.role === "admin") nav.push([t("admin"), "/admin"]);
-
+  const groups = navigation(user, t);
+  const items = groups.flatMap((group) => group.items);
   return (
     <div className="shell">
       <aside className="sidebar">
         <BrandLogo inverse />
         <p className="sidebar-intro">Your workday, clearly organized.</p>
         <nav aria-label={t("mainMenu")}>
-          {nav.map(([label, href]) => (
-            <Link className="nav-link" href={href} key={href}>
-              {label}
-            </Link>
+          {groups.map((group, index) => (
+            <div className="nav-group" key={group.label ?? index}>
+              {group.label && (
+                <span className="nav-group-label">{group.label}</span>
+              )}
+              {group.items.map((item) => (
+                <Link className="nav-link" href={item.href} key={item.href}>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
       </aside>
@@ -40,9 +98,9 @@ export function PortalShell({
         {children}
       </main>
       <nav className="mobilebar" aria-label={t("mobileMenu")}>
-        {nav.map(([label, href]) => (
-          <Link href={href} key={href}>
-            {label}
+        {items.map((item) => (
+          <Link href={item.href} key={item.href}>
+            {item.label}
           </Link>
         ))}
       </nav>

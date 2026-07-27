@@ -11,6 +11,7 @@ export interface ManagedUser {
   email: string;
   employeeNumber: string;
   role: string;
+  reportsTime: boolean;
   status: string;
   createdAt: number;
   employmentStartDate: string;
@@ -60,14 +61,21 @@ export function UserManagement({
             employeeNumber:
               form.get("employeeNumber") ?? editing.employeeNumber,
             role: form.get("role") ?? editing.role,
+            reportsTime:
+              (form.get("role") ?? editing.role) === "consultant" ||
+              ((form.get("role") ?? editing.role) === "manager" &&
+                form.get("reportsTime") === "on"),
             status: form.get("status") ?? editing.status,
             employmentStartDate:
-              form.get("employmentStartDate") ?? editing.employmentStartDate,
+              (form.get("employmentStartDate") ??
+                editing.employmentStartDate) ||
+              null,
             employmentEndDate:
               (form.get("employmentEndDate") ?? editing.employmentEndDate) ||
               null,
-            reportingStartDate:
-              form.get("reportingStartDate") ?? editing.reportingStartDate,
+            reportingStartDate: editing.reportsTime
+              ? form.get("reportingStartDate")
+              : null,
           }),
         },
       );
@@ -344,11 +352,28 @@ export function UserManagement({
                     defaultValue={editing.role}
                     disabled={editing.id === currentUserId}
                   >
-                    <option value="employee">Employee</option>
+                    <option value="consultant">Consultant</option>
                     <option value="manager">Manager</option>
+                    <option value="accountant">Accountant</option>
                     <option value="admin">Administrator</option>
                   </select>
                 </label>
+                {editing.role === "manager" && (
+                  <label className="checkbox-row form-wide">
+                    <input
+                      name="reportsTime"
+                      type="checkbox"
+                      defaultChecked={editing.reportsTime}
+                      disabled={editing.id === currentUserId}
+                    />
+                    <span>
+                      <strong>Reports time</strong>
+                      <small>
+                        Gives this manager access to Timesheet and History.
+                      </small>
+                    </span>
+                  </label>
+                )}
                 <label className="form-wide">
                   Account status
                   <select
@@ -385,17 +410,19 @@ export function UserManagement({
                     disabled={editing.id === currentUserId}
                   />
                 </label>
-                <label className="form-wide">
-                  Time reporting start date
-                  <input
-                    className="field"
-                    name="reportingStartDate"
-                    type="date"
-                    defaultValue={editing.reportingStartDate}
-                    disabled={editing.id === currentUserId}
-                    required
-                  />
-                </label>
+                {editing.reportsTime && (
+                  <label className="form-wide">
+                    Time reporting start date
+                    <input
+                      className="field"
+                      name="reportingStartDate"
+                      type="date"
+                      defaultValue={editing.reportingStartDate}
+                      disabled={editing.id === currentUserId}
+                      required
+                    />
+                  </label>
+                )}
                 {editing.id === currentUserId && (
                   <p className="notice form-wide">
                     For your own account, only full name and email can be

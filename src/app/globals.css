@@ -147,8 +147,20 @@ a {
 }
 .sidebar nav {
   display: grid;
-  gap: 4px;
+  gap: 22px;
   margin-top: 34px;
+}
+.nav-group {
+  display: grid;
+  gap: 4px;
+}
+.nav-group-label {
+  padding: 0 13px 6px;
+  color: #a89587;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 .nav-link {
   color: #e8d8c8;
@@ -1101,6 +1113,14 @@ th {
   align-items: center;
   gap: 16px;
   padding-top: 20px;
+}
+.report-user-filter {
+  display: flex;
+  align-items: end;
+  gap: 14px;
+}
+.report-user-filter label {
+  width: min(420px, 100%);
 }
 
 @media (max-width: 900px) {

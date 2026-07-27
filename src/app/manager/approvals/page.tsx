@@ -6,12 +6,10 @@ import { formatDuration } from "@/lib/durations/duration";
 export default async function ApprovalsPage() {
   const actor = (await verifySession())!;
   const { db } = getAdminServices();
-  let query = db
+  const query = db
     .collection("timesheets")
     .where("organizationId", "==", actor.organizationId)
     .where("status", "==", "submitted");
-  if (actor.role === "manager")
-    query = query.where("managerId", "==", actor.id);
   const sheets = await query.get();
   const userIds = [
     ...new Set(sheets.docs.map((doc) => String(doc.data().userId))),
@@ -23,6 +21,14 @@ export default async function ApprovalsPage() {
       if (doc.exists) users.set(id, doc.data()!);
     }),
   );
+  const visibleSheets = sheets.docs.filter((doc) => {
+    const user = users.get(String(doc.data().userId));
+    if (!user) return false;
+    const consultant = ["employee", "consultant"].includes(String(user.role));
+    return actor.role === "manager"
+      ? consultant
+      : consultant || (user.role === "manager" && user.reportsTime === true);
+  });
   return (
     <>
       <div className="topbar">
@@ -36,7 +42,7 @@ export default async function ApprovalsPage() {
         </div>
       </div>
       <section className="card table-wrap">
-        {sheets.empty ? (
+        {visibleSheets.length === 0 ? (
           <p>No timesheets are waiting for approval.</p>
         ) : (
           <table>
@@ -51,7 +57,7 @@ export default async function ApprovalsPage() {
               </tr>
             </thead>
             <tbody>
-              {sheets.docs.map((doc) => {
+              {visibleSheets.map((doc) => {
                 const sheet = doc.data();
                 const user = users.get(String(sheet.userId));
                 return (

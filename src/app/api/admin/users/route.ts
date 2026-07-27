@@ -4,15 +4,33 @@ import { z } from "zod";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 
-const inputSchema = z.object({
-  displayName: z.string().trim().min(2).max(100),
-  email: z.email(),
-  employeeNumber: z.string().trim().min(1).max(30),
-  password: z.string().min(8).max(128),
-  weeklyHours: z.number().positive().max(168),
-  employmentStartDate: z.iso.date(),
-  reportingStartDate: z.iso.date(),
-});
+const inputSchema = z
+  .object({
+    displayName: z.string().trim().min(2).max(100),
+    email: z.email(),
+    employeeNumber: z.string().trim().min(1).max(30),
+    password: z.string().min(8).max(128),
+    role: z.enum(["consultant", "manager", "accountant", "admin"]),
+    reportsTime: z.boolean(),
+    weeklyHours: z.number().positive().max(168).nullable(),
+    employmentStartDate: z.iso.date(),
+    reportingStartDate: z.iso.date().nullable(),
+  })
+  .superRefine((value, context) => {
+    const expectedReportsTime =
+      value.role === "consultant" ||
+      (value.role === "manager" && value.reportsTime);
+    if (value.reportsTime !== expectedReportsTime)
+      context.addIssue({
+        code: "custom",
+        message: "Invalid time-reporting capability",
+      });
+    if (value.reportsTime && (!value.weeklyHours || !value.reportingStartDate))
+      context.addIssue({
+        code: "custom",
+        message: "Reporting details are required",
+      });
+  });
 
 export async function POST(request: Request) {
   const actor = await verifySession();
@@ -35,10 +53,10 @@ export async function POST(request: Request) {
     });
     uid = created.uid;
     await auth.setCustomUserClaims(uid, {
-      role: "employee",
+      role: parsed.data.role,
       organizationId: actor.organizationId,
     });
-    const weeklyMinutes = Math.round(parsed.data.weeklyHours * 60);
+    const weeklyMinutes = Math.round((parsed.data.weeklyHours ?? 0) * 60);
     const dailyMinutes = Math.floor(weeklyMinutes / 5);
     const remainder = weeklyMinutes - dailyMinutes * 5;
     const batch = db.batch();
@@ -47,34 +65,37 @@ export async function POST(request: Request) {
       employeeNumber: parsed.data.employeeNumber,
       email: parsed.data.email,
       displayName: parsed.data.displayName,
-      role: "employee",
+      role: parsed.data.role,
+      reportsTime: parsed.data.reportsTime,
+      employmentStartDate: parsed.data.employmentStartDate,
       status: "active",
-      managerId: actor.id,
+      managerId: null,
       timezone: actor.timezone,
       locale: actor.locale,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    batch.create(db.collection("employmentTerms").doc(), {
-      organizationId: actor.organizationId,
-      userId: uid,
-      validFrom: parsed.data.employmentStartDate,
-      validTo: null,
-      reportingStartDate: parsed.data.reportingStartDate,
-      employmentPercentage: Math.round((weeklyMinutes / 2400) * 100),
-      weeklyMinutes,
-      schedule: {
-        monday: dailyMinutes + remainder,
-        tuesday: dailyMinutes,
-        wednesday: dailyMinutes,
-        thursday: dailyMinutes,
-        friday: dailyMinutes,
-        saturday: 0,
-        sunday: 0,
-      },
-      createdAt: FieldValue.serverTimestamp(),
-      createdBy: actor.id,
-    });
+    if (parsed.data.reportsTime)
+      batch.create(db.collection("employmentTerms").doc(), {
+        organizationId: actor.organizationId,
+        userId: uid,
+        validFrom: parsed.data.employmentStartDate,
+        validTo: null,
+        reportingStartDate: parsed.data.reportingStartDate,
+        employmentPercentage: Math.round((weeklyMinutes / 2400) * 100),
+        weeklyMinutes,
+        schedule: {
+          monday: dailyMinutes + remainder,
+          tuesday: dailyMinutes,
+          wednesday: dailyMinutes,
+          thursday: dailyMinutes,
+          friday: dailyMinutes,
+          saturday: 0,
+          sunday: 0,
+        },
+        createdAt: FieldValue.serverTimestamp(),
+        createdBy: actor.id,
+      });
     batch.create(db.collection("auditLogs").doc(), {
       organizationId: actor.organizationId,
       actorUserId: actor.id,
@@ -82,7 +103,10 @@ export async function POST(request: Request) {
       entityType: "user",
       entityId: uid,
       timestamp: FieldValue.serverTimestamp(),
-      metadata: { role: "employee" },
+      metadata: {
+        role: parsed.data.role,
+        reportsTime: parsed.data.reportsTime,
+      },
     });
     await batch.commit();
     return NextResponse.json({ id: uid }, { status: 201 });

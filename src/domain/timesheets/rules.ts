@@ -112,11 +112,17 @@ export function calculateTotals(
 
 export function canReview(
   actor: { id: string; role: UserRole; organizationId: string },
-  subject: { managerId: string | null; organizationId: string },
+  subject: {
+    role: UserRole;
+    reportsTime: boolean;
+    organizationId: string;
+  },
 ): boolean {
   if (actor.organizationId !== subject.organizationId) return false;
+  const consultant = ["employee", "consultant"].includes(subject.role);
+  if (actor.role === "manager") return consultant;
   return (
-    actor.role === "admin" ||
-    (actor.role === "manager" && subject.managerId === actor.id)
+    actor.role === "admin" &&
+    (consultant || (subject.role === "manager" && subject.reportsTime))
   );
 }

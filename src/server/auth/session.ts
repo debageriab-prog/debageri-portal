@@ -25,6 +25,9 @@ export async function verifySession(): Promise<PortalUser | null> {
       role: data.role,
       status: data.status,
       managerId: data.managerId ?? null,
+      reportsTime:
+        data.reportsTime ??
+        ["employee", "consultant"].includes(String(data.role)),
       timezone: data.timezone,
       locale: data.locale,
     } as PortalUser;
