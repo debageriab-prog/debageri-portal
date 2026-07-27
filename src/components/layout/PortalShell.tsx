@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import type { PortalUser } from "@/domain/types";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { BrandLogo } from "@/components/brand/BrandLogo";
@@ -74,11 +75,45 @@ export function PortalShell({
   user: PortalUser;
 }) {
   const { t } = useLocale();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const groups = navigation(user, t);
-  const items = groups.flatMap((group) => group.items);
   return (
     <div className="shell">
-      <aside className="sidebar">
+      <header className="mobile-header">
+        <button
+          className="mobile-menu-trigger"
+          type="button"
+          aria-label="Open main menu"
+          aria-expanded={mobileMenuOpen}
+          aria-controls="portal-navigation"
+          onClick={() => setMobileMenuOpen(true)}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+        <BrandLogo inverse />
+      </header>
+      <AccountMenu user={user} />
+      {mobileMenuOpen && (
+        <button
+          className="mobile-menu-backdrop"
+          aria-label="Close main menu"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+      <aside
+        className={`sidebar${mobileMenuOpen ? " mobile-open" : ""}`}
+        id="portal-navigation"
+      >
+        <button
+          className="mobile-menu-close"
+          type="button"
+          aria-label="Close main menu"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          ×
+        </button>
         <BrandLogo inverse />
         <p className="sidebar-intro">Your workday, clearly organized.</p>
         <nav aria-label={t("mainMenu")}>
@@ -88,7 +123,12 @@ export function PortalShell({
                 <span className="nav-group-label">{group.label}</span>
               )}
               {group.items.map((item) => (
-                <Link className="nav-link" href={item.href} key={item.href}>
+                <Link
+                  className="nav-link"
+                  href={item.href}
+                  key={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
                   {item.label}
                 </Link>
               ))}
@@ -96,17 +136,7 @@ export function PortalShell({
           ))}
         </nav>
       </aside>
-      <main className="main">
-        <AccountMenu user={user} />
-        {children}
-      </main>
-      <nav className="mobilebar" aria-label={t("mobileMenu")}>
-        {items.map((item) => (
-          <Link href={item.href} key={item.href}>
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+      <main className="main">{children}</main>
     </div>
   );
 }

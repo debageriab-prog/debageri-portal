@@ -9,10 +9,13 @@ import {
 } from "firebase/auth";
 import type { PortalUser } from "@/domain/types";
 import { appCheckFetch, getFirebaseClient } from "@/lib/firebase/client";
+import { useLocale } from "@/components/localization/LocaleProvider";
+import type { Locale } from "@/lib/localization/locale";
 
 type Dialog = "avatar" | "password" | null;
 
 export function AccountMenu({ user }: { user: PortalUser }) {
+  const { locale, setLocale, t } = useLocale();
   const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -166,6 +169,17 @@ export function AccountMenu({ user }: { user: PortalUser }) {
             <button role="menuitem" onClick={() => showDialog("password")}>
               Change password
             </button>
+            <label className="account-language">
+              <span>{t("language")}</span>
+              <select
+                aria-label={t("language")}
+                value={locale}
+                onChange={(event) => setLocale(event.target.value as Locale)}
+              >
+                <option value="en-SE">English</option>
+                <option value="sv-SE">Svenska</option>
+              </select>
+            </label>
             <button className="account-logout" role="menuitem" onClick={logout}>
               Log out
             </button>
