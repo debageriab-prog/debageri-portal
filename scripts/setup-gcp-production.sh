@@ -37,7 +37,7 @@ if ! gcloud iam service-accounts describe "$RUNTIME_EMAIL" >/dev/null 2>&1; then
     --display-name "Debageri Portal Cloud Run runtime"
 fi
 
-for role in roles/datastore.user roles/firebaseauth.admin; do
+for role in roles/datastore.user roles/firebaseauth.admin roles/storage.objectUser; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member "serviceAccount:${RUNTIME_EMAIL}" \
     --role "$role" \

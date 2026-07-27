@@ -53,7 +53,11 @@ The deployer needs narrowly scoped permission to:
 - deploy Firestore rules/indexes and Storage rules;
 - read required project/service metadata.
 
-`portal-runtime` receives Firestore and Firebase Authentication roles. `portal-preview` deliberately receives no Firestore, Auth, Storage, or Secret Manager data roles. Do not grant Owner.
+`portal-runtime` receives Firestore, Firebase Authentication, and Storage Object
+User roles. Storage access is needed for private employee avatar uploads and
+downloads through authenticated portal API routes. `portal-preview`
+deliberately receives no Firestore, Auth, Storage, or Secret Manager data roles.
+Do not grant Owner.
 
 ## Continuous integration
 

@@ -9,6 +9,7 @@ import {
 import { getAuth } from "firebase-admin/auth";
 import { getAppCheck } from "firebase-admin/app-check";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import { validatePortalEnvironment } from "@/lib/config/environment";
 
 export function getAdminServices() {
@@ -27,10 +28,16 @@ export function getAdminServices() {
         })
       : applicationDefault();
   const app =
-    existing ?? initializeApp({ projectId: env.adminProjectId, credential });
+    existing ??
+    initializeApp({
+      projectId: env.adminProjectId,
+      credential,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    });
   return {
     appCheck: getAppCheck(app),
     auth: getAuth(app),
     db: getFirestore(app),
+    storage: getStorage(app),
   };
 }
