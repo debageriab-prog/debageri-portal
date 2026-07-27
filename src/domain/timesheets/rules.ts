@@ -1,5 +1,4 @@
 import type {
-  EmploymentTerm,
   TimeCode,
   TimeEntry,
   TimesheetStatus,
@@ -33,38 +32,6 @@ export function assertTransition(
 
 export function isEditable(status: TimesheetStatus): boolean {
   return status === "draft" || status === "rejected" || status === "reopened";
-}
-
-export function selectEmploymentTerm(
-  terms: EmploymentTerm[],
-  date: string,
-): EmploymentTerm | null {
-  return (
-    terms
-      .filter(
-        (term) =>
-          term.validFrom <= date &&
-          (term.validTo === null || term.validTo >= date),
-      )
-      .sort((left, right) =>
-        right.validFrom.localeCompare(left.validFrom),
-      )[0] ?? null
-  );
-}
-
-export function assertNoEmploymentOverlap(
-  terms: EmploymentTerm[],
-  candidate: EmploymentTerm,
-): void {
-  const overlaps = terms.some(
-    (term) =>
-      term.id !== candidate.id &&
-      term.userId === candidate.userId &&
-      term.organizationId === candidate.organizationId &&
-      candidate.validFrom <= (term.validTo ?? "9999-12-31") &&
-      (candidate.validTo ?? "9999-12-31") >= term.validFrom,
-  );
-  if (overlaps) throw new Error("Employment terms overlap");
 }
 
 export function validateEntry(entry: TimeEntry, code: TimeCode): void {

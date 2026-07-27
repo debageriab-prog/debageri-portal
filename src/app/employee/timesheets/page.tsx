@@ -6,16 +6,14 @@ import { HistoryView } from "./HistoryView";
 export default async function HistoryPage() {
   const user = (await verifySession())!;
   const { db } = getAdminServices();
-  const [sheetSnapshot, entrySnapshot, termSnapshot, holidaySnapshot] =
-    await Promise.all([
-      db.collection("timesheets").where("userId", "==", user.id).get(),
-      db.collection("timeEntries").where("userId", "==", user.id).get(),
-      db.collection("employmentTerms").where("userId", "==", user.id).get(),
-      db
-        .collection("holidays")
-        .where("organizationId", "==", user.organizationId)
-        .get(),
-    ]);
+  const [sheetSnapshot, entrySnapshot, holidaySnapshot] = await Promise.all([
+    db.collection("timesheets").where("userId", "==", user.id).get(),
+    db.collection("timeEntries").where("userId", "==", user.id).get(),
+    db
+      .collection("holidays")
+      .where("organizationId", "==", user.organizationId)
+      .get(),
+  ]);
   const entryTotals = new Map<string, number>();
   const entries = entrySnapshot.docs.map((doc) => {
     const data = doc.data();
@@ -63,15 +61,8 @@ export default async function HistoryPage() {
       currentYear={current.isoYear}
       currentWeek={current.isoWeek}
       currentMonth={today.slice(0, 7)}
-      terms={termSnapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          validFrom: String(data.validFrom),
-          validTo: data.validTo ? String(data.validTo) : null,
-          reportingStartDate: String(data.reportingStartDate ?? data.validFrom),
-          schedule: data.schedule as Record<string, number>,
-        };
-      })}
+      reportingStartDate={user.reportingStartDate ?? user.employmentStartDate}
+      employmentEndDate={user.employmentEndDate}
       holidayDates={holidaySnapshot.docs.map((doc) => String(doc.data().date))}
     />
   );

@@ -1,32 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { EmploymentTerm, TimeCode, TimeEntry } from "@/domain/types";
+import type { TimeCode, TimeEntry } from "@/domain/types";
 import {
-  assertNoEmploymentOverlap,
   assertTransition,
   calculateTotals,
   canReview,
-  selectEmploymentTerm,
   validateEntry,
 } from "@/domain/timesheets/rules";
 
-const term = (id: string, from: string, to: string | null): EmploymentTerm => ({
-  id,
-  organizationId: "debageri",
-  userId: "u1",
-  validFrom: from,
-  validTo: to,
-  employmentPercentage: 100,
-  weeklyMinutes: 2400,
-  schedule: {
-    monday: 480,
-    tuesday: 480,
-    wednesday: 480,
-    thursday: 480,
-    friday: 480,
-    saturday: 0,
-    sunday: 0,
-  },
-});
 const code: TimeCode = {
   id: "REG",
   organizationId: "debageri",
@@ -75,19 +55,6 @@ describe("timesheet rules", () => {
     expect(() => assertTransition("draft", "submitted")).not.toThrow();
     expect(() => assertTransition("draft", "approved")).toThrow();
     expect(() => assertTransition("rejected", "submitted")).not.toThrow();
-  });
-  it("selects date-versioned terms and rejects overlap", () => {
-    const terms = [
-      term("old", "2026-01-01", "2026-06-30"),
-      term("new", "2026-07-01", null),
-    ];
-    expect(selectEmploymentTerm(terms, "2026-07-29")?.id).toBe("new");
-    expect(() =>
-      assertNoEmploymentOverlap(
-        terms,
-        term("overlap", "2026-06-01", "2026-08-01"),
-      ),
-    ).toThrow();
   });
   it("recalculates totals including multiple codes on a date", () => {
     const parental = entry("2", 120, {

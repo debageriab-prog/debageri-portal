@@ -356,7 +356,20 @@ export function WeeklyTimesheet() {
       setConfirmation("");
       setRows([]);
       setSuccess("Time reported successfully");
-      await loadWeek();
+      setWeekMode("number");
+      if (data.part < data.partCount) {
+        await loadWeek(
+          data.sheet.isoYear,
+          data.sheet.isoWeek,
+          undefined,
+          data.part + 1,
+        );
+      } else {
+        const next = new Date(`${data.dates[0]}T12:00:00Z`);
+        next.setUTCDate(next.getUTCDate() + 7);
+        const selected = getIsoWeek(next);
+        await loadWeek(selected.isoYear, selected.isoWeek);
+      }
     } catch {
       const feedback =
         "The report could not be submitted. Please try again. Your draft is still saved.";
@@ -394,7 +407,20 @@ export function WeeklyTimesheet() {
       }
       setNonWorkingOpen(false);
       setSuccess("0 hours reported and approved successfully");
-      await loadWeek();
+      setWeekMode("number");
+      if (data.part < data.partCount) {
+        await loadWeek(
+          data.sheet.isoYear,
+          data.sheet.isoWeek,
+          undefined,
+          data.part + 1,
+        );
+      } else {
+        const next = new Date(`${data.dates[0]}T12:00:00Z`);
+        next.setUTCDate(next.getUTCDate() + 7);
+        const selected = getIsoWeek(next);
+        await loadWeek(selected.isoYear, selected.isoWeek);
+      }
     } catch {
       setSubmitError(
         "The zero-hour report could not be created. Please try again.",
@@ -797,16 +823,11 @@ export function WeeklyTimesheet() {
         {!editable && (
           <div className="actions timesheet-actions">
             <span className="actions-spacer" />
-            <button
-              className="button"
-              onClick={() =>
-                setMessage(
-                  "You already reported this week. Delete the old draft if you want to report again, or edit that draft.",
-                )
-              }
-            >
-              Submit
-            </button>
+            <span title="Already submitted">
+              <button className="button" disabled>
+                Submit
+              </button>
+            </span>
           </div>
         )}
         {message && (

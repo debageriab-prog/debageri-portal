@@ -102,8 +102,7 @@ async function loadCurrent(request: Request) {
     parts.length,
   );
   const sheetDoc = partDocs[selectedPart - 1]!;
-  const [termDocs, codeDocs, holidayDocs] = await Promise.all([
-    db.collection("employmentTerms").where("userId", "==", user.id).get(),
+  const [codeDocs, holidayDocs] = await Promise.all([
     db
       .collection("timeCodes")
       .where("organizationId", "==", user.organizationId)
@@ -127,36 +126,17 @@ async function loadCurrent(request: Request) {
       reason: holidayNames.get(date) ?? (weekend ? "Weekend" : null),
     };
   });
-  const term = termDocs.docs
-    .map((doc) => doc.data())
-    .filter(
-      (item) =>
-        item.validFrom <= dates.at(-1)! &&
-        (!item.validTo || item.validTo >= dates[0]!) &&
-        String(item.reportingStartDate ?? item.validFrom) <= dates.at(-1)!,
-    )
-    .sort((a, b) => String(b.validFrom).localeCompare(String(a.validFrom)))[0];
-  if (!term)
-    return { user, error: "No active employment terms are configured." };
-  const scheduleKeys = [
-    "sunday",
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-  ];
+  const reportingBegins =
+    user.reportingStartDate ?? user.employmentStartDate ?? "0000-01-01";
   const expectedMinutes = dates.reduce((total, date, index) => {
-    const begins = String(term.reportingStartDate ?? term.validFrom);
     if (
-      date < begins ||
-      (term.validTo && date > term.validTo) ||
+      date < reportingBegins ||
+      (user.employmentEndDate && date > user.employmentEndDate) ||
       redDays[index]?.isRed
     )
       return total;
     const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
-    return total + Number(term.schedule?.[scheduleKeys[weekday]!] ?? 0);
+    return total + (weekday >= 1 && weekday <= 5 ? 480 : 0);
   }, 0);
   let sheet = sheetDoc.data() as Omit<Timesheet, "id"> | undefined;
   if (!sheetDoc.exists) {
@@ -245,7 +225,15 @@ async function loadCurrent(request: Request) {
     part: selectedPart,
     partCount: parts.length,
     redDays,
-    schedule: term.schedule,
+    schedule: {
+      monday: 480,
+      tuesday: 480,
+      wednesday: 480,
+      thursday: 480,
+      friday: 480,
+      saturday: 0,
+      sunday: 0,
+    },
     sheet: { id, ...sheet },
     entries: entryDocs.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
     copyEntries,

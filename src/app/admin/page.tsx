@@ -6,11 +6,6 @@ export default function AdminPage() {
   const { t } = useLocale();
   const cards = [
     [t("users"), t("usersDescription"), "/admin/users"],
-    [
-      t("employmentTerms"),
-      t("employmentTermsDescription"),
-      "/admin/employment-terms",
-    ],
     [t("timeCodes"), t("timeCodesDescription"), "/admin/time-codes"],
     [
       "Red days",

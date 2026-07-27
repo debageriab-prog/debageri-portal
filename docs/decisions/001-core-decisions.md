@@ -32,9 +32,9 @@ Accepted. Historical reports retain the code meaning used at entry time after co
 
 Accepted. Trusted code verifies current state, authorization, manager assignment, totals, transitions, and atomic events; rules deny direct writes.
 
-## 009: Date-versioned employment terms
+## 009: Standard 40-hour reporting
 
-Accepted. Schedule changes must not rewrite historical expected-time calculations; overlapping ranges are rejected.
+Accepted. Every eligible weekday expects eight classified hours. Employment and reporting dates live on the user, and submitted timesheets preserve historical expected totals.
 
 ## 010: Separate Authentication user base
 

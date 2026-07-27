@@ -31,9 +31,6 @@ export function EmployeeForm({
           password: form.get("password"),
           role,
           reportsTime: role === "consultant" || managerReportsTime,
-          weeklyHours: form.get("weeklyHours")
-            ? Number(form.get("weeklyHours"))
-            : null,
           employmentStartDate: form.get("employmentStartDate"),
           reportingStartDate: form.get("reportingStartDate"),
         }),
@@ -158,19 +155,6 @@ export function EmployeeForm({
                 )}
                 {(role === "consultant" || managerReportsTime) && (
                   <>
-                    <label>
-                      Weekly hours
-                      <input
-                        className="field"
-                        name="weeklyHours"
-                        type="number"
-                        min="1"
-                        max="168"
-                        step=".25"
-                        placeholder="40"
-                        required
-                      />
-                    </label>
                     <label>
                       Time reporting start date
                       <input

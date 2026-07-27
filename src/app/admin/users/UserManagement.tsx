@@ -467,8 +467,8 @@ export function UserManagement({
                   Delete {deleting.displayName}?
                 </h2>
                 <p>
-                  Their login and employment terms will be removed. Historical
-                  timesheets and audit records will remain.
+                  Their login will be removed. Historical timesheets and audit
+                  records will remain.
                 </p>
               </div>
             </header>
