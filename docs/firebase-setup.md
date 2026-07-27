@@ -16,7 +16,9 @@ In the production project:
 2. Enable Authentication → Email/Password.
 3. Create the default Firestore database in production mode.
 4. Create the default Cloud Storage bucket.
-5. Configure App Check for the portal domain. Start with monitoring, validate legitimate traffic, then enforce it before launch.
+5. Configure App Check for the portal domain using the detailed steps in
+   [Firebase App Check and reCAPTCHA](recaptcha-app-check.md). Start with
+   monitoring, validate legitimate traffic, then enforce it.
 6. Add `portal.debageri.se` and the Cloud Run URL to Firebase Authentication authorized domains.
 
 Record the Web App values for GitHub configuration. Firebase web configuration is public application identification, but it must still point only to the production portal project.

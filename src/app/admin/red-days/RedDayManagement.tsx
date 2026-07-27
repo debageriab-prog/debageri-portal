@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { appCheckFetch } from "@/lib/firebase/client";
 
 type RedDay = { id: string; date: string; name: string };
 
@@ -24,7 +25,7 @@ export function RedDayManagement({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/holidays", {
+      const response = await appCheckFetch("/api/admin/holidays", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -46,7 +47,7 @@ export function RedDayManagement({
 
   async function remove(id: string) {
     setBusy(true);
-    const response = await fetch(
+    const response = await appCheckFetch(
       `/api/admin/holidays/${encodeURIComponent(id)}`,
       {
         method: "DELETE",

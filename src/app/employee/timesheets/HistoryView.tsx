@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
+import { appCheckFetch } from "@/lib/firebase/client";
 
 type HistorySheet = {
   id: string;
@@ -190,7 +191,7 @@ export function HistoryView({
 
   async function remove() {
     if (!deleting) return;
-    const response = await fetch(
+    const response = await appCheckFetch(
       `/api/timesheets/${encodeURIComponent(deleting.id)}`,
       {
         method: "DELETE",

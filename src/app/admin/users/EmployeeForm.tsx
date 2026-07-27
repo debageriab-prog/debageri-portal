@@ -1,6 +1,7 @@
 "use client";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { appCheckFetch } from "@/lib/firebase/client";
 
 export function EmployeeForm({
   onCreated,
@@ -18,7 +19,7 @@ export function EmployeeForm({
     setError("");
     const form = new FormData(formElement);
     try {
-      const response = await fetch("/api/admin/users", {
+      const response = await appCheckFetch("/api/admin/users", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

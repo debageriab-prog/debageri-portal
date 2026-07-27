@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { getFirebaseClient } from "@/lib/firebase/client";
+import { appCheckFetch, getFirebaseClient } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 
@@ -44,7 +44,7 @@ export default function LoginPage() {
         String(form.get("email")),
         String(form.get("password")),
       );
-      const response = await fetch("/api/auth/session", {
+      const response = await appCheckFetch("/api/auth/session", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ idToken: await credential.user.getIdToken() }),

@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { appCheckFetch } from "@/lib/firebase/client";
 
 export type ManagedTimeCode = {
   id: string;
@@ -58,7 +59,7 @@ export function TimeCodeManagement({
     setError("");
     try {
       const isNew = editing === "new";
-      const response = await fetch(
+      const response = await appCheckFetch(
         isNew
           ? "/api/admin/time-codes"
           : `/api/admin/time-codes/${encodeURIComponent(editing.id)}`,
@@ -100,7 +101,7 @@ export function TimeCodeManagement({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await appCheckFetch(
         `/api/admin/time-codes/${encodeURIComponent(deleting.id)}`,
         {
           method: "DELETE",

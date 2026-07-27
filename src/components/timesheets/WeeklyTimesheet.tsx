@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
+import { appCheckFetch } from "@/lib/firebase/client";
 import {
   getIsoWeek,
   getIsoWeekDates,
@@ -118,7 +119,7 @@ export function WeeklyTimesheet() {
     }
     if (part) query.set("part", String(part));
     try {
-      const response = await fetch(`/api/timesheets/current?${query}`);
+      const response = await appCheckFetch(`/api/timesheets/current?${query}`);
       if (response.status === 401) return router.replace("/auth/login");
       const result = await response.json();
       if (!response.ok) return setMessage(result.error);
@@ -283,7 +284,7 @@ export function WeeklyTimesheet() {
         week: String(data.sheet.isoWeek),
         part: String(data.part),
       });
-      const response = await fetch(`/api/timesheets/current?${query}`, {
+      const response = await appCheckFetch(`/api/timesheets/current?${query}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ entries }),
@@ -308,11 +309,14 @@ export function WeeklyTimesheet() {
     setSubmitError("");
     try {
       if (!(await save()) || !data) return;
-      const response = await fetch(`/api/timesheets/${data.id}/submit`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      });
+      const response = await appCheckFetch(
+        `/api/timesheets/${data.id}/submit`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        },
+      );
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
         const feedback =
@@ -347,7 +351,7 @@ export function WeeklyTimesheet() {
       part: String(data.part),
     });
     try {
-      const response = await fetch(`/api/timesheets/current?${query}`, {
+      const response = await appCheckFetch(`/api/timesheets/current?${query}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
