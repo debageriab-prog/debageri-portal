@@ -328,6 +328,18 @@ a.card:hover {
   background: var(--warning-bg);
   color: var(--warning);
 }
+
+.status-approved {
+  border-color: #b9d8c4;
+  background: #eaf6ee;
+  color: #24613c;
+}
+
+.status-rejected {
+  border-color: #efc3c0;
+  background: #fff0ef;
+  color: #a1352f;
+}
 .status::before {
   content: "";
   width: 7px;
@@ -533,6 +545,22 @@ th {
   max-width: 520px;
   margin: 0;
   color: var(--muted);
+}
+
+.reporting-day-list {
+  margin: 8px 0 18px;
+  padding-left: 24px;
+  color: var(--text);
+}
+
+.reporting-day-list li + li {
+  margin-top: 6px;
+}
+
+.report-breakdown {
+  display: grid;
+  gap: 4px;
+  white-space: nowrap;
 }
 .modal-close {
   width: 38px;
@@ -758,6 +786,17 @@ th {
   gap: 8px;
 }
 
+.reporting-week-selector {
+  width: fit-content;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.reporting-week-selector .field {
+  width: 270px;
+  max-width: 100%;
+}
+
 .compact-field {
   width: 92px;
 }
@@ -905,9 +944,10 @@ th {
 
 .chart-legend > div {
   display: grid;
-  grid-template-columns: 12px 1fr auto;
+  grid-template-columns: 12px max-content max-content;
+  justify-content: start;
   align-items: center;
-  gap: 10px;
+  column-gap: 12px;
 }
 
 .chart-legend i {

@@ -21,7 +21,7 @@ type HistoryEntry = {
   timesheetId: string;
   date: string;
   minutes: number;
-  code: string;
+  name: string;
   countsAsWorkedTime: boolean;
 };
 type HistoryTerm = {
@@ -81,7 +81,7 @@ export function HistoryView({
     for (const entry of monthEntries) {
       if (entry.countsAsWorkedTime) worked += entry.minutes;
       else
-        byCode.set(entry.code, (byCode.get(entry.code) ?? 0) + entry.minutes);
+        byCode.set(entry.name, (byCode.get(entry.name) ?? 0) + entry.minutes);
     }
     const [monthYear, monthNumber] = month.split("-").map(Number);
     const daysInMonth = new Date(
@@ -134,8 +134,8 @@ export function HistoryView({
             .filter((entry) => !entry.countsAsWorkedTime)
             .reduce((totals, entry) => {
               totals.set(
-                entry.code,
-                (totals.get(entry.code) ?? 0) + entry.minutes,
+                entry.name,
+                (totals.get(entry.name) ?? 0) + entry.minutes,
               );
               return totals;
             }, new Map<string, number>()),
@@ -169,6 +169,24 @@ export function HistoryView({
       return `${segment.color} ${start}deg ${end}deg`;
     })
     .join(", ");
+
+  function reportBreakdown(timesheetId: string) {
+    const totals = new Map<string, number>();
+    for (const entry of entries.filter(
+      (item) => item.timesheetId === timesheetId,
+    )) {
+      const label = entry.countsAsWorkedTime ? "Worked" : entry.name;
+      totals.set(label, (totals.get(label) ?? 0) + entry.minutes);
+    }
+    if (!totals.size) totals.set("Worked", 0);
+    return [...totals].sort(([left], [right]) =>
+      left === "Worked"
+        ? -1
+        : right === "Worked"
+          ? 1
+          : left.localeCompare(right),
+    );
+  }
 
   async function remove() {
     if (!deleting) return;
@@ -213,9 +231,19 @@ export function HistoryView({
               <td>
                 {sheet.periodStart} to {sheet.periodEnd}
               </td>
-              <td>{formatDuration(sheet.reportedMinutes)}</td>
               <td>
-                <span className="status">{sheet.status}</span>
+                <div className="report-breakdown">
+                  {reportBreakdown(sheet.id).map(([label, minutes]) => (
+                    <span key={label}>
+                      <strong>{formatDuration(minutes)}</strong> {label}
+                    </span>
+                  ))}
+                </div>
+              </td>
+              <td>
+                <span className={`status status-${sheet.status}`}>
+                  {sheet.status}
+                </span>
               </td>
               <td>
                 {["draft", "submitted"].includes(sheet.status) && (
