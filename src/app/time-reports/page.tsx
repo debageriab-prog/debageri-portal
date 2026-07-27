@@ -163,6 +163,7 @@ export default async function TimeReportsPage({
           employmentEndDate={selected.employmentEndDate}
           holidayDates={holidayDates}
           readOnly
+          initialMode="month"
           title={String(selected.displayName)}
           description="View reported hours by week or month. Open a report to inspect its daily entries."
         />

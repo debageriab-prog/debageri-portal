@@ -1019,7 +1019,7 @@ th {
 }
 
 .history-controls .history-mode-picker {
-  grid-template-columns: repeat(3, minmax(100px, 1fr));
+  grid-template-columns: repeat(4, minmax(90px, 1fr));
 }
 
 .history-controls label {
@@ -1030,11 +1030,31 @@ th {
 }
 
 .month-summary {
+  display: block;
+  margin-bottom: 18px;
+}
+
+.summary-chart {
   display: grid;
   grid-template-columns: 220px 1fr;
   align-items: center;
   gap: 35px;
-  margin-bottom: 18px;
+}
+
+.year-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.year-summary .summary-chart {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 20px;
+}
+
+.year-summary .chart-legend {
+  width: 100%;
 }
 
 .donut {
@@ -1412,9 +1432,18 @@ th {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .month-summary {
+    display: block;
+  }
+  .summary-chart,
+  .year-summary,
+  .year-summary .summary-chart {
     grid-template-columns: 1fr;
     justify-items: center;
     gap: 22px;
+  }
+  .year-summary .summary-chart + .summary-chart {
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
   }
   .chart-legend {
     width: 100%;
