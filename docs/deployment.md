@@ -59,6 +59,19 @@ downloads through authenticated portal API routes. `portal-preview`
 deliberately receives no Firestore, Auth, Storage, or Secret Manager data roles.
 Do not grant Owner.
 
+For an existing environment created before avatar support, grant the new role
+once from Google Cloud Shell:
+
+```bash
+gcloud projects add-iam-policy-binding debageri-portal \
+  --member="serviceAccount:portal-runtime@debageri-portal.iam.gserviceaccount.com" \
+  --role="roles/storage.objectUser" \
+  --condition=None
+```
+
+New environments receive the same role automatically from
+`scripts/setup-gcp-production.sh`.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs for every pushed branch and pull request:
@@ -81,7 +94,8 @@ Cloud Run cannot create a new service with `--no-traffic`. Before the first prod
 Portal previews use:
 
 - the production Firebase browser configuration;
-- `portal-runtime`, with production Firestore and Authentication permissions;
+- `portal-runtime`, with production Firestore, Authentication, and private
+  avatar Storage permissions;
 - `PORTAL_ENVIRONMENT=production`;
 - no production Firebase rules deployment.
 
