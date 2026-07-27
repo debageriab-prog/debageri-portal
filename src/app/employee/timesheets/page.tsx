@@ -26,7 +26,11 @@ export default async function HistoryPage() {
       timesheetId,
       date: String(data.date),
       minutes,
-      code: String(data.timeCodeSnapshot?.code ?? data.timeCodeId),
+      name: String(
+        data.timeCodeSnapshot?.name ??
+          data.timeCodeSnapshot?.code ??
+          data.timeCodeId,
+      ),
       countsAsWorkedTime: Boolean(data.timeCodeSnapshot?.countsAsWorkedTime),
     };
   });

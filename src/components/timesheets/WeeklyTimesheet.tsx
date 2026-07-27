@@ -854,13 +854,12 @@ export function WeeklyTimesheet() {
                 <h2 id="non-working-title">
                   This week has only non-working days
                 </h2>
-                <p>
-                  Days to report in {periodLabel}:{" "}
-                  <strong>
-                    {data.dates.map(formatReportingDay).join(", ")}
-                  </strong>
-                  .
-                </p>
+                <p>Days to report in {periodLabel}:</p>
+                <ul className="reporting-day-list">
+                  {data.dates.map((date) => (
+                    <li key={date}>{formatReportingDay(date)}</li>
+                  ))}
+                </ul>
                 <p>
                   Would you like to report 0 working hours? The report will be
                   approved automatically and will not require manager review.
