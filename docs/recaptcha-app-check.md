@@ -13,9 +13,11 @@ configured. This allows a staged rollout without locking users out.
 ## 1. Register the portal web app
 
 1. Open Firebase Console and select `debageri-portal`.
-2. Open **Build**, **App Check**.
+2. Open **Security**, **App Check**.
 3. Select the existing **Debageri Portal** web app.
-4. Choose **reCAPTCHA v3** as the provider.
+4. Choose **reCAPTCHA** as the provider. In the current Firebase console this
+   label is the reCAPTCHA v3 provider used by the portal code. Do not choose
+   **reCAPTCHA Enterprise** for this implementation.
 5. Register the app and copy the generated site key.
 
 Use the portal provider and site key. Do not reuse a key from the public
