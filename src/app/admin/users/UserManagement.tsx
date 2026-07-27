@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EmployeeForm } from "./EmployeeForm";
+import { appCheckFetch } from "@/lib/firebase/client";
 
 export interface ManagedUser {
   id: string;
@@ -45,7 +46,7 @@ export function UserManagement({
     setError("");
     const form = new FormData(event.currentTarget);
     try {
-      const response = await fetch(
+      const response = await appCheckFetch(
         `/api/admin/users/${encodeURIComponent(editing.id)}`,
         {
           method: "PATCH",
@@ -92,7 +93,7 @@ export function UserManagement({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await appCheckFetch(
         `/api/admin/users/${encodeURIComponent(deleting.id)}`,
         {
           method: "DELETE",

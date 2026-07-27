@@ -72,6 +72,7 @@ jobs:
           FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
           APP_CHECK_SITE_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY }}
         run: |
+          test -n "$APP_CHECK_SITE_KEY"
           REGISTRY="${REGION}-docker.pkg.dev"
           IMAGE="${REGISTRY}/${PROJECT_ID}/${AR_REPOSITORY}/${SERVICE}"
           docker build \

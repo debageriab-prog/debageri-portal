@@ -25,6 +25,10 @@ Configure these under repository **Settings → Secrets and variables → Action
 
 Firebase web values are public application configuration, but GitHub secrets keep build configuration consistent and avoid accidental logging. Do not add a Firebase Admin JSON key.
 
+The App Check site key setup, allowed domains, staged enforcement, and
+verification procedure are documented in
+[Firebase App Check and reCAPTCHA](recaptcha-app-check.md).
+
 ## Workload Identity Federation and IAM
 
 Create a deployer service account and a Workload Identity Pool/Provider that trusts only `debageriab-prog/debageri-portal`. Bind the repository principal to the deployer with Workload Identity User.

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { appCheckFetch } from "@/lib/firebase/client";
 
 export function ReviewActions({ id }: { id: string }) {
   const router = useRouter();
@@ -10,7 +11,7 @@ export function ReviewActions({ id }: { id: string }) {
   async function act(action: "approve" | "reject") {
     setBusy(true);
     setError("");
-    const response = await fetch(
+    const response = await appCheckFetch(
       `/api/timesheets/${encodeURIComponent(id)}/${action}`,
       {
         method: "POST",

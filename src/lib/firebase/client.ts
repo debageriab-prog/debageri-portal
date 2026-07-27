@@ -1,10 +1,28 @@
 "use client";
 
 import { getApp, getApps, initializeApp } from "firebase/app";
+import {
+  getToken,
+  initializeAppCheck,
+  ReCaptchaV3Provider,
+  type AppCheck,
+} from "firebase/app-check";
 import { connectAuthEmulator, getAuth } from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 
 let emulatorsConnected = false;
+let appCheck: AppCheck | null = null;
+
+function getAppCheck(app: ReturnType<typeof initializeApp>) {
+  const siteKey = process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY;
+  if (!siteKey || process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true")
+    return null;
+  appCheck ??= initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(siteKey),
+    isTokenAutoRefreshEnabled: true,
+  });
+  return appCheck;
+}
 
 export function getFirebaseClient() {
   const app =
@@ -17,6 +35,7 @@ export function getFirebaseClient() {
       messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
       appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
     });
+  getAppCheck(app);
   const auth = getAuth(getApp(app.name));
   const db = getFirestore(app);
   if (
@@ -30,4 +49,17 @@ export function getFirebaseClient() {
     emulatorsConnected = true;
   }
   return { app, auth, db };
+}
+
+export async function appCheckFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+) {
+  const { app } = getFirebaseClient();
+  const provider = getAppCheck(app);
+  if (!provider) return fetch(input, init);
+  const token = await getToken(provider);
+  const headers = new Headers(init.headers);
+  headers.set("X-Firebase-AppCheck", token.token);
+  return fetch(input, { ...init, headers });
 }

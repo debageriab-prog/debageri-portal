@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { PortalUser } from "@/domain/types";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { appCheckFetch } from "@/lib/firebase/client";
 
 export function PortalShell({
   children,
@@ -22,7 +23,7 @@ export function PortalShell({
   if (user.role === "admin") nav.push([t("admin"), "/admin"]);
 
   async function logout() {
-    await fetch("/api/auth/session", { method: "DELETE" });
+    await appCheckFetch("/api/auth/session", { method: "DELETE" });
     window.location.assign("/auth/login");
   }
 

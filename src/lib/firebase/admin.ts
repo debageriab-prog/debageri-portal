@@ -7,6 +7,7 @@ import {
   initializeApp,
 } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { getAppCheck } from "firebase-admin/app-check";
 import { getFirestore } from "firebase-admin/firestore";
 import { validatePortalEnvironment } from "@/lib/config/environment";
 
@@ -27,5 +28,9 @@ export function getAdminServices() {
       : applicationDefault();
   const app =
     existing ?? initializeApp({ projectId: env.adminProjectId, credential });
-  return { auth: getAuth(app), db: getFirestore(app) };
+  return {
+    appCheck: getAppCheck(app),
+    auth: getAuth(app),
+    db: getFirestore(app),
+  };
 }
