@@ -50,10 +50,17 @@ export default function LoginPage() {
         body: JSON.stringify({ idToken: await credential.user.getIdToken() }),
       });
       if (!response.ok) throw new Error(t("accessDenied"));
-      const result = (await response.json()) as { role: string };
-      window.location.assign(
-        result.role === "admin" ? "/admin" : "/employee/timesheets/current",
-      );
+      const result = (await response.json()) as {
+        role: string;
+        reportsTime: boolean;
+      };
+      const destination =
+        result.role === "admin" || result.role === "manager"
+          ? "/manager/approvals"
+          : result.role === "accountant"
+            ? "/time-reports"
+            : "/employee/timesheets/current";
+      window.location.assign(destination);
     } catch (reason) {
       setError(friendlyAuthError(reason, t("loginFailed")));
     } finally {

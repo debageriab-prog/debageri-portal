@@ -3,7 +3,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
 
-export function ReviewActions({ id }: { id: string }) {
+export function ReviewActions({
+  id,
+  returnTo = "/manager/approvals",
+}: {
+  id: string;
+  returnTo?: string;
+}) {
   const router = useRouter();
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -22,7 +28,7 @@ export function ReviewActions({ id }: { id: string }) {
     const result = await response.json();
     setBusy(false);
     if (!response.ok) return setError(result.error);
-    router.push("/manager/approvals");
+    router.push(returnTo);
     router.refresh();
   }
   return (

@@ -15,16 +15,18 @@ export default async function ReviewPage({
   const sheetDoc = await db.collection("timesheets").doc(id).get();
   if (!sheetDoc.exists) notFound();
   const sheet = sheetDoc.data()!;
-  if (
-    sheet.organizationId !== actor.organizationId ||
-    (actor.role === "manager" && sheet.managerId !== actor.id)
-  )
-    redirect("/unauthorized");
   const [userDoc, entries] = await Promise.all([
     db.collection("users").doc(String(sheet.userId)).get(),
     db.collection("timeEntries").where("timesheetId", "==", id).get(),
   ]);
   const user = userDoc.data();
+  const consultant = ["employee", "consultant"].includes(String(user?.role));
+  const allowed =
+    sheet.organizationId === actor.organizationId &&
+    (actor.role === "manager"
+      ? consultant
+      : consultant || (user?.role === "manager" && user?.reportsTime === true));
+  if (!allowed) redirect("/unauthorized");
   return (
     <>
       <div className="topbar">

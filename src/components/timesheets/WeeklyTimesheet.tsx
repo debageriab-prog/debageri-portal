@@ -94,6 +94,7 @@ export function WeeklyTimesheet() {
   const [submitting, setSubmitting] = useState(false);
   const [nonWorkingOpen, setNonWorkingOpen] = useState(false);
   const [autoApproving, setAutoApproving] = useState(false);
+  const [workedAllDays, setWorkedAllDays] = useState(false);
   const editable = data && data.sheet.status === "draft";
   const periodLabel = data
     ? `Week ${data.sheet.isoWeek}${
@@ -130,6 +131,7 @@ export function WeeklyTimesheet() {
       setRows(
         entriesToRows(loaded, copy ? loaded.copyEntries : loaded.entries),
       );
+      setWorkedAllDays(false);
       setNonWorkingOpen(
         loaded.sheet.status === "draft" &&
           loaded.sheet.expectedMinutes === 0 &&
@@ -175,6 +177,36 @@ export function WeeklyTimesheet() {
       ),
     [rows],
   );
+
+  function toggleWorkedAllDays(checked: boolean) {
+    if (!data) return;
+    const workCode = data.codes.find((code) => code.category === "work");
+    if (!workCode) return;
+    setWorkedAllDays(checked);
+    setRows((current) => {
+      const existing = current.find((row) => row.timeCodeId === workCode.id);
+      const workRow = existing ?? {
+        key: workCode.id,
+        timeCodeId: workCode.id,
+        minutes: Array(data.dates.length).fill(0) as number[],
+      };
+      const updated = {
+        ...workRow,
+        minutes: data.dates.map((date, day) => {
+          const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+          return checked &&
+            weekday >= 1 &&
+            weekday <= 5 &&
+            !data.redDays[day]?.isRed
+            ? 480
+            : 0;
+        }),
+      };
+      return existing
+        ? current.map((row) => (row.key === existing.key ? updated : row))
+        : [updated, ...current];
+    });
+  }
   const reportedRedDays =
     data?.redDays.filter(
       (redDay, day) =>
@@ -197,13 +229,7 @@ export function WeeklyTimesheet() {
     ...(reported > 2400
       ? ["Total reported time exceeds 40 hours for this week."]
       : []),
-    ...(futureDates.length
-      ? [
-          `Time is reported on ${futureDates.length} future ${
-            futureDates.length === 1 ? "date" : "dates"
-          }.`,
-        ]
-      : []),
+    ...(futureDates.length ? ["You are reporting time on future dates!"] : []),
   ];
 
   function addRow() {
@@ -462,7 +488,6 @@ export function WeeklyTimesheet() {
             report before submitting it for approval.
           </p>
         </div>
-        <span className="status">{data.sheet.status}</span>
       </div>
       {success && (
         <div className="toast toast-success" role="status">
@@ -550,6 +575,44 @@ export function WeeklyTimesheet() {
             </div>
           )}
         </div>
+      </section>
+      {data.sheet.rejectionReason && (
+        <p className="notice">Rejected: {data.sheet.rejectionReason}</p>
+      )}
+      <section className="metrics">
+        <div className="metric">
+          <span>Expected</span>
+          <strong>{formatDuration(data.sheet.expectedMinutes)}</strong>
+        </div>
+        <div className="metric">
+          <span>Reported</span>
+          <strong>{formatDuration(reported)}</strong>
+        </div>
+      </section>
+      <div className="timesheet-table-actions">
+        <button className="button secondary" onClick={goToPreviousWeek}>
+          Previous week
+        </button>
+        <button className="button secondary" onClick={goToNextWeek}>
+          Next week
+        </button>
+      </div>
+      <section className="card table-wrap">
+        <div className="timesheet-table-header">
+          <div>
+            <span className="eyebrow">Reporting period</span>
+            <strong>
+              Week {data.sheet.isoWeek}
+              {data.partCount > 1
+                ? `-${String(data.part).padStart(2, "0")}`
+                : ""}
+            </strong>
+          </div>
+          <span>
+            From {data.dates[0]?.replaceAll("-", "/")} to{" "}
+            {data.dates.at(-1)?.replaceAll("-", "/")}
+          </span>
+        </div>
         <div className="copy-from-control">
           <div className="actions copy-from-row">
             <strong>Copy from</strong>
@@ -596,45 +659,16 @@ export function WeeklyTimesheet() {
                 </button>
               </>
             )}
+            <label className="checkbox-line">
+              <input
+                type="checkbox"
+                checked={workedAllDays}
+                disabled={!editable}
+                onChange={(event) => toggleWorkedAllDays(event.target.checked)}
+              />
+              Worked all days
+            </label>
           </div>
-        </div>
-      </section>
-      {data.sheet.rejectionReason && (
-        <p className="notice">Rejected: {data.sheet.rejectionReason}</p>
-      )}
-      <section className="metrics">
-        <div className="metric">
-          <span>Expected</span>
-          <strong>{formatDuration(data.sheet.expectedMinutes)}</strong>
-        </div>
-        <div className="metric">
-          <span>Reported</span>
-          <strong>{formatDuration(reported)}</strong>
-        </div>
-      </section>
-      <div className="timesheet-table-actions">
-        <button className="button secondary" onClick={goToPreviousWeek}>
-          Go to previous week
-        </button>
-        <button className="button secondary" onClick={goToNextWeek}>
-          Go to next week
-        </button>
-      </div>
-      <section className="card table-wrap">
-        <div className="timesheet-table-header">
-          <div>
-            <span className="eyebrow">Reporting period</span>
-            <strong>
-              Week {data.sheet.isoWeek}
-              {data.partCount > 1
-                ? `-${String(data.part).padStart(2, "0")}`
-                : ""}
-            </strong>
-          </div>
-          <span>
-            From {data.dates[0]?.replaceAll("-", "/")} to{" "}
-            {data.dates.at(-1)?.replaceAll("-", "/")}
-          </span>
         </div>
         <table className="timesheet-grid">
           <thead>

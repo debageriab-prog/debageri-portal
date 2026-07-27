@@ -5,7 +5,7 @@ Every organization-owned document has `organizationId`. Dates are `YYYY-MM-DD` i
 | Collection        | ID / purpose                                                                      | Write owner             | Reads                       |
 | ----------------- | --------------------------------------------------------------------------------- | ----------------------- | --------------------------- |
 | `organizations`   | organization ID; locale, timezone, schedule defaults                              | admin service           | members                     |
-| `users`           | Firebase UID; profile, role, active status, manager                               | admin service           | self/assigned manager/admin |
+| `users`           | Firebase UID; profile, role, `reportsTime`, active status                         | admin service           | role/capability based       |
 | `employmentTerms` | generated ID; user, effective range, percentage, weekly minutes, weekday schedule | admin service           | self/assigned manager/admin |
 | `timeCodes`       | stable code ID; localized names, category, behavior, effective range              | admin service           | members                     |
 | `timesheets`      | `{org}_{uid}_{isoYear}-W{ww}`; week state and trusted totals                      | trusted workflow        | self/assigned manager/admin |

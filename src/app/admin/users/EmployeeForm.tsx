@@ -12,6 +12,8 @@ export function EmployeeForm({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [role, setRole] = useState("consultant");
+  const [managerReportsTime, setManagerReportsTime] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
@@ -27,7 +29,11 @@ export function EmployeeForm({
           email: form.get("email"),
           employeeNumber: form.get("employeeNumber"),
           password: form.get("password"),
-          weeklyHours: Number(form.get("weeklyHours")),
+          role,
+          reportsTime: role === "consultant" || managerReportsTime,
+          weeklyHours: form.get("weeklyHours")
+            ? Number(form.get("weeklyHours"))
+            : null,
           employmentStartDate: form.get("employmentStartDate"),
           reportingStartDate: form.get("reportingStartDate"),
         }),
@@ -41,6 +47,8 @@ export function EmployeeForm({
             "The employee could not be created. Please try again.",
         );
       formElement.reset();
+      setRole("consultant");
+      setManagerReportsTime(false);
       setOpen(false);
       onCreated("Employee created successfully.");
       router.refresh();
@@ -114,18 +122,71 @@ export function EmployeeForm({
                   />
                 </label>
                 <label>
-                  Weekly hours
-                  <input
+                  Role
+                  <select
                     className="field"
-                    name="weeklyHours"
-                    type="number"
-                    min="1"
-                    max="168"
-                    step=".25"
-                    placeholder="40"
-                    required
-                  />
+                    name="role"
+                    value={role}
+                    onChange={(event) => {
+                      setRole(event.target.value);
+                      setManagerReportsTime(false);
+                    }}
+                  >
+                    <option value="consultant">Consultant</option>
+                    <option value="manager">Manager</option>
+                    <option value="accountant">Accountant</option>
+                    <option value="admin">Administrator</option>
+                  </select>
                 </label>
+                {role === "manager" && (
+                  <label className="checkbox-row form-wide">
+                    <input
+                      type="checkbox"
+                      checked={managerReportsTime}
+                      onChange={(event) =>
+                        setManagerReportsTime(event.target.checked)
+                      }
+                    />
+                    <span>
+                      <strong>Reports time</strong>
+                      <small>
+                        Show Timesheet and History and expect this manager to
+                        submit weekly time.
+                      </small>
+                    </span>
+                  </label>
+                )}
+                {(role === "consultant" || managerReportsTime) && (
+                  <>
+                    <label>
+                      Weekly hours
+                      <input
+                        className="field"
+                        name="weeklyHours"
+                        type="number"
+                        min="1"
+                        max="168"
+                        step=".25"
+                        placeholder="40"
+                        required
+                      />
+                    </label>
+                    <label>
+                      Time reporting start date
+                      <input
+                        className="field"
+                        name="reportingStartDate"
+                        type="date"
+                        defaultValue={new Date().toISOString().slice(0, 10)}
+                        required
+                      />
+                      <small>
+                        The first date from which this person is expected to
+                        submit time.
+                      </small>
+                    </label>
+                  </>
+                )}
                 <label>
                   Employment start date
                   <input
@@ -135,20 +196,6 @@ export function EmployeeForm({
                     defaultValue={new Date().toISOString().slice(0, 10)}
                     required
                   />
-                </label>
-                <label>
-                  Time reporting start date
-                  <input
-                    className="field"
-                    name="reportingStartDate"
-                    type="date"
-                    defaultValue={new Date().toISOString().slice(0, 10)}
-                    required
-                  />
-                  <small>
-                    The first date from which this employee is expected to
-                    submit time.
-                  </small>
                 </label>
                 <label className="form-wide">
                   Temporary password

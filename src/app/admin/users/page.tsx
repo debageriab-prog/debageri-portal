@@ -31,9 +31,14 @@ export default async function UsersPage() {
         email: String(data.email),
         employeeNumber: String(data.employeeNumber),
         role: String(data.role),
+        reportsTime:
+          data.reportsTime ??
+          ["employee", "consultant"].includes(String(data.role)),
         status: String(data.status),
         createdAt: data.createdAt?.toMillis?.() ?? 0,
-        employmentStartDate: String(term?.validFrom ?? ""),
+        employmentStartDate: String(
+          term?.validFrom ?? data.employmentStartDate ?? "",
+        ),
         employmentEndDate: term?.validTo ? String(term.validTo) : "",
         reportingStartDate: String(
           term?.reportingStartDate ?? term?.validFrom ?? "",

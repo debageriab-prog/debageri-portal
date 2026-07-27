@@ -8,11 +8,12 @@ const updateSchema = z.object({
   displayName: z.string().trim().min(2).max(100),
   email: z.email(),
   employeeNumber: z.string().trim().min(1).max(30),
-  role: z.enum(["employee", "manager", "admin"]),
+  role: z.enum(["employee", "consultant", "manager", "accountant", "admin"]),
+  reportsTime: z.boolean(),
   status: z.enum(["active", "inactive"]),
-  employmentStartDate: z.iso.date(),
+  employmentStartDate: z.iso.date().nullable(),
   employmentEndDate: z.iso.date().nullable(),
-  reportingStartDate: z.iso.date(),
+  reportingStartDate: z.iso.date().nullable(),
 });
 
 async function loadTarget(id: string) {
@@ -50,6 +51,9 @@ export async function PATCH(
     if (
       parsed.data.employeeNumber !== current.employeeNumber ||
       parsed.data.role !== current.role ||
+      parsed.data.reportsTime !==
+        (current.reportsTime ??
+          ["employee", "consultant"].includes(String(current.role))) ||
       parsed.data.status !== current.status
     )
       return NextResponse.json(
@@ -66,6 +70,10 @@ export async function PATCH(
     });
     await loaded.auth.setCustomUserClaims(id, {
       role: parsed.data.role,
+      reportsTime:
+        parsed.data.role === "consultant" ||
+        parsed.data.role === "employee" ||
+        (parsed.data.role === "manager" && parsed.data.reportsTime),
       organizationId: loaded.actor.organizationId,
     });
     const terms = await loaded.db
@@ -82,9 +90,16 @@ export async function PATCH(
       employeeNumber: parsed.data.employeeNumber,
       role: parsed.data.role,
       status: parsed.data.status,
+      ...(parsed.data.employmentStartDate
+        ? { employmentStartDate: parsed.data.employmentStartDate }
+        : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    if (term)
+    if (
+      term &&
+      parsed.data.employmentStartDate &&
+      parsed.data.reportingStartDate
+    )
       batch.update(term.ref, {
         validFrom: parsed.data.employmentStartDate,
         validTo: parsed.data.employmentEndDate,

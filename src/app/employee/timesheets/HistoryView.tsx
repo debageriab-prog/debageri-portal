@@ -49,6 +49,9 @@ export function HistoryView({
   currentMonth,
   terms,
   holidayDates,
+  readOnly = false,
+  title = "History",
+  description = "Review weekly reports or explore a monthly breakdown of work, missing time and other time codes.",
 }: {
   sheets: HistorySheet[];
   entries: HistoryEntry[];
@@ -57,6 +60,9 @@ export function HistoryView({
   currentMonth: string;
   terms: HistoryTerm[];
   holidayDates: string[];
+  readOnly?: boolean;
+  title?: string;
+  description?: string;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"latest" | "month" | "week">("latest");
@@ -67,6 +73,7 @@ export function HistoryView({
   const [deleting, setDeleting] = useState<HistorySheet | null>(null);
   const [error, setError] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [viewing, setViewing] = useState<HistorySheet | null>(null);
 
   const weeklySheets = sheets.filter(
     (sheet) => sheet.isoYear === year && sheet.isoWeek === week,
@@ -247,27 +254,36 @@ export function HistoryView({
                 </span>
               </td>
               <td>
-                {["draft", "submitted"].includes(sheet.status) && (
-                  <div className="row-actions">
-                    {sheet.status === "draft" && (
-                      <Link
-                        className="table-action"
-                        href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
+                {readOnly ? (
+                  <button
+                    className="table-action"
+                    onClick={() => setViewing(sheet)}
+                  >
+                    View
+                  </button>
+                ) : (
+                  ["draft", "submitted"].includes(sheet.status) && (
+                    <div className="row-actions">
+                      {sheet.status === "draft" && (
+                        <Link
+                          className="table-action"
+                          href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
+                        >
+                          Edit
+                        </Link>
+                      )}
+                      <button
+                        className="table-action table-action-danger"
+                        onClick={() => {
+                          setError("");
+                          setDeleteConfirmation("");
+                          setDeleting(sheet);
+                        }}
                       >
-                        Edit
-                      </Link>
-                    )}
-                    <button
-                      className="table-action table-action-danger"
-                      onClick={() => {
-                        setError("");
-                        setDeleteConfirmation("");
-                        setDeleting(sheet);
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </div>
+                        Delete
+                      </button>
+                    </div>
+                  )
                 )}
               </td>
             </tr>
@@ -284,11 +300,8 @@ export function HistoryView({
       <div className="topbar">
         <div>
           <div className="eyebrow">Time reporting</div>
-          <h1>History</h1>
-          <p className="muted page-description">
-            Review weekly reports or explore a monthly breakdown of work,
-            missing time and other time codes.
-          </p>
+          <h1>{title}</h1>
+          <p className="muted page-description">{description}</p>
         </div>
       </div>
       <section className="card history-controls">
@@ -448,6 +461,72 @@ export function HistoryView({
                 onClick={() => void remove()}
               >
                 Delete report
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+      {viewing && (
+        <div className="modal-backdrop" onMouseDown={() => setViewing(null)}>
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Time report for week ${viewing.isoWeek}`}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="modal-header">
+              <div>
+                <span className="eyebrow">Time report details</span>
+                <h2>
+                  Week {viewing.isoWeek}
+                  {viewing.partCount > 1
+                    ? `-${String(viewing.part).padStart(2, "0")}`
+                    : ""}
+                </h2>
+                <p>
+                  {viewing.periodStart} to {viewing.periodEnd}
+                </p>
+              </div>
+              <button
+                className="modal-close"
+                aria-label="Close time report details"
+                onClick={() => setViewing(null)}
+              >
+                ×
+              </button>
+            </header>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Time code</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries
+                    .filter((entry) => entry.timesheetId === viewing.id)
+                    .sort((a, b) => a.date.localeCompare(b.date))
+                    .map((entry, index) => (
+                      <tr key={`${entry.date}-${entry.name}-${index}`}>
+                        <td>{entry.date}</td>
+                        <td>
+                          {entry.countsAsWorkedTime ? "Worked" : entry.name}
+                        </td>
+                        <td>{formatDuration(entry.minutes)}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+            <footer className="modal-actions">
+              <button
+                className="button secondary"
+                onClick={() => setViewing(null)}
+              >
+                Close
               </button>
             </footer>
           </section>

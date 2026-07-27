@@ -120,20 +120,42 @@ describe("timesheet rules", () => {
     expect(
       canReview(
         { id: "m1", role: "manager", organizationId: "debageri" },
-        { managerId: "m1", organizationId: "debageri" },
+        {
+          role: "consultant",
+          reportsTime: true,
+          organizationId: "debageri",
+        },
       ),
     ).toBe(true);
     expect(
       canReview(
-        { id: "m2", role: "manager", organizationId: "debageri" },
-        { managerId: "m1", organizationId: "debageri" },
+        { id: "accountant", role: "accountant", organizationId: "debageri" },
+        {
+          role: "consultant",
+          reportsTime: true,
+          organizationId: "debageri",
+        },
       ),
     ).toBe(false);
     expect(
       canReview(
         { id: "admin", role: "admin", organizationId: "other" },
-        { managerId: null, organizationId: "debageri" },
+        {
+          role: "consultant",
+          reportsTime: true,
+          organizationId: "debageri",
+        },
       ),
     ).toBe(false);
+    expect(
+      canReview(
+        { id: "admin", role: "admin", organizationId: "debageri" },
+        {
+          role: "manager",
+          reportsTime: true,
+          organizationId: "debageri",
+        },
+      ),
+    ).toBe(true);
   });
 });

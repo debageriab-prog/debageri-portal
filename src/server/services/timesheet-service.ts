@@ -29,11 +29,22 @@ export async function transitionTimesheet(
       sheet.status !== "draft"
     )
       throw new Error("ALREADY_REPORTED");
+    const subjectSnapshot = await transaction.get(
+      db.collection("users").doc(sheet.userId),
+    );
+    if (!subjectSnapshot.exists) throw new Error("NOT_FOUND");
+    const subject = subjectSnapshot.data()!;
     const employeeAction =
       toStatus === "submitted" && sheet.userId === actor.id;
     const reviewerAction =
       ["approved", "rejected", "reopened"].includes(toStatus) &&
-      canReview(actor, sheet);
+      canReview(actor, {
+        role: subject.role,
+        reportsTime:
+          subject.reportsTime ??
+          ["employee", "consultant"].includes(String(subject.role)),
+        organizationId: subject.organizationId,
+      });
     if (!employeeAction && !reviewerAction) throw new Error("FORBIDDEN");
     assertTransition(sheet.status, toStatus);
     if (toStatus === "rejected" && (!comment || comment.trim().length < 3))

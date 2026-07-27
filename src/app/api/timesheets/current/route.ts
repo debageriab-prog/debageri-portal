@@ -35,7 +35,7 @@ const weekQuerySchema = z.object({
 
 async function loadCurrent(request: Request) {
   const user = await verifySession();
-  if (!user) return null;
+  if (!user || !user.reportsTime) return null;
   const { db } = getAdminServices();
   const today = new Date().toISOString().slice(0, 10);
   let current = getIsoWeek(today);

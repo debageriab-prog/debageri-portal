@@ -68,10 +68,10 @@ describe("Firestore rules", () => {
     await assertSucceeds(getDoc(doc(db, "timesheets/s1")));
     await assertFails(getDoc(doc(db, "timesheets/s2")));
   });
-  it("limits managers to assigned employees", async () => {
+  it("allows managers to read consultant reports across the organization", async () => {
     const db = env.authenticatedContext("m1").firestore();
     await assertSucceeds(getDoc(doc(db, "timesheets/s1")));
-    await assertFails(getDoc(doc(db, "timesheets/s2")));
+    await assertSucceeds(getDoc(doc(db, "timesheets/s2")));
   });
   it("prevents direct approval updates", async () => {
     const db = env.authenticatedContext("m1").firestore();

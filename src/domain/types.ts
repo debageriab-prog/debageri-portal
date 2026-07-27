@@ -1,4 +1,5 @@
-export type UserRole = "employee" | "manager" | "admin";
+export type UserRole =
+  "employee" | "consultant" | "manager" | "accountant" | "admin";
 export type UserStatus = "active" | "inactive";
 export type TimesheetStatus =
   "draft" | "submitted" | "approved" | "rejected" | "reopened";
@@ -23,6 +24,7 @@ export interface PortalUser {
   role: UserRole;
   status: UserStatus;
   managerId: string | null;
+  reportsTime: boolean;
   timezone: "Europe/Stockholm";
   locale: "sv-SE" | "en-SE";
 }
