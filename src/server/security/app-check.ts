@@ -4,7 +4,11 @@ import { validatePortalEnvironment } from "@/lib/config/environment";
 export async function rejectInvalidAppCheck(
   request: Request,
 ): Promise<Response | null> {
-  if (validatePortalEnvironment().environment !== "production") return null;
+  if (
+    validatePortalEnvironment().environment !== "production" ||
+    !process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY
+  )
+    return null;
 
   const token = request.headers.get("X-Firebase-AppCheck");
   if (!token) {

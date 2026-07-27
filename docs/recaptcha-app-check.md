@@ -7,7 +7,8 @@ portal API requests. Production API routes verify that token with Firebase
 Admin before running application code.
 
 Local emulator development does not require reCAPTCHA. App Check verification
-is enabled only when `PORTAL_ENVIRONMENT=production`.
+is enabled only when `PORTAL_ENVIRONMENT=production` and the site key is
+configured. This allows a staged rollout without locking users out.
 
 ## 1. Register the portal web app
 
