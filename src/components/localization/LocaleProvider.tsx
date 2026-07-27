@@ -49,20 +49,7 @@ export function LocaleProvider({
   );
 
   return (
-    <LocaleContext.Provider value={value}>
-      {children}
-      <label className="language-picker">
-        <span className="sr-only">{value.t("language")}</span>
-        <select
-          aria-label={value.t("language")}
-          value={locale}
-          onChange={(event) => value.setLocale(event.target.value as Locale)}
-        >
-          <option value="en-SE">English</option>
-          <option value="sv-SE">Svenska</option>
-        </select>
-      </label>
-    </LocaleContext.Provider>
+    <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
   );
 }
 

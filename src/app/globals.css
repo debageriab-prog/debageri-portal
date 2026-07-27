@@ -271,6 +271,23 @@ a {
 .account-menu > button:hover {
   background: var(--accent-soft);
 }
+.account-language {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  color: var(--foreground);
+  font-size: 14px;
+}
+.account-language select {
+  max-width: 130px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 6px 8px;
+  color: var(--foreground);
+  background: white;
+}
 .account-menu > .account-logout {
   margin-top: 5px;
   border-top: 1px solid var(--border);
