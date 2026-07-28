@@ -188,16 +188,16 @@ export function HistoryView({
 
   const segments = [
     { label: "Worked", value: chartTotals.worked, color: "#35634a" },
-    {
-      label: "Not reported",
-      value: chartTotals.unreported,
-      color: "#ddd3ca",
-    },
     ...[...chartTotals.byCode].map(([label, value], index) => ({
       label,
       value,
       color: ["#a56f4e", "#b88b5d", "#8a7186", "#668a91"][index % 4]!,
     })),
+    {
+      label: "Not reported",
+      value: chartTotals.unreported,
+      color: "#ddd3ca",
+    },
   ].filter((segment) => segment.value > 0);
   let cursor = 0;
   const gradient = segments
@@ -457,11 +457,9 @@ export function HistoryView({
         ) : null}
       </section>
       {mode !== "latest" && (
-        <section
-          className={`card month-summary${mode === "year" ? " year-summary" : ""}`}
-        >
+        <section className="card month-summary year-summary">
           {summaryChart("hours")}
-          {mode === "year" && summaryChart("days")}
+          {summaryChart("days")}
         </section>
       )}
       <section className="card table-wrap">

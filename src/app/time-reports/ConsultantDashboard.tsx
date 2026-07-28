@@ -1,0 +1,237 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { formatDuration } from "@/lib/durations/duration";
+import { getIsoWeekDates } from "@/lib/dates/iso-week";
+
+type Consultant = {
+  id: string;
+  displayName: string;
+  reportingStartDate: string | null;
+  employmentEndDate: string | null;
+};
+
+type DashboardEntry = {
+  userId: string;
+  date: string;
+  minutes: number;
+  name: string;
+  countsAsWorkedTime: boolean;
+};
+
+const colors = ["#35634a", "#a56f4e", "#b88b5d", "#8a7186", "#668a91"];
+
+function Avatar({ consultant }: { consultant: Consultant }) {
+  const [available, setAvailable] = useState(true);
+  return (
+    <span className="consultant-avatar">
+      {available ? (
+        // Avatars are served by an authenticated, organization-scoped endpoint.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`/api/users/${encodeURIComponent(consultant.id)}/avatar`}
+          alt=""
+          onError={() => setAvailable(false)}
+        />
+      ) : (
+        consultant.displayName.charAt(0).toUpperCase()
+      )}
+    </span>
+  );
+}
+
+export function ConsultantDashboard({
+  consultants,
+  entries,
+  holidayDates,
+  currentYear,
+  currentWeek,
+  currentMonth,
+}: {
+  consultants: Consultant[];
+  entries: DashboardEntry[];
+  holidayDates: string[];
+  currentYear: number;
+  currentWeek: number;
+  currentMonth: string;
+}) {
+  const [mode, setMode] = useState<"year" | "month" | "week">("month");
+  const [year, setYear] = useState(currentYear);
+  const [week, setWeek] = useState(currentWeek);
+  const [month, setMonth] = useState(currentMonth);
+  const [start, end] = useMemo(() => {
+    if (mode === "year") return [`${year}-01-01`, `${year}-12-31`];
+    if (mode === "week") {
+      const dates = getIsoWeekDates(year, week);
+      return [dates[0]!, dates[6]!];
+    }
+    const [monthYear, monthNumber] = month.split("-").map(Number);
+    const lastDay = new Date(
+      Date.UTC(monthYear!, monthNumber!, 0),
+    ).getUTCDate();
+    return [`${month}-01`, `${month}-${String(lastDay).padStart(2, "0")}`];
+  }, [mode, month, week, year]);
+
+  function expectedMinutes(consultant: Consultant) {
+    let expected = 0;
+    const cursor = new Date(`${start}T12:00:00Z`);
+    const last = new Date(`${end}T12:00:00Z`);
+    while (cursor <= last) {
+      const date = cursor.toISOString().slice(0, 10);
+      const weekday = cursor.getUTCDay();
+      if (
+        weekday >= 1 &&
+        weekday <= 5 &&
+        !holidayDates.includes(date) &&
+        (!consultant.reportingStartDate ||
+          date >= consultant.reportingStartDate) &&
+        (!consultant.employmentEndDate || date <= consultant.employmentEndDate)
+      )
+        expected += 480;
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    return expected;
+  }
+
+  function charts(consultant: Consultant) {
+    const selected = entries.filter(
+      (entry) =>
+        entry.userId === consultant.id &&
+        entry.date >= start &&
+        entry.date <= end,
+    );
+    const byCode = new Map<string, number>();
+    let worked = 0;
+    for (const entry of selected) {
+      if (entry.countsAsWorkedTime) worked += entry.minutes;
+      else
+        byCode.set(entry.name, (byCode.get(entry.name) ?? 0) + entry.minutes);
+    }
+    const reported = selected.reduce((sum, entry) => sum + entry.minutes, 0);
+    const expected = expectedMinutes(consultant);
+    const segments = [
+      { label: "Worked", value: worked, color: colors[0]! },
+      ...[...byCode].map(([label, value], index) => ({
+        label,
+        value,
+        color: colors[(index % (colors.length - 1)) + 1]!,
+      })),
+      {
+        label: "Not reported",
+        value: Math.max(0, expected - reported),
+        color: "#ddd3ca",
+      },
+    ].filter((segment) => segment.value > 0);
+    const total = Math.max(expected, reported, 1);
+    let cursor = 0;
+    const gradient = segments
+      .map((segment) => {
+        const segmentStart = (cursor / total) * 360;
+        cursor += segment.value;
+        return `${segment.color} ${segmentStart}deg ${(cursor / total) * 360}deg`;
+      })
+      .join(", ");
+    const formatDays = (minutes: number) => {
+      const days = minutes / 480;
+      return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? "day" : "days"}`;
+    };
+
+    return (["hours", "days"] as const).map((unit) => (
+      <div className="consultant-summary-chart" key={unit}>
+        <div
+          className="donut consultant-donut"
+          style={{
+            background: gradient ? `conic-gradient(${gradient})` : "#eee",
+          }}
+        >
+          <div>
+            <strong>
+              {unit === "hours"
+                ? formatDuration(reported)
+                : formatDays(reported)}
+            </strong>
+            <span>reported {unit}</span>
+          </div>
+        </div>
+        <div className="chart-legend">
+          {segments.map((segment) => (
+            <div key={segment.label}>
+              <i style={{ background: segment.color }} />
+              <span>{segment.label}</span>
+              <strong>
+                {unit === "hours"
+                  ? formatDuration(segment.value)
+                  : formatDays(segment.value)}
+              </strong>
+            </div>
+          ))}
+        </div>
+      </div>
+    ));
+  }
+
+  return (
+    <>
+      <section className="card history-controls consultant-dashboard-controls">
+        <div className="week-mode-picker">
+          {(["year", "month", "week"] as const).map((item) => (
+            <button
+              key={item}
+              className={mode === item ? "selected" : ""}
+              onClick={() => setMode(item)}
+            >
+              {item.charAt(0).toUpperCase() + item.slice(1)}
+            </button>
+          ))}
+        </div>
+        {mode === "month" ? (
+          <label>
+            Month
+            <input
+              className="field"
+              type="month"
+              value={month}
+              onChange={(event) => setMonth(event.target.value)}
+            />
+          </label>
+        ) : (
+          <div className="actions">
+            <label>
+              Year
+              <input
+                className="field compact-field"
+                type="number"
+                value={year}
+                onChange={(event) => setYear(Number(event.target.value))}
+              />
+            </label>
+            {mode === "week" && (
+              <label>
+                Week
+                <input
+                  className="field compact-field"
+                  type="number"
+                  min="1"
+                  max="53"
+                  value={week}
+                  onChange={(event) => setWeek(Number(event.target.value))}
+                />
+              </label>
+            )}
+          </div>
+        )}
+      </section>
+      <section className="consultant-dashboard">
+        {consultants.map((consultant) => (
+          <article className="card consultant-report-card" key={consultant.id}>
+            <header>
+              <Avatar consultant={consultant} />
+              <h2>{consultant.displayName}</h2>
+            </header>
+            <div className="consultant-chart-grid">{charts(consultant)}</div>
+          </article>
+        ))}
+      </section>
+    </>
+  );
+}

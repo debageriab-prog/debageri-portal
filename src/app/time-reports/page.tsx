@@ -2,6 +2,8 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { getIsoWeek } from "@/lib/dates/iso-week";
 import { verifySession } from "@/server/auth/session";
 import { HistoryView } from "@/app/employee/timesheets/HistoryView";
+import { ConsultantDashboard } from "./ConsultantDashboard";
+import { ConsultantSelect } from "./ConsultantSelect";
 
 function visibleUser(actorRole: string, user: FirebaseFirestore.DocumentData) {
   const role = String(user.role);
@@ -60,6 +62,7 @@ export default async function TimeReportsPage({
     status: string;
   }> = [];
   let entries: Array<{
+    userId: string;
     timesheetId: string;
     date: string;
     minutes: number;
@@ -84,6 +87,7 @@ export default async function TimeReportsPage({
       const minutes = Number(data.minutes ?? 0);
       totals.set(timesheetId, (totals.get(timesheetId) ?? 0) + minutes);
       return {
+        userId: selected.id,
         timesheetId,
         date: String(data.date),
         minutes,
@@ -116,6 +120,38 @@ export default async function TimeReportsPage({
           b.isoYear - a.isoYear || b.isoWeek - a.isoWeek || b.part - a.part,
       );
     holidayDates = holidaySnapshot.docs.map((doc) => String(doc.data().date));
+  } else {
+    const [entrySnapshot, holidaySnapshot] = await Promise.all([
+      db
+        .collection("timeEntries")
+        .where("organizationId", "==", actor.organizationId)
+        .get(),
+      db
+        .collection("holidays")
+        .where("organizationId", "==", actor.organizationId)
+        .get(),
+    ]);
+    const visibleIds = new Set(users.map((user) => user.id));
+    entries = entrySnapshot.docs
+      .map((doc) => {
+        const data = doc.data();
+        return {
+          userId: String(data.userId),
+          timesheetId: String(data.timesheetId),
+          date: String(data.date),
+          minutes: Number(data.minutes ?? 0),
+          name: String(
+            data.timeCodeSnapshot?.name ??
+              data.timeCodeSnapshot?.code ??
+              data.timeCodeId,
+          ),
+          countsAsWorkedTime: Boolean(
+            data.timeCodeSnapshot?.countsAsWorkedTime,
+          ),
+        };
+      })
+      .filter((entry) => visibleIds.has(entry.userId));
+    holidayDates = holidaySnapshot.docs.map((doc) => String(doc.data().date));
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -133,25 +169,28 @@ export default async function TimeReportsPage({
         </div>
       </div>
       <section className="card">
-        <form className="report-user-filter">
-          <label>
-            {actor.role === "admin"
-              ? "Consultant or reporting manager"
-              : "Consultant"}
-            <select className="field" name="userId" defaultValue={userId ?? ""}>
-              <option value="" disabled>
-                Select a consultant
-              </option>
-              {users.map((user) => (
-                <option value={user.id} key={user.id}>
-                  {String(user.displayName)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="button">Show time reports</button>
-        </form>
+        <div className="report-user-filter">
+          <ConsultantSelect
+            users={users}
+            selectedUserId={selected?.id}
+            label={
+              actor.role === "admin"
+                ? "Consultant or reporting manager"
+                : "Consultant"
+            }
+          />
+        </div>
       </section>
+      {!selected && (
+        <ConsultantDashboard
+          consultants={users}
+          entries={entries}
+          holidayDates={holidayDates}
+          currentYear={current.isoYear}
+          currentWeek={current.isoWeek}
+          currentMonth={today.slice(0, 7)}
+        />
+      )}
       {selected && (
         <HistoryView
           sheets={sheets}

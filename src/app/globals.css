@@ -1105,6 +1105,71 @@ th {
   border-radius: 4px;
 }
 
+.consultant-dashboard-controls {
+  margin: 18px 0;
+}
+
+.consultant-dashboard-controls .week-mode-picker {
+  grid-template-columns: repeat(3, minmax(100px, 1fr));
+}
+
+.consultant-dashboard {
+  display: grid;
+  gap: 18px;
+}
+
+.consultant-report-card > header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.consultant-report-card h2 {
+  margin: 0;
+}
+
+.consultant-avatar {
+  width: 52px;
+  aspect-ratio: 1;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--green);
+  color: white;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.consultant-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.consultant-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px;
+}
+
+.consultant-summary-chart {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  align-items: center;
+  gap: 24px;
+}
+
+.consultant-donut {
+  width: 170px;
+}
+
+.consultant-donut > div {
+  width: 108px;
+}
+
 .timesheet-table-header {
   display: flex;
   justify-content: space-between;
@@ -1455,6 +1520,18 @@ th {
   .report-user-filter label {
     width: 100%;
   }
+  .consultant-chart-grid,
+  .consultant-summary-chart {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .consultant-summary-chart + .consultant-summary-chart {
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .consultant-summary-chart .chart-legend {
+    width: 100%;
+  }
   .modal-backdrop {
     align-items: end;
     padding: 0;
@@ -1508,7 +1585,8 @@ th {
   }
   .week-mode-picker,
   .history-controls .week-mode-picker,
-  .history-controls .history-mode-picker {
+  .history-controls .history-mode-picker,
+  .consultant-dashboard-controls .week-mode-picker {
     grid-template-columns: 1fr;
   }
   .timesheet-table-header {
