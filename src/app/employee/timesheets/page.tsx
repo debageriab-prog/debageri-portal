@@ -6,14 +6,32 @@ import { HistoryView } from "./HistoryView";
 export default async function HistoryPage() {
   const user = (await verifySession())!;
   const { db } = getAdminServices();
-  const [sheetSnapshot, entrySnapshot, holidaySnapshot] = await Promise.all([
-    db.collection("timesheets").where("userId", "==", user.id).get(),
-    db.collection("timeEntries").where("userId", "==", user.id).get(),
-    db
-      .collection("holidays")
-      .where("organizationId", "==", user.organizationId)
-      .get(),
-  ]);
+  const [sheetSnapshot, entrySnapshot, holidaySnapshot, timeCodeSnapshot] =
+    await Promise.all([
+      db.collection("timesheets").where("userId", "==", user.id).get(),
+      db.collection("timeEntries").where("userId", "==", user.id).get(),
+      db
+        .collection("holidays")
+        .where("organizationId", "==", user.organizationId)
+        .get(),
+      db
+        .collection("timeCodes")
+        .where("organizationId", "==", user.organizationId)
+        .get(),
+    ]);
+  const workedCodes = timeCodeSnapshot.docs
+    .map((doc) => doc.data())
+    .filter(
+      (code) =>
+        code.active !== false &&
+        code.countsAsWorkedTime === true &&
+        (!code.assignedUserId || code.assignedUserId === user.id),
+    );
+  const hourlyRate = Number(
+    workedCodes.find((code) => code.assignedUserId === user.id)?.hourlyRate ??
+      workedCodes.find((code) => !code.assignedUserId)?.hourlyRate ??
+      0,
+  );
   const entryTotals = new Map<string, number>();
   const entries = entrySnapshot.docs.map((doc) => {
     const data = doc.data();
@@ -30,6 +48,7 @@ export default async function HistoryPage() {
           data.timeCodeId,
       ),
       countsAsWorkedTime: Boolean(data.timeCodeSnapshot?.countsAsWorkedTime),
+      hourlyRate: Number(data.timeCodeSnapshot?.hourlyRate ?? hourlyRate),
     };
   });
   const sheets = sheetSnapshot.docs
@@ -64,6 +83,8 @@ export default async function HistoryPage() {
       reportingStartDate={user.reportingStartDate ?? user.employmentStartDate}
       employmentEndDate={user.employmentEndDate}
       holidayDates={holidaySnapshot.docs.map((doc) => String(doc.data().date))}
+      showEstimatedIncome={["consultant", "manager"].includes(user.role)}
+      hourlyRate={hourlyRate}
     />
   );
 }

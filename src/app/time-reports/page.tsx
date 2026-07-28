@@ -21,10 +21,27 @@ export default async function TimeReportsPage({
   const actor = (await verifySession())!;
   const { userId } = await searchParams;
   const { db } = getAdminServices();
-  const usersSnapshot = await db
-    .collection("users")
-    .where("organizationId", "==", actor.organizationId)
-    .get();
+  const [usersSnapshot, timeCodeSnapshot] = await Promise.all([
+    db
+      .collection("users")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+    db
+      .collection("timeCodes")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+  ]);
+  const workedCodes = timeCodeSnapshot.docs
+    .map((doc) => doc.data())
+    .filter(
+      (code) => code.active !== false && code.countsAsWorkedTime === true,
+    );
+  const hourlyRateFor = (userId: string) =>
+    Number(
+      workedCodes.find((code) => code.assignedUserId === userId)?.hourlyRate ??
+        workedCodes.find((code) => !code.assignedUserId)?.hourlyRate ??
+        0,
+    );
   const users = usersSnapshot.docs
     .map((doc) => {
       const data = doc.data();
@@ -41,6 +58,7 @@ export default async function TimeReportsPage({
         employmentEndDate: data.employmentEndDate
           ? String(data.employmentEndDate)
           : null,
+        hourlyRate: hourlyRateFor(doc.id),
       };
     })
     .filter((user) => visibleUser(actor.role, user))
@@ -68,6 +86,7 @@ export default async function TimeReportsPage({
     minutes: number;
     name: string;
     countsAsWorkedTime: boolean;
+    hourlyRate: number;
   }> = [];
   let holidayDates: string[] = [];
 
@@ -97,6 +116,9 @@ export default async function TimeReportsPage({
             data.timeCodeId,
         ),
         countsAsWorkedTime: Boolean(data.timeCodeSnapshot?.countsAsWorkedTime),
+        hourlyRate: Number(
+          data.timeCodeSnapshot?.hourlyRate ?? hourlyRateFor(selected.id),
+        ),
       };
     });
     sheets = sheetSnapshot.docs
@@ -148,6 +170,10 @@ export default async function TimeReportsPage({
           countsAsWorkedTime: Boolean(
             data.timeCodeSnapshot?.countsAsWorkedTime,
           ),
+          hourlyRate: Number(
+            data.timeCodeSnapshot?.hourlyRate ??
+              hourlyRateFor(String(data.userId)),
+          ),
         };
       })
       .filter((entry) => visibleIds.has(entry.userId));
@@ -189,6 +215,7 @@ export default async function TimeReportsPage({
           currentYear={current.isoYear}
           currentWeek={current.isoWeek}
           currentMonth={today.slice(0, 7)}
+          showEstimatedIncome={["admin", "manager"].includes(actor.role)}
         />
       )}
       {selected && (
@@ -204,6 +231,11 @@ export default async function TimeReportsPage({
           readOnly
           initialMode="month"
           avatarUserId={selected.id}
+          showEstimatedIncome={
+            ["admin", "manager"].includes(actor.role) &&
+            selected.role !== "employee"
+          }
+          hourlyRate={selected.hourlyRate}
           title={String(selected.displayName)}
           description="View reported hours by week or month. Open a report to inspect its daily entries."
         />

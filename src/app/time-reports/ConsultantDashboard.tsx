@@ -10,6 +10,8 @@ type Consultant = {
   displayName: string;
   reportingStartDate: string | null;
   employmentEndDate: string | null;
+  role: string;
+  hourlyRate: number;
 };
 
 type DashboardEntry = {
@@ -18,6 +20,7 @@ type DashboardEntry = {
   minutes: number;
   name: string;
   countsAsWorkedTime: boolean;
+  hourlyRate: number;
 };
 
 const colors = ["#35634a", "#a56f4e", "#b88b5d", "#8a7186", "#668a91"];
@@ -29,6 +32,7 @@ export function ConsultantDashboard({
   currentYear,
   currentWeek,
   currentMonth,
+  showEstimatedIncome,
 }: {
   consultants: Consultant[];
   entries: DashboardEntry[];
@@ -36,6 +40,7 @@ export function ConsultantDashboard({
   currentYear: number;
   currentWeek: number;
   currentMonth: string;
+  showEstimatedIncome: boolean;
 }) {
   const [mode, setMode] = useState<"year" | "month" | "week">("month");
   const [year, setYear] = useState(currentYear);
@@ -117,8 +122,22 @@ export function ConsultantDashboard({
       const days = minutes / 480;
       return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? "day" : "days"}`;
     };
+    const formatIncome = (amount: number) =>
+      `${new Intl.NumberFormat("en-SE", { maximumFractionDigits: 0 }).format(amount)} SEK`;
+    const workedIncome = selected
+      .filter((entry) => entry.countsAsWorkedTime)
+      .reduce(
+        (sum, entry) =>
+          sum +
+          (entry.minutes / 60) * (entry.hourlyRate || consultant.hourlyRate),
+        0,
+      );
+    const possibleIncome = (expected / 60) * consultant.hourlyRate;
+    const notReached = Math.max(0, possibleIncome - workedIncome);
+    const totalIncome = Math.max(workedIncome + notReached, 1);
+    const reachedDegrees = (workedIncome / totalIncome) * 360;
 
-    return (["hours", "days"] as const).map((unit) => (
+    const timeCharts = (["hours", "days"] as const).map((unit) => (
       <div className="consultant-summary-chart" key={unit}>
         <div
           className="donut consultant-donut"
@@ -150,6 +169,37 @@ export function ConsultantDashboard({
         </div>
       </div>
     ));
+    if (!showEstimatedIncome || consultant.role === "employee")
+      return timeCharts;
+
+    return [
+      ...timeCharts,
+      <div className="consultant-summary-chart" key="income">
+        <div
+          className="donut consultant-donut"
+          style={{
+            background: `conic-gradient(#35634a 0deg ${reachedDegrees}deg, #ddd3ca ${reachedDegrees}deg 360deg)`,
+          }}
+        >
+          <div>
+            <strong>{formatIncome(workedIncome)}</strong>
+            <span>estimated income</span>
+          </div>
+        </div>
+        <div className="chart-legend">
+          <div>
+            <i style={{ background: "#35634a" }} />
+            <span>Estimated income</span>
+            <strong>{formatIncome(workedIncome)}</strong>
+          </div>
+          <div>
+            <i style={{ background: "#ddd3ca" }} />
+            <span>Not reached</span>
+            <strong>{formatIncome(notReached)}</strong>
+          </div>
+        </div>
+      </div>,
+    ];
   }
 
   return (
@@ -213,7 +263,15 @@ export function ConsultantDashboard({
               />
               <h2>{consultant.displayName}</h2>
             </header>
-            <div className="consultant-chart-grid">{charts(consultant)}</div>
+            <div
+              className={`consultant-chart-grid${
+                showEstimatedIncome && consultant.role !== "employee"
+                  ? " income-chart-grid"
+                  : ""
+              }`}
+            >
+              {charts(consultant)}
+            </div>
           </article>
         ))}
       </section>
