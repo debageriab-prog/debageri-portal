@@ -286,8 +286,8 @@ export function HistoryView({
     const totalIncome = Math.max(workedIncome + notReached, 1);
     const reachedDegrees = (workedIncome / totalIncome) * 360;
     const incomeSegments = [
-      { label: "Estimated income", value: workedIncome, color: "#35634a" },
-      { label: "Not reached", value: notReached, color: "#ddd3ca" },
+      { label: "Estimated income", value: workedIncome, color: "#3b6f9c" },
+      { label: "Not reached", value: notReached, color: "#f3dadd" },
     ];
 
     return (
@@ -295,7 +295,7 @@ export function HistoryView({
         <div
           className="donut"
           style={{
-            background: `conic-gradient(#35634a 0deg ${reachedDegrees}deg, #ddd3ca ${reachedDegrees}deg 360deg)`,
+            background: `conic-gradient(#3b6f9c 0deg ${reachedDegrees}deg, #f3dadd ${reachedDegrees}deg 360deg)`,
           }}
         >
           <div>

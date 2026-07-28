@@ -178,7 +178,7 @@ export function ConsultantDashboard({
         <div
           className="donut consultant-donut"
           style={{
-            background: `conic-gradient(#35634a 0deg ${reachedDegrees}deg, #ddd3ca ${reachedDegrees}deg 360deg)`,
+            background: `conic-gradient(#3b6f9c 0deg ${reachedDegrees}deg, #f3dadd ${reachedDegrees}deg 360deg)`,
           }}
         >
           <div>
@@ -188,12 +188,12 @@ export function ConsultantDashboard({
         </div>
         <div className="chart-legend">
           <div>
-            <i style={{ background: "#35634a" }} />
+            <i style={{ background: "#3b6f9c" }} />
             <span>Estimated income</span>
             <strong>{formatIncome(workedIncome)}</strong>
           </div>
           <div>
-            <i style={{ background: "#ddd3ca" }} />
+            <i style={{ background: "#f3dadd" }} />
             <span>Not reached</span>
             <strong>{formatIncome(notReached)}</strong>
           </div>
