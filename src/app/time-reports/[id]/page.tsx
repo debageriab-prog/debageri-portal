@@ -3,6 +3,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
 import Link from "next/link";
+import { getTranslator } from "@/lib/localization/server";
 
 export default async function TimeReportPage({
   params,
@@ -10,6 +11,7 @@ export default async function TimeReportPage({
   params: Promise<{ id: string }>;
 }) {
   const actor = (await verifySession())!;
+  const t = await getTranslator();
   const { id } = await params;
   const { db } = getAdminServices();
   const sheetDoc = await db.collection("timesheets").doc(id).get();
@@ -36,7 +38,7 @@ export default async function TimeReportPage({
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Time report</div>
+          <div className="eyebrow">{t("timeReport")}</div>
           <h1>{String(user.displayName ?? user.email)}</h1>
           <p className="muted">
             {sheet.periodStart} to {sheet.periodEnd}
@@ -46,9 +48,9 @@ export default async function TimeReportPage({
       </div>
       <div className="grid-2">
         <section className="card">
-          <h2>Reported time</h2>
+          <h2>{t("reportedTime")}</h2>
           {entries.empty ? (
-            <p>No time entries.</p>
+            <p>{t("noTimeEntries")}</p>
           ) : (
             entries.docs
               .sort((a, b) =>
@@ -66,13 +68,19 @@ export default async function TimeReportPage({
           )}
         </section>
         <aside className="card">
-          <h2>Summary</h2>
-          <p>Expected: {formatDuration(sheet.expectedMinutes)}</p>
-          <p>Reported: {formatDuration(sheet.reportedMinutes)}</p>
-          <p>Worked: {formatDuration(sheet.workedMinutes)}</p>
-          <p className="muted">This reporting view is read-only.</p>
+          <h2>{t("summary")}</h2>
+          <p>
+            {t("expected")}: {formatDuration(sheet.expectedMinutes)}
+          </p>
+          <p>
+            {t("reported")}: {formatDuration(sheet.reportedMinutes)}
+          </p>
+          <p>
+            {t("worked")}: {formatDuration(sheet.workedMinutes)}
+          </p>
+          <p className="muted">{t("readOnlyReport")}</p>
           <Link className="button secondary" href="/time-reports">
-            Close
+            {t("close")}
           </Link>
         </aside>
       </div>

@@ -122,7 +122,7 @@ export function ConsultantDashboard({
       .join(", ");
     const formatDays = (minutes: number) => {
       const days = minutes / 480;
-      return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? "day" : "days"}`;
+      return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? t("day") : t("days")}`;
     };
     const formatIncome = (amount: number) =>
       `${new Intl.NumberFormat("en-SE", { maximumFractionDigits: 0 }).format(amount)} SEK`;
@@ -153,7 +153,9 @@ export function ConsultantDashboard({
                 ? formatDuration(reported)
                 : formatDays(reported)}
             </strong>
-            <span>reported {unit}</span>
+            <span>
+              {t("reported")} {unit === "hours" ? t("hours") : t("days")}
+            </span>
           </div>
         </div>
         <div className="chart-legend">
@@ -185,18 +187,18 @@ export function ConsultantDashboard({
         >
           <div>
             <strong>{formatIncome(workedIncome)}</strong>
-            <span>estimated income</span>
+            <span>{t("estimatedIncome").toLowerCase()}</span>
           </div>
         </div>
         <div className="chart-legend">
           <div>
             <i style={{ background: "#3b6f9c" }} />
-            <span>Estimated income</span>
+            <span>{t("estimatedIncome")}</span>
             <strong>{formatIncome(workedIncome)}</strong>
           </div>
           <div>
             <i style={{ background: "#f3dadd" }} />
-            <span>Not reached</span>
+            <span>{t("notReached")}</span>
             <strong>{formatIncome(notReached)}</strong>
           </div>
         </div>
@@ -214,7 +216,11 @@ export function ConsultantDashboard({
               className={mode === item ? "selected" : ""}
               onClick={() => setMode(item)}
             >
-              {item.charAt(0).toUpperCase() + item.slice(1)}
+              {item === "year"
+                ? t("year")
+                : item === "month"
+                  ? t("month")
+                  : t("week")}
             </button>
           ))}
         </div>

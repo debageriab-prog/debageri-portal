@@ -237,7 +237,7 @@ export function HistoryView({
   );
   const formatDays = (minutes: number) => {
     const days = minutes / 480;
-    return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? "day" : "days"}`;
+    return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? t("day") : t("days")}`;
   };
   const formatIncome = (amount: number) =>
     `${new Intl.NumberFormat("en-SE", { maximumFractionDigits: 0 }).format(amount)} SEK`;
@@ -257,7 +257,9 @@ export function HistoryView({
                 ? formatDuration(reportedForSelection)
                 : formatDays(reportedForSelection)}
             </strong>
-            <span>reported {unit}</span>
+            <span>
+              {t("reported")} {unit === "hours" ? t("hours") : t("days")}
+            </span>
           </div>
         </div>
         <div className="chart-legend">
@@ -290,8 +292,8 @@ export function HistoryView({
     const totalIncome = Math.max(workedIncome + notReached, 1);
     const reachedDegrees = (workedIncome / totalIncome) * 360;
     const incomeSegments = [
-      { label: "Estimated income", value: workedIncome, color: "#3b6f9c" },
-      { label: "Not reached", value: notReached, color: "#f3dadd" },
+      { label: t("estimatedIncome"), value: workedIncome, color: "#3b6f9c" },
+      { label: t("notReached"), value: notReached, color: "#f3dadd" },
     ];
 
     return (
@@ -304,7 +306,7 @@ export function HistoryView({
         >
           <div>
             <strong>{formatIncome(workedIncome)}</strong>
-            <span>estimated income</span>
+            <span>{t("estimatedIncome").toLowerCase()}</span>
           </div>
         </div>
         <div className="chart-legend">
@@ -401,7 +403,7 @@ export function HistoryView({
                     className="table-action"
                     onClick={() => setViewing(sheet)}
                   >
-                    View
+                    {t("view")}
                   </button>
                 ) : (
                   ["draft", "submitted"].includes(sheet.status) && (
@@ -411,7 +413,7 @@ export function HistoryView({
                           className="table-action"
                           href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
                         >
-                          Edit
+                          {t("edit")}
                         </Link>
                       )}
                       <button
@@ -422,7 +424,7 @@ export function HistoryView({
                           setDeleting(sheet);
                         }}
                       >
-                        Delete
+                        {t("delete")}
                       </button>
                     </div>
                   )
@@ -555,7 +557,7 @@ export function HistoryView({
               {t("previous")}
             </button>
             <span>
-              Page {page} of {Math.ceil(sheets.length / 10)}
+              {t("page")} {page} {t("of")} {Math.ceil(sheets.length / 10)}
             </span>
             <button
               className="button secondary"
@@ -576,8 +578,12 @@ export function HistoryView({
           >
             <header className="modal-header">
               <div>
-                <span className="eyebrow danger-text">Delete time report</span>
-                <h2>Delete week {deleting.isoWeek}?</h2>
+                <span className="eyebrow danger-text">
+                  {t("deleteTimeReport")}
+                </span>
+                <h2>
+                  {t("delete")} {t("week").toLowerCase()} {deleting.isoWeek}?
+                </h2>
                 <p>
                   This {deleting.status} report and its entries will be
                   permanently removed.
@@ -599,14 +605,14 @@ export function HistoryView({
                 className="button secondary"
                 onClick={() => setDeleting(null)}
               >
-                Keep report
+                {t("keepReport")}
               </button>
               <button
                 className="button danger"
                 disabled={deleteConfirmation !== "I am sure"}
                 onClick={() => void remove()}
               >
-                Delete report
+                {t("deleteReport")}
               </button>
             </footer>
           </section>
@@ -623,9 +629,9 @@ export function HistoryView({
           >
             <header className="modal-header">
               <div>
-                <span className="eyebrow">Time report details</span>
+                <span className="eyebrow">{t("timeReportDetails")}</span>
                 <h2>
-                  Week {viewing.isoWeek}
+                  {t("week")} {viewing.isoWeek}
                   {viewing.partCount > 1
                     ? `-${String(viewing.part).padStart(2, "0")}`
                     : ""}
@@ -636,7 +642,7 @@ export function HistoryView({
               </div>
               <button
                 className="modal-close"
-                aria-label="Close time report details"
+                aria-label={t("closeTimeReportDetails")}
                 onClick={() => setViewing(null)}
               >
                 ×
