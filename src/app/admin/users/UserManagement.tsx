@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EmployeeForm } from "./EmployeeForm";
 import { appCheckFetch } from "@/lib/firebase/client";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 export interface ManagedUser {
   id: string;
@@ -27,6 +28,7 @@ export function UserManagement({
   currentUserId: string;
 }) {
   const router = useRouter();
+  const { t } = useLocale();
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [deleting, setDeleting] = useState<ManagedUser | null>(null);
   const [changingPassword, setChangingPassword] = useState<ManagedUser | null>(
@@ -178,11 +180,10 @@ export function UserManagement({
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Admin</div>
-          <h1>Employees</h1>
+          <div className="eyebrow">{t("admin")}</div>
+          <h1>{t("employees")}</h1>
           <p className="muted page-description">
-            Add team members, update their access and manage who can use the
-            employee portal.
+            {t("employeesPageDescription")}
           </p>
         </div>
         <EmployeeForm onCreated={showSuccess} />
@@ -201,19 +202,19 @@ export function UserManagement({
       <section className="card table-wrap">
         {users.length === 0 ? (
           <div className="empty-state">
-            <span>People</span>
-            <h2>No employees yet</h2>
-            <p>Add your first team member to give them access to the portal.</p>
+            <span>{t("people")}</span>
+            <h2>{t("noEmployees")}</h2>
+            <p>{t("noEmployeesDescription")}</p>
           </div>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Number</th>
-                <th>Role</th>
-                <th>Status</th>
+                <th>{t("name")}</th>
+                <th>{t("email")}</th>
+                <th>{t("number")}</th>
+                <th>{t("role")}</th>
+                <th>{t("status")}</th>
                 <th>
                   <span className="sr-only">Actions</span>
                 </th>
@@ -225,7 +226,7 @@ export function UserManagement({
                   <td>
                     <strong>{user.displayName}</strong>
                     {user.id === currentUserId && (
-                      <span className="self-label">You</span>
+                      <span className="self-label">{t("you")}</span>
                     )}
                   </td>
                   <td>{user.email}</td>
@@ -245,7 +246,7 @@ export function UserManagement({
                           setEditing(user);
                         }}
                       >
-                        Edit
+                        {t("edit")}
                       </button>
                       <button
                         className="table-action"
@@ -260,7 +261,7 @@ export function UserManagement({
                           setChangingPassword(user);
                         }}
                       >
-                        Password
+                        {t("password")}
                       </button>
                       <button
                         className="table-action table-action-danger"
@@ -276,7 +277,7 @@ export function UserManagement({
                           setDeleting(user);
                         }}
                       >
-                        Delete
+                        {t("delete")}
                       </button>
                     </div>
                   </td>
@@ -297,16 +298,13 @@ export function UserManagement({
           >
             <header className="modal-header">
               <div>
-                <span className="eyebrow">Employee access</span>
-                <h2 id="edit-employee-title">Edit employee</h2>
-                <p>
-                  Update personal details, portal permissions and account
-                  availability.
-                </p>
+                <span className="eyebrow">{t("employeeAccess")}</span>
+                <h2 id="edit-employee-title">{t("editEmployee")}</h2>
+                <p>{t("editEmployeeDescription")}</p>
               </div>
               <button
                 className="modal-close"
-                aria-label="Close"
+                aria-label={t("close")}
                 onClick={() => setEditing(null)}
               >
                 ×
@@ -315,7 +313,7 @@ export function UserManagement({
             <form onSubmit={update}>
               <div className="form-grid">
                 <label>
-                  Full name
+                  {t("fullName")}
                   <input
                     className="field"
                     name="displayName"
@@ -325,7 +323,7 @@ export function UserManagement({
                   />
                 </label>
                 <label>
-                  Work email
+                  {t("workEmail")}
                   <input
                     className="field"
                     name="email"
@@ -335,7 +333,7 @@ export function UserManagement({
                   />
                 </label>
                 <label>
-                  Employee number
+                  {t("employeeNumber")}
                   <input
                     className="field"
                     name="employeeNumber"
@@ -345,17 +343,17 @@ export function UserManagement({
                   />
                 </label>
                 <label>
-                  Role
+                  {t("role")}
                   <select
                     className="field"
                     name="role"
                     defaultValue={editing.role}
                     disabled={editing.id === currentUserId}
                   >
-                    <option value="consultant">Consultant</option>
-                    <option value="manager">Manager</option>
-                    <option value="accountant">Accountant</option>
-                    <option value="admin">Administrator</option>
+                    <option value="consultant">{t("consultant")}</option>
+                    <option value="manager">{t("manager")}</option>
+                    <option value="accountant">{t("accountant")}</option>
+                    <option value="admin">{t("administrator")}</option>
                   </select>
                 </label>
                 {editing.role === "manager" && (
@@ -367,30 +365,26 @@ export function UserManagement({
                       disabled={editing.id === currentUserId}
                     />
                     <span>
-                      <strong>Reports time</strong>
-                      <small>
-                        Gives this manager access to Timesheet and History.
-                      </small>
+                      <strong>{t("reportsTime")}</strong>
+                      <small>{t("managerAccessHelp")}</small>
                     </span>
                   </label>
                 )}
                 <label className="form-wide">
-                  Account status
+                  {t("accountStatus")}
                   <select
                     className="field"
                     name="status"
                     defaultValue={editing.status}
                     disabled={editing.id === currentUserId}
                   >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
+                    <option value="active">{t("active")}</option>
+                    <option value="inactive">{t("inactive")}</option>
                   </select>
-                  <small>
-                    Inactive accounts cannot sign in until they are reactivated.
-                  </small>
+                  <small>{t("inactiveAccountHelp")}</small>
                 </label>
                 <label>
-                  Employment start date
+                  {t("employmentStartDate")}
                   <input
                     className="field"
                     name="employmentStartDate"
@@ -401,7 +395,7 @@ export function UserManagement({
                   />
                 </label>
                 <label>
-                  Employment end date
+                  {t("employmentEndDate")}
                   <input
                     className="field"
                     name="employmentEndDate"
@@ -412,7 +406,7 @@ export function UserManagement({
                 </label>
                 {editing.reportsTime && (
                   <label className="form-wide">
-                    Time reporting start date
+                    {t("reportingStartDate")}
                     <input
                       className="field"
                       name="reportingStartDate"
@@ -424,10 +418,7 @@ export function UserManagement({
                   </label>
                 )}
                 {editing.id === currentUserId && (
-                  <p className="notice form-wide">
-                    For your own account, only full name and email can be
-                    changed.
-                  </p>
+                  <p className="notice form-wide">{t("ownAccountEditHelp")}</p>
                 )}
               </div>
               {error && (
@@ -441,10 +432,10 @@ export function UserManagement({
                   className="button secondary"
                   onClick={() => setEditing(null)}
                 >
-                  Cancel
+                  {t("cancel")}
                 </button>
                 <button className="button" disabled={busy}>
-                  {busy ? "Saving..." : "Save changes"}
+                  {busy ? t("saving") : t("saveChanges")}
                 </button>
               </footer>
             </form>
@@ -462,14 +453,13 @@ export function UserManagement({
           >
             <header className="modal-header">
               <div>
-                <span className="eyebrow danger-text">Permanent action</span>
+                <span className="eyebrow danger-text">
+                  {t("permanentAction")}
+                </span>
                 <h2 id="delete-employee-title">
                   Delete {deleting.displayName}?
                 </h2>
-                <p>
-                  Their login will be removed. Historical timesheets and audit
-                  records will remain.
-                </p>
+                <p>{t("deleteEmployeeDescription")}</p>
               </div>
             </header>
             {error && (
@@ -478,7 +468,7 @@ export function UserManagement({
               </p>
             )}
             <label>
-              Type <strong>I am sure</strong> to confirm
+              {t("typeConfirmation")} <strong>I am sure</strong>
               <input
                 className="field"
                 value={deleteConfirmation}
@@ -495,14 +485,14 @@ export function UserManagement({
                   setDeleteConfirmation("");
                 }}
               >
-                Keep employee
+                {t("keepEmployee")}
               </button>
               <button
                 className="button danger"
                 disabled={busy || deleteConfirmation !== "I am sure"}
                 onClick={remove}
               >
-                {busy ? "Deleting..." : "Delete employee"}
+                {busy ? t("deleting") : t("deleteEmployee")}
               </button>
             </footer>
           </section>
@@ -519,18 +509,15 @@ export function UserManagement({
           >
             <header className="modal-header">
               <div>
-                <span className="eyebrow">Account security</span>
+                <span className="eyebrow">{t("accountSecurity")}</span>
                 <h2 id="change-employee-password-title">
                   Change password for {changingPassword.displayName}
                 </h2>
-                <p>
-                  Set a temporary password and share it securely. Their existing
-                  sessions will be signed out.
-                </p>
+                <p>{t("adminPasswordDescription")}</p>
               </div>
               <button
                 className="modal-close"
-                aria-label="Close"
+                aria-label={t("close")}
                 onClick={() => setChangingPassword(null)}
               >
                 ×
@@ -539,7 +526,7 @@ export function UserManagement({
             <form onSubmit={changeUserPassword}>
               <div className="account-form">
                 <label>
-                  New password
+                  {t("newPassword")}
                   <input
                     className="field"
                     name="password"
@@ -551,7 +538,7 @@ export function UserManagement({
                   />
                 </label>
                 <label>
-                  Confirm new password
+                  {t("confirmNewPassword")}
                   <input
                     className="field"
                     name="confirmation"
@@ -573,10 +560,10 @@ export function UserManagement({
                   className="button secondary"
                   onClick={() => setChangingPassword(null)}
                 >
-                  Cancel
+                  {t("cancel")}
                 </button>
                 <button className="button" disabled={busy}>
-                  {busy ? "Changing..." : "Change password"}
+                  {busy ? t("changing") : t("changePassword")}
                 </button>
               </footer>
             </form>

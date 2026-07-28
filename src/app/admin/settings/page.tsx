@@ -1,7 +1,9 @@
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
+import { getTranslator } from "@/lib/localization/server";
 export default async function SettingsPage() {
   const user = (await verifySession())!;
+  const t = await getTranslator();
   const { db } = getAdminServices();
   const snapshot = await db
     .collection("organizations")
@@ -12,17 +14,16 @@ export default async function SettingsPage() {
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Admin</div>
-          <h1>Organization</h1>
+          <div className="eyebrow">{t("admin")}</div>
+          <h1>{t("organization")}</h1>
           <p className="muted page-description">
-            Review the shared settings that control language, timezone and
-            organization identity.
+            {t("organizationPageDescription")}
           </p>
         </div>
       </div>
       <section className="card">
         {!organization ? (
-          <p>Organization settings are not configured.</p>
+          <p>{t("organizationNotConfigured")}</p>
         ) : (
           <>
             <h2>{String(organization.name)}</h2>
@@ -32,12 +33,12 @@ export default async function SettingsPage() {
               {snapshot.id}
             </p>
             <p>
-              <strong>Timezone</strong>
+              <strong>{t("timezone")}</strong>
               <br />
               {String(organization.timezone)}
             </p>
             <p>
-              <strong>Locale</strong>
+              <strong>{t("locale")}</strong>
               <br />
               {String(organization.locale)}
             </p>
