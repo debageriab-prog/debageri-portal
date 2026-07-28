@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { formatDuration } from "@/lib/durations/duration";
 import { getIsoWeekDates } from "@/lib/dates/iso-week";
+import { ConsultantAvatar } from "./ConsultantAvatar";
 
 type Consultant = {
   id: string;
@@ -20,25 +21,6 @@ type DashboardEntry = {
 };
 
 const colors = ["#35634a", "#a56f4e", "#b88b5d", "#8a7186", "#668a91"];
-
-function Avatar({ consultant }: { consultant: Consultant }) {
-  const [available, setAvailable] = useState(true);
-  return (
-    <span className="consultant-avatar">
-      {available ? (
-        // Avatars are served by an authenticated, organization-scoped endpoint.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={`/api/users/${encodeURIComponent(consultant.id)}/avatar`}
-          alt=""
-          onError={() => setAvailable(false)}
-        />
-      ) : (
-        consultant.displayName.charAt(0).toUpperCase()
-      )}
-    </span>
-  );
-}
 
 export function ConsultantDashboard({
   consultants,
@@ -225,7 +207,10 @@ export function ConsultantDashboard({
         {consultants.map((consultant) => (
           <article className="card consultant-report-card" key={consultant.id}>
             <header>
-              <Avatar consultant={consultant} />
+              <ConsultantAvatar
+                userId={consultant.id}
+                displayName={consultant.displayName}
+              />
               <h2>{consultant.displayName}</h2>
             </header>
             <div className="consultant-chart-grid">{charts(consultant)}</div>

@@ -1129,6 +1129,12 @@ th {
   margin: 0;
 }
 
+.report-title-with-avatar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .consultant-avatar {
   width: 52px;
   aspect-ratio: 1;

@@ -203,6 +203,7 @@ export default async function TimeReportsPage({
           holidayDates={holidayDates}
           readOnly
           initialMode="month"
+          avatarUserId={selected.id}
           title={String(selected.displayName)}
           description="View reported hours by week or month. Open a report to inspect its daily entries."
         />

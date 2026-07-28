@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
 import { appCheckFetch } from "@/lib/firebase/client";
+import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
 
 type HistorySheet = {
   id: string;
@@ -78,6 +79,7 @@ export function HistoryView({
   title = "History",
   description = "Review weekly reports or explore a monthly breakdown of work, missing time and other time codes.",
   initialMode = "latest",
+  avatarUserId,
 }: {
   sheets: HistorySheet[];
   entries: HistoryEntry[];
@@ -91,6 +93,7 @@ export function HistoryView({
   title?: string;
   description?: string;
   initialMode?: "latest" | "year" | "month" | "week";
+  avatarUserId?: string;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"latest" | "year" | "month" | "week">(
@@ -378,10 +381,15 @@ export function HistoryView({
   return (
     <>
       <div className="topbar">
-        <div>
-          <div className="eyebrow">Time reporting</div>
-          <h1>{title}</h1>
-          <p className="muted page-description">{description}</p>
+        <div className={avatarUserId ? "report-title-with-avatar" : undefined}>
+          {avatarUserId && (
+            <ConsultantAvatar userId={avatarUserId} displayName={title} />
+          )}
+          <div>
+            <div className="eyebrow">Time reporting</div>
+            <h1>{title}</h1>
+            <p className="muted page-description">{description}</p>
+          </div>
         </div>
       </div>
       <section className="card history-controls">
