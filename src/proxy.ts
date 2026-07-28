@@ -5,7 +5,8 @@ import { rejectInvalidAppCheck } from "@/server/security/app-check";
 export async function proxy(request: NextRequest) {
   if (
     request.method === "GET" &&
-    request.nextUrl.pathname === "/api/account/avatar"
+    (request.nextUrl.pathname === "/api/account/avatar" ||
+      /^\/api\/users\/[^/]+\/avatar$/.test(request.nextUrl.pathname))
   )
     return NextResponse.next();
   const rejection = await rejectInvalidAppCheck(request);
