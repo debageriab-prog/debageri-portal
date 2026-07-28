@@ -2,6 +2,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 export function EmployeeForm({
   onCreated,
@@ -9,6 +10,7 @@ export function EmployeeForm({
   onCreated: (message: string) => void;
 }) {
   const router = useRouter();
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,7 +49,7 @@ export function EmployeeForm({
       setRole("consultant");
       setManagerReportsTime(false);
       setOpen(false);
-      onCreated("Employee created successfully.");
+      onCreated(t("employeeCreated"));
       router.refresh();
     } catch {
       setError(
@@ -60,7 +62,7 @@ export function EmployeeForm({
   return (
     <>
       <button className="button" onClick={() => setOpen(true)}>
-        <span aria-hidden="true">＋</span> Add employee
+        <span aria-hidden="true">＋</span> {t("addEmployee")}
       </button>
       {open && (
         <div className="modal-backdrop" role="presentation">
@@ -72,16 +74,13 @@ export function EmployeeForm({
           >
             <header className="modal-header">
               <div>
-                <span className="eyebrow">New team member</span>
-                <h2 id="new-employee-title">Add an employee</h2>
-                <p>
-                  Create secure portal access and set the employee&apos;s
-                  standard working week.
-                </p>
+                <span className="eyebrow">{t("newTeamMember")}</span>
+                <h2 id="new-employee-title">{t("addEmployee")}</h2>
+                <p>{t("addEmployeeDescription")}</p>
               </div>
               <button
                 className="modal-close"
-                aria-label="Close"
+                aria-label={t("close")}
                 onClick={() => setOpen(false)}
               >
                 ×
@@ -90,7 +89,7 @@ export function EmployeeForm({
             <form onSubmit={submit}>
               <div className="form-grid">
                 <label>
-                  Full name
+                  {t("fullName")}
                   <input
                     className="field"
                     name="displayName"
@@ -100,7 +99,7 @@ export function EmployeeForm({
                   />
                 </label>
                 <label>
-                  Work email
+                  {t("workEmail")}
                   <input
                     className="field"
                     name="email"
@@ -110,7 +109,7 @@ export function EmployeeForm({
                   />
                 </label>
                 <label>
-                  Employee number
+                  {t("employeeNumber")}
                   <input
                     className="field"
                     name="employeeNumber"
@@ -119,7 +118,7 @@ export function EmployeeForm({
                   />
                 </label>
                 <label>
-                  Role
+                  {t("role")}
                   <select
                     className="field"
                     name="role"
@@ -129,10 +128,10 @@ export function EmployeeForm({
                       setManagerReportsTime(false);
                     }}
                   >
-                    <option value="consultant">Consultant</option>
-                    <option value="manager">Manager</option>
-                    <option value="accountant">Accountant</option>
-                    <option value="admin">Administrator</option>
+                    <option value="consultant">{t("consultant")}</option>
+                    <option value="manager">{t("manager")}</option>
+                    <option value="accountant">{t("accountant")}</option>
+                    <option value="admin">{t("administrator")}</option>
                   </select>
                 </label>
                 {role === "manager" && (
@@ -145,18 +144,15 @@ export function EmployeeForm({
                       }
                     />
                     <span>
-                      <strong>Reports time</strong>
-                      <small>
-                        Show Timesheet and History and expect this manager to
-                        submit weekly time.
-                      </small>
+                      <strong>{t("reportsTime")}</strong>
+                      <small>{t("managerReportsTimeHelp")}</small>
                     </span>
                   </label>
                 )}
                 {(role === "consultant" || managerReportsTime) && (
                   <>
                     <label>
-                      Time reporting start date
+                      {t("reportingStartDate")}
                       <input
                         className="field"
                         name="reportingStartDate"
@@ -164,15 +160,12 @@ export function EmployeeForm({
                         defaultValue={new Date().toISOString().slice(0, 10)}
                         required
                       />
-                      <small>
-                        The first date from which this person is expected to
-                        submit time.
-                      </small>
+                      <small>{t("reportingStartHelp")}</small>
                     </label>
                   </>
                 )}
                 <label>
-                  Employment start date
+                  {t("employmentStartDate")}
                   <input
                     className="field"
                     name="employmentStartDate"
@@ -182,19 +175,16 @@ export function EmployeeForm({
                   />
                 </label>
                 <label className="form-wide">
-                  Temporary password
+                  {t("temporaryPassword")}
                   <input
                     className="field"
                     name="password"
                     type="password"
                     minLength={8}
-                    placeholder="At least 8 characters"
+                    placeholder={t("atLeast8Characters")}
                     required
                   />
-                  <small>
-                    Share this securely. The employee uses it for their first
-                    sign-in.
-                  </small>
+                  <small>{t("temporaryPasswordHelp")}</small>
                 </label>
               </div>
               {error && (
@@ -208,10 +198,10 @@ export function EmployeeForm({
                   className="button secondary"
                   onClick={() => setOpen(false)}
                 >
-                  Cancel
+                  {t("cancel")}
                 </button>
                 <button className="button" disabled={busy}>
-                  {busy ? "Creating…" : "Create employee"}
+                  {busy ? t("creating") : t("createEmployee")}
                 </button>
               </footer>
             </form>

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 export function ReviewActions({
   id,
@@ -11,6 +12,7 @@ export function ReviewActions({
   returnTo?: string;
 }) {
   const router = useRouter();
+  const { t } = useLocale();
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -34,7 +36,7 @@ export function ReviewActions({
   return (
     <div style={{ marginTop: 20 }}>
       <label>
-        Rejection reason
+        {t("rejectionReason")}
         <textarea
           className="field"
           rows={4}
@@ -53,14 +55,14 @@ export function ReviewActions({
           disabled={busy}
           onClick={() => act("approve")}
         >
-          Approve
+          {t("approve")}
         </button>
         <button
           className="button danger"
           disabled={busy || reason.trim().length < 3}
           onClick={() => act("reject")}
         >
-          Reject
+          {t("reject")}
         </button>
       </div>
     </div>

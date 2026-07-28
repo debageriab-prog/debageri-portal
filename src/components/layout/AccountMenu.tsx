@@ -57,16 +57,14 @@ export function AccountMenu({ user }: { user: PortalUser }) {
       });
       const result = (await response.json()) as { error?: string };
       if (!response.ok)
-        throw new Error(result.error ?? "The avatar could not be updated.");
+        throw new Error(result.error ?? t("avatarUpdateFailed"));
       setAvatarAvailable(true);
       setAvatarVersion(Date.now());
       setDialog(null);
-      setSuccess("Your avatar was updated successfully.");
+      setSuccess(t("avatarUpdated"));
     } catch (reason) {
       setError(
-        reason instanceof Error
-          ? reason.message
-          : "The avatar could not be updated.",
+        reason instanceof Error ? reason.message : t("avatarUpdateFailed"),
       );
     } finally {
       setBusy(false);
@@ -81,7 +79,7 @@ export function AccountMenu({ user }: { user: PortalUser }) {
     const currentPassword = String(form.get("currentPassword"));
     const newPassword = String(form.get("newPassword"));
     if (newPassword !== String(form.get("confirmation"))) {
-      setError("The new passwords do not match.");
+      setError(t("passwordsDoNotMatch"));
       setBusy(false);
       return;
     }
@@ -89,17 +87,14 @@ export function AccountMenu({ user }: { user: PortalUser }) {
       const { auth } = getFirebaseClient();
       await auth.authStateReady();
       const currentUser = auth.currentUser;
-      if (!currentUser?.email)
-        throw new Error("Sign in again before changing your password.");
+      if (!currentUser?.email) throw new Error(t("signInAgain"));
       await reauthenticateWithCredential(
         currentUser,
         EmailAuthProvider.credential(currentUser.email, currentPassword),
       );
       await updatePassword(currentUser, newPassword);
       setDialog(null);
-      setSuccess(
-        "Your password has been changed. You will be redirected to the login page.",
-      );
+      setSuccess(t("passwordChanged"));
       await appCheckFetch("/api/auth/session", { method: "DELETE" }).catch(
         () => undefined,
       );
@@ -115,12 +110,12 @@ export function AccountMenu({ user }: { user: PortalUser }) {
           : "";
       setError(
         code === "auth/invalid-credential"
-          ? "Your current password is incorrect."
+          ? t("currentPasswordIncorrect")
           : code === "auth/weak-password"
-            ? "Use a stronger password with at least 8 characters."
+            ? t("weakPassword")
             : reason instanceof Error
               ? reason.message
-              : "The password could not be changed.",
+              : t("passwordChangeFailed"),
       );
     } finally {
       setBusy(false);
@@ -148,7 +143,7 @@ export function AccountMenu({ user }: { user: PortalUser }) {
         <button
           aria-expanded={open}
           aria-haspopup="menu"
-          aria-label="Open account menu"
+          aria-label={t("openAccountMenu")}
           className="account-trigger"
           onClick={() => setOpen((value) => !value)}
         >
@@ -164,10 +159,10 @@ export function AccountMenu({ user }: { user: PortalUser }) {
               </span>
             </div>
             <button role="menuitem" onClick={() => showDialog("avatar")}>
-              Update avatar
+              {t("updateAvatar")}
             </button>
             <button role="menuitem" onClick={() => showDialog("password")}>
-              Change password
+              {t("changePassword")}
             </button>
             <label className="account-language">
               <span>{t("language")}</span>
@@ -181,7 +176,7 @@ export function AccountMenu({ user }: { user: PortalUser }) {
               </select>
             </label>
             <button className="account-logout" role="menuitem" onClick={logout}>
-              Log out
+              {t("logOut")}
             </button>
           </div>
         )}
@@ -189,7 +184,10 @@ export function AccountMenu({ user }: { user: PortalUser }) {
       {success && (
         <div className="account-toast" role="status">
           {success}
-          <button aria-label="Dismiss message" onClick={() => setSuccess("")}>
+          <button
+            aria-label={t("dismissMessage")}
+            onClick={() => setSuccess("")}
+          >
             ×
           </button>
         </div>
@@ -198,13 +196,13 @@ export function AccountMenu({ user }: { user: PortalUser }) {
         <div className="modal-backdrop">
           <form className="modal modal-small" onSubmit={uploadAvatar}>
             <DialogHeader
-              eyebrow="Account settings"
-              title="Update avatar"
-              description="Choose a JPEG, PNG or WebP image up to 2 MB."
+              eyebrow={t("accountSettings")}
+              title={t("updateAvatar")}
+              description={t("avatarDescription")}
               close={() => setDialog(null)}
             />
             <label>
-              Profile image
+              {t("profileImage")}
               <input
                 accept="image/jpeg,image/png,image/webp"
                 className="field"
@@ -216,8 +214,9 @@ export function AccountMenu({ user }: { user: PortalUser }) {
             <DialogFooter
               busy={busy}
               error={error}
-              action="Update avatar"
-              busyAction="Uploading..."
+              action={t("updateAvatar")}
+              busyAction={t("uploading")}
+              cancel={t("cancel")}
               close={() => setDialog(null)}
             />
           </form>
@@ -227,25 +226,29 @@ export function AccountMenu({ user }: { user: PortalUser }) {
         <div className="modal-backdrop">
           <form className="modal modal-small" onSubmit={changePassword}>
             <DialogHeader
-              eyebrow="Account security"
-              title="Change password"
-              description="Confirm your current password, then choose a new one."
+              eyebrow={t("accountSecurity")}
+              title={t("changePassword")}
+              description={t("passwordDescription")}
               close={() => setDialog(null)}
             />
             <div className="account-form">
               <PasswordField
-                label="Current password"
+                label={t("currentPassword")}
                 name="currentPassword"
                 autoComplete="current-password"
               />
-              <PasswordField label="New password" name="newPassword" />
-              <PasswordField label="Confirm new password" name="confirmation" />
+              <PasswordField label={t("newPassword")} name="newPassword" />
+              <PasswordField
+                label={t("confirmNewPassword")}
+                name="confirmation"
+              />
             </div>
             <DialogFooter
               busy={busy}
               error={error}
-              action="Change password"
-              busyAction="Changing..."
+              action={t("changePassword")}
+              busyAction={t("changing")}
+              cancel={t("cancel")}
               close={() => setDialog(null)}
             />
           </form>
@@ -266,6 +269,7 @@ function DialogHeader({
   description: string;
   close: () => void;
 }) {
+  const { t } = useLocale();
   return (
     <div className="modal-header">
       <div>
@@ -274,7 +278,7 @@ function DialogHeader({
         <p>{description}</p>
       </div>
       <button
-        aria-label="Close"
+        aria-label={t("close")}
         className="modal-close"
         type="button"
         onClick={close}
@@ -314,12 +318,14 @@ function DialogFooter({
   error,
   action,
   busyAction,
+  cancel,
   close,
 }: {
   busy: boolean;
   error: string;
   action: string;
   busyAction: string;
+  cancel: string;
   close: () => void;
 }) {
   return (
@@ -331,7 +337,7 @@ function DialogFooter({
       )}
       <div className="modal-actions">
         <button className="button secondary" type="button" onClick={close}>
-          Cancel
+          {cancel}
         </button>
         <button className="button" disabled={busy}>
           {busy ? busyAction : action}

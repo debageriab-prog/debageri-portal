@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 export type ManagedTimeCode = {
   id: string;
@@ -44,6 +45,7 @@ export function TimeCodeManagement({
   users: AssignableUser[];
 }) {
   const router = useRouter();
+  const { t } = useLocale();
   const [editing, setEditing] = useState<ManagedTimeCode | "new" | null>(null);
   const [deleting, setDeleting] = useState<ManagedTimeCode | null>(null);
   const [confirmation, setConfirmation] = useState("");
@@ -83,14 +85,14 @@ export function TimeCodeManagement({
         error?: string;
       };
       if (!response.ok) {
-        setError(result.error ?? "The time code could not be saved.");
+        setError(result.error ?? t("timeCodeSaveFailed"));
         return;
       }
       setEditing(null);
-      setMessage(isNew ? "Time code created." : "Time code updated.");
+      setMessage(isNew ? t("timeCodeCreated") : t("timeCodeUpdated"));
       router.refresh();
     } catch {
-      setError("We could not reach the server. Please try again.");
+      setError(t("serverTryAgain"));
     } finally {
       setBusy(false);
     }
@@ -113,15 +115,15 @@ export function TimeCodeManagement({
         error?: string;
       };
       if (!response.ok) {
-        setError(result.error ?? "The time code could not be deleted.");
+        setError(result.error ?? t("timeCodeDeleteFailed"));
         return;
       }
       setDeleting(null);
       setConfirmation("");
-      setMessage("Time code deleted.");
+      setMessage(t("timeCodeDeleted"));
       router.refresh();
     } catch {
-      setError("We could not reach the server. Please try again.");
+      setError(t("serverTryAgain"));
     } finally {
       setBusy(false);
     }
@@ -132,15 +134,14 @@ export function TimeCodeManagement({
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Admin</div>
-          <h1>Time codes</h1>
+          <div className="eyebrow">{t("admin")}</div>
+          <h1>{t("timeCodes")}</h1>
           <p className="muted page-description">
-            Add reporting categories, control availability and keep the hourly
-            rate used for future invoicing.
+            {t("timeCodesPageDescription")}
           </p>
         </div>
         <button className="button" onClick={() => setEditing("new")}>
-          Add time code
+          {t("addTimeCode")}
         </button>
       </div>
       {message && (
@@ -151,19 +152,19 @@ export function TimeCodeManagement({
       <section className="card table-wrap">
         {codes.length === 0 ? (
           <div className="empty-state">
-            <h2>No time codes yet</h2>
-            <p>Add a time code employees can use in weekly reports.</p>
+            <h2>{t("noTimeCodes")}</h2>
+            <p>{t("noTimeCodesDescription")}</p>
           </div>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Category</th>
-                <th>Hourly rate</th>
-                <th>Status</th>
-                <th>Assigned to</th>
+                <th>{t("code")}</th>
+                <th>{t("name")}</th>
+                <th>{t("category")}</th>
+                <th>{t("hourlyRate")}</th>
+                <th>{t("status")}</th>
+                <th>{t("assignedTo")}</th>
                 <th>
                   <span className="sr-only">Actions</span>
                 </th>
@@ -178,12 +179,12 @@ export function TimeCodeManagement({
                     {code.category.replaceAll("_", " ")}
                   </td>
                   <td>{code.hourlyRate.toFixed(2)}</td>
-                  <td>{code.active ? "Active" : "Inactive"}</td>
+                  <td>{code.active ? t("active") : t("inactive")}</td>
                   <td>
                     {code.assignedUserId
                       ? (users.find((user) => user.id === code.assignedUserId)
-                          ?.displayName ?? "Unknown employee")
-                      : "Everyone"}
+                          ?.displayName ?? t("unknownEmployee"))
+                      : t("everyone")}
                   </td>
                   <td>
                     <div className="row-actions">
@@ -191,7 +192,7 @@ export function TimeCodeManagement({
                         className="table-action"
                         onClick={() => setEditing(code)}
                       >
-                        Edit
+                        {t("edit")}
                       </button>
                       <button
                         className="table-action table-action-danger"
@@ -201,7 +202,7 @@ export function TimeCodeManagement({
                           setDeleting(code);
                         }}
                       >
-                        Delete
+                        {t("delete")}
                       </button>
                     </div>
                   </td>
@@ -216,17 +217,17 @@ export function TimeCodeManagement({
           <section className="modal" role="dialog" aria-modal="true">
             <header className="modal-header">
               <div>
-                <span className="eyebrow">Reporting setup</span>
+                <span className="eyebrow">{t("reportingSetup")}</span>
                 <h2>
-                  {editing === "new" ? "Add time code" : "Edit time code"}
+                  {editing === "new" ? t("addTimeCode") : t("editTimeCode")}
                 </h2>
-                <p>Define how this code appears and the hourly invoice rate.</p>
+                <p>{t("timeCodeDialogDescription")}</p>
               </div>
             </header>
             <form onSubmit={save}>
               <div className="form-grid">
                 <label>
-                  Code
+                  {t("code")}
                   <input
                     className="field"
                     name="code"
@@ -235,7 +236,7 @@ export function TimeCodeManagement({
                   />
                 </label>
                 <label>
-                  Name
+                  {t("name")}
                   <input
                     className="field"
                     name="name"
@@ -244,7 +245,7 @@ export function TimeCodeManagement({
                   />
                 </label>
                 <label>
-                  Category
+                  {t("category")}
                   <select
                     className="field"
                     name="category"
@@ -258,7 +259,7 @@ export function TimeCodeManagement({
                   </select>
                 </label>
                 <label>
-                  Hourly rate
+                  {t("hourlyRate")}
                   <input
                     className="field"
                     name="hourlyRate"
@@ -270,13 +271,13 @@ export function TimeCodeManagement({
                   />
                 </label>
                 <label className="form-wide">
-                  Assigned employee
+                  {t("assignedEmployee")}
                   <select
                     className="field"
                     name="assignedUserId"
                     defaultValue={value?.assignedUserId ?? ""}
                   >
-                    <option value="">Everyone</option>
+                    <option value="">{t("everyone")}</option>
                     {users.map((user) => (
                       <option key={user.id} value={user.id}>
                         {user.displayName}
@@ -284,10 +285,7 @@ export function TimeCodeManagement({
                       </option>
                     ))}
                   </select>
-                  <small>
-                    Leave this as Everyone for shared codes such as vacation or
-                    sick leave.
-                  </small>
+                  <small>{t("assignedEmployeeHelp")}</small>
                 </label>
                 <label>
                   <input
@@ -295,7 +293,7 @@ export function TimeCodeManagement({
                     type="checkbox"
                     defaultChecked={value?.active ?? true}
                   />{" "}
-                  Active
+                  {t("active")}
                 </label>
                 <label>
                   <input
@@ -303,7 +301,7 @@ export function TimeCodeManagement({
                     type="checkbox"
                     defaultChecked={value?.employeeCanSelect ?? true}
                   />{" "}
-                  Employees can select
+                  {t("employeesCanSelect")}
                 </label>
                 <label>
                   <input
@@ -311,7 +309,7 @@ export function TimeCodeManagement({
                     type="checkbox"
                     defaultChecked={value?.requiresComment ?? false}
                   />{" "}
-                  Requires comment
+                  {t("requiresComment")}
                 </label>
                 <label>
                   <input
@@ -319,7 +317,7 @@ export function TimeCodeManagement({
                     type="checkbox"
                     defaultChecked={value?.countsAsWorkedTime ?? true}
                   />{" "}
-                  Counts as worked time
+                  {t("countsAsWorkedTime")}
                 </label>
               </div>
               {error && <p className="notice notice-error">{error}</p>}
@@ -329,10 +327,10 @@ export function TimeCodeManagement({
                   className="button secondary"
                   onClick={() => setEditing(null)}
                 >
-                  Cancel
+                  {t("cancel")}
                 </button>
                 <button className="button" disabled={busy}>
-                  {busy ? "Saving..." : "Save time code"}
+                  {busy ? t("saving") : t("saveTimeCode")}
                 </button>
               </footer>
             </form>
@@ -348,16 +346,17 @@ export function TimeCodeManagement({
           >
             <header className="modal-header">
               <div>
-                <span className="eyebrow danger-text">Permanent action</span>
-                <h2>Delete {deleting.code}?</h2>
-                <p>
-                  Historical entries keep their snapshot, but employees can no
-                  longer select this code.
-                </p>
+                <span className="eyebrow danger-text">
+                  {t("permanentAction")}
+                </span>
+                <h2>
+                  {t("delete")} {deleting.code}?
+                </h2>
+                <p>{t("deleteTimeCodeDescription")}</p>
               </div>
             </header>
             <label>
-              Type <strong>I am sure</strong> to confirm
+              {t("typeConfirmation")} <strong>I am sure</strong>
               <input
                 className="field"
                 value={confirmation}
@@ -371,14 +370,14 @@ export function TimeCodeManagement({
                 className="button secondary"
                 onClick={() => setDeleting(null)}
               >
-                Keep time code
+                {t("keepTimeCode")}
               </button>
               <button
                 className="button danger"
                 disabled={busy || confirmation !== "I am sure"}
                 onClick={remove}
               >
-                {busy ? "Deleting..." : "Delete time code"}
+                {busy ? t("deleting") : t("deleteTimeCode")}
               </button>
             </footer>
           </section>

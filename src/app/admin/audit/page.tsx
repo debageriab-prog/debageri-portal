@@ -1,7 +1,9 @@
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
+import { getTranslator } from "@/lib/localization/server";
 export default async function AuditPage() {
   const user = (await verifySession())!;
+  const t = await getTranslator();
   const { db } = getAdminServices();
   const snapshot = await db
     .collection("auditLogs")
@@ -83,25 +85,22 @@ export default async function AuditPage() {
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Admin</div>
-          <h1>Audit history</h1>
-          <p className="muted page-description">
-            Follow important portal events and retain a clear record of who did
-            what and when.
-          </p>
+          <div className="eyebrow">{t("admin")}</div>
+          <h1>{t("auditHistory")}</h1>
+          <p className="muted page-description">{t("auditPageDescription")}</p>
         </div>
       </div>
       <section className="card table-wrap">
         {logs.length === 0 ? (
-          <p>No audit events yet.</p>
+          <p>{t("noAuditEvents")}</p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Actor</th>
-                <th>Event</th>
-                <th>Entity</th>
+                <th>{t("time")}</th>
+                <th>{t("actor")}</th>
+                <th>{t("event")}</th>
+                <th>{t("entity")}</th>
               </tr>
             </thead>
             <tbody>

@@ -29,7 +29,7 @@ function friendlyAuthError(reason: unknown, fallback: string) {
 }
 
 export default function LoginPage() {
-  const { t } = useLocale();
+  const { locale, setLocale, t } = useLocale();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -69,20 +69,24 @@ export default function LoginPage() {
   }
   return (
     <main className="login">
+      <button
+        className="login-language-switch"
+        type="button"
+        onClick={() => setLocale(locale === "en-SE" ? "sv-SE" : "en-SE")}
+      >
+        {locale === "en-SE" ? "Svenska" : "English"}
+      </button>
       <div className="login-showcase">
         <BrandLogo />
         <div>
-          <span className="login-kicker">Debageri workspace</span>
-          <h1>Everything about your workday, in one calm place.</h1>
-          <p>
-            Report time, follow approvals and keep employment information
-            organized, securely and without unnecessary administration.
-          </p>
+          <span className="login-kicker">{t("loginKicker")}</span>
+          <h1>{t("loginShowcaseTitle")}</h1>
+          <p>{t("loginShowcaseDescription")}</p>
         </div>
         <div className="login-benefits">
-          <span>✓ Simple weekly reporting</span>
-          <span>✓ Clear approval history</span>
-          <span>✓ Secure employee access</span>
+          <span>✓ {t("loginBenefitReporting")}</span>
+          <span>✓ {t("loginBenefitApprovals")}</span>
+          <span>✓ {t("loginBenefitAccess")}</span>
         </div>
       </div>
       <section className="card login-card">
@@ -124,9 +128,7 @@ export default function LoginPage() {
             {busy ? t("signingIn") : t("signIn")}
           </button>
         </form>
-        <p className="login-support">
-          Trouble signing in? Contact your portal administrator.
-        </p>
+        <p className="login-support">{t("loginSupport")}</p>
       </section>
     </main>
   );

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { formatDuration } from "@/lib/durations/duration";
 import { getIsoWeekDates } from "@/lib/dates/iso-week";
 import { ConsultantAvatar } from "./ConsultantAvatar";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 type Consultant = {
   id: string;
@@ -42,6 +43,7 @@ export function ConsultantDashboard({
   currentMonth: string;
   showEstimatedIncome: boolean;
 }) {
+  const { t } = useLocale();
   const [mode, setMode] = useState<"year" | "month" | "week">("month");
   const [year, setYear] = useState(currentYear);
   const [week, setWeek] = useState(currentWeek);
@@ -97,14 +99,14 @@ export function ConsultantDashboard({
     const reported = selected.reduce((sum, entry) => sum + entry.minutes, 0);
     const expected = expectedMinutes(consultant);
     const segments = [
-      { label: "Worked", value: worked, color: colors[0]! },
+      { label: t("worked"), value: worked, color: colors[0]! },
       ...[...byCode].map(([label, value], index) => ({
         label,
         value,
         color: colors[(index % (colors.length - 1)) + 1]!,
       })),
       {
-        label: "Not reported",
+        label: t("notReported"),
         value: Math.max(0, expected - reported),
         color: "#ddd3ca",
       },
@@ -120,7 +122,7 @@ export function ConsultantDashboard({
       .join(", ");
     const formatDays = (minutes: number) => {
       const days = minutes / 480;
-      return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? "day" : "days"}`;
+      return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? t("day") : t("days")}`;
     };
     const formatIncome = (amount: number) =>
       `${new Intl.NumberFormat("en-SE", { maximumFractionDigits: 0 }).format(amount)} SEK`;
@@ -151,7 +153,9 @@ export function ConsultantDashboard({
                 ? formatDuration(reported)
                 : formatDays(reported)}
             </strong>
-            <span>reported {unit}</span>
+            <span>
+              {t("reported")} {unit === "hours" ? t("hours") : t("days")}
+            </span>
           </div>
         </div>
         <div className="chart-legend">
@@ -183,18 +187,18 @@ export function ConsultantDashboard({
         >
           <div>
             <strong>{formatIncome(workedIncome)}</strong>
-            <span>estimated income</span>
+            <span>{t("estimatedIncome").toLowerCase()}</span>
           </div>
         </div>
         <div className="chart-legend">
           <div>
             <i style={{ background: "#3b6f9c" }} />
-            <span>Estimated income</span>
+            <span>{t("estimatedIncome")}</span>
             <strong>{formatIncome(workedIncome)}</strong>
           </div>
           <div>
             <i style={{ background: "#f3dadd" }} />
-            <span>Not reached</span>
+            <span>{t("notReached")}</span>
             <strong>{formatIncome(notReached)}</strong>
           </div>
         </div>
@@ -212,13 +216,17 @@ export function ConsultantDashboard({
               className={mode === item ? "selected" : ""}
               onClick={() => setMode(item)}
             >
-              {item.charAt(0).toUpperCase() + item.slice(1)}
+              {item === "year"
+                ? t("year")
+                : item === "month"
+                  ? t("month")
+                  : t("week")}
             </button>
           ))}
         </div>
         {mode === "month" ? (
           <label>
-            Month
+            {t("month")}
             <input
               className="field"
               type="month"
@@ -229,7 +237,7 @@ export function ConsultantDashboard({
         ) : (
           <div className="actions">
             <label>
-              Year
+              {t("year")}
               <input
                 className="field compact-field"
                 type="number"
@@ -239,7 +247,7 @@ export function ConsultantDashboard({
             </label>
             {mode === "week" && (
               <label>
-                Week
+                {t("week")}
                 <input
                   className="field compact-field"
                   type="number"

@@ -2,9 +2,11 @@ import Link from "next/link";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
+import { getTranslator } from "@/lib/localization/server";
 
 export default async function ApprovalsPage() {
   const actor = (await verifySession())!;
+  const t = await getTranslator();
   const { db } = getAdminServices();
   const query = db
     .collection("timesheets")
@@ -33,26 +35,23 @@ export default async function ApprovalsPage() {
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Approvals</div>
-          <h1>Submitted timesheets</h1>
-          <p className="muted page-description">
-            Review completed weeks, confirm reported hours and return anything
-            that needs correction.
-          </p>
+          <div className="eyebrow">{t("approvals")}</div>
+          <h1>{t("submittedTimesheets")}</h1>
+          <p className="muted page-description">{t("approvalsDescription")}</p>
         </div>
       </div>
       <section className="card table-wrap">
         {visibleSheets.length === 0 ? (
-          <p>No timesheets are waiting for approval.</p>
+          <p>{t("noPendingTimesheets")}</p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>Employee</th>
-                <th>Week</th>
-                <th>Period</th>
-                <th>Expected</th>
-                <th>Reported</th>
+                <th>{t("employee")}</th>
+                <th>{t("week")}</th>
+                <th>{t("period")}</th>
+                <th>{t("expected")}</th>
+                <th>{t("reported")}</th>
                 <th />
               </tr>
             </thead>
@@ -81,7 +80,7 @@ export default async function ApprovalsPage() {
                         className="button secondary"
                         href={`/manager/approvals/${encodeURIComponent(doc.id)}`}
                       >
-                        Review
+                        {t("review")}
                       </Link>
                     </td>
                   </tr>

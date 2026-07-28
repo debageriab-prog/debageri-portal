@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 type HistorySheet = {
   id: string;
@@ -78,8 +79,8 @@ export function HistoryView({
   employmentEndDate,
   holidayDates,
   readOnly = false,
-  title = "History",
-  description = "Review weekly reports or explore a monthly breakdown of work, missing time and other time codes.",
+  title,
+  description,
   initialMode = "latest",
   avatarUserId,
   showEstimatedIncome = false,
@@ -101,6 +102,9 @@ export function HistoryView({
   showEstimatedIncome?: boolean;
   hourlyRate?: number;
 }) {
+  const { t } = useLocale();
+  const displayTitle = title ?? t("history");
+  const displayDescription = description ?? t("historyDescription");
   const router = useRouter();
   const [mode, setMode] = useState<"latest" | "year" | "month" | "week">(
     initialMode,
@@ -200,14 +204,14 @@ export function HistoryView({
         : monthTotals;
 
   const segments = [
-    { label: "Worked", value: chartTotals.worked, color: "#35634a" },
+    { label: t("worked"), value: chartTotals.worked, color: "#35634a" },
     ...[...chartTotals.byCode].map(([label, value], index) => ({
       label,
       value,
       color: ["#a56f4e", "#b88b5d", "#8a7186", "#668a91"][index % 4]!,
     })),
     {
-      label: "Not reported",
+      label: t("notReported"),
       value: chartTotals.unreported,
       color: "#ddd3ca",
     },
@@ -233,7 +237,7 @@ export function HistoryView({
   );
   const formatDays = (minutes: number) => {
     const days = minutes / 480;
-    return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? "day" : "days"}`;
+    return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? t("day") : t("days")}`;
   };
   const formatIncome = (amount: number) =>
     `${new Intl.NumberFormat("en-SE", { maximumFractionDigits: 0 }).format(amount)} SEK`;
@@ -253,7 +257,9 @@ export function HistoryView({
                 ? formatDuration(reportedForSelection)
                 : formatDays(reportedForSelection)}
             </strong>
-            <span>reported {unit}</span>
+            <span>
+              {t("reported")} {unit === "hours" ? t("hours") : t("days")}
+            </span>
           </div>
         </div>
         <div className="chart-legend">
@@ -286,8 +292,8 @@ export function HistoryView({
     const totalIncome = Math.max(workedIncome + notReached, 1);
     const reachedDegrees = (workedIncome / totalIncome) * 360;
     const incomeSegments = [
-      { label: "Estimated income", value: workedIncome, color: "#3b6f9c" },
-      { label: "Not reached", value: notReached, color: "#f3dadd" },
+      { label: t("estimatedIncome"), value: workedIncome, color: "#3b6f9c" },
+      { label: t("notReached"), value: notReached, color: "#f3dadd" },
     ];
 
     return (
@@ -300,7 +306,7 @@ export function HistoryView({
         >
           <div>
             <strong>{formatIncome(workedIncome)}</strong>
-            <span>estimated income</span>
+            <span>{t("estimatedIncome").toLowerCase()}</span>
           </div>
         </div>
         <div className="chart-legend">
@@ -356,10 +362,10 @@ export function HistoryView({
       <table>
         <thead>
           <tr>
-            <th>Week</th>
-            <th>Period</th>
-            <th>Reported</th>
-            <th>Status</th>
+            <th>{t("week")}</th>
+            <th>{t("period")}</th>
+            <th>{t("reported")}</th>
+            <th>{t("status")}</th>
             <th>
               <span className="sr-only">Actions</span>
             </th>
@@ -397,7 +403,7 @@ export function HistoryView({
                     className="table-action"
                     onClick={() => setViewing(sheet)}
                   >
-                    View
+                    {t("view")}
                   </button>
                 ) : (
                   ["draft", "submitted"].includes(sheet.status) && (
@@ -407,7 +413,7 @@ export function HistoryView({
                           className="table-action"
                           href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
                         >
-                          Edit
+                          {t("edit")}
                         </Link>
                       )}
                       <button
@@ -418,7 +424,7 @@ export function HistoryView({
                           setDeleting(sheet);
                         }}
                       >
-                        Delete
+                        {t("delete")}
                       </button>
                     </div>
                   )
@@ -429,7 +435,7 @@ export function HistoryView({
         </tbody>
       </table>
     ) : (
-      <p>No timesheets for this selection.</p>
+      <p>{t("noTimesheets")}</p>
     );
   }
 
@@ -438,12 +444,15 @@ export function HistoryView({
       <div className="topbar">
         <div className={avatarUserId ? "report-title-with-avatar" : undefined}>
           {avatarUserId && (
-            <ConsultantAvatar userId={avatarUserId} displayName={title} />
+            <ConsultantAvatar
+              userId={avatarUserId}
+              displayName={displayTitle}
+            />
           )}
           <div>
-            <div className="eyebrow">Time reporting</div>
-            <h1>{title}</h1>
-            <p className="muted page-description">{description}</p>
+            <div className="eyebrow">{t("timeReporting")}</div>
+            <h1>{displayTitle}</h1>
+            <p className="muted page-description">{displayDescription}</p>
           </div>
         </div>
       </div>
@@ -453,30 +462,30 @@ export function HistoryView({
             className={mode === "latest" ? "selected" : ""}
             onClick={() => setMode("latest")}
           >
-            Latest
+            {t("latest")}
           </button>
           <button
             className={mode === "year" ? "selected" : ""}
             onClick={() => setMode("year")}
           >
-            Year
+            {t("year")}
           </button>
           <button
             className={mode === "month" ? "selected" : ""}
             onClick={() => setMode("month")}
           >
-            Month
+            {t("month")}
           </button>
           <button
             className={mode === "week" ? "selected" : ""}
             onClick={() => setMode("week")}
           >
-            Week
+            {t("week")}
           </button>
         </div>
         {mode === "year" ? (
           <label>
-            Year
+            {t("year")}
             <input
               className="field compact-field"
               type="number"
@@ -487,7 +496,7 @@ export function HistoryView({
         ) : mode === "week" ? (
           <div className="actions">
             <label>
-              Year
+              {t("year")}
               <input
                 className="field compact-field"
                 type="number"
@@ -496,7 +505,7 @@ export function HistoryView({
               />
             </label>
             <label>
-              Week
+              {t("week")}
               <input
                 className="field compact-field"
                 type="number"
@@ -509,7 +518,7 @@ export function HistoryView({
           </div>
         ) : mode === "month" ? (
           <label>
-            Month
+            {t("month")}
             <input
               className="field"
               type="month"
@@ -545,17 +554,17 @@ export function HistoryView({
               disabled={page === 1}
               onClick={() => setPage((value) => value - 1)}
             >
-              Previous
+              {t("previous")}
             </button>
             <span>
-              Page {page} of {Math.ceil(sheets.length / 10)}
+              {t("page")} {page} {t("of")} {Math.ceil(sheets.length / 10)}
             </span>
             <button
               className="button secondary"
               disabled={page * 10 >= sheets.length}
               onClick={() => setPage((value) => value + 1)}
             >
-              Next
+              {t("next")}
             </button>
           </div>
         )}
@@ -569,8 +578,12 @@ export function HistoryView({
           >
             <header className="modal-header">
               <div>
-                <span className="eyebrow danger-text">Delete time report</span>
-                <h2>Delete week {deleting.isoWeek}?</h2>
+                <span className="eyebrow danger-text">
+                  {t("deleteTimeReport")}
+                </span>
+                <h2>
+                  {t("delete")} {t("week").toLowerCase()} {deleting.isoWeek}?
+                </h2>
                 <p>
                   This {deleting.status} report and its entries will be
                   permanently removed.
@@ -592,14 +605,14 @@ export function HistoryView({
                 className="button secondary"
                 onClick={() => setDeleting(null)}
               >
-                Keep report
+                {t("keepReport")}
               </button>
               <button
                 className="button danger"
                 disabled={deleteConfirmation !== "I am sure"}
                 onClick={() => void remove()}
               >
-                Delete report
+                {t("deleteReport")}
               </button>
             </footer>
           </section>
@@ -616,9 +629,9 @@ export function HistoryView({
           >
             <header className="modal-header">
               <div>
-                <span className="eyebrow">Time report details</span>
+                <span className="eyebrow">{t("timeReportDetails")}</span>
                 <h2>
-                  Week {viewing.isoWeek}
+                  {t("week")} {viewing.isoWeek}
                   {viewing.partCount > 1
                     ? `-${String(viewing.part).padStart(2, "0")}`
                     : ""}
@@ -629,7 +642,7 @@ export function HistoryView({
               </div>
               <button
                 className="modal-close"
-                aria-label="Close time report details"
+                aria-label={t("closeTimeReportDetails")}
                 onClick={() => setViewing(null)}
               >
                 ×
@@ -639,9 +652,9 @@ export function HistoryView({
               <table>
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Time code</th>
-                    <th>Time</th>
+                    <th>{t("date")}</th>
+                    <th>{t("code")}</th>
+                    <th>{t("time")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -652,7 +665,7 @@ export function HistoryView({
                       <tr key={`${entry.date}-${entry.name}-${index}`}>
                         <td>{entry.date}</td>
                         <td>
-                          {entry.countsAsWorkedTime ? "Worked" : entry.name}
+                          {entry.countsAsWorkedTime ? t("worked") : entry.name}
                         </td>
                         <td>{formatDuration(entry.minutes)}</td>
                       </tr>
@@ -665,7 +678,7 @@ export function HistoryView({
                 className="button secondary"
                 onClick={() => setViewing(null)}
               >
-                Close
+                {t("close")}
               </button>
             </footer>
           </section>

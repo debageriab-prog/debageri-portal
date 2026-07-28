@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 export function ConsultantSelect({
   users,
@@ -12,6 +13,7 @@ export function ConsultantSelect({
   label: string;
 }) {
   const router = useRouter();
+  const { t } = useLocale();
 
   return (
     <label>
@@ -28,7 +30,7 @@ export function ConsultantSelect({
           );
         }}
       >
-        <option value="">All consultants</option>
+        <option value="">{t("allConsultants")}</option>
         {users.map((user) => (
           <option value={user.id} key={user.id}>
             {user.displayName}

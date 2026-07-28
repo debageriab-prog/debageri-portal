@@ -3,6 +3,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
 import { ReviewActions } from "./ReviewActions";
+import { getTranslator } from "@/lib/localization/server";
 
 export default async function ReviewPage({
   params,
@@ -10,6 +11,7 @@ export default async function ReviewPage({
   params: Promise<{ id: string }>;
 }) {
   const actor = (await verifySession())!;
+  const t = await getTranslator();
   const { id } = await params;
   const { db } = getAdminServices();
   const sheetDoc = await db.collection("timesheets").doc(id).get();
@@ -32,7 +34,7 @@ export default async function ReviewPage({
       <div className="topbar">
         <div>
           <div className="eyebrow">
-            Week {sheet.isoWeek}
+            {t("week")} {sheet.isoWeek}
             {Number(sheet.partCount ?? 1) > 1
               ? `-${String(sheet.part ?? 1).padStart(2, "0")}`
               : ""}
@@ -41,18 +43,15 @@ export default async function ReviewPage({
           <p className="muted">
             {sheet.periodStart} to {sheet.periodEnd}
           </p>
-          <p className="muted page-description">
-            Compare the employee&apos;s entries with expected hours, then
-            approve the week or return it with a clear reason.
-          </p>
+          <p className="muted page-description">{t("reviewDescription")}</p>
         </div>
         <span className="status">{sheet.status}</span>
       </div>
       <div className="grid-2">
         <section className="card">
-          <h2>Reported time</h2>
+          <h2>{t("reportedTime")}</h2>
           {entries.empty ? (
-            <p>No time entries.</p>
+            <p>{t("noTimeEntries")}</p>
           ) : (
             entries.docs
               .sort((a, b) =>
@@ -71,21 +70,21 @@ export default async function ReviewPage({
           )}
         </section>
         <aside className="card">
-          <h2>Summary</h2>
+          <h2>{t("summary")}</h2>
           <p>
-            Expected{" "}
+            {t("expected")}{" "}
             <strong style={{ float: "right" }}>
               {formatDuration(sheet.expectedMinutes)}
             </strong>
           </p>
           <p>
-            Reported{" "}
+            {t("reported")}{" "}
             <strong style={{ float: "right" }}>
               {formatDuration(sheet.reportedMinutes)}
             </strong>
           </p>
           <p>
-            Worked{" "}
+            {t("worked")}{" "}
             <strong style={{ float: "right" }}>
               {formatDuration(sheet.workedMinutes)}
             </strong>
@@ -93,7 +92,7 @@ export default async function ReviewPage({
           {sheet.status === "submitted" ? (
             <ReviewActions id={id} />
           ) : (
-            <p>This timesheet has already been reviewed.</p>
+            <p>{t("alreadyReviewed")}</p>
           )}
         </aside>
       </div>

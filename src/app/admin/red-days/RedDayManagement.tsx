@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 type RedDay = { id: string; date: string; name: string };
 
@@ -14,6 +15,7 @@ export function RedDayManagement({
   initialYear: number;
 }) {
   const router = useRouter();
+  const { t } = useLocale();
   const [year, setYear] = useState(initialYear);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -34,12 +36,11 @@ export function RedDayManagement({
         }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok)
-        return setError(result.error ?? "Could not add red day.");
+      if (!response.ok) return setError(result.error ?? t("addRedDayFailed"));
       formElement.reset();
       router.refresh();
     } catch {
-      setError("Could not reach the server.");
+      setError(t("serverUnavailable"));
     } finally {
       setBusy(false);
     }
@@ -55,7 +56,7 @@ export function RedDayManagement({
     );
     if (!response.ok) {
       const result = await response.json().catch(() => ({}));
-      setError(result.error ?? "Could not remove red day.");
+      setError(result.error ?? t("removeRedDayFailed"));
     } else router.refresh();
     setBusy(false);
   }
@@ -65,15 +66,14 @@ export function RedDayManagement({
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Admin</div>
-          <h1>Red days</h1>
+          <div className="eyebrow">{t("admin")}</div>
+          <h1>{t("redDays")}</h1>
           <p className="muted page-description">
-            Add public holidays and organization non-working dates. They reduce
-            expected time and warn employees who report hours on those dates.
+            {t("redDaysPageDescription")}
           </p>
         </div>
         <label>
-          Year
+          {t("year")}
           <input
             className="field"
             type="number"
@@ -85,7 +85,7 @@ export function RedDayManagement({
       <section className="card">
         <form className="form-grid" onSubmit={add}>
           <label>
-            Date
+            {t("date")}
             <input
               className="field"
               type="date"
@@ -96,17 +96,17 @@ export function RedDayManagement({
             />
           </label>
           <label>
-            Description
+            {t("description")}
             <input
               className="field"
               name="name"
-              placeholder="e.g. Midsummer Day"
+              placeholder={t("redDayExample")}
               required
             />
           </label>
           <div className="form-wide actions">
             <button className="button" disabled={busy}>
-              Add red day
+              {t("addRedDay")}
             </button>
           </div>
         </form>
@@ -117,8 +117,8 @@ export function RedDayManagement({
           <table>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Description</th>
+                <th>{t("date")}</th>
+                <th>{t("description")}</th>
                 <th>
                   <span className="sr-only">Actions</span>
                 </th>
@@ -135,7 +135,7 @@ export function RedDayManagement({
                       disabled={busy}
                       onClick={() => remove(day.id)}
                     >
-                      Remove
+                      {t("remove")}
                     </button>
                   </td>
                 </tr>
@@ -143,7 +143,9 @@ export function RedDayManagement({
             </tbody>
           </table>
         ) : (
-          <p>No red days configured for {year}.</p>
+          <p>
+            {t("noRedDays")} {year}.
+          </p>
         )}
       </section>
     </>

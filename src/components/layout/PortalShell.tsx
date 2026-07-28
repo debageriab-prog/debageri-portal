@@ -14,7 +14,7 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
   const reporting: NavItem[] = user.reportsTime
     ? [
         {
-          label: "Current timesheet",
+          label: t("currentTimesheet"),
           href: "/employee/timesheets/current",
         },
         { label: t("history"), href: "/employee/timesheets" },
@@ -23,47 +23,49 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
   if (user.role === "admin")
     return [
       {
-        label: "Time report",
+        label: t("timeReport"),
         items: [
-          { label: "Approvals", href: "/manager/approvals" },
-          { label: "Time reports", href: "/time-reports" },
+          { label: t("approvals"), href: "/manager/approvals" },
+          { label: t("timeReports"), href: "/time-reports" },
         ],
       },
       {
-        label: "Time management",
+        label: t("timeManagement"),
         items: [
-          { label: "Time codes", href: "/admin/time-codes" },
-          { label: "Red days", href: "/admin/red-days" },
+          { label: t("timeCodes"), href: "/admin/time-codes" },
+          { label: t("redDays"), href: "/admin/red-days" },
         ],
       },
       {
-        label: "Administration",
+        label: t("admin"),
         items: [
-          { label: "Employees", href: "/admin/users" },
-          { label: "Organization", href: "/admin/settings" },
-          { label: "Audit history", href: "/admin/audit" },
+          { label: t("employees"), href: "/admin/users" },
+          { label: t("organization"), href: "/admin/settings" },
+          { label: t("auditHistory"), href: "/admin/audit" },
         ],
       },
     ] satisfies NavGroup[];
   if (user.role === "accountant")
     return [
       {
-        label: "Time reports",
-        items: [{ label: "Time reports", href: "/time-reports" }],
+        label: t("timeReports"),
+        items: [{ label: t("timeReports"), href: "/time-reports" }],
       },
     ] satisfies NavGroup[];
   if (user.role === "manager")
     return [
-      ...(reporting.length ? [{ label: "Time report", items: reporting }] : []),
+      ...(reporting.length
+        ? [{ label: t("timeReport"), items: reporting }]
+        : []),
       {
-        label: "Timereports",
+        label: t("timeReports"),
         items: [
-          { label: "Approvals", href: "/manager/approvals" },
-          { label: "Time reports", href: "/time-reports" },
+          { label: t("approvals"), href: "/manager/approvals" },
+          { label: t("timeReports"), href: "/time-reports" },
         ],
       },
     ] satisfies NavGroup[];
-  return [{ label: "Time report", items: reporting }] satisfies NavGroup[];
+  return [{ label: t("timeReport"), items: reporting }] satisfies NavGroup[];
 }
 
 export function PortalShell({

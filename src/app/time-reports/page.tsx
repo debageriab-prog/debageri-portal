@@ -4,6 +4,7 @@ import { verifySession } from "@/server/auth/session";
 import { HistoryView } from "@/app/employee/timesheets/HistoryView";
 import { ConsultantDashboard } from "./ConsultantDashboard";
 import { ConsultantSelect } from "./ConsultantSelect";
+import { getTranslator } from "@/lib/localization/server";
 
 function visibleUser(actorRole: string, user: FirebaseFirestore.DocumentData) {
   const role = String(user.role);
@@ -19,6 +20,7 @@ export default async function TimeReportsPage({
   searchParams: Promise<{ userId?: string }>;
 }) {
   const actor = (await verifySession())!;
+  const t = await getTranslator();
   const { userId } = await searchParams;
   const { db } = getAdminServices();
   const [usersSnapshot, timeCodeSnapshot] = await Promise.all([
@@ -186,11 +188,10 @@ export default async function TimeReportsPage({
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Time reports</div>
-          <h1>Employee time reports</h1>
+          <div className="eyebrow">{t("timeReports")}</div>
+          <h1>{t("employeeTimeReports")}</h1>
           <p className="muted page-description">
-            Select a consultant to explore their latest, monthly, or weekly
-            reports. This reporting view is read-only.
+            {t("timeReportsDescription")}
           </p>
         </div>
       </div>
@@ -201,8 +202,8 @@ export default async function TimeReportsPage({
             selectedUserId={selected?.id}
             label={
               actor.role === "admin"
-                ? "Consultant or reporting manager"
-                : "Consultant"
+                ? t("consultantOrManager")
+                : t("consultant")
             }
           />
         </div>
@@ -234,7 +235,7 @@ export default async function TimeReportsPage({
           showEstimatedIncome={selected.role !== "employee"}
           hourlyRate={selected.hourlyRate}
           title={String(selected.displayName)}
-          description="View reported hours by week or month. Open a report to inspect its daily entries."
+          description={t("selectedReportDescription")}
         />
       )}
     </>

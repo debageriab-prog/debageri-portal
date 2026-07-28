@@ -570,6 +570,21 @@ th {
     radial-gradient(circle at bottom left, #eee2d8, transparent 42%),
     var(--background);
 }
+
+.login-language-switch {
+  position: fixed;
+  z-index: 2;
+  top: 20px;
+  right: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 9px 16px;
+}
 .login-card {
   width: min(460px, 100%);
   padding: clamp(28px, 4vw, 44px);
