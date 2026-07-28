@@ -215,7 +215,7 @@ export default async function TimeReportsPage({
           currentYear={current.isoYear}
           currentWeek={current.isoWeek}
           currentMonth={today.slice(0, 7)}
-          showEstimatedIncome={["admin", "manager"].includes(actor.role)}
+          showEstimatedIncome
         />
       )}
       {selected && (
@@ -231,10 +231,7 @@ export default async function TimeReportsPage({
           readOnly
           initialMode="month"
           avatarUserId={selected.id}
-          showEstimatedIncome={
-            ["admin", "manager"].includes(actor.role) &&
-            selected.role !== "employee"
-          }
+          showEstimatedIncome={selected.role !== "employee"}
           hourlyRate={selected.hourlyRate}
           title={String(selected.displayName)}
           description="View reported hours by week or month. Open a report to inspect its daily entries."
