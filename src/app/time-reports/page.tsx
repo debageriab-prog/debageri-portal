@@ -2,6 +2,8 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { getIsoWeek } from "@/lib/dates/iso-week";
 import { verifySession } from "@/server/auth/session";
 import { HistoryView } from "@/app/employee/timesheets/HistoryView";
+import { ConsultantDashboard } from "./ConsultantDashboard";
+import { ConsultantSelect } from "./ConsultantSelect";
 
 function visibleUser(actorRole: string, user: FirebaseFirestore.DocumentData) {
   const role = String(user.role);
@@ -19,10 +21,27 @@ export default async function TimeReportsPage({
   const actor = (await verifySession())!;
   const { userId } = await searchParams;
   const { db } = getAdminServices();
-  const usersSnapshot = await db
-    .collection("users")
-    .where("organizationId", "==", actor.organizationId)
-    .get();
+  const [usersSnapshot, timeCodeSnapshot] = await Promise.all([
+    db
+      .collection("users")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+    db
+      .collection("timeCodes")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+  ]);
+  const workedCodes = timeCodeSnapshot.docs
+    .map((doc) => doc.data())
+    .filter(
+      (code) => code.active !== false && code.countsAsWorkedTime === true,
+    );
+  const hourlyRateFor = (userId: string) =>
+    Number(
+      workedCodes.find((code) => code.assignedUserId === userId)?.hourlyRate ??
+        workedCodes.find((code) => !code.assignedUserId)?.hourlyRate ??
+        0,
+    );
   const users = usersSnapshot.docs
     .map((doc) => {
       const data = doc.data();
@@ -39,6 +58,7 @@ export default async function TimeReportsPage({
         employmentEndDate: data.employmentEndDate
           ? String(data.employmentEndDate)
           : null,
+        hourlyRate: hourlyRateFor(doc.id),
       };
     })
     .filter((user) => visibleUser(actor.role, user))
@@ -60,11 +80,13 @@ export default async function TimeReportsPage({
     status: string;
   }> = [];
   let entries: Array<{
+    userId: string;
     timesheetId: string;
     date: string;
     minutes: number;
     name: string;
     countsAsWorkedTime: boolean;
+    hourlyRate: number;
   }> = [];
   let holidayDates: string[] = [];
 
@@ -84,6 +106,7 @@ export default async function TimeReportsPage({
       const minutes = Number(data.minutes ?? 0);
       totals.set(timesheetId, (totals.get(timesheetId) ?? 0) + minutes);
       return {
+        userId: selected.id,
         timesheetId,
         date: String(data.date),
         minutes,
@@ -93,6 +116,9 @@ export default async function TimeReportsPage({
             data.timeCodeId,
         ),
         countsAsWorkedTime: Boolean(data.timeCodeSnapshot?.countsAsWorkedTime),
+        hourlyRate: Number(
+          data.timeCodeSnapshot?.hourlyRate ?? hourlyRateFor(selected.id),
+        ),
       };
     });
     sheets = sheetSnapshot.docs
@@ -116,6 +142,42 @@ export default async function TimeReportsPage({
           b.isoYear - a.isoYear || b.isoWeek - a.isoWeek || b.part - a.part,
       );
     holidayDates = holidaySnapshot.docs.map((doc) => String(doc.data().date));
+  } else {
+    const [entrySnapshot, holidaySnapshot] = await Promise.all([
+      db
+        .collection("timeEntries")
+        .where("organizationId", "==", actor.organizationId)
+        .get(),
+      db
+        .collection("holidays")
+        .where("organizationId", "==", actor.organizationId)
+        .get(),
+    ]);
+    const visibleIds = new Set(users.map((user) => user.id));
+    entries = entrySnapshot.docs
+      .map((doc) => {
+        const data = doc.data();
+        return {
+          userId: String(data.userId),
+          timesheetId: String(data.timesheetId),
+          date: String(data.date),
+          minutes: Number(data.minutes ?? 0),
+          name: String(
+            data.timeCodeSnapshot?.name ??
+              data.timeCodeSnapshot?.code ??
+              data.timeCodeId,
+          ),
+          countsAsWorkedTime: Boolean(
+            data.timeCodeSnapshot?.countsAsWorkedTime,
+          ),
+          hourlyRate: Number(
+            data.timeCodeSnapshot?.hourlyRate ??
+              hourlyRateFor(String(data.userId)),
+          ),
+        };
+      })
+      .filter((entry) => visibleIds.has(entry.userId));
+    holidayDates = holidaySnapshot.docs.map((doc) => String(doc.data().date));
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -133,25 +195,29 @@ export default async function TimeReportsPage({
         </div>
       </div>
       <section className="card">
-        <form className="report-user-filter">
-          <label>
-            {actor.role === "admin"
-              ? "Consultant or reporting manager"
-              : "Consultant"}
-            <select className="field" name="userId" defaultValue={userId ?? ""}>
-              <option value="" disabled>
-                Select a consultant
-              </option>
-              {users.map((user) => (
-                <option value={user.id} key={user.id}>
-                  {String(user.displayName)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="button">Show time reports</button>
-        </form>
+        <div className="report-user-filter">
+          <ConsultantSelect
+            users={users}
+            selectedUserId={selected?.id}
+            label={
+              actor.role === "admin"
+                ? "Consultant or reporting manager"
+                : "Consultant"
+            }
+          />
+        </div>
       </section>
+      {!selected && (
+        <ConsultantDashboard
+          consultants={users}
+          entries={entries}
+          holidayDates={holidayDates}
+          currentYear={current.isoYear}
+          currentWeek={current.isoWeek}
+          currentMonth={today.slice(0, 7)}
+          showEstimatedIncome
+        />
+      )}
       {selected && (
         <HistoryView
           sheets={sheets}
@@ -164,6 +230,9 @@ export default async function TimeReportsPage({
           holidayDates={holidayDates}
           readOnly
           initialMode="month"
+          avatarUserId={selected.id}
+          showEstimatedIncome={selected.role !== "employee"}
+          hourlyRate={selected.hourlyRate}
           title={String(selected.displayName)}
           description="View reported hours by week or month. Open a report to inspect its daily entries."
         />

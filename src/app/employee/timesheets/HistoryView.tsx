@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
 import { appCheckFetch } from "@/lib/firebase/client";
+import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
 
 type HistorySheet = {
   id: string;
@@ -24,6 +25,7 @@ type HistoryEntry = {
   minutes: number;
   name: string;
   countsAsWorkedTime: boolean;
+  hourlyRate?: number;
 };
 
 function periodTotals(
@@ -61,6 +63,7 @@ function periodTotals(
     worked,
     unreported: Math.max(0, expected - reported),
     byCode,
+    expected,
     total: Math.max(expected, reported, 1),
   };
 }
@@ -78,6 +81,9 @@ export function HistoryView({
   title = "History",
   description = "Review weekly reports or explore a monthly breakdown of work, missing time and other time codes.",
   initialMode = "latest",
+  avatarUserId,
+  showEstimatedIncome = false,
+  hourlyRate = 0,
 }: {
   sheets: HistorySheet[];
   entries: HistoryEntry[];
@@ -91,6 +97,9 @@ export function HistoryView({
   title?: string;
   description?: string;
   initialMode?: "latest" | "year" | "month" | "week";
+  avatarUserId?: string;
+  showEstimatedIncome?: boolean;
+  hourlyRate?: number;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"latest" | "year" | "month" | "week">(
@@ -176,6 +185,10 @@ export function HistoryView({
               );
               return totals;
             }, new Map<string, number>()),
+          expected: weeklySheets.reduce(
+            (sum, sheet) => sum + sheet.expectedMinutes,
+            0,
+          ),
           total: Math.max(
             weeklySheets.reduce((sum, sheet) => sum + sheet.expectedMinutes, 0),
             weeklyEntries.reduce((sum, entry) => sum + entry.minutes, 0),
@@ -188,16 +201,16 @@ export function HistoryView({
 
   const segments = [
     { label: "Worked", value: chartTotals.worked, color: "#35634a" },
-    {
-      label: "Not reported",
-      value: chartTotals.unreported,
-      color: "#ddd3ca",
-    },
     ...[...chartTotals.byCode].map(([label, value], index) => ({
       label,
       value,
       color: ["#a56f4e", "#b88b5d", "#8a7186", "#668a91"][index % 4]!,
     })),
+    {
+      label: "Not reported",
+      value: chartTotals.unreported,
+      color: "#ddd3ca",
+    },
   ].filter((segment) => segment.value > 0);
   let cursor = 0;
   const gradient = segments
@@ -222,6 +235,8 @@ export function HistoryView({
     const days = minutes / 480;
     return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? "day" : "days"}`;
   };
+  const formatIncome = (amount: number) =>
+    `${new Intl.NumberFormat("en-SE", { maximumFractionDigits: 0 }).format(amount)} SEK`;
 
   function summaryChart(unit: "hours" | "days") {
     return (
@@ -251,6 +266,49 @@ export function HistoryView({
                   ? formatDuration(segment.value)
                   : formatDays(segment.value)}
               </strong>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function incomeChart() {
+    const workedIncome = selectedEntries
+      .filter((entry) => entry.countsAsWorkedTime)
+      .reduce(
+        (sum, entry) =>
+          sum + (entry.minutes / 60) * (entry.hourlyRate ?? hourlyRate),
+        0,
+      );
+    const possibleIncome = (chartTotals.expected / 60) * hourlyRate;
+    const notReached = Math.max(0, possibleIncome - workedIncome);
+    const totalIncome = Math.max(workedIncome + notReached, 1);
+    const reachedDegrees = (workedIncome / totalIncome) * 360;
+    const incomeSegments = [
+      { label: "Estimated income", value: workedIncome, color: "#3b6f9c" },
+      { label: "Not reached", value: notReached, color: "#f3dadd" },
+    ];
+
+    return (
+      <div className="summary-chart">
+        <div
+          className="donut"
+          style={{
+            background: `conic-gradient(#3b6f9c 0deg ${reachedDegrees}deg, #f3dadd ${reachedDegrees}deg 360deg)`,
+          }}
+        >
+          <div>
+            <strong>{formatIncome(workedIncome)}</strong>
+            <span>estimated income</span>
+          </div>
+        </div>
+        <div className="chart-legend">
+          {incomeSegments.map((segment) => (
+            <div key={segment.label}>
+              <i style={{ background: segment.color }} />
+              <span>{segment.label}</span>
+              <strong>{formatIncome(segment.value)}</strong>
             </div>
           ))}
         </div>
@@ -378,10 +436,15 @@ export function HistoryView({
   return (
     <>
       <div className="topbar">
-        <div>
-          <div className="eyebrow">Time reporting</div>
-          <h1>{title}</h1>
-          <p className="muted page-description">{description}</p>
+        <div className={avatarUserId ? "report-title-with-avatar" : undefined}>
+          {avatarUserId && (
+            <ConsultantAvatar userId={avatarUserId} displayName={title} />
+          )}
+          <div>
+            <div className="eyebrow">Time reporting</div>
+            <h1>{title}</h1>
+            <p className="muted page-description">{description}</p>
+          </div>
         </div>
       </div>
       <section className="card history-controls">
@@ -458,10 +521,11 @@ export function HistoryView({
       </section>
       {mode !== "latest" && (
         <section
-          className={`card month-summary${mode === "year" ? " year-summary" : ""}`}
+          className={`card month-summary year-summary${showEstimatedIncome ? " income-summary" : ""}`}
         >
           {summaryChart("hours")}
-          {mode === "year" && summaryChart("days")}
+          {summaryChart("days")}
+          {showEstimatedIncome && incomeChart()}
         </section>
       )}
       <section className="card table-wrap">
