@@ -1,3 +1,7 @@
+"use client";
+
+import { useLocale } from "@/components/localization/LocaleProvider";
+
 export function BrandLogo({
   compact = false,
   inverse = false,
@@ -5,6 +9,7 @@ export function BrandLogo({
   compact?: boolean;
   inverse?: boolean;
 }) {
+  const { t } = useLocale();
   return (
     <span
       className={`brand-logo ${compact ? "brand-logo-compact" : ""} ${inverse ? "brand-logo-inverse" : ""}`}
@@ -15,7 +20,7 @@ export function BrandLogo({
         src="https://raw.githubusercontent.com/debageriab-prog/debageri-web/main/public/debageri.svg"
         alt="Debageri"
       />
-      {!compact && <span>Employee portal</span>}
+      {!compact && <span>{t("employeePortal")}</span>}
     </span>
   );
 }

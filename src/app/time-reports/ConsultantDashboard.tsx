@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { formatDuration } from "@/lib/durations/duration";
 import { getIsoWeekDates } from "@/lib/dates/iso-week";
 import { ConsultantAvatar } from "./ConsultantAvatar";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 type Consultant = {
   id: string;
@@ -42,6 +43,7 @@ export function ConsultantDashboard({
   currentMonth: string;
   showEstimatedIncome: boolean;
 }) {
+  const { t } = useLocale();
   const [mode, setMode] = useState<"year" | "month" | "week">("month");
   const [year, setYear] = useState(currentYear);
   const [week, setWeek] = useState(currentWeek);
@@ -97,14 +99,14 @@ export function ConsultantDashboard({
     const reported = selected.reduce((sum, entry) => sum + entry.minutes, 0);
     const expected = expectedMinutes(consultant);
     const segments = [
-      { label: "Worked", value: worked, color: colors[0]! },
+      { label: t("worked"), value: worked, color: colors[0]! },
       ...[...byCode].map(([label, value], index) => ({
         label,
         value,
         color: colors[(index % (colors.length - 1)) + 1]!,
       })),
       {
-        label: "Not reported",
+        label: t("notReported"),
         value: Math.max(0, expected - reported),
         color: "#ddd3ca",
       },
@@ -218,7 +220,7 @@ export function ConsultantDashboard({
         </div>
         {mode === "month" ? (
           <label>
-            Month
+            {t("month")}
             <input
               className="field"
               type="month"
@@ -229,7 +231,7 @@ export function ConsultantDashboard({
         ) : (
           <div className="actions">
             <label>
-              Year
+              {t("year")}
               <input
                 className="field compact-field"
                 type="number"
@@ -239,7 +241,7 @@ export function ConsultantDashboard({
             </label>
             {mode === "week" && (
               <label>
-                Week
+                {t("week")}
                 <input
                   className="field compact-field"
                   type="number"

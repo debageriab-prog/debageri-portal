@@ -148,7 +148,7 @@ export function AccountMenu({ user }: { user: PortalUser }) {
         <button
           aria-expanded={open}
           aria-haspopup="menu"
-          aria-label="Open account menu"
+          aria-label={t("openAccountMenu")}
           className="account-trigger"
           onClick={() => setOpen((value) => !value)}
         >
@@ -164,10 +164,10 @@ export function AccountMenu({ user }: { user: PortalUser }) {
               </span>
             </div>
             <button role="menuitem" onClick={() => showDialog("avatar")}>
-              Update avatar
+              {t("updateAvatar")}
             </button>
             <button role="menuitem" onClick={() => showDialog("password")}>
-              Change password
+              {t("changePassword")}
             </button>
             <label className="account-language">
               <span>{t("language")}</span>
@@ -181,7 +181,7 @@ export function AccountMenu({ user }: { user: PortalUser }) {
               </select>
             </label>
             <button className="account-logout" role="menuitem" onClick={logout}>
-              Log out
+              {t("logOut")}
             </button>
           </div>
         )}

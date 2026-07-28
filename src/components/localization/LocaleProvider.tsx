@@ -1,17 +1,14 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import en from "@/locales/en.json";
-import sv from "@/locales/sv.json";
+import { useRouter } from "next/navigation";
+import { messages, type MessageKey } from "@/lib/localization/messages";
 import {
   defaultLocale,
   isLocale,
   localeCookieName,
   type Locale,
 } from "@/lib/localization/locale";
-
-const messages = { "en-SE": en, "sv-SE": sv } as const;
-type MessageKey = keyof typeof en;
 
 type LocaleContextValue = {
   locale: Locale;
@@ -28,6 +25,7 @@ export function LocaleProvider({
   children: React.ReactNode;
   initialLocale?: Locale;
 }) {
+  const router = useRouter();
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
 
   useEffect(() => {
@@ -42,10 +40,11 @@ export function LocaleProvider({
         const secure = window.location.protocol === "https:" ? "; Secure" : "";
         document.cookie = `${localeCookieName}=${nextLocale}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
         setLocaleState(nextLocale);
+        router.refresh();
       },
       t: (key) => messages[locale][key],
     }),
-    [locale],
+    [locale, router],
   );
 
   return (

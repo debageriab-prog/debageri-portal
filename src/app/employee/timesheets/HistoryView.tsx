@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
+import { useLocale } from "@/components/localization/LocaleProvider";
 
 type HistorySheet = {
   id: string;
@@ -78,8 +79,8 @@ export function HistoryView({
   employmentEndDate,
   holidayDates,
   readOnly = false,
-  title = "History",
-  description = "Review weekly reports or explore a monthly breakdown of work, missing time and other time codes.",
+  title,
+  description,
   initialMode = "latest",
   avatarUserId,
   showEstimatedIncome = false,
@@ -101,6 +102,9 @@ export function HistoryView({
   showEstimatedIncome?: boolean;
   hourlyRate?: number;
 }) {
+  const { t } = useLocale();
+  const displayTitle = title ?? t("history");
+  const displayDescription = description ?? t("historyDescription");
   const router = useRouter();
   const [mode, setMode] = useState<"latest" | "year" | "month" | "week">(
     initialMode,
@@ -200,14 +204,14 @@ export function HistoryView({
         : monthTotals;
 
   const segments = [
-    { label: "Worked", value: chartTotals.worked, color: "#35634a" },
+    { label: t("worked"), value: chartTotals.worked, color: "#35634a" },
     ...[...chartTotals.byCode].map(([label, value], index) => ({
       label,
       value,
       color: ["#a56f4e", "#b88b5d", "#8a7186", "#668a91"][index % 4]!,
     })),
     {
-      label: "Not reported",
+      label: t("notReported"),
       value: chartTotals.unreported,
       color: "#ddd3ca",
     },
@@ -356,10 +360,10 @@ export function HistoryView({
       <table>
         <thead>
           <tr>
-            <th>Week</th>
-            <th>Period</th>
-            <th>Reported</th>
-            <th>Status</th>
+            <th>{t("week")}</th>
+            <th>{t("period")}</th>
+            <th>{t("reported")}</th>
+            <th>{t("status")}</th>
             <th>
               <span className="sr-only">Actions</span>
             </th>
@@ -429,7 +433,7 @@ export function HistoryView({
         </tbody>
       </table>
     ) : (
-      <p>No timesheets for this selection.</p>
+      <p>{t("noTimesheets")}</p>
     );
   }
 
@@ -438,12 +442,15 @@ export function HistoryView({
       <div className="topbar">
         <div className={avatarUserId ? "report-title-with-avatar" : undefined}>
           {avatarUserId && (
-            <ConsultantAvatar userId={avatarUserId} displayName={title} />
+            <ConsultantAvatar
+              userId={avatarUserId}
+              displayName={displayTitle}
+            />
           )}
           <div>
-            <div className="eyebrow">Time reporting</div>
-            <h1>{title}</h1>
-            <p className="muted page-description">{description}</p>
+            <div className="eyebrow">{t("timeReporting")}</div>
+            <h1>{displayTitle}</h1>
+            <p className="muted page-description">{displayDescription}</p>
           </div>
         </div>
       </div>
@@ -453,30 +460,30 @@ export function HistoryView({
             className={mode === "latest" ? "selected" : ""}
             onClick={() => setMode("latest")}
           >
-            Latest
+            {t("latest")}
           </button>
           <button
             className={mode === "year" ? "selected" : ""}
             onClick={() => setMode("year")}
           >
-            Year
+            {t("year")}
           </button>
           <button
             className={mode === "month" ? "selected" : ""}
             onClick={() => setMode("month")}
           >
-            Month
+            {t("month")}
           </button>
           <button
             className={mode === "week" ? "selected" : ""}
             onClick={() => setMode("week")}
           >
-            Week
+            {t("week")}
           </button>
         </div>
         {mode === "year" ? (
           <label>
-            Year
+            {t("year")}
             <input
               className="field compact-field"
               type="number"
@@ -487,7 +494,7 @@ export function HistoryView({
         ) : mode === "week" ? (
           <div className="actions">
             <label>
-              Year
+              {t("year")}
               <input
                 className="field compact-field"
                 type="number"
@@ -496,7 +503,7 @@ export function HistoryView({
               />
             </label>
             <label>
-              Week
+              {t("week")}
               <input
                 className="field compact-field"
                 type="number"
@@ -509,7 +516,7 @@ export function HistoryView({
           </div>
         ) : mode === "month" ? (
           <label>
-            Month
+            {t("month")}
             <input
               className="field"
               type="month"
@@ -545,7 +552,7 @@ export function HistoryView({
               disabled={page === 1}
               onClick={() => setPage((value) => value - 1)}
             >
-              Previous
+              {t("previous")}
             </button>
             <span>
               Page {page} of {Math.ceil(sheets.length / 10)}
@@ -555,7 +562,7 @@ export function HistoryView({
               disabled={page * 10 >= sheets.length}
               onClick={() => setPage((value) => value + 1)}
             >
-              Next
+              {t("next")}
             </button>
           </div>
         )}
@@ -639,9 +646,9 @@ export function HistoryView({
               <table>
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Time code</th>
-                    <th>Time</th>
+                    <th>{t("date")}</th>
+                    <th>{t("code")}</th>
+                    <th>{t("time")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -652,7 +659,7 @@ export function HistoryView({
                       <tr key={`${entry.date}-${entry.name}-${index}`}>
                         <td>{entry.date}</td>
                         <td>
-                          {entry.countsAsWorkedTime ? "Worked" : entry.name}
+                          {entry.countsAsWorkedTime ? t("worked") : entry.name}
                         </td>
                         <td>{formatDuration(entry.minutes)}</td>
                       </tr>
@@ -665,7 +672,7 @@ export function HistoryView({
                 className="button secondary"
                 onClick={() => setViewing(null)}
               >
-                Close
+                {t("close")}
               </button>
             </footer>
           </section>
