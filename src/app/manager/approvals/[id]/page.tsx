@@ -87,7 +87,7 @@ export default async function ReviewPage({
             <div className="reported-breakdown">
               {reportedBreakdown.map((item) => (
                 <span key={item.label}>
-                  <span>{item.label}</span>
+                  <span>{item.label}</span>{" "}
                   <strong>{formatDuration(item.minutes)}</strong>
                 </span>
               ))}

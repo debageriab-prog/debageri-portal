@@ -98,7 +98,7 @@ export default async function ApprovalsPage() {
                       <div className="reported-breakdown">
                         {(reportedBreakdowns.get(doc.id) ?? []).map((item) => (
                           <span key={item.label}>
-                            <span>{item.label}</span>
+                            <span>{item.label}</span>{" "}
                             <strong>{formatDuration(item.minutes)}</strong>
                           </span>
                         ))}

@@ -550,13 +550,10 @@ th {
 .reported-breakdown {
   display: grid;
   gap: 5px;
-  min-width: 150px;
 }
 
 .reported-breakdown > span {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
+  white-space: nowrap;
 }
 
 .approval-summary-section {
