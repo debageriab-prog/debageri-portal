@@ -4,6 +4,7 @@ import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
 import { ReviewActions } from "./ReviewActions";
 import { getTranslator } from "@/lib/localization/server";
+import { aggregateReportedBreakdown } from "@/domain/reports/aggregate";
 
 export default async function ReviewPage({
   params,
@@ -29,6 +30,10 @@ export default async function ReviewPage({
       ? consultant
       : consultant || (user?.role === "manager" && user?.reportsTime === true));
   if (!allowed) redirect("/unauthorized");
+  const reportedBreakdown = aggregateReportedBreakdown(
+    entries.docs.map((entryDoc) => entryDoc.data()),
+    t("worked"),
+  );
   return (
     <>
       <div className="topbar">
@@ -77,18 +82,17 @@ export default async function ReviewPage({
               {formatDuration(sheet.expectedMinutes)}
             </strong>
           </p>
-          <p>
-            {t("reported")}{" "}
-            <strong style={{ float: "right" }}>
-              {formatDuration(sheet.reportedMinutes)}
-            </strong>
-          </p>
-          <p>
-            {t("worked")}{" "}
-            <strong style={{ float: "right" }}>
-              {formatDuration(sheet.workedMinutes)}
-            </strong>
-          </p>
+          <div className="approval-summary-section">
+            <strong>{t("reported")}</strong>
+            <div className="reported-breakdown">
+              {reportedBreakdown.map((item) => (
+                <span key={item.label}>
+                  <span>{item.label}</span>{" "}
+                  <strong>{formatDuration(item.minutes)}</strong>
+                </span>
+              ))}
+            </div>
+          </div>
           {sheet.status === "submitted" ? (
             <ReviewActions id={id} />
           ) : (

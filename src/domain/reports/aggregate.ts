@@ -35,3 +35,34 @@ export function aggregateReport(entries: TimeEntry[]): ReportSummary {
     },
   );
 }
+
+export function aggregateReportedBreakdown(
+  entries: Array<{
+    minutes?: number;
+    timeCodeId?: string;
+    timeCodeSnapshot?: {
+      code?: string;
+      name?: string;
+      countsAsWorkedTime?: boolean;
+    };
+  }>,
+  workedLabel: string,
+) {
+  const totals = new Map<string, number>();
+  for (const entry of entries) {
+    const snapshot = entry.timeCodeSnapshot;
+    const label = snapshot?.countsAsWorkedTime
+      ? workedLabel
+      : String(snapshot?.name ?? snapshot?.code ?? entry.timeCodeId);
+    totals.set(label, (totals.get(label) ?? 0) + Number(entry.minutes ?? 0));
+  }
+  return [...totals]
+    .map(([label, minutes]) => ({ label, minutes }))
+    .sort((left, right) =>
+      left.label === workedLabel
+        ? -1
+        : right.label === workedLabel
+          ? 1
+          : left.label.localeCompare(right.label),
+    );
+}
