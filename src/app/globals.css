@@ -546,6 +546,24 @@ th {
   grid-template-columns: 1.5fr 1fr;
   gap: 18px;
 }
+
+.reported-breakdown {
+  display: grid;
+  gap: 5px;
+  min-width: 150px;
+}
+
+.reported-breakdown > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.approval-summary-section {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { TimeEntry } from "@/domain/types";
-import { aggregateReport } from "@/domain/reports/aggregate";
+import {
+  aggregateReport,
+  aggregateReportedBreakdown,
+} from "@/domain/reports/aggregate";
 
 const base: TimeEntry = {
   id: "1",
@@ -44,5 +47,47 @@ describe("reports", () => {
     expect(result.reportedMinutes).toBe(480);
     expect(result.workedMinutes).toBe(360);
     expect(result.byCode).toEqual({ REG: 360, VAC: 120 });
+  });
+
+  it("groups worked time together and keeps absence codes separate", () => {
+    expect(
+      aggregateReportedBreakdown(
+        [
+          {
+            minutes: 8 * 60,
+            timeCodeSnapshot: {
+              name: "Regular",
+              countsAsWorkedTime: true,
+            },
+          },
+          {
+            minutes: 16 * 60,
+            timeCodeSnapshot: {
+              name: "Project work",
+              countsAsWorkedTime: true,
+            },
+          },
+          {
+            minutes: 8 * 60,
+            timeCodeSnapshot: {
+              name: "Vacation",
+              countsAsWorkedTime: false,
+            },
+          },
+          {
+            minutes: 8 * 60,
+            timeCodeSnapshot: {
+              name: "Parental leave",
+              countsAsWorkedTime: false,
+            },
+          },
+        ],
+        "Worked",
+      ),
+    ).toEqual([
+      { label: "Worked", minutes: 24 * 60 },
+      { label: "Parental leave", minutes: 8 * 60 },
+      { label: "Vacation", minutes: 8 * 60 },
+    ]);
   });
 });

@@ -3,6 +3,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
 import { getTranslator } from "@/lib/localization/server";
+import { aggregateReportedBreakdown } from "@/domain/reports/aggregate";
 
 export default async function ApprovalsPage() {
   const actor = (await verifySession())!;
@@ -31,6 +32,25 @@ export default async function ApprovalsPage() {
       ? consultant
       : consultant || (user.role === "manager" && user.reportsTime === true);
   });
+  const reportedBreakdowns = new Map<
+    string,
+    Array<{ label: string; minutes: number }>
+  >();
+  await Promise.all(
+    visibleSheets.map(async (sheetDoc) => {
+      const entrySnapshot = await db
+        .collection("timeEntries")
+        .where("timesheetId", "==", sheetDoc.id)
+        .get();
+      reportedBreakdowns.set(
+        sheetDoc.id,
+        aggregateReportedBreakdown(
+          entrySnapshot.docs.map((entryDoc) => entryDoc.data()),
+          t("worked"),
+        ),
+      );
+    }),
+  );
   return (
     <>
       <div className="topbar">
@@ -74,7 +94,16 @@ export default async function ApprovalsPage() {
                       {sheet.periodStart} to {sheet.periodEnd}
                     </td>
                     <td>{formatDuration(sheet.expectedMinutes)}</td>
-                    <td>{formatDuration(sheet.reportedMinutes)}</td>
+                    <td>
+                      <div className="reported-breakdown">
+                        {(reportedBreakdowns.get(doc.id) ?? []).map((item) => (
+                          <span key={item.label}>
+                            <span>{item.label}</span>
+                            <strong>{formatDuration(item.minutes)}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td>
                       <Link
                         className="button secondary"
