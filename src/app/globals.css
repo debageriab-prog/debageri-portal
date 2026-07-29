@@ -561,6 +561,20 @@ th {
   gap: 8px;
   margin-top: 16px;
 }
+
+.reminder-selection {
+  max-width: 520px;
+  margin-bottom: 20px;
+}
+
+.reminder-settings-form {
+  max-width: 900px;
+}
+
+.reminder-template {
+  min-height: 260px;
+  resize: vertical;
+}
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
