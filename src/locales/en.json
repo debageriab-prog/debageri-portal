@@ -292,6 +292,7 @@
   "reminderSendFailed": "The reminder could not be sent.",
   "reminderSettingsMissing": "Reminder email settings have not been configured.",
   "reminderAlreadySent": "A reminder has already been sent to this employee today.",
+  "reminderSentSuccessfully": "Reminder email sent successfully.",
   "reminderSettingsDescription": "Configure the sender, SMTP connection, and reusable reminder template.",
   "smtpHost": "SMTP host",
   "smtpPort": "SMTP port",

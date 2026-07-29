@@ -292,6 +292,7 @@
   "reminderSendFailed": "Påminnelsen kunde inte skickas.",
   "reminderSettingsMissing": "Inställningarna för e-postpåminnelser är inte konfigurerade.",
   "reminderAlreadySent": "En påminnelse har redan skickats till medarbetaren idag.",
+  "reminderSentSuccessfully": "Påminnelsen har skickats via e-post.",
   "reminderSettingsDescription": "Konfigurera avsändaren, SMTP-anslutningen och den återanvändbara påminnelsemallen.",
   "smtpHost": "SMTP-värd",
   "smtpPort": "SMTP-port",
