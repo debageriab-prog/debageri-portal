@@ -1080,9 +1080,10 @@ th {
 
 .summary-chart {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 1fr;
+  justify-items: center;
   align-items: center;
-  gap: 35px;
+  gap: 20px;
 }
 
 .year-summary {
@@ -1136,15 +1137,23 @@ th {
 
 .chart-legend {
   display: grid;
+  width: max-content;
+  max-width: 100%;
   gap: 10px;
 }
 
 .chart-legend > div {
   display: grid;
-  grid-template-columns: 12px max-content max-content;
+  grid-template-columns: 12px minmax(0, 1fr);
+  justify-self: center;
   justify-content: start;
   align-items: center;
-  column-gap: 12px;
+  column-gap: 8px;
+}
+
+.chart-legend span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .chart-legend i {
@@ -1215,9 +1224,10 @@ th {
 
 .consultant-summary-chart {
   display: grid;
-  grid-template-columns: 170px 1fr;
+  grid-template-columns: 1fr;
+  justify-items: center;
   align-items: center;
-  gap: 24px;
+  gap: 18px;
 }
 
 .consultant-donut {
@@ -1579,6 +1589,7 @@ th {
     width: 100%;
   }
   .consultant-chart-grid,
+  .consultant-chart-grid.income-chart-grid,
   .consultant-summary-chart {
     grid-template-columns: 1fr;
     justify-items: center;

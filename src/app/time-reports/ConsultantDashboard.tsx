@@ -162,12 +162,14 @@ export function ConsultantDashboard({
           {segments.map((segment) => (
             <div key={segment.label}>
               <i style={{ background: segment.color }} />
-              <span>{segment.label}</span>
-              <strong>
-                {unit === "hours"
-                  ? formatDuration(segment.value)
-                  : formatDays(segment.value)}
-              </strong>
+              <span>
+                {segment.label}{" "}
+                <strong>
+                  {unit === "hours"
+                    ? formatDuration(segment.value)
+                    : formatDays(segment.value)}
+                </strong>
+              </span>
             </div>
           ))}
         </div>
@@ -193,13 +195,16 @@ export function ConsultantDashboard({
         <div className="chart-legend">
           <div>
             <i style={{ background: "#3b6f9c" }} />
-            <span>{t("estimatedIncome")}</span>
-            <strong>{formatIncome(workedIncome)}</strong>
+            <span>
+              {t("estimatedIncome")}{" "}
+              <strong>{formatIncome(workedIncome)}</strong>
+            </span>
           </div>
           <div>
             <i style={{ background: "#f3dadd" }} />
-            <span>{t("notReached")}</span>
-            <strong>{formatIncome(notReached)}</strong>
+            <span>
+              {t("notReached")} <strong>{formatIncome(notReached)}</strong>
+            </span>
           </div>
         </div>
       </div>,
