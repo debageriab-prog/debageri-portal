@@ -6,9 +6,9 @@ checkbox challenge. The browser obtains an App Check token and sends it with
 portal API requests. Production API routes verify that token with Firebase
 Admin before running application code.
 
-Local emulator development does not require reCAPTCHA. App Check verification
-is enabled only when `PORTAL_ENVIRONMENT=production` and the site key is
-configured. This allows a staged rollout without locking users out.
+Local emulator development does not require reCAPTCHA. Server-side App Check
+verification remains production-only. Development registers its own App Check
+application and reCAPTCHA key in monitoring mode.
 
 ## 1. Create the reCAPTCHA v3 key pair
 
@@ -65,11 +65,13 @@ gcloud run services describe debageri-portal \
   --format="value(status.url)"
 ```
 
-Enter hostnames only, without `https://`, paths, or trailing slashes. If a
-branch preview uses a different tagged hostname, add that exact hostname before
-testing the preview. After changing allowed domains, use a private browser
-window or clear site data if the SDK is temporarily backing off after earlier
-failed token exchanges.
+Enter hostnames only, without `https://`, paths, or trailing slashes. After
+changing allowed domains, use a private browser window or clear site data if
+the SDK is temporarily backing off after earlier failed token exchanges.
+
+Development branches use one stable `debageri-portal-dev` Cloud Run service
+hostname, so its hostname is added once to the development reCAPTCHA key and
+Firebase Authentication authorized domains.
 
 ## 4. Add the GitHub Actions secret
 

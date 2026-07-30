@@ -1,6 +1,13 @@
-# Firebase production setup
+# Firebase environment setup
 
-The portal has no separate cloud development environment. Local development uses Firebase emulators with project ID `debageri-portal-local`; the only real Firebase/GCP project is `debageri-portal`.
+The portal uses three isolated targets:
+
+- local development: Firebase emulators with project ID
+  `debageri-portal-local`;
+- feature-branch previews: Firebase/GCP project `debageri-portal-dev`;
+- production: Firebase/GCP project `debageri-portal`.
+
+Branch previews must never target the production Firebase project.
 
 ## 1. Create the project
 

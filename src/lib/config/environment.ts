@@ -3,7 +3,7 @@ import { z } from "zod";
 const forbiddenProjectPattern = /^debageri-web(?:-|$)/i;
 
 export interface PortalEnvironment {
-  environment: "local" | "production" | "test";
+  environment: "local" | "development" | "production" | "test";
   expectedProjectId: string;
   publicProjectId: string;
   adminProjectId: string;
@@ -14,7 +14,9 @@ export function validatePortalEnvironment(
   source: Record<string, string | undefined> = process.env,
 ): PortalEnvironment {
   const schema = z.object({
-    PORTAL_ENVIRONMENT: z.enum(["local", "production", "test"]).default("test"),
+    PORTAL_ENVIRONMENT: z
+      .enum(["local", "development", "production", "test"])
+      .default("test"),
     PORTAL_EXPECTED_PROJECT_ID: z
       .string()
       .min(1)
@@ -49,10 +51,22 @@ export function validatePortalEnvironment(
     throw new Error("Production must target a portal production project");
   }
   if (
-    parsed.PORTAL_ENVIRONMENT === "production" &&
+    parsed.PORTAL_ENVIRONMENT === "development" &&
+    ids[0] !== "debageri-portal-dev"
+  ) {
+    throw new Error("Development must target the portal development project");
+  }
+  if (
+    parsed.PORTAL_ENVIRONMENT === "test" &&
+    ids[0] !== "debageri-portal-local"
+  ) {
+    throw new Error("Tests must target the isolated local project");
+  }
+  if (
+    ["development", "production"].includes(parsed.PORTAL_ENVIRONMENT) &&
     parsed.NEXT_PUBLIC_USE_FIREBASE_EMULATORS !== "false"
   ) {
-    throw new Error("Production cannot use Firebase emulators");
+    throw new Error("Cloud environments cannot use Firebase emulators");
   }
   if (
     parsed.PORTAL_ENVIRONMENT === "local" &&

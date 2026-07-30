@@ -1,8 +1,13 @@
 # Cloud Run deployment
 
-The portal follows the same delivery shape as `debageri-web`: CI runs for branches and pull requests, every non-main branch receives a tagged zero-traffic preview revision, and every push to `main` automatically deploys production. The portal adds data-isolation controls because employee data is more sensitive than public website content.
+CI runs for branches and pull requests. Every non-main branch replaces the
+stable development service connected only to the development Firebase project,
+and every push to `main` automatically deploys production.
 
-The only cloud project is `debageri-portal`. Images live in its `debageri-portal` Artifact Registry repository and the Cloud Run service is named `debageri-portal`.
+Production uses project and service `debageri-portal`. Branches use project and
+service `debageri-portal-dev`. Each project has its own Firebase Web App,
+Firestore database, Authentication users, Storage bucket, runtime identity, and
+Artifact Registry images.
 
 ## GitHub repository secrets
 
@@ -24,6 +29,21 @@ Configure these under repository **Settings → Secrets and variables → Action
 | `NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY` | App Check web provider site key                                                                              |
 | `NEXT_PUBLIC_PORTAL_URL`                            | Production portal URL, normally `https://portal.debageri.se`                                                 |
 | `REMINDER_CREDENTIAL_ENCRYPTION_KEY`                | Long random hex secret used to encrypt stored reminder SMTP passwords                                        |
+
+Development previews also require:
+
+| Name                               | Value                                                                             |
+| ---------------------------------- | --------------------------------------------------------------------------------- |
+| `DEV_GCP_PROJECT_ID`               | `debageri-portal-dev`                                                             |
+| `DEV_GCP_REGION`                   | `europe-west1`                                                                    |
+| `DEV_GCP_RUNTIME_SERVICE_ACCOUNT`  | `portal-dev-runtime@debageri-portal-dev.iam.gserviceaccount.com`                  |
+| `DEV_FIREBASE_API_KEY`             | Development Firebase Web App API key                                              |
+| `DEV_FIREBASE_AUTH_DOMAIN`         | Development Firebase Web App auth domain                                          |
+| `DEV_FIREBASE_STORAGE_BUCKET`      | Development Firebase Web App Storage bucket                                       |
+| `DEV_FIREBASE_APP_ID`              | Development Firebase Web App ID                                                   |
+| `DEV_FIREBASE_MESSAGING_SENDER_ID` | Development Firebase Web App sender ID                                            |
+| `DEV_FIREBASE_APP_CHECK_SITE_KEY`  | Development App Check reCAPTCHA v3 public site key                                |
+| `DEV_REMINDER_ENCRYPTION_KEY`      | Development-only random encryption key; never reuse the production encryption key |
 
 Firebase web values are public application configuration, but GitHub secrets keep build configuration consistent and avoid accidental logging. Do not add a Firebase Admin JSON key.
 
@@ -99,23 +119,26 @@ New environments receive the same role automatically from
 
 ## Branch previews
 
-Every non-main branch triggers `.github/workflows/preview.yml`. It validates the full project, builds an immutable branch-tagged image, and deploys a tagged Cloud Run revision with zero production traffic.
+Every non-main branch triggers `.github/workflows/preview.yml`. The workflow:
 
-Cloud Run cannot create a new service with `--no-traffic`. Before the first production deployment, the preview workflow therefore completes validation and authentication but skips image creation and deployment with an explanation in the job summary. Merging to `main` creates the service; subsequent branches deploy zero-traffic preview revisions normally.
+1. runs the complete CI suite against local test infrastructure;
+2. refuses any cloud target except `debageri-portal-dev`;
+3. deploys rules and indexes only to development;
+4. builds an immutable development image;
+5. deploys it to the stable `debageri-portal-dev` Cloud Run service.
 
-Portal previews use:
+All branches share the same stable URL and development database. The most
+recent successful branch deployment replaces the previous development
+revision. This avoids per-branch Authentication and reCAPTCHA domain changes.
 
-- the production Firebase browser configuration;
-- `portal-runtime`, with production Firestore, Authentication, and private
-  avatar Storage permissions;
-- `PORTAL_ENVIRONMENT=production`;
-- no production Firebase rules deployment.
+Add the stable Cloud Run hostname once to development Firebase Authentication
+authorized domains and to the development reCAPTCHA v3 key. Development uses
+test accounts and sanitized data only.
 
-The preview supports complete login and production-backed workflow testing
-before merge. Because unreviewed branch code can read and mutate employee
-production data, repository write access, workflow changes, preview URLs, and
-GitHub secrets must be strictly controlled. Use dedicated test accounts and
-avoid destructive production changes.
+The existing GitHub Workload Identity provider and deployer identity may be
+reused, but that deployer receives deployment roles in the development project
+and permission to act as `portal-dev-runtime`. The development runtime identity
+has no roles in production.
 
 ## Main deployment
 
@@ -143,4 +166,7 @@ troubleshooting steps.
 
 ## Rollback
 
-Route traffic to a known-good immutable Cloud Run revision, then investigate before redeploying. Rules/index changes require a reviewed rollback commit; do not weaken rules directly in the console.
+For production, route traffic to a known-good immutable Cloud Run revision,
+then investigate before redeploying. Rules/index changes require a reviewed
+rollback commit; do not weaken rules directly in the console. Development is
+disposable and can be redeployed from `main` or reset from sanitized fixtures.
