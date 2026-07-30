@@ -70,6 +70,9 @@ jobs:
           echo "Authenticated deployer: $(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
           echo "Development target: ${PROJECT_ID}"
 
+      - name: One-time copy of production holidays to development
+        run: npx tsx scripts/one-time-copy-holidays.ts
+
       - name: Deploy development Firebase configuration
         run: |
           npx firebase-tools deploy \
