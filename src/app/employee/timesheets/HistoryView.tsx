@@ -266,12 +266,14 @@ export function HistoryView({
           {segments.map((segment) => (
             <div key={segment.label}>
               <i style={{ background: segment.color }} />
-              <span>{segment.label}</span>
-              <strong>
-                {unit === "hours"
-                  ? formatDuration(segment.value)
-                  : formatDays(segment.value)}
-              </strong>
+              <span>
+                {segment.label}{" "}
+                <strong>
+                  {unit === "hours"
+                    ? formatDuration(segment.value)
+                    : formatDays(segment.value)}
+                </strong>
+              </span>
             </div>
           ))}
         </div>
@@ -313,8 +315,9 @@ export function HistoryView({
           {incomeSegments.map((segment) => (
             <div key={segment.label}>
               <i style={{ background: segment.color }} />
-              <span>{segment.label}</span>
-              <strong>{formatIncome(segment.value)}</strong>
+              <span>
+                {segment.label} <strong>{formatIncome(segment.value)}</strong>
+              </span>
             </div>
           ))}
         </div>
