@@ -1141,10 +1141,19 @@ th {
 
 .chart-legend > div {
   display: grid;
-  grid-template-columns: 12px max-content max-content;
+  grid-template-columns: 12px minmax(0, 1fr) max-content;
   justify-content: start;
   align-items: center;
   column-gap: 12px;
+}
+
+.chart-legend span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.chart-legend strong {
+  text-align: right;
 }
 
 .chart-legend i {
@@ -1579,6 +1588,7 @@ th {
     width: 100%;
   }
   .consultant-chart-grid,
+  .consultant-chart-grid.income-chart-grid,
   .consultant-summary-chart {
     grid-template-columns: 1fr;
     justify-items: center;
