@@ -59,6 +59,7 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
+          project_id: ${{ secrets.DEV_GCP_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_DEPLOYER_SERVICE_ACCOUNT }}
 
