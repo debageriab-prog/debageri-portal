@@ -22,8 +22,20 @@ Configure these under repository **Settings → Secrets and variables → Action
 | `NEXT_PUBLIC_FIREBASE_APP_ID`                       | Firebase Web App ID                                                                                          |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`          | Firebase Web App sender ID                                                                                   |
 | `NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY` | App Check web provider site key                                                                              |
+| `NEXT_PUBLIC_PORTAL_URL`                            | Production portal URL, normally `https://portal.debageri.se`                                                 |
+| `REMINDER_CREDENTIAL_ENCRYPTION_KEY`                | Long random hex secret used to encrypt stored reminder SMTP passwords                                        |
 
 Firebase web values are public application configuration, but GitHub secrets keep build configuration consistent and avoid accidental logging. Do not add a Firebase Admin JSON key.
+
+Generate the reminder encryption key once and keep it stable:
+
+```bash
+openssl rand -hex 32
+```
+
+Changing or deleting this key makes previously saved SMTP passwords
+undecryptable. After rotating it, an administrator must save the reminder
+sender password again.
 
 The App Check site key setup, allowed domains, staged enforcement, and
 verification procedure are documented in

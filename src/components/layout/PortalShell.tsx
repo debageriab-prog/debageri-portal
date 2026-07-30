@@ -30,6 +30,13 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
         ],
       },
       {
+        label: t("reminders"),
+        items: [
+          { label: t("reminder"), href: "/reminders" },
+          { label: t("reminderSettings"), href: "/reminders/settings" },
+        ],
+      },
+      {
         label: t("timeManagement"),
         items: [
           { label: t("timeCodes"), href: "/admin/time-codes" },
@@ -49,7 +56,10 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
     return [
       {
         label: t("timeReports"),
-        items: [{ label: t("timeReports"), href: "/time-reports" }],
+        items: [
+          { label: t("timeReports"), href: "/time-reports" },
+          { label: t("reminder"), href: "/reminders" },
+        ],
       },
     ] satisfies NavGroup[];
   if (user.role === "manager")
@@ -62,6 +72,7 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
         items: [
           { label: t("approvals"), href: "/manager/approvals" },
           { label: t("timeReports"), href: "/time-reports" },
+          { label: t("reminder"), href: "/reminders" },
         ],
       },
     ] satisfies NavGroup[];
