@@ -69,6 +69,8 @@ export interface FinancePageData {
 }
 
 type Actor = { id: string; role: string; locale: "sv-SE" | "en-SE" };
+type FinanceSection =
+  "overview" | "compensation" | "invoices" | "categories" | "transactions";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -79,11 +81,13 @@ function BalanceChart({
   locale,
   period,
   anchor,
+  mode,
 }: {
   transactions: FinancePageData["transactions"];
   locale: Actor["locale"];
   period: "month" | "year" | "all";
   anchor: string;
+  mode: "balance" | "result";
 }) {
   const prefix =
     period === "month" ? anchor : period === "year" ? anchor.slice(0, 4) : "";
@@ -92,7 +96,12 @@ function BalanceChart({
   );
   let running = 0;
   const balances = sorted.map((transaction) => {
-    running += transaction.consultantBalanceDeltaMinor;
+    running +=
+      mode === "balance"
+        ? transaction.consultantBalanceDeltaMinor
+        : transaction.direction === "income"
+          ? transaction.netMinor
+          : -transaction.netMinor;
     return { date: transaction.date, balance: running };
   });
   const filtered = prefix
@@ -140,9 +149,11 @@ function BalanceChart({
 export function FinanceDashboard({
   data,
   actor,
+  section,
 }: {
   data: FinancePageData;
   actor: Actor;
+  section: FinanceSection;
 }) {
   const { t, locale } = useLocale();
   const router = useRouter();
@@ -155,6 +166,19 @@ export function FinanceDashboard({
     "month",
   );
   const [chartAnchor, setChartAnchor] = useState(today().slice(0, 7));
+  const [compensationModel, setCompensationModel] = useState<
+    "flexible" | "fixed"
+  >("flexible");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showCsvImport, setShowCsvImport] = useState(false);
+  const [invoiceConsultantFilter, setInvoiceConsultantFilter] = useState("all");
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
+    null,
+  );
+  const [transactionDirection, setTransactionDirection] = useState<
+    "income" | "expense"
+  >("income");
   const [selectedConsultant, setSelectedConsultant] = useState(
     manager ? "all" : actor.id,
   );
@@ -171,9 +195,13 @@ export function FinanceDashboard({
     () =>
       selectedConsultant === "all"
         ? data.transactions
-        : data.transactions.filter(
-            (transaction) => transaction.consultantId === selectedConsultant,
-          ),
+        : selectedConsultant === "company"
+          ? data.transactions.filter(
+              (transaction) => transaction.consultantId === null,
+            )
+          : data.transactions.filter(
+              (transaction) => transaction.consultantId === selectedConsultant,
+            ),
     [data.transactions, selectedConsultant],
   );
   const totals = financeTotals(visibleTransactions);
@@ -192,9 +220,18 @@ export function FinanceDashboard({
       (invoice) =>
         invoice.status === "issued" &&
         (selectedConsultant === "all" ||
+          (selectedConsultant === "company" && invoice.consultantId === null) ||
           invoice.consultantId === selectedConsultant),
     )
     .reduce((sum, invoice) => sum + invoice.grossMinor, 0);
+  const filteredInvoices = data.invoices.filter(
+    (invoice) =>
+      (invoiceConsultantFilter === "all" ||
+        (invoiceConsultantFilter === "company" &&
+          invoice.consultantId === null) ||
+        invoice.consultantId === invoiceConsultantFilter) &&
+      (invoiceStatusFilter === "all" || invoice.status === invoiceStatusFilter),
+  );
   const consultantLiability = manager
     ? data.users
         .filter((user) => user.compensationModel === "flexible")
@@ -217,6 +254,11 @@ export function FinanceDashboard({
   const retainedResult =
     totals.netResultMinor -
     (selectedConsultant === "all" ? consultantLiability : 0);
+  const selectedModel = data.users.find(
+    (user) => user.id === selectedConsultant,
+  )?.compensationModel;
+  const chartMode =
+    !manager || selectedModel === "flexible" ? "balance" : "result";
 
   async function post(
     payload: Record<string, unknown>,
@@ -263,6 +305,7 @@ export function FinanceDashboard({
         userId: form.get("userId"),
         model,
         validFrom: form.get("validFrom"),
+        validTo: form.get("validTo") || null,
         shareBps:
           model === "flexible"
             ? Math.round(Number(form.get("sharePercent")) * 100)
@@ -271,6 +314,24 @@ export function FinanceDashboard({
           model === "fixed" ? parseSek(String(form.get("fixedSalary"))) : null,
       },
       "compensationSaved",
+    );
+  }
+
+  async function updateCategoryEntry(
+    event: FormEvent<HTMLFormElement>,
+    categoryId: string,
+  ) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    await post(
+      {
+        action: "updateCategory",
+        categoryId,
+        nameEn: form.get("nameEn"),
+        nameSv: form.get("nameSv"),
+        active: form.get("active") === "on",
+      },
+      "categorySaved",
     );
   }
 
@@ -379,19 +440,29 @@ export function FinanceDashboard({
       formElement.reset();
   }
 
+  const sectionTitle = {
+    overview: manager ? t("financialOverview") : t("myFinances"),
+    compensation: t("compensationManagement"),
+    invoices: t("invoiceManagement"),
+    categories: t("categoryManagement"),
+    transactions: t("incomeExpenseManagement"),
+  }[section];
+
   return (
     <>
       <div className="topbar">
         <div>
           <div className="eyebrow">{t("finance")}</div>
-          <h1>{manager ? t("financialOverview") : t("myFinances")}</h1>
+          <h1>{sectionTitle}</h1>
           <p className="muted page-description">
-            {manager
-              ? t("financeManagementDescription")
-              : t("consultantFinanceDescription")}
+            {section === "overview"
+              ? manager
+                ? t("financeManagementDescription")
+                : t("consultantFinanceDescription")
+              : t(`${section}SectionDescription` as Parameters<typeof t>[0])}
           </p>
         </div>
-        {manager && (
+        {manager && section === "overview" && (
           <label>
             {t("consultant")}
             <select
@@ -400,6 +471,7 @@ export function FinanceDashboard({
               onChange={(event) => setSelectedConsultant(event.target.value)}
             >
               <option value="all">{t("allConsultantsAndCompany")}</option>
+              <option value="company">{t("companyOnly")}</option>
               {data.users.map((user) => (
                 <option key={user.id} value={user.id}>
                   {user.displayName}
@@ -416,100 +488,279 @@ export function FinanceDashboard({
         </p>
       )}
 
-      <section className="finance-metrics">
-        <div className="metric">
-          <span>{manager ? t("netIncome") : t("earnedShare")}</span>
-          <strong>
-            {formatSek(manager ? totals.incomeMinor : earnedShare, locale)}
-          </strong>
-        </div>
-        <div className="metric">
-          <span>{manager ? t("netExpenses") : t("spentFromBalance")}</span>
-          <strong>
-            {formatSek(
-              manager ? totals.expenseMinor : spentFromBalance,
-              locale,
+      {section === "overview" && (
+        <>
+          <section className="finance-metrics">
+            <div className="metric">
+              <span>{manager ? t("netIncome") : t("earnedShare")}</span>
+              <strong>
+                {formatSek(manager ? totals.incomeMinor : earnedShare, locale)}
+              </strong>
+            </div>
+            <div className="metric">
+              <span>{manager ? t("netExpenses") : t("spentFromBalance")}</span>
+              <strong>
+                {formatSek(
+                  manager ? totals.expenseMinor : spentFromBalance,
+                  locale,
+                )}
+              </strong>
+            </div>
+            <div className="metric">
+              <span>
+                {manager ? t("consultantLiability") : t("remainingBalance")}
+              </span>
+              <strong>
+                {formatSek(
+                  selectedConsultant === "all"
+                    ? consultantLiability
+                    : totals.balanceMinor,
+                  locale,
+                )}
+              </strong>
+            </div>
+            {manager && (
+              <div className="metric">
+                <span>{t("vatPayable")}</span>
+                <strong>
+                  {formatSek(
+                    totals.outputVatMinor - totals.inputVatMinor,
+                    locale,
+                  )}
+                </strong>
+              </div>
             )}
-          </strong>
-        </div>
-        <div className="metric">
-          <span>
-            {manager ? t("consultantLiability") : t("remainingBalance")}
-          </span>
-          <strong>
-            {formatSek(
-              selectedConsultant === "all"
-                ? consultantLiability
-                : totals.balanceMinor,
-              locale,
+            {manager && (
+              <div className="metric">
+                <span>{t("retainedResult")}</span>
+                <strong>{formatSek(retainedResult, locale)}</strong>
+              </div>
             )}
-          </strong>
-        </div>
-        {manager && (
-          <div className="metric">
-            <span>{t("vatPayable")}</span>
-            <strong>
-              {formatSek(totals.outputVatMinor - totals.inputVatMinor, locale)}
-            </strong>
-          </div>
-        )}
-        {manager && (
-          <div className="metric">
-            <span>{t("retainedResult")}</span>
-            <strong>{formatSek(retainedResult, locale)}</strong>
-          </div>
-        )}
-        {manager && (
-          <div className="metric">
-            <span>{t("outstandingInvoices")}</span>
-            <strong>{formatSek(outstandingInvoices, locale)}</strong>
-          </div>
-        )}
-      </section>
+            {manager && (
+              <div className="metric">
+                <span>{t("outstandingInvoices")}</span>
+                <strong>{formatSek(outstandingInvoices, locale)}</strong>
+              </div>
+            )}
+          </section>
 
-      <section className="card finance-chart-card">
-        <div className="week-head">
-          <h2>{t("balanceHistory")}</h2>
-          <select
-            className="field finance-period"
-            value={chartPeriod}
-            onChange={(event) =>
-              setChartPeriod(event.target.value as typeof chartPeriod)
-            }
-          >
-            <option value="month">{t("month")}</option>
-            <option value="year">{t("year")}</option>
-            <option value="all">{t("allTime")}</option>
-          </select>
-          {chartPeriod !== "all" && (
-            <input
-              className="field finance-period"
-              type="month"
-              aria-label={t("chartPeriod")}
-              value={chartAnchor}
-              onChange={(event) => setChartAnchor(event.target.value)}
+          <section className="card finance-chart-card">
+            <div className="week-head">
+              <h2>
+                {chartMode === "balance"
+                  ? t("balanceHistory")
+                  : t("financialHistory")}
+              </h2>
+              <select
+                className="field finance-period"
+                value={chartPeriod}
+                onChange={(event) =>
+                  setChartPeriod(event.target.value as typeof chartPeriod)
+                }
+              >
+                <option value="month">{t("month")}</option>
+                <option value="year">{t("year")}</option>
+                <option value="all">{t("allTime")}</option>
+              </select>
+              {chartPeriod !== "all" && (
+                <input
+                  className="field finance-period"
+                  type="month"
+                  aria-label={t("chartPeriod")}
+                  value={chartAnchor}
+                  onChange={(event) => setChartAnchor(event.target.value)}
+                />
+              )}
+            </div>
+            <BalanceChart
+              transactions={visibleTransactions}
+              locale={locale}
+              period={chartPeriod}
+              anchor={chartAnchor}
+              mode={chartMode}
             />
-          )}
-        </div>
-        <BalanceChart
-          transactions={visibleTransactions}
-          locale={locale}
-          period={chartPeriod}
-          anchor={chartAnchor}
-        />
-      </section>
+          </section>
+        </>
+      )}
 
       {manager && (
         <>
-          {admin && (
+          {admin && ["compensation", "categories"].includes(section) && (
             <section className="grid-2 finance-admin-grid">
-              <div className="card">
-                <h2>{t("compensation")}</h2>
-                <form className="form-grid" onSubmit={submitCompensation}>
+              {section === "compensation" && (
+                <div className="card">
+                  <div className="week-head">
+                    <h2>{t("compensation")}</h2>
+                    <button
+                      className="button"
+                      onClick={() => setShowAddForm((value) => !value)}
+                    >
+                      {showAddForm ? t("close") : t("addCompensation")}
+                    </button>
+                  </div>
+                  {showAddForm && (
+                    <form className="form-grid" onSubmit={submitCompensation}>
+                      <label>
+                        {t("consultant")}
+                        <select className="field" name="userId" required>
+                          <option value="">{t("selectConsultant")}</option>
+                          {data.users.map((user) => (
+                            <option key={user.id} value={user.id}>
+                              {user.displayName}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        {t("compensationModel")}
+                        <select
+                          className="field"
+                          name="model"
+                          value={compensationModel}
+                          onChange={(event) =>
+                            setCompensationModel(
+                              event.target.value as "flexible" | "fixed",
+                            )
+                          }
+                          required
+                        >
+                          <option value="flexible">{t("flexible")}</option>
+                          <option value="fixed">{t("fixedSalary")}</option>
+                        </select>
+                      </label>
+                      <label>
+                        {t("validFrom")}
+                        <input
+                          className="field"
+                          type="date"
+                          name="validFrom"
+                          defaultValue={today()}
+                          required
+                        />
+                      </label>
+                      <label>
+                        {t("validTo")}
+                        <input className="field" type="date" name="validTo" />
+                      </label>
+                      {compensationModel === "flexible" && (
+                        <label>
+                          {t("invoiceSharePercent")}
+                          <input
+                            className="field"
+                            type="number"
+                            name="sharePercent"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            defaultValue="90"
+                          />
+                        </label>
+                      )}
+                      {compensationModel === "fixed" && (
+                        <label>
+                          {t("monthlySalary")}
+                          <input
+                            className="field"
+                            type="number"
+                            name="fixedSalary"
+                            inputMode="decimal"
+                            min="0.01"
+                            step="0.01"
+                            required
+                          />
+                        </label>
+                      )}
+                      <div className="form-wide actions">
+                        <button className="button" disabled={busy}>
+                          {t("saveCompensation")}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
+              {section === "categories" && (
+                <div className="card">
+                  <div className="week-head">
+                    <h2>{t("financeCategories")}</h2>
+                    <button
+                      className="button"
+                      onClick={() => setShowAddForm((value) => !value)}
+                    >
+                      {showAddForm ? t("close") : t("addCategory")}
+                    </button>
+                  </div>
+                  {showAddForm && (
+                    <form className="form-grid" onSubmit={submitCategory}>
+                      <label>
+                        {t("code")}
+                        <input
+                          className="field"
+                          name="code"
+                          pattern="[a-z][a-z0-9_]+"
+                          required
+                        />
+                      </label>
+                      <label>
+                        {t("englishName")}
+                        <input className="field" name="nameEn" required />
+                      </label>
+                      <label>
+                        {t("swedishName")}
+                        <input className="field" name="nameSv" required />
+                      </label>
+                      <label>
+                        {t("type")}
+                        <select className="field" name="direction">
+                          <option value="income">{t("income")}</option>
+                          <option value="expense">{t("expense")}</option>
+                        </select>
+                      </label>
+                      <div className="form-wide actions">
+                        <button className="button" disabled={busy}>
+                          {t("addCategory")}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
+          {section === "invoices" && (
+            <section className="card">
+              <div className="week-head">
+                <h2>{t("invoices")}</h2>
+                <div className="actions">
+                  <button
+                    className="button secondary"
+                    onClick={() => setShowCsvImport((value) => !value)}
+                  >
+                    {t("csvImport")}
+                  </button>
+                  <button
+                    className="button"
+                    onClick={() => setShowAddForm((value) => !value)}
+                  >
+                    {showAddForm ? t("close") : t("addInvoice")}
+                  </button>
+                </div>
+              </div>
+              {showAddForm && (
+                <form className="form-grid" onSubmit={submitInvoice}>
+                  <label>
+                    {t("invoiceNumber")}
+                    <input className="field" name="invoiceNumber" required />
+                  </label>
+                  <label>
+                    {t("customer")}
+                    <input className="field" name="customerName" required />
+                  </label>
                   <label>
                     {t("consultant")}
-                    <select className="field" name="userId" required>
-                      <option value="">{t("selectConsultant")}</option>
+                    <select className="field" name="consultantId">
+                      <option value="">{t("companyOnly")}</option>
                       {data.users.map((user) => (
                         <option key={user.id} value={user.id}>
                           {user.displayName}
@@ -518,24 +769,52 @@ export function FinanceDashboard({
                     </select>
                   </label>
                   <label>
-                    {t("compensationModel")}
-                    <select className="field" name="model" required>
-                      <option value="flexible">{t("flexible")}</option>
-                      <option value="fixed">{t("fixedSalary")}</option>
-                    </select>
-                  </label>
-                  <label>
-                    {t("validFrom")}
+                    {t("issueDate")}
                     <input
                       className="field"
                       type="date"
-                      name="validFrom"
+                      name="issueDate"
                       defaultValue={today()}
                       required
                     />
                   </label>
                   <label>
-                    {t("invoiceSharePercent")}
+                    {t("dueDate")}
+                    <input
+                      className="field"
+                      type="date"
+                      name="dueDate"
+                      defaultValue={today()}
+                      required
+                    />
+                  </label>
+                  <label>
+                    {t("netAmountSek")}
+                    <input
+                      className="field"
+                      type="number"
+                      name="netAmount"
+                      inputMode="decimal"
+                      min="0.01"
+                      step="0.01"
+                      required
+                    />
+                  </label>
+                  <label>
+                    {t("vatPercent")}
+                    <input
+                      className="field"
+                      type="number"
+                      name="vatPercent"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      defaultValue="25"
+                      required
+                    />
+                  </label>
+                  <label>
+                    {t("shareOverride")}
                     <input
                       className="field"
                       type="number"
@@ -543,258 +822,333 @@ export function FinanceDashboard({
                       min="0"
                       max="100"
                       step="0.01"
-                      defaultValue="90"
                     />
                   </label>
                   <label>
-                    {t("monthlySalary")}
-                    <input
-                      className="field"
-                      type="number"
-                      name="fixedSalary"
-                      inputMode="decimal"
-                      min="0"
-                      step="0.01"
-                      defaultValue="0"
-                    />
+                    {t("consultantDescription")}
+                    <input className="field" name="visibleDescription" />
+                  </label>
+                  <label>
+                    {t("internalNote")}
+                    <input className="field" name="internalNote" />
                   </label>
                   <div className="form-wide actions">
                     <button className="button" disabled={busy}>
-                      {t("saveCompensation")}
+                      {t("createInvoice")}
                     </button>
                   </div>
                 </form>
+              )}
+            </section>
+          )}
+
+          {section === "transactions" && (
+            <section className="card">
+              <div className="week-head">
+                <h2>{t("newTransaction")}</h2>
+                <div className="actions">
+                  <button
+                    className="button secondary"
+                    onClick={() => setShowCsvImport((value) => !value)}
+                  >
+                    {t("csvImport")}
+                  </button>
+                  <button
+                    className="button"
+                    onClick={() => setShowAddForm((value) => !value)}
+                  >
+                    {showAddForm ? t("close") : t("addTransaction")}
+                  </button>
+                </div>
               </div>
-              <div className="card">
-                <h2>{t("financeCategories")}</h2>
-                <form className="form-grid" onSubmit={submitCategory}>
-                  <label>
-                    {t("code")}
-                    <input
-                      className="field"
-                      name="code"
-                      pattern="[a-z][a-z0-9_]+"
-                      required
-                    />
-                  </label>
-                  <label>
-                    {t("englishName")}
-                    <input className="field" name="nameEn" required />
-                  </label>
-                  <label>
-                    {t("swedishName")}
-                    <input className="field" name="nameSv" required />
-                  </label>
+              {showAddForm && (
+                <form className="form-grid" onSubmit={submitTransaction}>
                   <label>
                     {t("type")}
-                    <select className="field" name="direction">
+                    <select
+                      className="field"
+                      name="direction"
+                      value={transactionDirection}
+                      onChange={(event) =>
+                        setTransactionDirection(
+                          event.target.value as "income" | "expense",
+                        )
+                      }
+                    >
                       <option value="income">{t("income")}</option>
                       <option value="expense">{t("expense")}</option>
                     </select>
                   </label>
+                  <label>
+                    {t("category")}
+                    <select className="field" name="categoryId" required>
+                      <option value="">{t("selectCategory")}</option>
+                      {data.categories
+                        .filter(
+                          (category) =>
+                            category.active &&
+                            category.direction === transactionDirection,
+                        )
+                        .map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {categoryName(category.id)} ·{" "}
+                            {t(category.direction)}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label>
+                    {t("consultant")}
+                    <select className="field" name="consultantId">
+                      <option value="">{t("companyOnly")}</option>
+                      {data.users.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.displayName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    {t("date")}
+                    <input
+                      className="field"
+                      type="date"
+                      name="date"
+                      defaultValue={today()}
+                      required
+                    />
+                  </label>
+                  <label>
+                    {t("netAmountSek")}
+                    <input
+                      className="field"
+                      type="number"
+                      name="netAmount"
+                      inputMode="decimal"
+                      min="0.01"
+                      step="0.01"
+                      required
+                    />
+                  </label>
+                  <label>
+                    {t("vatPercent")}
+                    <input
+                      className="field"
+                      type="number"
+                      name="vatPercent"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      defaultValue="0"
+                    />
+                  </label>
+                  {transactionDirection === "expense" && (
+                    <label>
+                      {t("funding")}
+                      <select className="field" name="funding">
+                        <option value="company">{t("companyFunded")}</option>
+                        <option value="consultant">
+                          {t("consultantFunded")}
+                        </option>
+                      </select>
+                    </label>
+                  )}
+                  {transactionDirection === "income" && (
+                    <label className="checkbox">
+                      <input type="checkbox" name="applyConsultantShare" />
+                      {t("applyConsultantShare")}
+                    </label>
+                  )}
+                  <label>
+                    {t("consultantDescription")}
+                    <input className="field" name="visibleDescription" />
+                  </label>
+                  <label>
+                    {t("internalNote")}
+                    <input className="field" name="internalNote" />
+                  </label>
                   <div className="form-wide actions">
                     <button className="button" disabled={busy}>
-                      {t("addCategory")}
+                      {t("postTransaction")}
                     </button>
                   </div>
                 </form>
-              </div>
+              )}
             </section>
           )}
-
-          <section className="card">
-            <h2>{t("newInvoice")}</h2>
-            <form className="form-grid" onSubmit={submitInvoice}>
-              <label>
-                {t("invoiceNumber")}
-                <input className="field" name="invoiceNumber" required />
-              </label>
-              <label>
-                {t("customer")}
-                <input className="field" name="customerName" required />
-              </label>
-              <label>
-                {t("consultant")}
-                <select className="field" name="consultantId">
-                  <option value="">{t("companyOnly")}</option>
-                  {data.users.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.displayName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                {t("issueDate")}
-                <input
-                  className="field"
-                  type="date"
-                  name="issueDate"
-                  defaultValue={today()}
-                  required
-                />
-              </label>
-              <label>
-                {t("dueDate")}
-                <input
-                  className="field"
-                  type="date"
-                  name="dueDate"
-                  defaultValue={today()}
-                  required
-                />
-              </label>
-              <label>
-                {t("netAmountSek")}
-                <input
-                  className="field"
-                  type="number"
-                  name="netAmount"
-                  inputMode="decimal"
-                  min="0.01"
-                  step="0.01"
-                  required
-                />
-              </label>
-              <label>
-                {t("vatPercent")}
-                <input
-                  className="field"
-                  type="number"
-                  name="vatPercent"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  defaultValue="25"
-                  required
-                />
-              </label>
-              <label>
-                {t("shareOverride")}
-                <input
-                  className="field"
-                  type="number"
-                  name="sharePercent"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                />
-              </label>
-              <label>
-                {t("consultantDescription")}
-                <input className="field" name="visibleDescription" />
-              </label>
-              <label>
-                {t("internalNote")}
-                <input className="field" name="internalNote" />
-              </label>
-              <div className="form-wide actions">
-                <button className="button" disabled={busy}>
-                  {t("createInvoice")}
-                </button>
-              </div>
-            </form>
-          </section>
-
-          <section className="card">
-            <h2>{t("newTransaction")}</h2>
-            <form className="form-grid" onSubmit={submitTransaction}>
-              <label>
-                {t("type")}
-                <select className="field" name="direction">
-                  <option value="income">{t("income")}</option>
-                  <option value="expense">{t("expense")}</option>
-                </select>
-              </label>
-              <label>
-                {t("category")}
-                <select className="field" name="categoryId" required>
-                  <option value="">{t("selectCategory")}</option>
-                  {data.categories
-                    .filter((category) => category.active)
-                    .map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {categoryName(category.id)} · {t(category.direction)}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label>
-                {t("consultant")}
-                <select className="field" name="consultantId">
-                  <option value="">{t("companyOnly")}</option>
-                  {data.users.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.displayName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                {t("date")}
-                <input
-                  className="field"
-                  type="date"
-                  name="date"
-                  defaultValue={today()}
-                  required
-                />
-              </label>
-              <label>
-                {t("netAmountSek")}
-                <input
-                  className="field"
-                  type="number"
-                  name="netAmount"
-                  inputMode="decimal"
-                  min="0.01"
-                  step="0.01"
-                  required
-                />
-              </label>
-              <label>
-                {t("vatPercent")}
-                <input
-                  className="field"
-                  type="number"
-                  name="vatPercent"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  defaultValue="0"
-                />
-              </label>
-              <label>
-                {t("funding")}
-                <select className="field" name="funding">
-                  <option value="company">{t("companyFunded")}</option>
-                  <option value="consultant">{t("consultantFunded")}</option>
-                </select>
-              </label>
-              <label className="checkbox">
-                <input type="checkbox" name="applyConsultantShare" />
-                {t("applyConsultantShare")}
-              </label>
-              <label>
-                {t("consultantDescription")}
-                <input className="field" name="visibleDescription" />
-              </label>
-              <label>
-                {t("internalNote")}
-                <input className="field" name="internalNote" />
-              </label>
-              <div className="form-wide actions">
-                <button className="button" disabled={busy}>
-                  {t("postTransaction")}
-                </button>
-              </div>
-            </form>
-          </section>
-          <FinanceCsvImport />
+          {section === "invoices" && showCsvImport && (
+            <FinanceCsvImport allowedKinds={["invoices"]} />
+          )}
+          {section === "transactions" && showCsvImport && (
+            <FinanceCsvImport allowedKinds={["income", "expenses"]} />
+          )}
         </>
       )}
 
-      {manager && (
+      {manager && section === "compensation" && (
+        <section className="card table-wrap">
+          <h2>{t("currentCompensation")}</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>{t("consultant")}</th>
+                <th>{t("compensationModel")}</th>
+                <th>{t("validFrom")}</th>
+                <th>{t("validTo")}</th>
+                <th>{t("compensationTerms")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.agreements.map((agreement) => (
+                <tr key={agreement.id}>
+                  <td>{consultantName(agreement.userId)}</td>
+                  <td>
+                    {agreement.model === "flexible"
+                      ? t("flexible")
+                      : t("fixedSalary")}
+                  </td>
+                  <td>{agreement.validFrom}</td>
+                  <td>{agreement.validTo ?? "—"}</td>
+                  <td>
+                    {agreement.model === "flexible"
+                      ? `${t("invoiceSharePercent")}: ${agreement.shareBps / 100}%`
+                      : agreement.fixedMonthlySalaryMinor !== null
+                        ? `${t("monthlySalary")}: ${formatSek(agreement.fixedMonthlySalaryMinor, locale)}`
+                        : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {manager && section === "categories" && (
+        <section className="card table-wrap">
+          <h2>{t("currentCategories")}</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>{t("code")}</th>
+                <th>{t("englishName")}</th>
+                <th>{t("swedishName")}</th>
+                <th>{t("type")}</th>
+                <th>{t("status")}</th>
+                {admin && (
+                  <th>
+                    <span className="sr-only">{t("actions")}</span>
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {data.categories.map((category) => (
+                <tr key={category.id}>
+                  <td>{category.code}</td>
+                  {editingCategoryId === category.id ? (
+                    <>
+                      <td colSpan={4}>
+                        <form
+                          className="finance-inline-form category-edit-form"
+                          onSubmit={(event) =>
+                            void updateCategoryEntry(event, category.id)
+                          }
+                        >
+                          <input
+                            className="field"
+                            name="nameEn"
+                            defaultValue={category.name.en}
+                            required
+                          />
+                          <input
+                            className="field"
+                            name="nameSv"
+                            defaultValue={category.name.sv}
+                            required
+                          />
+                          <label className="checkbox">
+                            <input
+                              type="checkbox"
+                              name="active"
+                              defaultChecked={category.active}
+                            />
+                            {t("active")}
+                          </label>
+                          <button className="button" disabled={busy}>
+                            {t("saveChanges")}
+                          </button>
+                        </form>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td>{category.name.en}</td>
+                      <td>{category.name.sv}</td>
+                      <td>{t(category.direction)}</td>
+                      <td>{category.active ? t("active") : t("inactive")}</td>
+                    </>
+                  )}
+                  {admin && (
+                    <td>
+                      <button
+                        className="table-action"
+                        onClick={() =>
+                          setEditingCategoryId(
+                            editingCategoryId === category.id
+                              ? null
+                              : category.id,
+                          )
+                        }
+                      >
+                        {editingCategoryId === category.id
+                          ? t("close")
+                          : t("edit")}
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {manager && section === "invoices" && (
+        <section className="card finance-filter-bar">
+          <label>
+            {t("consultant")}
+            <select
+              className="field"
+              value={invoiceConsultantFilter}
+              onChange={(event) =>
+                setInvoiceConsultantFilter(event.target.value)
+              }
+            >
+              <option value="all">{t("allConsultantsAndCompany")}</option>
+              <option value="company">{t("companyOnly")}</option>
+              {data.users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t("paymentStatus")}
+            <select
+              className="field"
+              value={invoiceStatusFilter}
+              onChange={(event) => setInvoiceStatusFilter(event.target.value)}
+            >
+              <option value="all">{t("allStatuses")}</option>
+              <option value="issued">{t("issued")}</option>
+              <option value="paid">{t("paid")}</option>
+            </select>
+          </label>
+        </section>
+      )}
+
+      {manager && section === "invoices" && (
         <section className="card table-wrap">
           <h2>{t("invoices")}</h2>
           <table>
@@ -812,7 +1166,7 @@ export function FinanceDashboard({
               </tr>
             </thead>
             <tbody>
-              {data.invoices.map((invoice) => (
+              {filteredInvoices.map((invoice) => (
                 <tr key={invoice.id}>
                   <td>{invoice.invoiceNumber}</td>
                   <td>{invoice.customerName}</td>
@@ -889,68 +1243,73 @@ export function FinanceDashboard({
         </section>
       )}
 
-      <section className="card table-wrap">
-        <h2>{t("transactions")}</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>{t("date")}</th>
-              <th>{t("type")}</th>
-              <th>{t("category")}</th>
-              {manager && <th>{t("consultant")}</th>}
-              <th>{t("description")}</th>
-              <th>{t("netAmount")}</th>
-              <th>{t("balanceChange")}</th>
-              {manager && (
-                <th>
-                  <span className="sr-only">{t("actions")}</span>
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {visibleTransactions.map((transaction) => (
-              <tr key={transaction.id}>
-                <td>{transaction.date}</td>
-                <td>{t(transaction.direction)}</td>
-                <td>{categoryName(transaction.categoryId)}</td>
-                {manager && <td>{consultantName(transaction.consultantId)}</td>}
-                <td>{transaction.visibleDescription || "—"}</td>
-                <td>{formatSek(transaction.netMinor, locale)}</td>
-                <td>
-                  {formatSek(transaction.consultantBalanceDeltaMinor, locale)}
-                </td>
+      {((manager && section === "transactions") ||
+        (!manager && section === "overview")) && (
+        <section className="card table-wrap">
+          <h2>{t("transactions")}</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>{t("date")}</th>
+                <th>{t("type")}</th>
+                <th>{t("category")}</th>
+                {manager && <th>{t("consultant")}</th>}
+                <th>{t("description")}</th>
+                <th>{t("netAmount")}</th>
+                <th>{t("balanceChange")}</th>
                 {manager && (
-                  <td>
-                    {!transaction.invoiceId &&
-                      !transaction.reversedByTransactionId &&
-                      transaction.status !== "reversal" && (
-                        <button
-                          className="table-action table-action-danger"
-                          disabled={busy}
-                          onClick={() => {
-                            if (!window.confirm(t("confirmVoidTransaction")))
-                              return;
-                            void post(
-                              {
-                                action: "voidTransaction",
-                                transactionId: transaction.id,
-                                reason: t("financeCorrectionReason"),
-                              },
-                              "transactionVoided",
-                            );
-                          }}
-                        >
-                          {t("void")}
-                        </button>
-                      )}
-                  </td>
+                  <th>
+                    <span className="sr-only">{t("actions")}</span>
+                  </th>
                 )}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+            </thead>
+            <tbody>
+              {visibleTransactions.map((transaction) => (
+                <tr key={transaction.id}>
+                  <td>{transaction.date}</td>
+                  <td>{t(transaction.direction)}</td>
+                  <td>{categoryName(transaction.categoryId)}</td>
+                  {manager && (
+                    <td>{consultantName(transaction.consultantId)}</td>
+                  )}
+                  <td>{transaction.visibleDescription || "—"}</td>
+                  <td>{formatSek(transaction.netMinor, locale)}</td>
+                  <td>
+                    {formatSek(transaction.consultantBalanceDeltaMinor, locale)}
+                  </td>
+                  {manager && (
+                    <td>
+                      {!transaction.invoiceId &&
+                        !transaction.reversedByTransactionId &&
+                        transaction.status !== "reversal" && (
+                          <button
+                            className="table-action table-action-danger"
+                            disabled={busy}
+                            onClick={() => {
+                              if (!window.confirm(t("confirmVoidTransaction")))
+                                return;
+                              void post(
+                                {
+                                  action: "voidTransaction",
+                                  transactionId: transaction.id,
+                                  reason: t("financeCorrectionReason"),
+                                },
+                                "transactionVoided",
+                              );
+                            }}
+                          >
+                            {t("void")}
+                          </button>
+                        )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
     </>
   );
 }

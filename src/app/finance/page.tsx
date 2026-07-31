@@ -8,9 +8,28 @@ function millis(value: unknown) {
     : 0;
 }
 
-export default async function FinancePage() {
+const financeSections = [
+  "overview",
+  "compensation",
+  "invoices",
+  "categories",
+  "transactions",
+] as const;
+
+export default async function FinancePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ section?: string }>;
+}) {
+  const requestedSection = (await searchParams).section ?? "overview";
+  const section = financeSections.includes(
+    requestedSection as (typeof financeSections)[number],
+  )
+    ? (requestedSection as (typeof financeSections)[number])
+    : "overview";
   const actor = (await verifySession())!;
   const manager = ["admin", "accountant"].includes(actor.role);
+  const visibleSection = manager ? section : "overview";
   const { db } = getAdminServices();
   const organizationId = actor.organizationId;
   const [
@@ -140,6 +159,7 @@ export default async function FinancePage() {
         agreements,
       }}
       actor={{ id: actor.id, role: actor.role, locale: actor.locale }}
+      section={visibleSection}
     />
   );
 }

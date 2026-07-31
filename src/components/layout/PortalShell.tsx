@@ -24,7 +24,22 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
     return [
       {
         label: t("finance"),
-        items: [{ label: t("financialOverview"), href: "/finance" }],
+        items: [
+          { label: t("financialOverview"), href: "/finance" },
+          {
+            label: t("compensationManagement"),
+            href: "/finance?section=compensation",
+          },
+          { label: t("invoiceManagement"), href: "/finance?section=invoices" },
+          {
+            label: t("categoryManagement"),
+            href: "/finance?section=categories",
+          },
+          {
+            label: t("incomeExpenseManagement"),
+            href: "/finance?section=transactions",
+          },
+        ],
       },
       {
         label: t("timeReport"),
@@ -60,7 +75,22 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
     return [
       {
         label: t("finance"),
-        items: [{ label: t("financialOverview"), href: "/finance" }],
+        items: [
+          { label: t("financialOverview"), href: "/finance" },
+          {
+            label: t("compensationManagement"),
+            href: "/finance?section=compensation",
+          },
+          { label: t("invoiceManagement"), href: "/finance?section=invoices" },
+          {
+            label: t("categoryManagement"),
+            href: "/finance?section=categories",
+          },
+          {
+            label: t("incomeExpenseManagement"),
+            href: "/finance?section=transactions",
+          },
+        ],
       },
       {
         label: t("timeReports"),

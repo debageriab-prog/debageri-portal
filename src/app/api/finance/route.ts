@@ -10,6 +10,7 @@ import {
   FinanceError,
   markInvoicePaid,
   setCompensation,
+  updateCategory,
   voidFinancialTransaction,
   voidInvoice,
 } from "@/server/services/finance-service";
@@ -43,6 +44,9 @@ export async function POST(request: Request) {
         break;
       case "createCategory":
         id = await createCategory(db, actor, parsed.data);
+        break;
+      case "updateCategory":
+        await updateCategory(db, actor, parsed.data);
         break;
       case "createInvoice":
         id = await createInvoice(db, actor, parsed.data);

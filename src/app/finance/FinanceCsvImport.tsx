@@ -13,10 +13,14 @@ type Preview = {
   errors: Array<{ row: number; message: string }>;
 };
 
-export function FinanceCsvImport() {
+export function FinanceCsvImport({
+  allowedKinds = ["invoices", "income", "expenses"],
+}: {
+  allowedKinds?: Kind[];
+}) {
   const { t } = useLocale();
   const router = useRouter();
-  const [kind, setKind] = useState<Kind>("invoices");
+  const [kind, setKind] = useState<Kind>(allowedKinds[0] ?? "invoices");
   const [csv, setCsv] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -95,9 +99,15 @@ export function FinanceCsvImport() {
               setPreview(null);
             }}
           >
-            <option value="invoices">{t("invoices")}</option>
-            <option value="income">{t("income")}</option>
-            <option value="expenses">{t("expenses")}</option>
+            {allowedKinds.includes("invoices") && (
+              <option value="invoices">{t("invoices")}</option>
+            )}
+            {allowedKinds.includes("income") && (
+              <option value="income">{t("income")}</option>
+            )}
+            {allowedKinds.includes("expenses") && (
+              <option value="expenses">{t("expenses")}</option>
+            )}
           </select>
         </label>
         <label>

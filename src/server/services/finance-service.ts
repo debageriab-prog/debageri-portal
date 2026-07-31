@@ -135,6 +135,7 @@ export async function setCompensation(
     userId: string;
     model: "flexible" | "fixed";
     validFrom: string;
+    validTo: string | null;
     shareBps: number;
     fixedMonthlySalaryMinor: number | null;
   },
@@ -148,6 +149,8 @@ export async function setCompensation(
   )
     throw new FinanceError("consultantInvalid", 404);
   if (input.model === "flexible" && input.fixedMonthlySalaryMinor !== null)
+    throw new FinanceError("compensationInvalid");
+  if (input.validTo && input.validTo < input.validFrom)
     throw new FinanceError("compensationInvalid");
   if (
     input.model === "fixed" &&
@@ -167,6 +170,8 @@ export async function setCompensation(
   const latest = existing.docs[0];
   if (latest && latest.data().validFrom >= input.validFrom)
     throw new FinanceError("compensationDateConflict", 409);
+  if (latest?.data().validTo && latest.data().validTo >= input.validFrom)
+    throw new FinanceError("compensationDateConflict", 409);
 
   const ref = db.collection("compensationAgreements").doc();
   const batch = db.batch();
@@ -180,7 +185,7 @@ export async function setCompensation(
     userId: input.userId,
     model: input.model,
     validFrom: input.validFrom,
-    validTo: null,
+    validTo: input.validTo,
     shareBps: input.model === "flexible" ? input.shareBps : 0,
     fixedMonthlySalaryMinor:
       input.model === "fixed" ? input.fixedMonthlySalaryMinor : null,
@@ -208,6 +213,45 @@ export async function setCompensation(
   );
   await batch.commit();
   return ref.id;
+}
+
+export async function updateCategory(
+  db: Firestore,
+  actor: PortalUser,
+  input: {
+    categoryId: string;
+    nameEn: string;
+    nameSv: string;
+    active: boolean;
+  },
+) {
+  if (actor.role !== "admin") throw new FinanceError("forbidden", 403);
+  const reference = db.collection("financeCategories").doc(input.categoryId);
+  const snapshot = await reference.get();
+  if (
+    !snapshot.exists ||
+    snapshot.data()?.organizationId !== actor.organizationId
+  )
+    throw new FinanceError("categoryInvalid", 404);
+  const batch = db.batch();
+  batch.update(reference, {
+    name: { en: input.nameEn, sv: input.nameSv },
+    active: input.active,
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: actor.id,
+  });
+  audit(
+    db,
+    batch,
+    actor,
+    "financeCategory.updated",
+    "financeCategory",
+    reference.id,
+    {
+      active: input.active,
+    },
+  );
+  await batch.commit();
 }
 
 export async function createCategory(

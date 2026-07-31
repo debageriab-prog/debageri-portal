@@ -1190,6 +1190,18 @@ th {
 }
 .finance-admin-grid {
   margin-bottom: 18px;
+  grid-template-columns: 1fr;
+}
+.finance-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 320px));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.category-edit-form {
+  grid-template-columns: repeat(2, minmax(150px, 1fr)) auto auto;
+  align-items: center;
+  min-width: 620px;
 }
 .finance-inline-form {
   display: grid;
@@ -1660,6 +1672,9 @@ th {
     height: 170px;
   }
   .finance-admin-grid {
+    grid-template-columns: 1fr;
+  }
+  .finance-filter-bar {
     grid-template-columns: 1fr;
   }
   .consultant-summary-chart + .consultant-summary-chart {

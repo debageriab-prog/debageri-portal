@@ -9,8 +9,17 @@ export const compensationSchema = z.object({
   userId: z.string().min(1).max(128),
   model: z.enum(["flexible", "fixed"]),
   validFrom: date,
+  validTo: date.nullable().default(null),
   shareBps: z.number().int().min(0).max(10_000),
   fixedMonthlySalaryMinor: minor.nullable(),
+});
+
+export const updateCategorySchema = z.object({
+  action: z.literal("updateCategory"),
+  categoryId: z.string().min(1).max(128),
+  nameEn: z.string().trim().min(2).max(80),
+  nameSv: z.string().trim().min(2).max(80),
+  active: z.boolean(),
 });
 
 export const categorySchema = z.object({
@@ -82,6 +91,7 @@ export const financeActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("enableFinance") }),
   compensationSchema,
   categorySchema,
+  updateCategorySchema,
   invoiceSchema,
   paymentSchema,
   transactionSchema,
