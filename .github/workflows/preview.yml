@@ -1,4 +1,4 @@
-name: Preview Deploy
+name: Development Preview
 
 on:
   push:
@@ -9,30 +9,24 @@ permissions:
   id-token: write
 
 concurrency:
-  group: preview-${{ github.ref }}
+  group: development-preview
   cancel-in-progress: true
 
 env:
-  EXPECTED_PROJECT_ID: debageri-portal
-  SERVICE: debageri-portal
+  EXPECTED_PROJECT_ID: debageri-portal-dev
+  SERVICE: debageri-portal-dev
   AR_REPOSITORY: debageri-portal
 
 jobs:
   preview:
-    name: Validate · Build · Push · Preview
+    name: Validate · Build · Deploy Development
     runs-on: ubuntu-latest
+    environment: development
     env:
-      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      REGION: ${{ secrets.GCP_REGION }}
+      PROJECT_ID: ${{ secrets.DEV_GCP_PROJECT_ID }}
+      REGION: ${{ secrets.DEV_GCP_REGION }}
     steps:
       - uses: actions/checkout@v5
-
-      - name: Derive preview tag
-        id: tag
-        run: |
-          SLUG=$(echo "$GITHUB_REF_NAME" | tr '[:upper:]' '[:lower:]' | sed 's|[^a-z0-9]|-|g' | cut -c1-20 | sed 's/-*$//')
-          test -n "$SLUG"
-          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v5
         with:
@@ -49,46 +43,51 @@ jobs:
           FIREBASE_ADMIN_PROJECT_ID: debageri-portal-local
           NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "false"
 
-      - name: Validate cloud target
+      - name: Validate development target
+        env:
+          RUNTIME_SERVICE_ACCOUNT: ${{ secrets.DEV_GCP_RUNTIME_SERVICE_ACCOUNT }}
         run: |
           test "$PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$PROJECT_ID" != "debageri-portal"
           test -n "$REGION"
+          test -n "$RUNTIME_SERVICE_ACCOUNT"
+          case "$RUNTIME_SERVICE_ACCOUNT" in
+            *@"${PROJECT_ID}.iam.gserviceaccount.com") ;;
+            *) echo "Development runtime identity is outside the development project" >&2; exit 1 ;;
+          esac
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
+          project_id: ${{ secrets.DEV_GCP_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_DEPLOYER_SERVICE_ACCOUNT }}
 
       - uses: google-github-actions/setup-gcloud@v3
 
-      - name: Check production service
-        id: service
+      - name: Show isolated deployment identity
         run: |
-          if gcloud run services describe "$SERVICE" \
+          echo "Authenticated deployer: $(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
+          echo "Development target: ${PROJECT_ID}"
+
+      - name: Deploy development Firebase configuration
+        run: |
+          npx firebase-tools deploy \
+            --only firestore:rules,firestore:indexes,storage \
             --project "$PROJECT_ID" \
-            --region "$REGION" \
-            --quiet > /dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "### Preview deployment skipped" >> "$GITHUB_STEP_SUMMARY"
-            echo "The Cloud Run service does not exist yet. Merge this PR so the main deployment can create it; subsequent branches will receive zero-traffic previews." >> "$GITHUB_STEP_SUMMARY"
-          fi
+            --non-interactive
 
       - name: Configure Artifact Registry
-        if: steps.service.outputs.exists == 'true'
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
-      - name: Build and push production-connected preview
-        if: steps.service.outputs.exists == 'true'
+      - name: Build and push development image
         env:
-          FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
-          FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
-          FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
-          FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
-          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-          APP_CHECK_SITE_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY }}
+          FIREBASE_API_KEY: ${{ secrets.DEV_FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.DEV_FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.DEV_FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_APP_ID: ${{ secrets.DEV_FIREBASE_APP_ID }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.DEV_FIREBASE_MESSAGING_SENDER_ID }}
+          APP_CHECK_SITE_KEY: ${{ secrets.DEV_FIREBASE_APP_CHECK_SITE_KEY }}
         run: |
           test -n "$FIREBASE_API_KEY"
           test -n "$FIREBASE_AUTH_DOMAIN"
@@ -96,7 +95,7 @@ jobs:
           test -n "$FIREBASE_APP_ID"
           test -n "$FIREBASE_MESSAGING_SENDER_ID"
           REGISTRY="${REGION}-docker.pkg.dev"
-          IMAGE="${REGISTRY}/${PROJECT_ID}/${AR_REPOSITORY}/${SERVICE}:preview-${{ steps.tag.outputs.slug }}"
+          IMAGE="${REGISTRY}/${PROJECT_ID}/${AR_REPOSITORY}/${SERVICE}:${GITHUB_SHA}"
           docker build \
             --build-arg NEXT_PUBLIC_FIREBASE_API_KEY="$FIREBASE_API_KEY" \
             --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="$FIREBASE_AUTH_DOMAIN" \
@@ -109,38 +108,35 @@ jobs:
           docker push "$IMAGE"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
-      - name: Deploy zero-traffic preview revision
-        if: steps.service.outputs.exists == 'true'
+      - name: Deploy stable development service
         env:
-          RUNTIME_SERVICE_ACCOUNT: ${{ secrets.GCP_RUNTIME_SERVICE_ACCOUNT }}
-          FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
-          FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
-          FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
-          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-          APP_CHECK_SITE_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY }}
-          PORTAL_URL: ${{ secrets.NEXT_PUBLIC_PORTAL_URL }}
-          REMINDER_ENCRYPTION_KEY: ${{ secrets.REMINDER_CREDENTIAL_ENCRYPTION_KEY }}
+          RUNTIME_SERVICE_ACCOUNT: ${{ secrets.DEV_GCP_RUNTIME_SERVICE_ACCOUNT }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.DEV_FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.DEV_FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_APP_ID: ${{ secrets.DEV_FIREBASE_APP_ID }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.DEV_FIREBASE_MESSAGING_SENDER_ID }}
+          APP_CHECK_SITE_KEY: ${{ secrets.DEV_FIREBASE_APP_CHECK_SITE_KEY }}
+          REMINDER_ENCRYPTION_KEY: ${{ secrets.DEV_REMINDER_ENCRYPTION_KEY }}
         run: |
           gcloud run deploy "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
             --image "$IMAGE" \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
-            --no-traffic \
-            --tag "${{ steps.tag.outputs.slug }}" \
             --allow-unauthenticated \
             --port 8080 \
             --memory 512Mi \
             --cpu 1 \
-            --set-env-vars "PORTAL_ENVIRONMENT=production,PORTAL_EXPECTED_PROJECT_ID=${PROJECT_ID},FIREBASE_ADMIN_PROJECT_ID=${PROJECT_ID},NEXT_PUBLIC_FIREBASE_PROJECT_ID=${PROJECT_ID},NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN},NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET},NEXT_PUBLIC_FIREBASE_APP_ID=${FIREBASE_APP_ID},NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${FIREBASE_MESSAGING_SENDER_ID},NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY=${APP_CHECK_SITE_KEY},NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false,NEXT_PUBLIC_PORTAL_URL=${PORTAL_URL},REMINDER_CREDENTIAL_ENCRYPTION_KEY=${REMINDER_ENCRYPTION_KEY}" \
+            --min-instances 0 \
+            --max-instances 2 \
+            --set-env-vars "PORTAL_ENVIRONMENT=development,PORTAL_EXPECTED_PROJECT_ID=${PROJECT_ID},FIREBASE_ADMIN_PROJECT_ID=${PROJECT_ID},NEXT_PUBLIC_FIREBASE_PROJECT_ID=${PROJECT_ID},NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN},NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET},NEXT_PUBLIC_FIREBASE_APP_ID=${FIREBASE_APP_ID},NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${FIREBASE_MESSAGING_SENDER_ID},NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY=${APP_CHECK_SITE_KEY},NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false,REMINDER_CREDENTIAL_ENCRYPTION_KEY=${REMINDER_ENCRYPTION_KEY}" \
             --quiet
 
-      - name: Print preview URL
-        if: steps.service.outputs.exists == 'true'
+      - name: Print development URL
         run: |
-          HOST=$(gcloud run services describe "$SERVICE" \
+          URL=$(gcloud run services describe "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
-            --format="value(status.url)" | sed 's|https://||')
-          echo "Preview URL: https://${{ steps.tag.outputs.slug }}---${HOST}"
-          echo "This preview is connected to production Firebase data. Test carefully."
+            --format="value(status.url)")
+          echo "Development URL: ${URL}"
+          echo "All feature branches deploy to this stable development service and use only ${PROJECT_ID}."

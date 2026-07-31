@@ -34,9 +34,16 @@ npm run build
 
 All variables are documented in [.env.example](.env.example). Public Firebase web configuration is not secret; Admin credentials are server-only. Prefer Application Default Credentials/Cloud Run service identity in deployed environments. Never commit service-account keys.
 
-The application has two modes: local Firebase emulators and the single cloud project `debageri-portal`. There is no separate cloud development project. The only deployment alias is `portal`; `npm run deploy` validates and displays it before deploying Firebase configuration.
+The application has three isolated targets: local Firebase emulators,
+`debageri-portal-dev` for feature branches, and `debageri-portal` for
+production. Deployment aliases and runtime validation require the exact
+environment-specific project.
 
-The application is packaged by [Dockerfile](Dockerfile) for Cloud Run. Every branch runs CI and receives a zero-traffic tagged preview revision with no production-data access. Pushes to `main` automatically validate, deploy Firebase rules/indexes, publish an Artifact Registry image, and deploy production through Workload Identity Federation.
+The application is packaged by [Dockerfile](Dockerfile) for Cloud Run. Every
+branch runs CI and deploys the latest successful branch to one stable
+development service backed only by development Firebase data. Pushes to `main`
+automatically validate, deploy Firebase rules/indexes, publish an Artifact
+Registry image, and deploy production through Workload Identity Federation.
 
 ## Documentation
 

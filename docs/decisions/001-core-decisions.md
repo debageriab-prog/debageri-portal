@@ -4,9 +4,12 @@
 
 Accepted. Recruitment and employee data have different users, purposes, retention, and risk; no production infrastructure is shared.
 
-## 002: Local emulators plus one production project
+## 002: Local emulators plus isolated development and production projects
 
-Accepted. Development uses the Firebase Emulator Suite and a fictitious local project ID; the only cloud project is `debageri-portal`. This reduces cloud administration while keeping local test data and actions out of employee data. The cloud project retains independent IAM, secrets, App Check, logs, backups, and release gates.
+Superseded. Local work uses the Firebase Emulator Suite and fictitious project
+ID `debageri-portal-local`. Feature branches use `debageri-portal-dev`, while
+`main` alone uses `debageri-portal`. Development and production data, runtime
+identities, Firebase applications, and secrets remain isolated.
 
 ## 003: Firestore as primary database
 
