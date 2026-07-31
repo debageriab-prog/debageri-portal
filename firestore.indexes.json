@@ -54,6 +54,39 @@
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "validFrom", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "compensationAgreements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "validFrom", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "invoices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "invoiceNumber", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "financeCategories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "code", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "financialTransactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "importKey", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

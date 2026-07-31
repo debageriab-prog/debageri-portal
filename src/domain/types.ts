@@ -1,6 +1,9 @@
 export type UserRole =
   "employee" | "consultant" | "manager" | "accountant" | "admin";
 export type UserStatus = "active" | "inactive";
+export type CompensationModel = "flexible" | "fixed";
+export type FinanceDirection = "income" | "expense";
+export type FinanceFunding = "company" | "consultant";
 export type TimesheetStatus =
   "draft" | "submitted" | "approved" | "rejected" | "reopened";
 export type TimeCategory =
@@ -30,6 +33,71 @@ export interface PortalUser {
   reportingStartDate: string | null;
   timezone: "Europe/Stockholm";
   locale: "sv-SE" | "en-SE";
+  compensationModel?: CompensationModel | null;
+}
+
+export interface CompensationAgreement {
+  id: string;
+  organizationId: string;
+  userId: string;
+  model: CompensationModel;
+  validFrom: string;
+  validTo: string | null;
+  shareBps: number;
+  fixedMonthlySalaryMinor: number | null;
+}
+
+export interface FinanceCategory {
+  id: string;
+  organizationId: string;
+  code: string;
+  name: { sv: string; en: string };
+  direction: FinanceDirection;
+  active: boolean;
+}
+
+export interface Invoice {
+  id: string;
+  organizationId: string;
+  invoiceNumber: string;
+  consultantId: string | null;
+  customerName: string;
+  issueDate: string;
+  dueDate: string;
+  paidDate: string | null;
+  status: "issued" | "paid" | "void";
+  currency: "SEK";
+  netMinor: number;
+  vatRateBps: number;
+  vatMinor: number;
+  grossMinor: number;
+  compensationModel: CompensationModel | null;
+  shareBps: number;
+  visibleDescription: string;
+  internalNote: string;
+}
+
+export interface FinancialTransaction {
+  id: string;
+  organizationId: string;
+  direction: FinanceDirection;
+  categoryId: string;
+  consultantId: string | null;
+  invoiceId: string | null;
+  date: string;
+  currency: "SEK";
+  netMinor: number;
+  vatRateBps: number;
+  vatMinor: number;
+  grossMinor: number;
+  funding: FinanceFunding | null;
+  consultantBalanceDeltaMinor: number;
+  visibleDescription: string;
+  internalNote: string;
+  status: "posted" | "reversal";
+  reversesTransactionId: string | null;
+  reversedByTransactionId: string | null;
+  importKey: string | null;
 }
 
 export interface TimeCode {

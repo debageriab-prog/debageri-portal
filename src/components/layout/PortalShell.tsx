@@ -23,6 +23,10 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
   if (user.role === "admin")
     return [
       {
+        label: t("finance"),
+        items: [{ label: t("financialOverview"), href: "/finance" }],
+      },
+      {
         label: t("timeReport"),
         items: [
           { label: t("approvals"), href: "/manager/approvals" },
@@ -55,6 +59,10 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
   if (user.role === "accountant")
     return [
       {
+        label: t("finance"),
+        items: [{ label: t("financialOverview"), href: "/finance" }],
+      },
+      {
         label: t("timeReports"),
         items: [
           { label: t("timeReports"), href: "/time-reports" },
@@ -76,7 +84,17 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
         ],
       },
     ] satisfies NavGroup[];
-  return [{ label: t("timeReport"), items: reporting }] satisfies NavGroup[];
+  return [
+    ...(user.compensationModel === "flexible"
+      ? [
+          {
+            label: t("finance"),
+            items: [{ label: t("myFinances"), href: "/finance" }],
+          },
+        ]
+      : []),
+    { label: t("timeReport"), items: reporting },
+  ] satisfies NavGroup[];
 }
 
 export function PortalShell({

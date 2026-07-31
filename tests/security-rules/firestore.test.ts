@@ -59,6 +59,11 @@ beforeAll(async () => {
       managerId: "m2",
       status: "submitted",
     });
+    await setDoc(doc(db, "financialTransactions/f1"), {
+      organizationId: "debageri",
+      consultantId: "u1",
+      internalNote: "private",
+    });
   });
 });
 afterAll(async () => env.cleanup());
@@ -81,6 +86,18 @@ describe("Firestore rules", () => {
         userId: "u1",
         managerId: "m1",
         status: "approved",
+      }),
+    );
+  });
+  it("denies direct financial reads and writes for browser roles", async () => {
+    const consultant = env.authenticatedContext("u1").firestore();
+    const manager = env.authenticatedContext("m1").firestore();
+    await assertFails(getDoc(doc(consultant, "financialTransactions/f1")));
+    await assertFails(getDoc(doc(manager, "financialTransactions/f1")));
+    await assertFails(
+      setDoc(doc(consultant, "financialTransactions/new"), {
+        organizationId: "debageri",
+        consultantId: "u1",
       }),
     );
   });
