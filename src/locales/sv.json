@@ -416,6 +416,8 @@
   "spentFromBalance": "Använt från saldot",
   "outstandingInvoices": "Obetalda fakturor",
   "chartPeriod": "Diagramperiod",
+  "chartStartingPoint": "Startpunkt",
+  "chartDay": "Dag",
   "importRowKeyRequired": "Importnyckel krävs.",
   "importRowKeyDuplicate": "Importnyckeln förekommer flera gånger i filen.",
   "importRowConsultantMissing": "Konsultens anställningsnummer hittades inte.",

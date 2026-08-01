@@ -55,6 +55,7 @@ export interface FinancePageData {
     grossMinor: number;
     consultantBalanceDeltaMinor: number;
     visibleDescription: string;
+    internalNote: string;
     status: "posted" | "reversal";
     reversedByTransactionId: string | null;
     createdAt: number;
@@ -88,62 +89,244 @@ function BalanceChart({
   period,
   anchor,
   mode,
+  categoryName,
 }: {
   transactions: FinancePageData["transactions"];
   locale: Actor["locale"];
   period: "month" | "year" | "all";
   anchor: string;
   mode: "balance" | "result";
+  categoryName: (id: string) => string;
 }) {
-  const prefix =
-    period === "month" ? anchor : period === "year" ? anchor.slice(0, 4) : "";
-  let running = 0;
-  const balances = [...transactions]
-    .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt)
-    .map((transaction) => {
-      running +=
-        mode === "balance"
-          ? transaction.consultantBalanceDeltaMinor
-          : transaction.direction === "income"
-            ? transaction.netMinor
-            : -transaction.netMinor;
-      return { date: transaction.date, balance: running };
-    })
-    .filter((point) => !prefix || point.date.startsWith(prefix));
-  const buckets = new Map<string, { date: string; balance: number }>();
-  balances.forEach((point) =>
-    buckets.set(
-      period === "month" ? point.date : point.date.slice(0, 7),
-      point,
-    ),
-  );
-  const visible = [...buckets.values()];
-  if (!visible.length) return <div className="finance-chart-empty">—</div>;
-  const values = visible.map((point) => point.balance);
-  const min = Math.min(0, ...values);
-  const max = Math.max(0, ...values);
-  const range = Math.max(1, max - min);
-  const points = visible
-    .map(
-      (point, index) =>
-        `${visible.length === 1 ? 50 : (index / (visible.length - 1)) * 100},${92 - ((point.balance - min) / range) * 82}`,
+  const { t } = useLocale();
+  const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
+  const prefix = period === "month" ? anchor : anchor.slice(0, 4);
+  const sorted = [...transactions]
+    .filter((transaction) =>
+      period === "all" ? true : transaction.date.startsWith(prefix),
     )
+    .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
+  const year = Number(anchor.slice(0, 4));
+  const month = Number(anchor.slice(5, 7));
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const daysInYear =
+    new Date(Date.UTC(year, 1, 29)).getUTCDate() === 29 ? 366 : 365;
+  const dayOfYear = (date: string) => {
+    const value = new Date(`${date}T00:00:00Z`);
+    return (
+      Math.floor(
+        (value.getTime() - Date.UTC(value.getUTCFullYear(), 0, 1)) / 86_400_000,
+      ) + 1
+    );
+  };
+  const transactionPoints = sorted.reduce<
+    Array<{
+      transaction: FinancePageData["transactions"][number];
+      change: number;
+      balance: number;
+      xRatio: number;
+    }>
+  >((points, transaction, index) => {
+    const change =
+      mode === "balance"
+        ? transaction.consultantBalanceDeltaMinor
+        : transaction.direction === "income"
+          ? transaction.netMinor
+          : -transaction.netMinor;
+    const balance = (points.at(-1)?.balance ?? 0) + change;
+    const xRatio =
+      period === "month"
+        ? Number(transaction.date.slice(8, 10)) / daysInMonth
+        : period === "year"
+          ? dayOfYear(transaction.date) / daysInYear
+          : (index + 1) / Math.max(1, sorted.length);
+    return [...points, { transaction, change, balance, xRatio }];
+  }, []);
+  const chartPoints = [
+    { xRatio: 0, balance: 0, change: 0, transaction: null },
+    ...transactionPoints,
+  ];
+  const values = chartPoints.map((point) => point.balance);
+  let min = Math.min(0, ...values);
+  let max = Math.max(0, ...values);
+  const rawRange = max - min;
+  const padding = rawRange === 0 ? 10_000 : rawRange * 0.12;
+  min = min < 0 ? min - padding : 0;
+  max = max > 0 ? max + padding : 0;
+  if (min === max) max = padding;
+  const range = max - min;
+  const plot = { left: 88, right: 975, top: 20, bottom: 308 };
+  const x = (ratio: number) => plot.left + ratio * (plot.right - plot.left);
+  const y = (value: number) =>
+    plot.bottom - ((value - min) / range) * (plot.bottom - plot.top);
+  const polyline = chartPoints
+    .map((point) => `${x(point.xRatio)},${y(point.balance)}`)
     .join(" ");
+  const yTicks = Array.from(
+    { length: 5 },
+    (_, index) => min + (range * index) / 4,
+  );
+  const xTicks =
+    period === "month"
+      ? [0, 5, 10, 15, 20, 25, daysInMonth]
+          .filter(
+            (value, index, values) =>
+              value <= daysInMonth && values.indexOf(value) === index,
+          )
+          .map((value) => ({
+            ratio: value / daysInMonth,
+            label: String(value),
+          }))
+      : period === "year"
+        ? [0, 2, 4, 6, 8, 10, 12].map((value) => ({
+            ratio: value / 12,
+            label: String(value),
+          }))
+        : [
+            { ratio: 0, label: "0" },
+            ...(sorted.length
+              ? [{ ratio: 1, label: sorted.at(-1)?.date ?? "" }]
+              : []),
+          ];
+  const axisSek = (minor: number) =>
+    new Intl.NumberFormat(locale, {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(minor / 100);
+  const hovered = hoveredPoint === null ? null : chartPoints[hoveredPoint];
   return (
     <div className="finance-chart">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img">
-        <polyline
-          points={points}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <div className="finance-chart-scale">
-        <span>{visible[0]?.date}</span>
-        <strong>{formatSek(visible.at(-1)?.balance ?? 0, locale)}</strong>
-        <span>{visible.at(-1)?.date}</span>
+      <div className="finance-chart-canvas">
+        <svg viewBox="0 0 1000 360" role="img" aria-label={t("balanceHistory")}>
+          {yTicks.map((tick) => (
+            <g key={tick}>
+              <line
+                className="finance-chart-gridline"
+                x1={plot.left}
+                x2={plot.right}
+                y1={y(tick)}
+                y2={y(tick)}
+              />
+              <text
+                className="finance-chart-axis-label"
+                x={plot.left - 12}
+                y={y(tick) + 4}
+                textAnchor="end"
+              >
+                {axisSek(tick)}
+              </text>
+            </g>
+          ))}
+          <line
+            className="finance-chart-axis"
+            x1={plot.left}
+            x2={plot.left}
+            y1={plot.top}
+            y2={plot.bottom}
+          />
+          <line
+            className="finance-chart-zero"
+            x1={plot.left}
+            x2={plot.right}
+            y1={y(0)}
+            y2={y(0)}
+          />
+          {xTicks.map((tick) => (
+            <g key={`${tick.ratio}-${tick.label}`}>
+              <line
+                className="finance-chart-axis"
+                x1={x(tick.ratio)}
+                x2={x(tick.ratio)}
+                y1={plot.bottom}
+                y2={plot.bottom + 6}
+              />
+              <text
+                className="finance-chart-axis-label"
+                x={x(tick.ratio)}
+                y={plot.bottom + 24}
+                textAnchor="middle"
+              >
+                {tick.label}
+              </text>
+            </g>
+          ))}
+          <text className="finance-chart-axis-title" x={18} y={18}>
+            SEK
+          </text>
+          <text
+            className="finance-chart-axis-title"
+            x={plot.right}
+            y={352}
+            textAnchor="end"
+          >
+            {period === "month"
+              ? t("chartDay")
+              : period === "year"
+                ? t("month")
+                : t("date")}
+          </text>
+          <polyline
+            className="finance-chart-line"
+            points={polyline}
+            fill="none"
+          />
+          {chartPoints.map((point, index) => (
+            <circle
+              className="finance-chart-point"
+              key={point.transaction?.id ?? "origin"}
+              cx={x(point.xRatio)}
+              cy={y(point.balance)}
+              r={index === 0 ? 5 : 7}
+              tabIndex={0}
+              onMouseEnter={() => setHoveredPoint(index)}
+              onMouseLeave={() => setHoveredPoint(null)}
+              onFocus={() => setHoveredPoint(index)}
+              onBlur={() => setHoveredPoint(null)}
+            />
+          ))}
+        </svg>
+        {hovered && (
+          <div
+            className="finance-chart-tooltip"
+            style={{
+              left: `clamp(120px, ${(x(hovered.xRatio) / 1000) * 100}%, calc(100% - 120px))`,
+              top: `${(y(hovered.balance) / 360) * 100}%`,
+              transform:
+                y(hovered.balance) < 125
+                  ? "translate(-50%, 12px)"
+                  : "translate(-50%, calc(-100% - 12px))",
+            }}
+          >
+            {hovered.transaction ? (
+              <>
+                <strong>{categoryName(hovered.transaction.categoryId)}</strong>
+                <span>
+                  {hovered.transaction.date} ·{" "}
+                  {t(hovered.transaction.direction)}
+                </span>
+                {(hovered.transaction.internalNote ||
+                  hovered.transaction.visibleDescription) && (
+                  <span>
+                    {t("description")}:{" "}
+                    {hovered.transaction.internalNote ||
+                      hovered.transaction.visibleDescription}
+                  </span>
+                )}
+                <span>
+                  {t("balanceChange")}: {formatSek(hovered.change, locale)}
+                </span>
+                <span>
+                  {t("remainingBalance")}: {formatSek(hovered.balance, locale)}
+                </span>
+              </>
+            ) : (
+              <>
+                <strong>{t("chartStartingPoint")}</strong>
+                <span>{formatSek(0, locale)}</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -444,13 +627,26 @@ export function FinanceDashboard({
                 <option value="year">{t("year")}</option>
                 <option value="all">{t("allTime")}</option>
               </select>
-              {chartPeriod !== "all" && (
+              {chartPeriod === "month" && (
                 <input
                   className="field finance-period"
                   type="month"
                   aria-label={t("chartPeriod")}
                   value={chartAnchor}
                   onChange={(event) => setChartAnchor(event.target.value)}
+                />
+              )}
+              {chartPeriod === "year" && (
+                <input
+                  className="field finance-period"
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  aria-label={t("chartPeriod")}
+                  value={chartAnchor.slice(0, 4)}
+                  onChange={(event) =>
+                    setChartAnchor(`${event.target.value}-01`)
+                  }
                 />
               )}
             </div>
@@ -460,6 +656,7 @@ export function FinanceDashboard({
               period={chartPeriod}
               anchor={chartAnchor}
               mode={chartMode}
+              categoryName={categoryName}
             />
           </section>
         </>

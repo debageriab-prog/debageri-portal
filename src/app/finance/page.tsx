@@ -133,6 +133,7 @@ export default async function FinancePage({
             data.consultantBalanceDeltaMinor ?? 0,
           ),
           visibleDescription: String(data.visibleDescription ?? ""),
+          internalNote: manager ? String(data.internalNote ?? "") : "",
           status: data.status as "posted" | "reversal",
           reversedByTransactionId: data.reversedByTransactionId ?? null,
           createdAt: millis(data.createdAt),

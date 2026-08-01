@@ -1157,30 +1157,80 @@ th {
 .finance-chart {
   color: var(--accent);
   min-height: 260px;
+  overflow-x: auto;
+}
+.finance-chart-canvas {
+  position: relative;
+  min-width: 620px;
 }
 .finance-chart svg {
   display: block;
-  height: 220px;
+  height: auto;
+  max-height: 360px;
   width: 100%;
   overflow: visible;
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(to bottom, rgb(165 111 78 / 7%), transparent);
+  border-radius: 12px;
+  background: linear-gradient(to bottom, rgb(165 111 78 / 7%), transparent 75%);
 }
-.finance-chart-scale {
+.finance-chart-gridline {
+  stroke: rgb(61 48 39 / 10%);
+  stroke-width: 1;
+}
+.finance-chart-axis {
+  stroke: rgb(61 48 39 / 45%);
+  stroke-width: 1.5;
+}
+.finance-chart-zero {
+  stroke: rgb(61 48 39 / 70%);
+  stroke-width: 2;
+}
+.finance-chart-axis-label,
+.finance-chart-axis-title {
+  fill: var(--muted);
+  font-size: 13px;
+}
+.finance-chart-axis-title {
+  font-weight: 750;
+}
+.finance-chart-line {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.finance-chart-point {
+  fill: white;
+  stroke: var(--accent);
+  stroke-width: 4;
+  cursor: pointer;
+  transition:
+    r 120ms ease,
+    fill 120ms ease;
+}
+.finance-chart-point:hover,
+.finance-chart-point:focus {
+  fill: var(--accent);
+  outline: none;
+  r: 10px;
+}
+.finance-chart-tooltip {
+  position: absolute;
+  z-index: 4;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 12px;
-  align-items: center;
+  width: min(240px, calc(100% - 24px));
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 12px 32px rgb(58 41 29 / 20%);
   color: var(--muted);
-  font-size: 12px;
-  padding-top: 10px;
+  font-size: 13px;
+  pointer-events: none;
 }
-.finance-chart-scale strong {
+.finance-chart-tooltip strong {
   color: var(--foreground);
-  font-size: 18px;
-}
-.finance-chart-scale span:last-child {
-  text-align: right;
+  font-size: 14px;
 }
 .finance-chart-empty {
   min-height: 180px;
@@ -1683,7 +1733,7 @@ th {
     min-height: 210px;
   }
   .finance-chart svg {
-    height: 170px;
+    height: auto;
   }
   .finance-admin-grid {
     grid-template-columns: 1fr;

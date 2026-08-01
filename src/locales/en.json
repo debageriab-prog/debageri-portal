@@ -416,6 +416,8 @@
   "spentFromBalance": "Spent from balance",
   "outstandingInvoices": "Outstanding invoices",
   "chartPeriod": "Chart period",
+  "chartStartingPoint": "Starting point",
+  "chartDay": "Day",
   "importRowKeyRequired": "Import key is required.",
   "importRowKeyDuplicate": "The import key is duplicated in this file.",
   "importRowConsultantMissing": "The consultant employee number was not found.",
