@@ -3,6 +3,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import type { FinanceAccess } from "@/domain/types";
 
 export function EmployeeForm({
   onCreated,
@@ -16,6 +17,11 @@ export function EmployeeForm({
   const [busy, setBusy] = useState(false);
   const [role, setRole] = useState("consultant");
   const [managerReportsTime, setManagerReportsTime] = useState(false);
+  const [financeAccess, setFinanceAccess] = useState<FinanceAccess>({
+    enabled: false,
+    myFinance: false,
+    myInvoices: false,
+  });
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
@@ -35,6 +41,10 @@ export function EmployeeForm({
           reportsTime: role === "consultant" || managerReportsTime,
           employmentStartDate: form.get("employmentStartDate"),
           reportingStartDate: form.get("reportingStartDate"),
+          financeAccess:
+            role === "consultant"
+              ? financeAccess
+              : { enabled: false, myFinance: false, myInvoices: false },
         }),
       });
       const result = (await response.json().catch(() => ({}))) as {
@@ -48,6 +58,11 @@ export function EmployeeForm({
       formElement.reset();
       setRole("consultant");
       setManagerReportsTime(false);
+      setFinanceAccess({
+        enabled: false,
+        myFinance: false,
+        myInvoices: false,
+      });
       setOpen(false);
       onCreated(t("employeeCreated"));
       router.refresh();
@@ -126,6 +141,12 @@ export function EmployeeForm({
                     onChange={(event) => {
                       setRole(event.target.value);
                       setManagerReportsTime(false);
+                      if (event.target.value !== "consultant")
+                        setFinanceAccess({
+                          enabled: false,
+                          myFinance: false,
+                          myInvoices: false,
+                        });
                     }}
                   >
                     <option value="consultant">{t("consultant")}</option>
@@ -148,6 +169,65 @@ export function EmployeeForm({
                       <small>{t("managerReportsTimeHelp")}</small>
                     </span>
                   </label>
+                )}
+                {role === "consultant" && (
+                  <fieldset className="access-section form-wide">
+                    <legend>{t("access")}</legend>
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={financeAccess.enabled}
+                        onChange={(event) =>
+                          setFinanceAccess({
+                            enabled: event.target.checked,
+                            myFinance: event.target.checked,
+                            myInvoices: event.target.checked,
+                          })
+                        }
+                      />
+                      <span>
+                        <strong>{t("finance")}</strong>
+                      </span>
+                    </label>
+                    <div className="access-children">
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={financeAccess.myFinance}
+                          disabled={!financeAccess.enabled}
+                          onChange={(event) =>
+                            setFinanceAccess((current) => ({
+                              ...current,
+                              enabled:
+                                event.target.checked || current.myInvoices,
+                              myFinance: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>
+                          <strong>{t("myFinanceAccess")}</strong>
+                        </span>
+                      </label>
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={financeAccess.myInvoices}
+                          disabled={!financeAccess.enabled}
+                          onChange={(event) =>
+                            setFinanceAccess((current) => ({
+                              ...current,
+                              enabled:
+                                current.myFinance || event.target.checked,
+                              myInvoices: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>
+                          <strong>{t("myInvoices")}</strong>
+                        </span>
+                      </label>
+                    </div>
+                  </fieldset>
                 )}
                 {(role === "consultant" || managerReportsTime) && (
                   <>

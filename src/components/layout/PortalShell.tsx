@@ -206,14 +206,27 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
       items: reporting,
     },
   ];
-  if (user.compensationModel === "flexible")
+  if (
+    user.compensationModel === "flexible" &&
+    user.financeAccess.enabled &&
+    (user.financeAccess.myFinance || user.financeAccess.myInvoices)
+  )
     groups.push({
       id: "finance",
       label: t("finance"),
       icon: "finance",
       items: [
-        { label: t("myFinances"), href: "/finance" },
-        { label: t("myInvoices"), href: "/finance?section=invoices" },
+        ...(user.financeAccess.myFinance
+          ? [{ label: t("myFinances"), href: "/finance" }]
+          : []),
+        ...(user.financeAccess.myInvoices
+          ? [
+              {
+                label: t("myInvoices"),
+                href: "/finance?section=invoices",
+              },
+            ]
+          : []),
       ],
     });
   return groups;

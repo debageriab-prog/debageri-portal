@@ -240,6 +240,8 @@
   "noEmployeesDescription": "Add your first team member to give them access to the portal.",
   "you": "You",
   "employeeAccess": "Employee access",
+  "access": "Access",
+  "myFinanceAccess": "My Finance",
   "editEmployee": "Edit employee",
   "fullName": "Full name",
   "workEmail": "Work email",

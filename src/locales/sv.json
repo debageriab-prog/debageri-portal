@@ -240,6 +240,8 @@
   "noEmployeesDescription": "Lägg till den första teammedlemmen för att ge åtkomst till portalen.",
   "you": "Du",
   "employeeAccess": "Medarbetaråtkomst",
+  "access": "Åtkomst",
+  "myFinanceAccess": "Min ekonomi",
   "editEmployee": "Redigera medarbetare",
   "fullName": "Fullständigt namn",
   "workEmail": "E-postadress för arbete",

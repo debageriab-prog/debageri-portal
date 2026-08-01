@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { EmployeeForm } from "./EmployeeForm";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import type { FinanceAccess } from "@/domain/types";
 
 export interface ManagedUser {
   id: string;
@@ -18,6 +19,7 @@ export interface ManagedUser {
   employmentStartDate: string;
   employmentEndDate: string;
   reportingStartDate: string;
+  financeAccess: FinanceAccess;
 }
 
 export function UserManagement({
@@ -38,6 +40,12 @@ export function UserManagement({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [editRole, setEditRole] = useState("");
+  const [editFinanceAccess, setEditFinanceAccess] = useState<FinanceAccess>({
+    enabled: false,
+    myFinance: false,
+    myInvoices: false,
+  });
 
   function showSuccess(value: string) {
     setError("");
@@ -62,11 +70,10 @@ export function UserManagement({
             email: form.get("email"),
             employeeNumber:
               form.get("employeeNumber") ?? editing.employeeNumber,
-            role: form.get("role") ?? editing.role,
+            role: editRole,
             reportsTime:
-              (form.get("role") ?? editing.role) === "consultant" ||
-              ((form.get("role") ?? editing.role) === "manager" &&
-                form.get("reportsTime") === "on"),
+              editRole === "consultant" ||
+              (editRole === "manager" && form.get("reportsTime") === "on"),
             status: form.get("status") ?? editing.status,
             employmentStartDate:
               (form.get("employmentStartDate") ??
@@ -78,6 +85,10 @@ export function UserManagement({
             reportingStartDate: editing.reportsTime
               ? form.get("reportingStartDate")
               : null,
+            financeAccess:
+              editRole === "consultant"
+                ? editFinanceAccess
+                : { enabled: false, myFinance: false, myInvoices: false },
           }),
         },
       );
@@ -244,6 +255,8 @@ export function UserManagement({
                         onClick={() => {
                           setError("");
                           setEditing(user);
+                          setEditRole(user.role);
+                          setEditFinanceAccess(user.financeAccess);
                         }}
                       >
                         {t("edit")}
@@ -347,7 +360,17 @@ export function UserManagement({
                   <select
                     className="field"
                     name="role"
-                    defaultValue={editing.role}
+                    value={editRole}
+                    onChange={(event) => {
+                      const nextRole = event.target.value;
+                      setEditRole(nextRole);
+                      if (nextRole !== "consultant")
+                        setEditFinanceAccess({
+                          enabled: false,
+                          myFinance: false,
+                          myInvoices: false,
+                        });
+                    }}
                     disabled={editing.id === currentUserId}
                   >
                     <option value="consultant">{t("consultant")}</option>
@@ -356,7 +379,7 @@ export function UserManagement({
                     <option value="admin">{t("administrator")}</option>
                   </select>
                 </label>
-                {editing.role === "manager" && (
+                {editRole === "manager" && (
                   <label className="checkbox-row form-wide">
                     <input
                       name="reportsTime"
@@ -369,6 +392,65 @@ export function UserManagement({
                       <small>{t("managerAccessHelp")}</small>
                     </span>
                   </label>
+                )}
+                {editRole === "consultant" && (
+                  <fieldset className="access-section form-wide">
+                    <legend>{t("access")}</legend>
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={editFinanceAccess.enabled}
+                        onChange={(event) =>
+                          setEditFinanceAccess({
+                            enabled: event.target.checked,
+                            myFinance: event.target.checked,
+                            myInvoices: event.target.checked,
+                          })
+                        }
+                      />
+                      <span>
+                        <strong>{t("finance")}</strong>
+                      </span>
+                    </label>
+                    <div className="access-children">
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={editFinanceAccess.myFinance}
+                          disabled={!editFinanceAccess.enabled}
+                          onChange={(event) =>
+                            setEditFinanceAccess((current) => ({
+                              ...current,
+                              enabled:
+                                event.target.checked || current.myInvoices,
+                              myFinance: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>
+                          <strong>{t("myFinanceAccess")}</strong>
+                        </span>
+                      </label>
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={editFinanceAccess.myInvoices}
+                          disabled={!editFinanceAccess.enabled}
+                          onChange={(event) =>
+                            setEditFinanceAccess((current) => ({
+                              ...current,
+                              enabled:
+                                current.myFinance || event.target.checked,
+                              myInvoices: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>
+                          <strong>{t("myInvoices")}</strong>
+                        </span>
+                      </label>
+                    </div>
+                  </fieldset>
                 )}
                 <label className="form-wide">
                   {t("accountStatus")}

@@ -51,6 +51,11 @@ export async function verifySession(): Promise<PortalUser | null> {
       timezone: data.timezone,
       locale: data.locale,
       compensationModel,
+      financeAccess: {
+        enabled: data.financeAccess?.enabled === true,
+        myFinance: data.financeAccess?.myFinance === true,
+        myInvoices: data.financeAccess?.myInvoices === true,
+      },
     } as PortalUser;
   } catch {
     return null;

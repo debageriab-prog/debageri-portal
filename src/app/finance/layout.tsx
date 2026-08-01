@@ -17,7 +17,10 @@ export default async function FinanceLayout({
     .get();
   const allowedManager = ["admin", "accountant"].includes(user.role);
   const allowedConsultant =
-    user.role === "consultant" && user.compensationModel === "flexible";
+    user.role === "consultant" &&
+    user.compensationModel === "flexible" &&
+    user.financeAccess.enabled &&
+    (user.financeAccess.myFinance || user.financeAccess.myInvoices);
   if (
     (!organization.data()?.financeEnabled && !allowedManager) ||
     (!allowedManager && !allowedConsultant)

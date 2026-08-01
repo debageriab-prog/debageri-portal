@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { FinanceDashboard, type FinancePageData } from "./FinanceDashboard";
@@ -30,6 +31,12 @@ export default async function FinancePage({
     : "overview";
   const actor = (await verifySession())!;
   const manager = ["admin", "accountant"].includes(actor.role);
+  if (
+    !manager &&
+    ((section === "invoices" && !actor.financeAccess.myInvoices) ||
+      (section !== "invoices" && !actor.financeAccess.myFinance))
+  )
+    redirect("/unauthorized");
   const visibleSection = manager
     ? section
     : section === "invoices"
@@ -57,14 +64,18 @@ export default async function FinancePage({
       .collection("financeCategories")
       .where("organizationId", "==", organizationId)
       .get(),
-    db
-      .collection("invoices")
-      .where("organizationId", "==", organizationId)
-      .get(),
-    db
-      .collection("financialTransactions")
-      .where("organizationId", "==", organizationId)
-      .get(),
+    manager || actor.financeAccess.myInvoices
+      ? db
+          .collection("invoices")
+          .where("organizationId", "==", organizationId)
+          .get()
+      : Promise.resolve(null),
+    manager || actor.financeAccess.myFinance
+      ? db
+          .collection("financialTransactions")
+          .where("organizationId", "==", organizationId)
+          .get()
+      : Promise.resolve(null),
     manager
       ? db
           .collection("compensationAgreements")
@@ -118,41 +129,40 @@ export default async function FinancePage({
     })
     .filter((invoice) => manager || invoice.consultantId === actor.id)
     .sort((a, b) => b.issueDate.localeCompare(a.issueDate));
-  const transactions: FinancePageData["transactions"] =
-    transactionsSnapshot.docs
-      .map((document) => {
-        const data = document.data();
-        const recordedBalanceDelta = Number(
-          data.consultantBalanceDeltaMinor ?? 0,
-        );
-        const balanceDelta =
-          data.consultantId === null &&
-          data.invoiceAllocation === "company_share" &&
-          recordedBalanceDelta === 0
-            ? Number(data.netMinor)
-            : recordedBalanceDelta;
-        return {
-          id: document.id,
-          direction: data.direction as "income" | "expense",
-          categoryId: String(data.categoryId),
-          consultantId: data.consultantId ?? null,
-          invoiceId: data.invoiceId ?? null,
-          date: String(data.date),
-          netMinor: Number(data.netMinor),
-          vatMinor: Number(data.vatMinor),
-          grossMinor: Number(data.grossMinor),
-          consultantBalanceDeltaMinor: balanceDelta,
-          visibleDescription: String(data.visibleDescription ?? ""),
-          internalNote: manager ? String(data.internalNote ?? "") : "",
-          status: data.status as "posted" | "reversal",
-          reversedByTransactionId: data.reversedByTransactionId ?? null,
-          createdAt: millis(data.createdAt),
-        };
-      })
-      .filter((transaction) => manager || transaction.consultantId === actor.id)
-      .sort(
-        (a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt,
+  const transactions: FinancePageData["transactions"] = (
+    transactionsSnapshot?.docs ?? []
+  )
+    .map((document) => {
+      const data = document.data();
+      const recordedBalanceDelta = Number(
+        data.consultantBalanceDeltaMinor ?? 0,
       );
+      const balanceDelta =
+        data.consultantId === null &&
+        data.invoiceAllocation === "company_share" &&
+        recordedBalanceDelta === 0
+          ? Number(data.netMinor)
+          : recordedBalanceDelta;
+      return {
+        id: document.id,
+        direction: data.direction as "income" | "expense",
+        categoryId: String(data.categoryId),
+        consultantId: data.consultantId ?? null,
+        invoiceId: data.invoiceId ?? null,
+        date: String(data.date),
+        netMinor: Number(data.netMinor),
+        vatMinor: Number(data.vatMinor),
+        grossMinor: Number(data.grossMinor),
+        consultantBalanceDeltaMinor: balanceDelta,
+        visibleDescription: String(data.visibleDescription ?? ""),
+        internalNote: manager ? String(data.internalNote ?? "") : "",
+        status: data.status as "posted" | "reversal",
+        reversedByTransactionId: data.reversedByTransactionId ?? null,
+        createdAt: millis(data.createdAt),
+      };
+    })
+    .filter((transaction) => manager || transaction.consultantId === actor.id)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
   const agreements: FinancePageData["agreements"] = (
     agreementsSnapshot?.docs ?? []
   )

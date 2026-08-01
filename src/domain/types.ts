@@ -4,6 +4,11 @@ export type UserStatus = "active" | "inactive";
 export type CompensationModel = "flexible" | "fixed";
 export type FinanceDirection = "income" | "expense";
 export type FinanceFunding = "company" | "consultant";
+export interface FinanceAccess {
+  enabled: boolean;
+  myFinance: boolean;
+  myInvoices: boolean;
+}
 export type TimesheetStatus =
   "draft" | "submitted" | "approved" | "rejected" | "reopened";
 export type TimeCategory =
@@ -34,6 +39,7 @@ export interface PortalUser {
   timezone: "Europe/Stockholm";
   locale: "sv-SE" | "en-SE";
   compensationModel?: CompensationModel | null;
+  financeAccess: FinanceAccess;
 }
 
 export interface CompensationAgreement {

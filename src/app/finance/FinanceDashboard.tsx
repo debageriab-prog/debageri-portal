@@ -1177,6 +1177,7 @@ export function FinanceDashboard({
                   <th>{t("customer")}</th>
                   {manager && <th>{t("consultant")}</th>}
                   <th>{t("issueDate")}</th>
+                  <th>{t("paymentDate")}</th>
                   <th>{t("netAmount")}</th>
                   <th>
                     {manager ? t("totalIncludingVat") : t("myInvoiceShare")}
@@ -1196,6 +1197,7 @@ export function FinanceDashboard({
                     <td>{invoice.customerName}</td>
                     {manager && <td>{consultantName(invoice.consultantId)}</td>}
                     <td>{invoice.issueDate}</td>
+                    <td>{invoice.paidDate ?? "—"}</td>
                     <td>{formatSek(invoice.netMinor, locale)}</td>
                     <td>
                       {manager
@@ -1207,9 +1209,8 @@ export function FinanceDashboard({
                             ),
                             locale,
                           )} (${new Intl.NumberFormat(locale, {
-                            style: "percent",
                             maximumFractionDigits: 2,
-                          }).format(invoice.shareBps / 10_000)})`}
+                          }).format(invoice.shareBps / 100)}%)`}
                     </td>
                     <td>{t(invoice.status)}</td>
                     {manager && (
