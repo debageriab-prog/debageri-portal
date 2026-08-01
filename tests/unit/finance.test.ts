@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  allocateInvoiceIncome,
   calculateShareMinor,
   calculateVatMinor,
   financeTotals,
@@ -20,6 +21,17 @@ describe("finance calculations", () => {
   it("rounds VAT and consultant shares to the nearest Ã¶re", () => {
     expect(calculateVatMinor(100_01, 2_500)).toBe(2_500);
     expect(calculateShareMinor(100_01, 9_000)).toBe(9_001);
+  });
+
+  it("splits flexible invoice income while keeping fixed invoice income in the company", () => {
+    expect(allocateInvoiceIncome(100_000, "flexible", 9_000)).toEqual({
+      consultantMinor: 90_000,
+      companyMinor: 10_000,
+    });
+    expect(allocateInvoiceIncome(100_000, "fixed", 0)).toEqual({
+      consultantMinor: 0,
+      companyMinor: 100_000,
+    });
   });
 
   it("calculates revenue, cost, VAT, result, and balance deltas", () => {

@@ -127,7 +127,10 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
       ? [
           {
             label: t("finance"),
-            items: [{ label: t("myFinances"), href: "/finance" }],
+            items: [
+              { label: t("myFinances"), href: "/finance" },
+              { label: t("myInvoices"), href: "/finance?section=invoices" },
+            ],
           },
         ]
       : []),

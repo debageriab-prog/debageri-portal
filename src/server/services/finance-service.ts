@@ -3,6 +3,7 @@ import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { PortalUser } from "@/domain/types";
 import {
+  allocateInvoiceIncome,
   calculateShareMinor,
   calculateVatMinor,
 } from "@/domain/finance/calculations";
@@ -484,6 +485,7 @@ export async function createInvoice(
     status: "issued",
     paidDate: null,
     incomeTransactionId: null,
+    incomeTransactionIds: [],
     createdAt: FieldValue.serverTimestamp(),
     createdBy: actor.id,
     updatedAt: FieldValue.serverTimestamp(),
@@ -506,7 +508,8 @@ export async function markInvoicePaid(
   requireFinanceManager(actor);
   const invoiceRef = db.collection("invoices").doc(input.invoiceId);
   const categoryRef = db.collection("financeCategories").doc(input.categoryId);
-  const transactionRef = db.collection("financialTransactions").doc();
+  const companyTransactionRef = db.collection("financialTransactions").doc();
+  const consultantTransactionRef = db.collection("financialTransactions").doc();
   await db.runTransaction(async (transaction) => {
     const [invoice, category] = await Promise.all([
       transaction.get(invoiceRef),
@@ -525,24 +528,19 @@ export async function markInvoicePaid(
       throw new FinanceError("categoryInvalid");
     if (input.paidDate < data.issueDate)
       throw new FinanceError("invoiceDateInvalid");
-    const balanceDelta =
-      data.consultantId && data.compensationModel === "flexible"
-        ? calculateShareMinor(data.netMinor, data.shareBps)
-        : 0;
-    transaction.create(transactionRef, {
+    const allocation = allocateInvoiceIncome(
+      data.netMinor,
+      data.compensationModel ?? null,
+      data.shareBps ?? 0,
+    );
+    const shared = {
       organizationId: actor.organizationId,
       direction: "income",
       categoryId: input.categoryId,
-      consultantId: data.consultantId ?? null,
       invoiceId: invoice.id,
       date: input.paidDate,
       currency: "SEK",
-      netMinor: data.netMinor,
-      vatRateBps: data.vatRateBps,
-      vatMinor: data.vatMinor,
-      grossMinor: data.grossMinor,
       funding: null,
-      consultantBalanceDeltaMinor: balanceDelta,
       visibleDescription: data.visibleDescription ?? "",
       internalNote: data.internalNote ?? "",
       status: "posted",
@@ -551,11 +549,40 @@ export async function markInvoicePaid(
       importKey: null,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: actor.id,
+    };
+    transaction.create(companyTransactionRef, {
+      ...shared,
+      consultantId: null,
+      netMinor: allocation.companyMinor,
+      vatRateBps: data.vatRateBps,
+      vatMinor: data.vatMinor,
+      grossMinor: allocation.companyMinor + data.vatMinor,
+      consultantBalanceDeltaMinor: 0,
+      invoiceAllocation: "company_share",
     });
+    const transactionIds = [companyTransactionRef.id];
+    if (
+      data.consultantId &&
+      data.compensationModel === "flexible" &&
+      allocation.consultantMinor > 0
+    ) {
+      transaction.create(consultantTransactionRef, {
+        ...shared,
+        consultantId: data.consultantId,
+        netMinor: allocation.consultantMinor,
+        vatRateBps: 0,
+        vatMinor: 0,
+        grossMinor: allocation.consultantMinor,
+        consultantBalanceDeltaMinor: allocation.consultantMinor,
+        invoiceAllocation: "consultant_share",
+      });
+      transactionIds.push(consultantTransactionRef.id);
+    }
     transaction.update(invoiceRef, {
       status: "paid",
       paidDate: input.paidDate,
-      incomeTransactionId: transactionRef.id,
+      incomeTransactionId: companyTransactionRef.id,
+      incomeTransactionIds: transactionIds,
       updatedAt: FieldValue.serverTimestamp(),
     });
     transaction.create(db.collection("auditLogs").doc(), {
@@ -565,10 +592,14 @@ export async function markInvoicePaid(
       entityType: "invoice",
       entityId: invoice.id,
       timestamp: FieldValue.serverTimestamp(),
-      metadata: { transactionId: transactionRef.id, balanceDelta },
+      metadata: {
+        transactionIds,
+        companyIncomeMinor: allocation.companyMinor,
+        consultantIncomeMinor: allocation.consultantMinor,
+      },
     });
   });
-  return transactionRef.id;
+  return companyTransactionRef.id;
 }
 
 export async function createFinancialTransaction(
@@ -730,11 +761,18 @@ export async function voidInvoice(
   if (!snapshot.exists || data?.organizationId !== actor.organizationId)
     throw new FinanceError("invoiceMissing", 404);
   if (data.status === "void") throw new FinanceError("invoiceAlreadyVoid", 409);
-  if (data.status === "paid" && data.incomeTransactionId)
-    await voidFinancialTransaction(db, actor, {
-      transactionId: data.incomeTransactionId,
-      reason: input.reason,
-    });
+  if (data.status === "paid") {
+    const transactionIds: string[] = Array.isArray(data.incomeTransactionIds)
+      ? data.incomeTransactionIds
+      : data.incomeTransactionId
+        ? [data.incomeTransactionId]
+        : [];
+    for (const transactionId of transactionIds)
+      await voidFinancialTransaction(db, actor, {
+        transactionId,
+        reason: input.reason,
+      });
+  }
   const batch = db.batch();
   batch.update(reference, {
     status: "void",

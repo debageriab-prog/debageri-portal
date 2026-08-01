@@ -8,6 +8,21 @@ export function calculateShareMinor(netMinor: number, shareBps: number) {
   return Math.round((netMinor * shareBps) / 10_000);
 }
 
+export function allocateInvoiceIncome(
+  netMinor: number,
+  compensationModel: "flexible" | "fixed" | null,
+  shareBps: number,
+) {
+  const consultantMinor =
+    compensationModel === "flexible"
+      ? calculateShareMinor(netMinor, shareBps)
+      : 0;
+  return {
+    consultantMinor,
+    companyMinor: netMinor - consultantMinor,
+  };
+}
+
 export function financeTotals(
   transactions: Array<
     Pick<

@@ -30,7 +30,11 @@ export default async function FinancePage({
     : "overview";
   const actor = (await verifySession())!;
   const manager = ["admin", "accountant"].includes(actor.role);
-  const visibleSection = manager ? section : "overview";
+  const visibleSection = manager
+    ? section
+    : section === "invoices"
+      ? "invoices"
+      : "overview";
   const { db } = getAdminServices();
   const organizationId = actor.organizationId;
   const [
@@ -53,12 +57,10 @@ export default async function FinancePage({
       .collection("financeCategories")
       .where("organizationId", "==", organizationId)
       .get(),
-    manager
-      ? db
-          .collection("invoices")
-          .where("organizationId", "==", organizationId)
-          .get()
-      : Promise.resolve(null),
+    db
+      .collection("invoices")
+      .where("organizationId", "==", organizationId)
+      .get(),
     db
       .collection("financialTransactions")
       .where("organizationId", "==", organizationId)
@@ -114,6 +116,7 @@ export default async function FinancePage({
         shareBps: Number(data.shareBps ?? 0),
       };
     })
+    .filter((invoice) => manager || invoice.consultantId === actor.id)
     .sort((a, b) => b.issueDate.localeCompare(a.issueDate));
   const transactions: FinancePageData["transactions"] =
     transactionsSnapshot.docs

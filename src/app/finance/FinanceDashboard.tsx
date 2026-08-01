@@ -593,6 +593,8 @@ export function FinanceDashboard({
   );
   const [invoiceConsultantFilter, setInvoiceConsultantFilter] = useState("all");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
+  const [transactionConsultantFilter, setTransactionConsultantFilter] =
+    useState("all");
   const [endingAgreement, setEndingAgreement] = useState<
     FinancePageData["agreements"][number] | null
   >(null);
@@ -661,6 +663,13 @@ export function FinanceDashboard({
           invoice.consultantId === null) ||
         invoice.consultantId === invoiceConsultantFilter) &&
       (invoiceStatusFilter === "all" || invoice.status === invoiceStatusFilter),
+  );
+  const transactionListTransactions = data.transactions.filter(
+    (transaction) =>
+      transactionConsultantFilter === "all" ||
+      (transactionConsultantFilter === "company" &&
+        transaction.consultantId === null) ||
+      transaction.consultantId === transactionConsultantFilter,
   );
   const selectedModel = data.users.find(
     (user) => user.id === selectedConsultant,
@@ -740,7 +749,7 @@ export function FinanceDashboard({
   const title = {
     overview: manager ? t("financialOverview") : t("myFinances"),
     compensation: t("compensationManagement"),
-    invoices: t("invoiceManagement"),
+    invoices: manager ? t("invoiceManagement") : t("myInvoices"),
     categories: t("categoryManagement"),
     transactions: t("incomeExpenseManagement"),
     customers: t("customerManagement"),
@@ -756,7 +765,9 @@ export function FinanceDashboard({
               ? manager
                 ? t("financeManagementDescription")
                 : t("consultantFinanceDescription")
-              : t(`${section}SectionDescription` as Parameters<typeof t>[0])}
+              : section === "invoices" && !manager
+                ? t("consultantInvoicesDescription")
+                : t(`${section}SectionDescription` as Parameters<typeof t>[0])}
           </p>
         </div>
         {manager && section === "overview" && (
@@ -1066,71 +1077,76 @@ export function FinanceDashboard({
         </section>
       )}
 
-      {manager && section === "invoices" && (
+      {section === "invoices" && (
         <>
-          <section className="card">
-            <div className="week-head">
-              <h2>{t("invoices")}</h2>
-              <div className="actions">
-                <Link
-                  className="button secondary"
-                  href="/finance/invoices/import"
-                >
-                  {t("csvImport")}
-                </Link>
-                <Link className="button" href="/finance/invoices/new">
-                  {t("addInvoice")}
-                </Link>
+          {manager && (
+            <section className="card">
+              <div className="week-head">
+                <h2>{t("invoices")}</h2>
+                <div className="actions">
+                  <Link
+                    className="button secondary"
+                    href="/finance/invoices/import"
+                  >
+                    {t("csvImport")}
+                  </Link>
+                  <Link className="button" href="/finance/invoices/new">
+                    {t("addInvoice")}
+                  </Link>
+                </div>
               </div>
-            </div>
-            <div className="finance-filter-bar">
-              <label>
-                {t("consultant")}
-                <select
-                  className="field"
-                  value={invoiceConsultantFilter}
-                  onChange={(event) =>
-                    setInvoiceConsultantFilter(event.target.value)
-                  }
-                >
-                  <option value="all">{t("allConsultantsAndCompany")}</option>
-                  <option value="company">{t("companyOnly")}</option>
-                  {data.users.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.displayName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                {t("paymentStatus")}
-                <select
-                  className="field"
-                  value={invoiceStatusFilter}
-                  onChange={(event) =>
-                    setInvoiceStatusFilter(event.target.value)
-                  }
-                >
-                  <option value="all">{t("allStatuses")}</option>
-                  <option value="issued">{t("issued")}</option>
-                  <option value="paid">{t("paid")}</option>
-                </select>
-              </label>
-            </div>
-          </section>
+              <div className="finance-filter-bar">
+                <label>
+                  {t("consultant")}
+                  <select
+                    className="field"
+                    value={invoiceConsultantFilter}
+                    onChange={(event) =>
+                      setInvoiceConsultantFilter(event.target.value)
+                    }
+                  >
+                    <option value="all">{t("allConsultantsAndCompany")}</option>
+                    <option value="company">{t("companyOnly")}</option>
+                    {data.users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {t("paymentStatus")}
+                  <select
+                    className="field"
+                    value={invoiceStatusFilter}
+                    onChange={(event) =>
+                      setInvoiceStatusFilter(event.target.value)
+                    }
+                  >
+                    <option value="all">{t("allStatuses")}</option>
+                    <option value="issued">{t("issued")}</option>
+                    <option value="paid">{t("paid")}</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+          )}
           <section className="card table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>{t("invoiceNumber")}</th>
                   <th>{t("customer")}</th>
-                  <th>{t("consultant")}</th>
+                  {manager && <th>{t("consultant")}</th>}
                   <th>{t("issueDate")}</th>
                   <th>{t("netAmount")}</th>
+                  <th>{t("totalIncludingVat")}</th>
                   <th>{t("status")}</th>
-                  <th>
-                    <span className="sr-only">{t("actions")}</span>
-                  </th>
+                  {manager && (
+                    <th>
+                      <span className="sr-only">{t("actions")}</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -1138,53 +1154,60 @@ export function FinanceDashboard({
                   <tr key={invoice.id}>
                     <td>{invoice.invoiceNumber}</td>
                     <td>{invoice.customerName}</td>
-                    <td>{consultantName(invoice.consultantId)}</td>
+                    {manager && <td>{consultantName(invoice.consultantId)}</td>}
                     <td>{invoice.issueDate}</td>
                     <td>{formatSek(invoice.netMinor, locale)}</td>
+                    <td>{formatSek(invoice.grossMinor, locale)}</td>
                     <td>{t(invoice.status)}</td>
-                    <td>
-                      {invoice.status === "issued" && (
-                        <form
-                          className="finance-inline-form"
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            const form = new FormData(event.currentTarget);
-                            void post(
-                              {
-                                action: "markInvoicePaid",
-                                invoiceId: invoice.id,
-                                paidDate: form.get("paidDate"),
-                                categoryId: form.get("categoryId"),
-                              },
-                              "invoicePaid",
-                            );
-                          }}
-                        >
-                          <input
-                            className="field"
-                            type="date"
-                            name="paidDate"
-                            defaultValue={today()}
-                            required
-                          />
-                          <select className="field" name="categoryId" required>
-                            <option value="">{t("category")}</option>
-                            {data.categories
-                              .filter(
-                                (category) => category.direction === "income",
-                              )
-                              .map((category) => (
-                                <option key={category.id} value={category.id}>
-                                  {categoryName(category.id)}
-                                </option>
-                              ))}
-                          </select>
-                          <button className="table-action" disabled={busy}>
-                            {t("markPaid")}
-                          </button>
-                        </form>
-                      )}
-                    </td>
+                    {manager && (
+                      <td>
+                        {invoice.status === "issued" && (
+                          <form
+                            className="finance-inline-form"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              const form = new FormData(event.currentTarget);
+                              void post(
+                                {
+                                  action: "markInvoicePaid",
+                                  invoiceId: invoice.id,
+                                  paidDate: form.get("paidDate"),
+                                  categoryId: form.get("categoryId"),
+                                },
+                                "invoicePaid",
+                              );
+                            }}
+                          >
+                            <input
+                              className="field"
+                              type="date"
+                              name="paidDate"
+                              defaultValue={today()}
+                              required
+                            />
+                            <select
+                              className="field"
+                              name="categoryId"
+                              required
+                            >
+                              <option value="">{t("category")}</option>
+                              {data.categories
+                                .filter(
+                                  (category) => category.direction === "income",
+                                )
+                                .map((category) => (
+                                  <option key={category.id} value={category.id}>
+                                    {categoryName(category.id)}
+                                  </option>
+                                ))}
+                            </select>
+                            <button className="table-action" disabled={busy}>
+                              {t("markPaid")}
+                            </button>
+                          </form>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -1194,17 +1217,39 @@ export function FinanceDashboard({
       )}
 
       {manager && section === "transactions" && (
-        <div className="actions finance-page-actions">
-          <Link
-            className="button secondary"
-            href="/finance/transactions/import"
-          >
-            {t("csvImport")}
-          </Link>
-          <Link className="button" href="/finance/transactions/new">
-            {t("addTransaction")}
-          </Link>
-        </div>
+        <>
+          <div className="actions finance-page-actions">
+            <Link
+              className="button secondary"
+              href="/finance/transactions/import"
+            >
+              {t("csvImport")}
+            </Link>
+            <Link className="button" href="/finance/transactions/new">
+              {t("addTransaction")}
+            </Link>
+          </div>
+          <section className="card finance-filter-bar">
+            <label>
+              {t("showFinancialDataFor")}
+              <select
+                className="field"
+                value={transactionConsultantFilter}
+                onChange={(event) =>
+                  setTransactionConsultantFilter(event.target.value)
+                }
+              >
+                <option value="all">{t("allConsultantsAndCompany")}</option>
+                <option value="company">{t("companyOnly")}</option>
+                {data.users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.displayName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
+        </>
       )}
       {((manager && section === "transactions") ||
         (!manager && section === "overview")) && (
@@ -1228,7 +1273,10 @@ export function FinanceDashboard({
               </tr>
             </thead>
             <tbody>
-              {visibleTransactions.map((transaction) => (
+              {(manager && section === "transactions"
+                ? transactionListTransactions
+                : visibleTransactions
+              ).map((transaction) => (
                 <tr key={transaction.id}>
                   <td>{transaction.date}</td>
                   <td>{t(transaction.direction)}</td>

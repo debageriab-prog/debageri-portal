@@ -86,6 +86,7 @@ export interface Invoice {
   shareBps: number;
   visibleDescription: string;
   internalNote: string;
+  incomeTransactionIds?: string[];
 }
 
 export interface FinancialTransaction {
@@ -95,6 +96,7 @@ export interface FinancialTransaction {
   categoryId: string;
   consultantId: string | null;
   invoiceId: string | null;
+  invoiceAllocation?: "company_share" | "consultant_share" | null;
   date: string;
   currency: "SEK";
   netMinor: number;
