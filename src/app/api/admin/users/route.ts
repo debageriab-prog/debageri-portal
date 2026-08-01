@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
+import {
+  financeAccessMatchesRole,
+  financeAccessSchema,
+} from "@/server/validators/user-access";
 
 const inputSchema = z
   .object({
@@ -14,6 +18,7 @@ const inputSchema = z
     reportsTime: z.boolean(),
     employmentStartDate: z.iso.date(),
     reportingStartDate: z.iso.date().nullable(),
+    financeAccess: financeAccessSchema,
   })
   .superRefine((value, context) => {
     const expectedReportsTime =
@@ -28,6 +33,11 @@ const inputSchema = z
       context.addIssue({
         code: "custom",
         message: "Reporting details are required",
+      });
+    if (!financeAccessMatchesRole(value.role, value.financeAccess))
+      context.addIssue({
+        code: "custom",
+        message: "Finance access is only available to consultants",
       });
   });
 
@@ -66,6 +76,7 @@ export async function POST(request: Request) {
       employmentStartDate: parsed.data.employmentStartDate,
       employmentEndDate: null,
       reportingStartDate: parsed.data.reportingStartDate,
+      financeAccess: parsed.data.financeAccess,
       status: "active",
       managerId: null,
       timezone: actor.timezone,
@@ -83,6 +94,7 @@ export async function POST(request: Request) {
       metadata: {
         role: parsed.data.role,
         reportsTime: parsed.data.reportsTime,
+        financeAccess: parsed.data.financeAccess,
       },
     });
     await batch.commit();

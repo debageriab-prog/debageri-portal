@@ -26,6 +26,11 @@ export default async function UsersPage() {
         employmentStartDate: String(data.employmentStartDate ?? ""),
         employmentEndDate: String(data.employmentEndDate ?? ""),
         reportingStartDate: String(data.reportingStartDate ?? ""),
+        financeAccess: {
+          enabled: data.financeAccess?.enabled === true,
+          myFinance: data.financeAccess?.myFinance === true,
+          myInvoices: data.financeAccess?.myInvoices === true,
+        },
       };
     })
     .sort((a, b) => b.createdAt - a.createdAt);

@@ -3,18 +3,31 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
+import {
+  financeAccessMatchesRole,
+  financeAccessSchema,
+} from "@/server/validators/user-access";
 
-const updateSchema = z.object({
-  displayName: z.string().trim().min(2).max(100),
-  email: z.email(),
-  employeeNumber: z.string().trim().min(1).max(30),
-  role: z.enum(["employee", "consultant", "manager", "accountant", "admin"]),
-  reportsTime: z.boolean(),
-  status: z.enum(["active", "inactive"]),
-  employmentStartDate: z.iso.date().nullable(),
-  employmentEndDate: z.iso.date().nullable(),
-  reportingStartDate: z.iso.date().nullable(),
-});
+const updateSchema = z
+  .object({
+    displayName: z.string().trim().min(2).max(100),
+    email: z.email(),
+    employeeNumber: z.string().trim().min(1).max(30),
+    role: z.enum(["employee", "consultant", "manager", "accountant", "admin"]),
+    reportsTime: z.boolean(),
+    status: z.enum(["active", "inactive"]),
+    employmentStartDate: z.iso.date().nullable(),
+    employmentEndDate: z.iso.date().nullable(),
+    reportingStartDate: z.iso.date().nullable(),
+    financeAccess: financeAccessSchema,
+  })
+  .superRefine((value, context) => {
+    if (!financeAccessMatchesRole(value.role, value.financeAccess))
+      context.addIssue({
+        code: "custom",
+        message: "Finance access is only available to consultants",
+      });
+  });
 
 async function loadTarget(id: string) {
   const actor = await verifySession();
@@ -90,6 +103,7 @@ export async function PATCH(
       employmentStartDate: parsed.data.employmentStartDate,
       employmentEndDate: parsed.data.employmentEndDate,
       reportingStartDate: parsed.data.reportingStartDate,
+      financeAccess: parsed.data.financeAccess,
       updatedAt: FieldValue.serverTimestamp(),
     });
     batch.create(loaded.db.collection("auditLogs").doc(), {
@@ -99,7 +113,11 @@ export async function PATCH(
       entityType: "user",
       entityId: id,
       timestamp: FieldValue.serverTimestamp(),
-      metadata: { role: parsed.data.role, status: parsed.data.status },
+      metadata: {
+        role: parsed.data.role,
+        status: parsed.data.status,
+        financeAccess: parsed.data.financeAccess,
+      },
     });
     await batch.commit();
     return NextResponse.json({ ok: true });

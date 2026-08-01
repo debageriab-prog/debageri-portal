@@ -79,6 +79,24 @@ service cloud.firestore {
       allow read: if sameOrg(resource.data);
       allow write: if false;
     }
+    match /compensationAgreements/{agreementId} {
+      allow read, write: if false;
+    }
+    match /financeCategories/{categoryId} {
+      allow read, write: if false;
+    }
+    match /financeCustomers/{customerId} {
+      allow read, write: if false;
+    }
+    match /invoices/{invoiceId} {
+      allow read, write: if false;
+    }
+    match /financialTransactions/{transactionId} {
+      allow read, write: if false;
+    }
+    match /financeImportJobs/{importId} {
+      allow read, write: if false;
+    }
     match /{document=**} { allow read, write: if false; }
   }
 }
