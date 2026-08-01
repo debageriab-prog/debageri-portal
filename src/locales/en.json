@@ -418,6 +418,8 @@
   "chartPeriod": "Chart period",
   "chartStartingPoint": "Starting point",
   "chartDay": "Day",
+  "balanceAtPoint": "Balance at this point",
+  "incomeExpenseChart": "Income and expense totals",
   "importRowKeyRequired": "Import key is required.",
   "importRowKeyDuplicate": "The import key is duplicated in this file.",
   "importRowConsultantMissing": "The consultant employee number was not found.",

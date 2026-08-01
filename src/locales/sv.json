@@ -418,6 +418,8 @@
   "chartPeriod": "Diagramperiod",
   "chartStartingPoint": "Startpunkt",
   "chartDay": "Dag",
+  "balanceAtPoint": "Saldo vid denna punkt",
+  "incomeExpenseChart": "Totala intäkter och kostnader",
   "importRowKeyRequired": "Importnyckel krävs.",
   "importRowKeyDuplicate": "Importnyckeln förekommer flera gånger i filen.",
   "importRowConsultantMissing": "Konsultens anställningsnummer hittades inte.",

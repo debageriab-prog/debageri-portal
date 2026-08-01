@@ -316,7 +316,7 @@ function BalanceChart({
                   {t("balanceChange")}: {formatSek(hovered.change, locale)}
                 </span>
                 <span>
-                  {t("remainingBalance")}: {formatSek(hovered.balance, locale)}
+                  {t("balanceAtPoint")}: {formatSek(hovered.balance, locale)}
                 </span>
               </>
             ) : (
@@ -327,6 +327,242 @@ function BalanceChart({
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function IncomeExpenseBarChart({
+  transactions,
+  locale,
+  period,
+  anchor,
+}: {
+  transactions: FinancePageData["transactions"];
+  locale: Actor["locale"];
+  period: "month" | "year" | "all";
+  anchor: string;
+}) {
+  const { t } = useLocale();
+  const [hoveredBar, setHoveredBar] = useState<{
+    label: string;
+    type: "income" | "expense";
+    value: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const year = anchor.slice(0, 4);
+  const visible = transactions.filter((transaction) =>
+    period === "all"
+      ? true
+      : transaction.date.startsWith(period === "month" ? anchor : year),
+  );
+  const totalsFor = (items: FinancePageData["transactions"]) => ({
+    income: Math.max(
+      0,
+      items
+        .filter((transaction) => transaction.direction === "income")
+        .reduce((sum, transaction) => sum + transaction.netMinor, 0),
+    ),
+    expense: Math.max(
+      0,
+      items
+        .filter((transaction) => transaction.direction === "expense")
+        .reduce((sum, transaction) => sum + transaction.netMinor, 0),
+    ),
+  });
+  const groups =
+    period === "year"
+      ? Array.from({ length: 12 }, (_, monthIndex) => {
+          const monthKey = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+          return {
+            key: monthKey,
+            label: new Intl.DateTimeFormat(locale, { month: "short" }).format(
+              new Date(Date.UTC(Number(year), monthIndex, 1)),
+            ),
+            ...totalsFor(
+              visible.filter((transaction) =>
+                transaction.date.startsWith(monthKey),
+              ),
+            ),
+          };
+        })
+      : [
+          {
+            key: period,
+            label: period === "month" ? anchor : t("allTime"),
+            ...totalsFor(visible),
+          },
+        ];
+  const maxValue = Math.max(
+    10_000,
+    ...groups.flatMap((group) => [group.income, group.expense]),
+  );
+  const chartMax = maxValue * 1.12;
+  const plot = { left: 88, right: 975, top: 20, bottom: 300 };
+  const plotWidth = plot.right - plot.left;
+  const y = (value: number) =>
+    plot.bottom - (value / chartMax) * (plot.bottom - plot.top);
+  const yTicks = Array.from(
+    { length: 5 },
+    (_, index) => (chartMax * index) / 4,
+  );
+  const axisSek = (minor: number) =>
+    new Intl.NumberFormat(locale, {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(minor / 100);
+  const groupWidth = plotWidth / groups.length;
+  const pairWidth = Math.min(groupWidth * 0.72, period === "year" ? 52 : 300);
+  const barGap = Math.max(4, pairWidth * 0.1);
+  const barWidth = (pairWidth - barGap) / 2;
+  return (
+    <div className="finance-bar-chart">
+      <div className="finance-bar-chart-canvas">
+        <svg
+          viewBox="0 0 1000 360"
+          role="img"
+          aria-label={t("incomeExpenseChart")}
+        >
+          {yTicks.map((tick) => (
+            <g key={tick}>
+              <line
+                className="finance-chart-gridline"
+                x1={plot.left}
+                x2={plot.right}
+                y1={y(tick)}
+                y2={y(tick)}
+              />
+              <text
+                className="finance-chart-axis-label"
+                x={plot.left - 12}
+                y={y(tick) + 4}
+                textAnchor="end"
+              >
+                {axisSek(tick)}
+              </text>
+            </g>
+          ))}
+          <line
+            className="finance-chart-axis"
+            x1={plot.left}
+            x2={plot.left}
+            y1={plot.top}
+            y2={plot.bottom}
+          />
+          <line
+            className="finance-chart-zero"
+            x1={plot.left}
+            x2={plot.right}
+            y1={plot.bottom}
+            y2={plot.bottom}
+          />
+          <text className="finance-chart-axis-title" x={18} y={18}>
+            SEK
+          </text>
+          {groups.map((group, index) => {
+            const center = plot.left + groupWidth * (index + 0.5);
+            const incomeX = center - pairWidth / 2;
+            const expenseX = incomeX + barWidth + barGap;
+            return (
+              <g key={group.key}>
+                <rect
+                  className="finance-bar finance-bar-income"
+                  x={incomeX}
+                  y={Math.min(y(group.income), plot.bottom - 2)}
+                  width={barWidth}
+                  height={Math.max(2, plot.bottom - y(group.income))}
+                  rx="4"
+                  tabIndex={0}
+                  onMouseEnter={() =>
+                    setHoveredBar({
+                      label: group.label,
+                      type: "income",
+                      value: group.income,
+                      x: incomeX + barWidth / 2,
+                      y: y(group.income),
+                    })
+                  }
+                  onMouseLeave={() => setHoveredBar(null)}
+                  onFocus={() =>
+                    setHoveredBar({
+                      label: group.label,
+                      type: "income",
+                      value: group.income,
+                      x: incomeX + barWidth / 2,
+                      y: y(group.income),
+                    })
+                  }
+                  onBlur={() => setHoveredBar(null)}
+                />
+                <rect
+                  className="finance-bar finance-bar-expense"
+                  x={expenseX}
+                  y={Math.min(y(group.expense), plot.bottom - 2)}
+                  width={barWidth}
+                  height={Math.max(2, plot.bottom - y(group.expense))}
+                  rx="4"
+                  tabIndex={0}
+                  onMouseEnter={() =>
+                    setHoveredBar({
+                      label: group.label,
+                      type: "expense",
+                      value: group.expense,
+                      x: expenseX + barWidth / 2,
+                      y: y(group.expense),
+                    })
+                  }
+                  onMouseLeave={() => setHoveredBar(null)}
+                  onFocus={() =>
+                    setHoveredBar({
+                      label: group.label,
+                      type: "expense",
+                      value: group.expense,
+                      x: expenseX + barWidth / 2,
+                      y: y(group.expense),
+                    })
+                  }
+                  onBlur={() => setHoveredBar(null)}
+                />
+                <text
+                  className="finance-chart-axis-label"
+                  x={center}
+                  y={plot.bottom + 23}
+                  textAnchor="middle"
+                >
+                  {group.label}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+        {hoveredBar && (
+          <div
+            className="finance-chart-tooltip"
+            style={{
+              left: `clamp(120px, ${(hoveredBar.x / 1000) * 100}%, calc(100% - 120px))`,
+              top: `${(hoveredBar.y / 360) * 100}%`,
+              transform:
+                hoveredBar.y < 105
+                  ? "translate(-50%, 12px)"
+                  : "translate(-50%, calc(-100% - 12px))",
+            }}
+          >
+            <strong>{t(hoveredBar.type)}</strong>
+            <span>{hoveredBar.label}</span>
+            <span>{formatSek(hoveredBar.value, locale)}</span>
+          </div>
+        )}
+      </div>
+      <div className="finance-bar-legend" aria-hidden="true">
+        <span>
+          <i className="finance-bar-income" />
+          {t("income")}
+        </span>
+        <span>
+          <i className="finance-bar-expense" />
+          {t("expenses")}
+        </span>
       </div>
     </div>
   );
@@ -609,47 +845,52 @@ export function FinanceDashboard({
               </>
             )}
           </section>
-          <section className="card finance-chart-card">
+          <section className="card finance-chart-controls">
             <div className="week-head">
-              <h2>
-                {chartMode === "balance"
-                  ? t("balanceHistory")
-                  : t("financialHistory")}
-              </h2>
-              <select
-                className="field finance-period"
-                value={chartPeriod}
-                onChange={(event) =>
-                  setChartPeriod(event.target.value as typeof chartPeriod)
-                }
-              >
-                <option value="month">{t("month")}</option>
-                <option value="year">{t("year")}</option>
-                <option value="all">{t("allTime")}</option>
-              </select>
-              {chartPeriod === "month" && (
-                <input
+              <h2>{t("chartPeriod")}</h2>
+              <div className="actions">
+                <select
                   className="field finance-period"
-                  type="month"
-                  aria-label={t("chartPeriod")}
-                  value={chartAnchor}
-                  onChange={(event) => setChartAnchor(event.target.value)}
-                />
-              )}
-              {chartPeriod === "year" && (
-                <input
-                  className="field finance-period"
-                  type="number"
-                  min="2000"
-                  max="2100"
-                  aria-label={t("chartPeriod")}
-                  value={chartAnchor.slice(0, 4)}
+                  value={chartPeriod}
                   onChange={(event) =>
-                    setChartAnchor(`${event.target.value}-01`)
+                    setChartPeriod(event.target.value as typeof chartPeriod)
                   }
-                />
-              )}
+                >
+                  <option value="month">{t("month")}</option>
+                  <option value="year">{t("year")}</option>
+                  <option value="all">{t("allTime")}</option>
+                </select>
+                {chartPeriod === "month" && (
+                  <input
+                    className="field finance-period"
+                    type="month"
+                    aria-label={t("chartPeriod")}
+                    value={chartAnchor}
+                    onChange={(event) => setChartAnchor(event.target.value)}
+                  />
+                )}
+                {chartPeriod === "year" && (
+                  <input
+                    className="field finance-period"
+                    type="number"
+                    min="2000"
+                    max="2100"
+                    aria-label={t("chartPeriod")}
+                    value={chartAnchor.slice(0, 4)}
+                    onChange={(event) =>
+                      setChartAnchor(`${event.target.value}-01`)
+                    }
+                  />
+                )}
+              </div>
             </div>
+          </section>
+          <section className="card finance-chart-card">
+            <h2>
+              {chartMode === "balance"
+                ? t("balanceHistory")
+                : t("financialHistory")}
+            </h2>
             <BalanceChart
               transactions={visibleTransactions}
               locale={locale}
@@ -657,6 +898,15 @@ export function FinanceDashboard({
               anchor={chartAnchor}
               mode={chartMode}
               categoryName={categoryName}
+            />
+          </section>
+          <section className="card finance-chart-card">
+            <h2>{t("incomeExpenseChart")}</h2>
+            <IncomeExpenseBarChart
+              transactions={visibleTransactions}
+              locale={locale}
+              period={chartPeriod}
+              anchor={chartAnchor}
             />
           </section>
         </>
