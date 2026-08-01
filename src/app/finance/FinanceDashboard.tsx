@@ -630,6 +630,17 @@ export function FinanceDashboard({
             ),
     [data.transactions, selectedConsultant],
   );
+  const visibleOverviewTransactions = useMemo(
+    () =>
+      visibleTransactions.filter(
+        (transaction) =>
+          chartPeriod === "all" ||
+          transaction.date.startsWith(
+            chartPeriod === "month" ? chartAnchor : chartAnchor.slice(0, 4),
+          ),
+      ),
+    [chartAnchor, chartPeriod, visibleTransactions],
+  );
   const totals = financeTotals(visibleTransactions);
   const earnedShare = visibleTransactions.reduce(
     (sum, item) => sum + Math.max(0, item.consultantBalanceDeltaMinor),
@@ -1315,7 +1326,7 @@ export function FinanceDashboard({
             <tbody>
               {(manager && section === "transactions"
                 ? transactionListTransactions
-                : visibleTransactions
+                : visibleOverviewTransactions
               ).map((transaction) => (
                 <tr key={transaction.id}>
                   <td>{transaction.date}</td>
