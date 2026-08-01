@@ -4,7 +4,11 @@ import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
-import { financeTotals, formatSek } from "@/domain/finance/calculations";
+import {
+  calculateShareMinor,
+  financeTotals,
+  formatSek,
+} from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
 
 export interface FinancePageData {
@@ -1174,7 +1178,9 @@ export function FinanceDashboard({
                   {manager && <th>{t("consultant")}</th>}
                   <th>{t("issueDate")}</th>
                   <th>{t("netAmount")}</th>
-                  <th>{t("totalIncludingVat")}</th>
+                  <th>
+                    {manager ? t("totalIncludingVat") : t("myInvoiceShare")}
+                  </th>
                   <th>{t("status")}</th>
                   {manager && (
                     <th>
@@ -1191,7 +1197,20 @@ export function FinanceDashboard({
                     {manager && <td>{consultantName(invoice.consultantId)}</td>}
                     <td>{invoice.issueDate}</td>
                     <td>{formatSek(invoice.netMinor, locale)}</td>
-                    <td>{formatSek(invoice.grossMinor, locale)}</td>
+                    <td>
+                      {manager
+                        ? formatSek(invoice.grossMinor, locale)
+                        : `${formatSek(
+                            calculateShareMinor(
+                              invoice.netMinor,
+                              invoice.shareBps,
+                            ),
+                            locale,
+                          )} (${new Intl.NumberFormat(locale, {
+                            style: "percent",
+                            maximumFractionDigits: 2,
+                          }).format(invoice.shareBps / 10_000)})`}
+                    </td>
                     <td>{t(invoice.status)}</td>
                     {manager && (
                       <td>

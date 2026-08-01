@@ -494,6 +494,7 @@
   "financeError_customerDuplicate": "A customer with this name already exists.",
   "financeError_customerInvalid": "Select a customer in this organization.",
   "totalIncludingVat": "Total including VAT",
+  "myInvoiceShare": "My share of invoice",
   "backToCompensation": "Back to compensation management",
   "backToInvoices": "Back to invoice management",
   "backToCategories": "Back to category management",

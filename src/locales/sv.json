@@ -494,6 +494,7 @@
   "financeError_customerDuplicate": "Det finns redan en kund med detta namn.",
   "financeError_customerInvalid": "Välj en kund i organisationen.",
   "totalIncludingVat": "Totalt inklusive moms",
+  "myInvoiceShare": "Min andel av fakturan",
   "backToCompensation": "Tillbaka till ersättningshantering",
   "backToInvoices": "Tillbaka till fakturahantering",
   "backToCategories": "Tillbaka till kategorihantering",
