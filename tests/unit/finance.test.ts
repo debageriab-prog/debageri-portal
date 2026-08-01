@@ -11,6 +11,7 @@ import {
   parseFinanceCsv,
   transactionCsvHeaders,
 } from "@/domain/finance/csv";
+import { financeActionSchema } from "@/server/validators/finance";
 
 describe("finance calculations", () => {
   it("stores SEK in integer Ã¶re and accepts Swedish decimal commas", () => {
@@ -72,5 +73,24 @@ describe("finance CSV", () => {
     expect(missingHeaders(row!, transactionCsvHeaders)).toContain(
       "category_code",
     );
+  });
+});
+
+describe("finance deletion confirmation", () => {
+  it("requires the exact permanent-deletion phrase", () => {
+    expect(
+      financeActionSchema.safeParse({
+        action: "deleteTransaction",
+        transactionId: "transaction-1",
+        confirmation: "I am sure",
+      }).success,
+    ).toBe(true);
+    expect(
+      financeActionSchema.safeParse({
+        action: "deleteTransaction",
+        transactionId: "transaction-1",
+        confirmation: "yes",
+      }).success,
+    ).toBe(false);
   });
 });

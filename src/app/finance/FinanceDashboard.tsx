@@ -598,9 +598,10 @@ export function FinanceDashboard({
   const [endingAgreement, setEndingAgreement] = useState<
     FinancePageData["agreements"][number] | null
   >(null);
-  const [reversingTransaction, setReversingTransaction] = useState<
+  const [deletingTransaction, setDeletingTransaction] = useState<
     FinancePageData["transactions"][number] | null
   >(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [payingInvoice, setPayingInvoice] = useState<
     FinancePageData["invoices"][number] | null
   >(null);
@@ -1270,9 +1271,12 @@ export function FinanceDashboard({
                           <button
                             className="table-action table-action-danger"
                             disabled={busy}
-                            onClick={() => setReversingTransaction(transaction)}
+                            onClick={() => {
+                              setDeletingTransaction(transaction);
+                              setDeleteConfirmation("");
+                            }}
                           >
-                            {t("void")}
+                            {t("delete")}
                           </button>
                         )}
                     </td>
@@ -1409,44 +1413,71 @@ export function FinanceDashboard({
           </form>
         </div>
       )}
-      {reversingTransaction && (
+      {deletingTransaction && (
         <div className="modal-backdrop" role="presentation">
           <section
             className="modal modal-small"
             role="alertdialog"
             aria-modal="true"
+            aria-labelledby="delete-transaction-title"
           >
             <header className="modal-header">
               <div>
-                <h2>{t("reverseTransactionTitle")}</h2>
-                <p>{t("reverseTransactionExplanation")}</p>
+                <span className="eyebrow danger-text">
+                  {t("permanentAction")}
+                </span>
+                <h2 id="delete-transaction-title">
+                  {t("deleteTransactionTitle")}
+                </h2>
+                <p>{t("deleteTransactionDescription")}</p>
               </div>
             </header>
+            {error && (
+              <p className="notice notice-error" role="alert">
+                {error}
+              </p>
+            )}
+            <label>
+              {t("typeConfirmation")} <strong>I am sure</strong>
+              <input
+                className="field"
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                autoComplete="off"
+                autoFocus
+              />
+            </label>
             <footer className="modal-actions">
               <button
                 className="button secondary"
                 type="button"
-                onClick={() => setReversingTransaction(null)}
+                onClick={() => {
+                  setDeletingTransaction(null);
+                  setDeleteConfirmation("");
+                }}
               >
                 {t("cancel")}
               </button>
               <button
-                className="button"
-                disabled={busy}
+                className="button danger"
+                disabled={busy || deleteConfirmation !== "I am sure"}
                 onClick={() =>
                   void post(
                     {
-                      action: "voidTransaction",
-                      transactionId: reversingTransaction.id,
-                      reason: t("financeCorrectionReason"),
+                      action: "deleteTransaction",
+                      transactionId: deletingTransaction.id,
+                      confirmation: deleteConfirmation,
                     },
-                    "transactionVoided",
+                    "transactionDeleted",
                   ).then((ok) => {
-                    if (ok) setReversingTransaction(null);
+                    if (ok) {
+                      setDeletingTransaction(null);
+                      setDeleteConfirmation("");
+                    }
                   })
                 }
               >
-                {t("confirmReverse")}
+                {busy ? t("deleting") : t("deleteTransaction")}
               </button>
             </footer>
           </section>

@@ -120,6 +120,12 @@ export const voidSchema = z.object({
   reason: z.string().trim().min(3).max(300),
 });
 
+export const deleteTransactionSchema = z.object({
+  action: z.literal("deleteTransaction"),
+  transactionId: z.string().min(1).max(128),
+  confirmation: z.literal("I am sure"),
+});
+
 export const voidInvoiceSchema = z.object({
   action: z.literal("voidInvoice"),
   invoiceId: z.string().min(1).max(128),
@@ -139,5 +145,6 @@ export const financeActionSchema = z.discriminatedUnion("action", [
   transactionSchema,
   copyExpensesSchema,
   voidSchema,
+  deleteTransactionSchema,
   voidInvoiceSchema,
 ]);

@@ -866,6 +866,41 @@ export async function voidFinancialTransaction(
   return reversalRef.id;
 }
 
+export async function deleteFinancialTransaction(
+  db: Firestore,
+  actor: PortalUser,
+  input: { transactionId: string; confirmation: "I am sure" },
+) {
+  requireFinanceManager(actor);
+  const reference = db
+    .collection("financialTransactions")
+    .doc(input.transactionId);
+  const snapshot = await reference.get();
+  const data = snapshot.data();
+  if (!snapshot.exists || data?.organizationId !== actor.organizationId)
+    throw new FinanceError("transactionMissing", 404);
+  if (data.invoiceId) throw new FinanceError("transactionInvoiceLinked", 409);
+  if (data.status === "reversal" || data.reversedByTransactionId)
+    throw new FinanceError("transactionNotDeletable", 409);
+  const batch = db.batch();
+  batch.delete(reference);
+  audit(
+    db,
+    batch,
+    actor,
+    "financialTransaction.deleted",
+    "financialTransaction",
+    reference.id,
+    {
+      direction: data.direction,
+      categoryId: data.categoryId,
+      consultantId: data.consultantId ?? null,
+      date: data.date,
+    },
+  );
+  await batch.commit();
+}
+
 export async function voidInvoice(
   db: Firestore,
   actor: PortalUser,

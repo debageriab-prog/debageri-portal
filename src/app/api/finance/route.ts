@@ -8,6 +8,7 @@ import {
   createFinancialTransaction,
   createExpenseCopies,
   createInvoice,
+  deleteFinancialTransaction,
   enableFinance,
   FinanceError,
   markInvoicePaid,
@@ -75,6 +76,9 @@ export async function POST(request: Request) {
         break;
       case "voidTransaction":
         id = await voidFinancialTransaction(db, actor, parsed.data);
+        break;
+      case "deleteTransaction":
+        await deleteFinancialTransaction(db, actor, parsed.data);
         break;
       case "voidInvoice":
         await voidInvoice(db, actor, parsed.data);
