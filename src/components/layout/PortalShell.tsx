@@ -9,8 +9,72 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 
 type NavItem = { label: string; href: string };
-type NavGroup = { id: string; label: string; items: NavItem[] };
+type NavIconName =
+  "clock" | "reports" | "finance" | "bell" | "settings" | "admin";
+type NavGroup = {
+  id: string;
+  label: string;
+  icon: NavIconName;
+  items: NavItem[];
+};
 type Translate = ReturnType<typeof useLocale>["t"];
+
+function NavIcon({ name }: { name: NavIconName }) {
+  const paths: Record<NavIconName, React.ReactNode> = {
+    clock: (
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7.5v5l3.25 2" />
+      </>
+    ),
+    reports: (
+      <>
+        <path d="M5 4.5h14v15H5z" />
+        <path d="M8 8h8M8 12h8M8 16h5" />
+      </>
+    ),
+    finance: (
+      <>
+        <path d="M4 7.5h16v11H4z" />
+        <path d="M4 10.5h16M15.5 14.5h1" />
+        <path d="M7 7.5V5.25h10V7.5" />
+      </>
+    ),
+    bell: (
+      <>
+        <path d="M6.5 10a5.5 5.5 0 0 1 11 0c0 5 2 5.5 2 5.5h-15s2-.5 2-5.5Z" />
+        <path d="M10 18.5a2.2 2.2 0 0 0 4 0" />
+      </>
+    ),
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6 18 18M18 6l-1.4 1.4M7.4 16.6 6 18" />
+      </>
+    ),
+    admin: (
+      <>
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M5.5 19c.7-3.4 2.8-5.2 6.5-5.2s5.8 1.8 6.5 5.2" />
+      </>
+    ),
+  };
+
+  return (
+    <svg
+      className="nav-group-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
 
 function financeItems(t: Translate): NavItem[] {
   return [
@@ -35,7 +99,7 @@ function financeItems(t: Translate): NavItem[] {
   ];
 }
 
-function navigation(user: PortalUser, t: Translate) {
+function navigation(user: PortalUser, t: Translate): NavGroup[] {
   const reporting: NavItem[] = user.reportsTime
     ? [
         {
@@ -51,15 +115,22 @@ function navigation(user: PortalUser, t: Translate) {
       {
         id: "time-reports",
         label: t("timeReport"),
+        icon: "reports",
         items: [
           { label: t("approvals"), href: "/manager/approvals" },
           { label: t("timeReports"), href: "/time-reports" },
         ],
       },
-      { id: "finance", label: t("finance"), items: financeItems(t) },
+      {
+        id: "finance",
+        label: t("finance"),
+        icon: "finance",
+        items: financeItems(t),
+      },
       {
         id: "reminders",
         label: t("reminders"),
+        icon: "bell",
         items: [
           { label: t("reminder"), href: "/reminders" },
           { label: t("reminderSettings"), href: "/reminders/settings" },
@@ -68,6 +139,7 @@ function navigation(user: PortalUser, t: Translate) {
       {
         id: "time-management",
         label: t("timeManagement"),
+        icon: "settings",
         items: [
           { label: t("timeCodes"), href: "/admin/time-codes" },
           { label: t("redDays"), href: "/admin/red-days" },
@@ -76,6 +148,7 @@ function navigation(user: PortalUser, t: Translate) {
       {
         id: "admin",
         label: t("admin"),
+        icon: "admin",
         items: [
           { label: t("employees"), href: "/admin/users" },
           { label: t("organization"), href: "/admin/settings" },
@@ -89,51 +162,61 @@ function navigation(user: PortalUser, t: Translate) {
       {
         id: "time-reports",
         label: t("timeReports"),
+        icon: "reports",
         items: [
           { label: t("timeReports"), href: "/time-reports" },
           { label: t("reminder"), href: "/reminders" },
         ],
       },
-      { id: "finance", label: t("finance"), items: financeItems(t) },
-    ] satisfies NavGroup[];
-
-  if (user.role === "manager")
-    return [
-      ...(reporting.length
-        ? [
-            {
-              id: "time-reporting",
-              label: t("timeReport"),
-              items: reporting,
-            },
-          ]
-        : []),
       {
-        id: "time-reports",
-        label: t("timeReports"),
-        items: [
-          { label: t("approvals"), href: "/manager/approvals" },
-          { label: t("timeReports"), href: "/time-reports" },
-          { label: t("reminder"), href: "/reminders" },
-        ],
+        id: "finance",
+        label: t("finance"),
+        icon: "finance",
+        items: financeItems(t),
       },
     ] satisfies NavGroup[];
 
-  return [
-    { id: "time-reporting", label: t("timeReport"), items: reporting },
-    ...(user.compensationModel === "flexible"
-      ? [
-          {
-            id: "finance",
-            label: t("finance"),
-            items: [
-              { label: t("myFinances"), href: "/finance" },
-              { label: t("myInvoices"), href: "/finance?section=invoices" },
-            ],
-          },
-        ]
-      : []),
-  ] satisfies NavGroup[];
+  if (user.role === "manager") {
+    const groups: NavGroup[] = [];
+    if (reporting.length)
+      groups.push({
+        id: "time-reporting",
+        label: t("timeReport"),
+        icon: "clock",
+        items: reporting,
+      });
+    groups.push({
+      id: "time-reports",
+      label: t("timeReports"),
+      icon: "reports",
+      items: [
+        { label: t("approvals"), href: "/manager/approvals" },
+        { label: t("timeReports"), href: "/time-reports" },
+        { label: t("reminder"), href: "/reminders" },
+      ],
+    });
+    return groups;
+  }
+
+  const groups: NavGroup[] = [
+    {
+      id: "time-reporting",
+      label: t("timeReport"),
+      icon: "clock",
+      items: reporting,
+    },
+  ];
+  if (user.compensationModel === "flexible")
+    groups.push({
+      id: "finance",
+      label: t("finance"),
+      icon: "finance",
+      items: [
+        { label: t("myFinances"), href: "/finance" },
+        { label: t("myInvoices"), href: "/finance?section=invoices" },
+      ],
+    });
+  return groups;
 }
 
 function itemMatchesRoute(
@@ -239,7 +322,10 @@ export function PortalShell({
                     })
                   }
                 >
-                  <span>{group.label}</span>
+                  <span className="nav-group-title">
+                    <NavIcon name={group.icon} />
+                    <span>{group.label}</span>
+                  </span>
                   <span className="nav-group-chevron" aria-hidden="true" />
                 </button>
                 <div

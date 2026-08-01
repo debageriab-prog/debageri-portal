@@ -151,7 +151,7 @@ a {
 .sidebar nav {
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 3px;
   margin-top: 34px;
   min-height: 0;
   overflow-y: auto;
@@ -161,33 +161,24 @@ a {
 }
 .nav-group {
   display: grid;
-  border: 1px solid transparent;
-  border-radius: 14px;
-  transition:
-    border-color 180ms ease,
-    background 180ms ease;
-}
-.nav-group.open {
-  border-color: rgb(255 255 255 / 9%);
-  background: rgb(255 255 255 / 4%);
 }
 .nav-group-trigger {
+  min-height: 44px;
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 13px;
+  padding: 10px 11px;
   border: 0;
-  border-radius: 13px;
+  border-radius: 10px;
   color: #cbb9ab;
   background: transparent;
   cursor: pointer;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0;
   text-align: left;
-  text-transform: uppercase;
   transition:
     color 160ms ease,
     background 160ms ease;
@@ -195,14 +186,37 @@ a {
 .nav-group-trigger:hover,
 .nav-group.open .nav-group-trigger {
   color: #fff;
-  background: rgb(255 255 255 / 6%);
+  background: rgb(255 255 255 / 5%);
+}
+.nav-group-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.nav-group-title > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nav-group-icon {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  color: #bba596;
+  transition: color 160ms ease;
+}
+.nav-group-trigger:hover .nav-group-icon,
+.nav-group.open .nav-group-icon {
+  color: #e3b994;
 }
 .nav-group-chevron {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   flex: 0 0 auto;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  opacity: 0.7;
   transform: rotate(45deg) translateY(-2px);
   transition: transform 180ms ease;
 }
@@ -224,33 +238,57 @@ a {
 .nav-submenu-inner {
   min-height: 0;
   display: grid;
-  gap: 3px;
+  gap: 2px;
   overflow: hidden;
-  padding: 0 6px;
+  margin-left: 20px;
+  padding: 0 0 0 14px;
+  border-left: 1px solid rgb(255 255 255 / 12%);
 }
 .nav-group.open .nav-submenu-inner {
-  padding-bottom: 7px;
+  padding-bottom: 8px;
 }
 .nav-link {
+  position: relative;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
   color: #e8d8c8;
   text-decoration: none;
-  padding: 11px 13px;
-  border-radius: 12px;
+  padding: 9px 11px;
+  border-radius: 9px;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 560;
   transition:
-    transform 160ms ease,
     background 160ms ease,
     color 160ms ease;
 }
-.nav-link:hover,
-.nav-link.active {
-  background: rgb(255 255 255 / 10%);
+.nav-link:hover {
+  background: rgb(255 255 255 / 7%);
   color: white;
-  transform: translateX(3px);
 }
 .nav-link.active {
-  box-shadow: inset 3px 0 0 #d6a681;
+  background: rgb(214 166 129 / 16%);
+  color: #fff;
+  font-weight: 680;
+}
+.nav-link.active::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: -15px;
+  width: 3px;
+  border-radius: 999px;
+  background: #d6a681;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-group-trigger,
+  .nav-group-icon,
+  .nav-group-chevron,
+  .nav-submenu,
+  .nav-link {
+    transition: none;
+  }
 }
 .main {
   padding: 40px clamp(22px, 5vw, 72px) 72px;
