@@ -458,6 +458,7 @@ export function TransactionForm({
 }) {
   const { t, locale } = useLocale();
   const [direction, setDirection] = useState<"income" | "expense">("income");
+  const [consultantId, setConsultantId] = useState("");
   const { busy, error, submit } = useFinanceSubmit(
     "/finance?section=transactions",
   );
@@ -468,13 +469,16 @@ export function TransactionForm({
       action: "createTransaction",
       direction,
       categoryId: form.get("categoryId"),
-      consultantId: form.get("consultantId") || null,
+      consultantId: consultantId || null,
       date: form.get("date"),
       netMinor: parseSek(String(form.get("netAmount"))),
       vatRateBps: Math.round(Number(form.get("vatPercent")) * 100),
       funding: direction === "expense" ? form.get("funding") : null,
-      applyConsultantShare: form.get("applyConsultantShare") === "on",
-      visibleDescription: form.get("visibleDescription"),
+      applyConsultantShare:
+        Boolean(consultantId) && form.get("applyConsultantShare") === "on",
+      visibleDescription: consultantId
+        ? String(form.get("visibleDescription") ?? "")
+        : "",
       internalNote: form.get("internalNote"),
       importKey: null,
     });
@@ -516,7 +520,12 @@ export function TransactionForm({
         </label>
         <label>
           {t("consultant")}
-          <select className="field" name="consultantId">
+          <select
+            className="field"
+            name="consultantId"
+            value={consultantId}
+            onChange={(event) => setConsultantId(event.target.value)}
+          >
             <option value="">{t("companyOnly")}</option>
             {users.map((user) => (
               <option key={user.id} value={user.id}>
@@ -567,16 +576,18 @@ export function TransactionForm({
               <option value="consultant">{t("consultantFunded")}</option>
             </select>
           </label>
-        ) : (
+        ) : consultantId ? (
           <label className="checkbox">
             <input type="checkbox" name="applyConsultantShare" />
             {t("applyConsultantShare")}
           </label>
+        ) : null}
+        {consultantId && (
+          <label>
+            {t("consultantDescription")}
+            <input className="field" name="visibleDescription" />
+          </label>
         )}
-        <label>
-          {t("consultantDescription")}
-          <input className="field" name="visibleDescription" />
-        </label>
         <label>
           {t("internalNote")}
           <input className="field" name="internalNote" />
