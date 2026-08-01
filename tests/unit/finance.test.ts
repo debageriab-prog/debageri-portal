@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   allocateInvoiceIncome,
+  belongsToCompany,
   calculateShareMinor,
   calculateVatMinor,
+  companyBalanceDeltaMinor,
   financeTotals,
   parseSek,
 } from "@/domain/finance/calculations";
@@ -59,6 +61,24 @@ describe("finance calculations", () => {
       balanceMinor: 60_000,
       netResultMinor: 70_000,
     });
+  });
+
+  it("counts company-funded consultant expenses in company scope only", () => {
+    const transaction = {
+      consultantId: "consultant-1",
+      direction: "expense" as const,
+      funding: "company" as const,
+      netMinor: 40_000,
+      consultantBalanceDeltaMinor: 0,
+    };
+    expect(belongsToCompany(transaction)).toBe(true);
+    expect(companyBalanceDeltaMinor(transaction)).toBe(-40_000);
+    expect(
+      companyBalanceDeltaMinor({ ...transaction, netMinor: -40_000 }),
+    ).toBe(40_000);
+    expect(belongsToCompany({ ...transaction, funding: "consultant" })).toBe(
+      false,
+    );
   });
 });
 

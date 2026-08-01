@@ -5,7 +5,9 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
+  belongsToCompany,
   calculateShareMinor,
+  companyBalanceDeltaMinor,
   financeTotals,
   formatSek,
 } from "@/domain/finance/calculations";
@@ -53,6 +55,7 @@ export interface FinancePageData {
     categoryId: string;
     consultantId: string | null;
     invoiceId: string | null;
+    funding: "company" | "consultant" | null;
     date: string;
     netMinor: number;
     vatMinor: number;
@@ -628,7 +631,7 @@ export function FinanceDashboard({
       selectedConsultant === "all"
         ? data.transactions
         : selectedConsultant === "company"
-          ? data.transactions.filter((item) => item.consultantId === null)
+          ? data.transactions.filter(belongsToCompany)
           : data.transactions.filter(
               (item) => item.consultantId === selectedConsultant,
             ),
@@ -645,7 +648,14 @@ export function FinanceDashboard({
       ),
     [chartAnchor, chartPeriod, visibleTransactions],
   );
-  const totals = financeTotals(visibleTransactions);
+  const totals = financeTotals(
+    selectedConsultant === "company"
+      ? visibleTransactions.map((transaction) => ({
+          ...transaction,
+          consultantBalanceDeltaMinor: companyBalanceDeltaMinor(transaction),
+        }))
+      : visibleTransactions,
+  );
   const earnedShare = visibleTransactions.reduce(
     (sum, item) => sum + Math.max(0, item.consultantBalanceDeltaMinor),
     0,
@@ -693,7 +703,7 @@ export function FinanceDashboard({
     (transaction) =>
       (transactionConsultantFilter === "all" ||
         (transactionConsultantFilter === "company" &&
-          transaction.consultantId === null) ||
+          belongsToCompany(transaction)) ||
         transaction.consultantId === transactionConsultantFilter) &&
       transaction.date.startsWith(
         transactionPeriod === "month"
@@ -853,7 +863,11 @@ export function FinanceDashboard({
             </div>
             <div className="metric">
               <span>
-                {manager ? t("consultantLiability") : t("remainingBalance")}
+                {manager
+                  ? selectedConsultant === "company"
+                    ? t("companyBalance")
+                    : t("consultantLiability")
+                  : t("remainingBalance")}
               </span>
               <strong>
                 {formatSek(
@@ -1265,8 +1279,7 @@ export function FinanceDashboard({
                   const latest = data.transactions.find(
                     (transaction) =>
                       scope === "all" ||
-                      (scope === "company" &&
-                        transaction.consultantId === null) ||
+                      (scope === "company" && belongsToCompany(transaction)) ||
                       transaction.consultantId === scope,
                   );
                   if (latest)
@@ -1358,7 +1371,12 @@ export function FinanceDashboard({
                   <td>{transaction.visibleDescription || "—"}</td>
                   <td>{formatSek(transaction.netMinor, locale)}</td>
                   <td>
-                    {formatSek(transaction.consultantBalanceDeltaMinor, locale)}
+                    {formatSek(
+                      manager && transactionConsultantFilter === "company"
+                        ? companyBalanceDeltaMinor(transaction)
+                        : transaction.consultantBalanceDeltaMinor,
+                      locale,
+                    )}
                   </td>
                   {manager && (
                     <td>

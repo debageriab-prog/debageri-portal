@@ -323,6 +323,7 @@
   "netIncome": "Net income",
   "netExpenses": "Net expenses",
   "consultantLiability": "Consultant balances",
+  "companyBalance": "Company balance",
   "remainingBalance": "Remaining balance",
   "vatPayable": "VAT payable",
   "retainedResult": "Retained company result",

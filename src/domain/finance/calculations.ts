@@ -8,6 +8,30 @@ export function calculateShareMinor(netMinor: number, shareBps: number) {
   return Math.round((netMinor * shareBps) / 10_000);
 }
 
+type TransactionScopeInput = Pick<
+  FinancialTransaction,
+  | "consultantId"
+  | "direction"
+  | "funding"
+  | "netMinor"
+  | "consultantBalanceDeltaMinor"
+>;
+
+export function belongsToCompany(transaction: TransactionScopeInput) {
+  return (
+    transaction.consultantId === null ||
+    (transaction.direction === "expense" && transaction.funding === "company")
+  );
+}
+
+export function companyBalanceDeltaMinor(transaction: TransactionScopeInput) {
+  if (transaction.consultantId === null)
+    return transaction.consultantBalanceDeltaMinor;
+  if (transaction.direction === "expense" && transaction.funding === "company")
+    return -transaction.netMinor;
+  return 0;
+}
+
 export function allocateInvoiceIncome(
   netMinor: number,
   compensationModel: "flexible" | "fixed" | null,

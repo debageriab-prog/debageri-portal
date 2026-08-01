@@ -149,6 +149,7 @@ export default async function FinancePage({
         categoryId: String(data.categoryId),
         consultantId: data.consultantId ?? null,
         invoiceId: data.invoiceId ?? null,
+        funding: data.funding ?? null,
         date: String(data.date),
         netMinor: Number(data.netMinor),
         vatMinor: Number(data.vatMinor),
