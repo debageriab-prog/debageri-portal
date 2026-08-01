@@ -1326,6 +1326,33 @@ th {
   gap: 14px;
   margin-bottom: 18px;
 }
+.finance-filter-bar-three {
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+.protected-action {
+  position: relative;
+  display: inline-block;
+}
+.protected-action-tooltip {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: none;
+  width: 240px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: white;
+  box-shadow: 0 10px 24px rgb(58 41 29 / 18%);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.protected-action:hover .protected-action-tooltip,
+.protected-action:focus .protected-action-tooltip {
+  display: block;
+}
 .category-edit-form {
   grid-template-columns: repeat(2, minmax(150px, 1fr)) auto auto;
   align-items: center;

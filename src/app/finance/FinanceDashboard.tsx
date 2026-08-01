@@ -595,6 +595,12 @@ export function FinanceDashboard({
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const [transactionConsultantFilter, setTransactionConsultantFilter] =
     useState("all");
+  const [transactionPeriod, setTransactionPeriod] = useState<"month" | "year">(
+    "month",
+  );
+  const [transactionPeriodAnchor, setTransactionPeriodAnchor] = useState(
+    data.transactions[0]?.date.slice(0, 7) ?? today().slice(0, 7),
+  );
   const [endingAgreement, setEndingAgreement] = useState<
     FinancePageData["agreements"][number] | null
   >(null);
@@ -670,11 +676,24 @@ export function FinanceDashboard({
   );
   const transactionListTransactions = data.transactions.filter(
     (transaction) =>
-      transactionConsultantFilter === "all" ||
-      (transactionConsultantFilter === "company" &&
-        transaction.consultantId === null) ||
-      transaction.consultantId === transactionConsultantFilter,
+      (transactionConsultantFilter === "all" ||
+        (transactionConsultantFilter === "company" &&
+          transaction.consultantId === null) ||
+        transaction.consultantId === transactionConsultantFilter) &&
+      transaction.date.startsWith(
+        transactionPeriod === "month"
+          ? transactionPeriodAnchor
+          : transactionPeriodAnchor.slice(0, 4),
+      ),
   );
+  const transactionDeleteProtection = (
+    transaction: FinancePageData["transactions"][number],
+  ) =>
+    transaction.invoiceId
+      ? t("invoiceTransactionDeleteProtected")
+      : transaction.reversedByTransactionId || transaction.status === "reversal"
+        ? t("reversalTransactionDeleteProtected")
+        : "";
   const selectedModel = data.users.find(
     (user) => user.id === selectedConsultant,
   )?.compensationModel;
@@ -1203,15 +1222,25 @@ export function FinanceDashboard({
               {t("addTransaction")}
             </Link>
           </div>
-          <section className="card finance-filter-bar">
+          <section className="card finance-filter-bar finance-filter-bar-three">
             <label>
               {t("showFinancialDataFor")}
               <select
                 className="field"
                 value={transactionConsultantFilter}
-                onChange={(event) =>
-                  setTransactionConsultantFilter(event.target.value)
-                }
+                onChange={(event) => {
+                  const scope = event.target.value;
+                  setTransactionConsultantFilter(scope);
+                  const latest = data.transactions.find(
+                    (transaction) =>
+                      scope === "all" ||
+                      (scope === "company" &&
+                        transaction.consultantId === null) ||
+                      transaction.consultantId === scope,
+                  );
+                  if (latest)
+                    setTransactionPeriodAnchor(latest.date.slice(0, 7));
+                }}
               >
                 <option value="all">{t("allConsultantsAndCompany")}</option>
                 <option value="company">{t("companyOnly")}</option>
@@ -1221,6 +1250,43 @@ export function FinanceDashboard({
                   </option>
                 ))}
               </select>
+            </label>
+            <label>
+              {t("periodType")}
+              <select
+                className="field"
+                value={transactionPeriod}
+                onChange={(event) =>
+                  setTransactionPeriod(event.target.value as "month" | "year")
+                }
+              >
+                <option value="month">{t("month")}</option>
+                <option value="year">{t("year")}</option>
+              </select>
+            </label>
+            <label>
+              {t("chartPeriod")}
+              {transactionPeriod === "month" ? (
+                <input
+                  className="field"
+                  type="month"
+                  value={transactionPeriodAnchor}
+                  onChange={(event) =>
+                    setTransactionPeriodAnchor(event.target.value)
+                  }
+                />
+              ) : (
+                <input
+                  className="field"
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  value={transactionPeriodAnchor.slice(0, 4)}
+                  onChange={(event) =>
+                    setTransactionPeriodAnchor(`${event.target.value}-01`)
+                  }
+                />
+              )}
             </label>
           </section>
         </>
@@ -1265,20 +1331,34 @@ export function FinanceDashboard({
                   </td>
                   {manager && (
                     <td>
-                      {!transaction.invoiceId &&
-                        !transaction.reversedByTransactionId &&
-                        transaction.status !== "reversal" && (
-                          <button
-                            className="table-action table-action-danger"
-                            disabled={busy}
-                            onClick={() => {
-                              setDeletingTransaction(transaction);
-                              setDeleteConfirmation("");
-                            }}
+                      <div
+                        className="protected-action"
+                        tabIndex={
+                          transactionDeleteProtection(transaction) ? 0 : -1
+                        }
+                      >
+                        <button
+                          className="table-action table-action-danger"
+                          disabled={
+                            busy ||
+                            Boolean(transactionDeleteProtection(transaction))
+                          }
+                          onClick={() => {
+                            setDeletingTransaction(transaction);
+                            setDeleteConfirmation("");
+                          }}
+                        >
+                          {t("delete")}
+                        </button>
+                        {transactionDeleteProtection(transaction) && (
+                          <span
+                            className="protected-action-tooltip"
+                            role="tooltip"
                           >
-                            {t("delete")}
-                          </button>
+                            {transactionDeleteProtection(transaction)}
+                          </span>
                         )}
+                      </div>
                     </td>
                   )}
                 </tr>
