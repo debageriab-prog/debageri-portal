@@ -557,7 +557,7 @@ export async function markInvoicePaid(
       vatRateBps: data.vatRateBps,
       vatMinor: data.vatMinor,
       grossMinor: allocation.companyMinor + data.vatMinor,
-      consultantBalanceDeltaMinor: 0,
+      consultantBalanceDeltaMinor: allocation.companyMinor,
       invoiceAllocation: "company_share",
     });
     const transactionIds = [companyTransactionRef.id];
@@ -662,6 +662,9 @@ export async function createFinancialTransaction(
         balanceDelta = -input.netMinor;
     }
   }
+  if (!input.consultantId)
+    balanceDelta =
+      input.direction === "income" ? input.netMinor : -input.netMinor;
   if (input.direction === "expense" && !input.funding)
     throw new FinanceError("fundingRequired");
   const vatMinor = calculateVatMinor(input.netMinor, input.vatRateBps);
@@ -697,6 +700,120 @@ export async function createFinancialTransaction(
   );
   await batch.commit();
   return ref.id;
+}
+
+export async function createExpenseCopies(
+  db: Firestore,
+  actor: PortalUser,
+  input: {
+    consultantId: string | null;
+    expenses: Array<{
+      categoryId: string;
+      date: string;
+      netMinor: number;
+      vatRateBps: number;
+      funding: "company" | "consultant";
+      visibleDescription: string;
+      internalNote: string;
+    }>;
+  },
+) {
+  requireFinanceManager(actor);
+  const categoryIds = [
+    ...new Set(input.expenses.map((item) => item.categoryId)),
+  ];
+  const categoryDocuments = await Promise.all(
+    categoryIds.map((categoryId) =>
+      db.collection("financeCategories").doc(categoryId).get(),
+    ),
+  );
+  if (
+    categoryDocuments.some(
+      (category) =>
+        !category.exists ||
+        category.data()?.organizationId !== actor.organizationId ||
+        category.data()?.direction !== "expense" ||
+        category.data()?.active === false,
+    )
+  )
+    throw new FinanceError("categoryInvalid");
+
+  const agreementsByDate = new Map<
+    string,
+    Awaited<ReturnType<typeof activeAgreement>>
+  >();
+  if (input.consultantId) {
+    const consultant = await db
+      .collection("users")
+      .doc(input.consultantId)
+      .get();
+    if (
+      !consultant.exists ||
+      consultant.data()?.organizationId !== actor.organizationId ||
+      consultant.data()?.role !== "consultant"
+    )
+      throw new FinanceError("consultantInvalid", 404);
+    const agreementDates = [
+      ...new Set(input.expenses.map((item) => item.date)),
+    ];
+    const agreements = await Promise.all(
+      agreementDates.map((date) =>
+        activeAgreement(db, actor.organizationId, input.consultantId!, date),
+      ),
+    );
+    agreementDates.forEach((date, index) =>
+      agreementsByDate.set(date, agreements[index]!),
+    );
+  }
+
+  const batch = db.batch();
+  const ids: string[] = [];
+  for (const expense of input.expenses) {
+    const consultantModel = agreementsByDate.get(expense.date)?.model ?? null;
+    const balanceDelta = input.consultantId
+      ? consultantModel === "flexible" && expense.funding === "consultant"
+        ? -expense.netMinor
+        : 0
+      : -expense.netMinor;
+    const vatMinor = calculateVatMinor(expense.netMinor, expense.vatRateBps);
+    const reference = db.collection("financialTransactions").doc();
+    ids.push(reference.id);
+    batch.create(reference, {
+      organizationId: actor.organizationId,
+      direction: "expense",
+      categoryId: expense.categoryId,
+      consultantId: input.consultantId,
+      invoiceId: null,
+      date: expense.date,
+      currency: "SEK",
+      netMinor: expense.netMinor,
+      vatRateBps: expense.vatRateBps,
+      vatMinor,
+      grossMinor: expense.netMinor + vatMinor,
+      funding: expense.funding,
+      applyConsultantShare: false,
+      consultantBalanceDeltaMinor: balanceDelta,
+      visibleDescription: expense.visibleDescription,
+      internalNote: expense.internalNote,
+      status: "posted",
+      reversesTransactionId: null,
+      reversedByTransactionId: null,
+      importKey: null,
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: actor.id,
+    });
+  }
+  audit(
+    db,
+    batch,
+    actor,
+    "financialExpenses.copied",
+    "financialTransactionBatch",
+    ids[0]!,
+    { transactionIds: ids, consultantId: input.consultantId },
+  );
+  await batch.commit();
+  return ids[0];
 }
 
 export async function voidFinancialTransaction(

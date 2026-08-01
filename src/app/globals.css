@@ -1340,6 +1340,18 @@ th {
 .finance-inline-form .field {
   padding: 7px 9px;
 }
+.expense-copy-table .field {
+  min-width: 130px;
+  padding: 7px 9px;
+}
+.expense-copy-table td:nth-child(6) .field,
+.expense-copy-table td:nth-child(7) .field {
+  min-width: 190px;
+}
+.expense-copy-actions {
+  justify-content: flex-end;
+  margin: 18px 0;
+}
 
 .chart-legend > div {
   display: grid;

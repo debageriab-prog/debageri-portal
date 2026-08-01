@@ -6,6 +6,7 @@ import {
   createCategory,
   createCustomer,
   createFinancialTransaction,
+  createExpenseCopies,
   createInvoice,
   enableFinance,
   FinanceError,
@@ -68,6 +69,9 @@ export async function POST(request: Request) {
         break;
       case "createTransaction":
         id = await createFinancialTransaction(db, actor, parsed.data);
+        break;
+      case "createExpenseCopies":
+        id = await createExpenseCopies(db, actor, parsed.data);
         break;
       case "voidTransaction":
         id = await voidFinancialTransaction(db, actor, parsed.data);

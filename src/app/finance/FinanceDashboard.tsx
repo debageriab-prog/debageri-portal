@@ -601,6 +601,9 @@ export function FinanceDashboard({
   const [reversingTransaction, setReversingTransaction] = useState<
     FinancePageData["transactions"][number] | null
   >(null);
+  const [payingInvoice, setPayingInvoice] = useState<
+    FinancePageData["invoices"][number] | null
+  >(null);
   const categoryName = (id: string) => {
     const item = data.categories.find((category) => category.id === id);
     return item ? item.name[locale === "sv-SE" ? "sv" : "en"] : "—";
@@ -1162,49 +1165,13 @@ export function FinanceDashboard({
                     {manager && (
                       <td>
                         {invoice.status === "issued" && (
-                          <form
-                            className="finance-inline-form"
-                            onSubmit={(event) => {
-                              event.preventDefault();
-                              const form = new FormData(event.currentTarget);
-                              void post(
-                                {
-                                  action: "markInvoicePaid",
-                                  invoiceId: invoice.id,
-                                  paidDate: form.get("paidDate"),
-                                  categoryId: form.get("categoryId"),
-                                },
-                                "invoicePaid",
-                              );
-                            }}
+                          <button
+                            className="table-action"
+                            type="button"
+                            onClick={() => setPayingInvoice(invoice)}
                           >
-                            <input
-                              className="field"
-                              type="date"
-                              name="paidDate"
-                              defaultValue={today()}
-                              required
-                            />
-                            <select
-                              className="field"
-                              name="categoryId"
-                              required
-                            >
-                              <option value="">{t("category")}</option>
-                              {data.categories
-                                .filter(
-                                  (category) => category.direction === "income",
-                                )
-                                .map((category) => (
-                                  <option key={category.id} value={category.id}>
-                                    {categoryName(category.id)}
-                                  </option>
-                                ))}
-                            </select>
-                            <button className="table-action" disabled={busy}>
-                              {t("markPaid")}
-                            </button>
-                          </form>
+                            {t("markAsPaid")}
+                          </button>
                         )}
                       </td>
                     )}
@@ -1219,6 +1186,12 @@ export function FinanceDashboard({
       {manager && section === "transactions" && (
         <>
           <div className="actions finance-page-actions">
+            <Link
+              className="button secondary"
+              href="/finance/transactions/copy-expenses"
+            >
+              {t("copyExpensesButton")}
+            </Link>
             <Link
               className="button secondary"
               href="/finance/transactions/import"
@@ -1311,6 +1284,78 @@ export function FinanceDashboard({
         </section>
       )}
 
+      {payingInvoice && (
+        <div className="modal-backdrop" role="presentation">
+          <form
+            className="modal modal-small"
+            role="dialog"
+            aria-modal="true"
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void post(
+                {
+                  action: "markInvoicePaid",
+                  invoiceId: payingInvoice.id,
+                  paidDate: form.get("paidDate"),
+                  categoryId: form.get("categoryId"),
+                },
+                "invoicePaid",
+              ).then((ok) => {
+                if (ok) setPayingInvoice(null);
+              });
+            }}
+          >
+            <header className="modal-header">
+              <div>
+                <h2>{t("markInvoicePaidTitle")}</h2>
+                <p>{t("markInvoicePaidDescription")}</p>
+              </div>
+            </header>
+            <div className="form-grid">
+              <label>
+                {t("paymentDate")}
+                <input
+                  className="field"
+                  type="date"
+                  name="paidDate"
+                  defaultValue={today()}
+                  required
+                />
+              </label>
+              <label>
+                {t("category")}
+                <select className="field" name="categoryId" required>
+                  <option value="">{t("selectCategory")}</option>
+                  {data.categories
+                    .filter(
+                      (category) =>
+                        category.active && category.direction === "income",
+                    )
+                    .map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {categoryName(category.id)}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </div>
+            {error && <p className="notice notice-error">{error}</p>}
+            <footer className="modal-actions">
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => setPayingInvoice(null)}
+              >
+                {t("cancel")}
+              </button>
+              <button className="button" disabled={busy}>
+                {t("markAsPaid")}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
       {endingAgreement && (
         <div className="modal-backdrop" role="presentation">
           <form

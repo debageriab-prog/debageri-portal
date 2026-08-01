@@ -122,6 +122,15 @@ export default async function FinancePage({
     transactionsSnapshot.docs
       .map((document) => {
         const data = document.data();
+        const recordedBalanceDelta = Number(
+          data.consultantBalanceDeltaMinor ?? 0,
+        );
+        const balanceDelta =
+          data.consultantId === null &&
+          data.invoiceAllocation === "company_share" &&
+          recordedBalanceDelta === 0
+            ? Number(data.netMinor)
+            : recordedBalanceDelta;
         return {
           id: document.id,
           direction: data.direction as "income" | "expense",
@@ -132,9 +141,7 @@ export default async function FinancePage({
           netMinor: Number(data.netMinor),
           vatMinor: Number(data.vatMinor),
           grossMinor: Number(data.grossMinor),
-          consultantBalanceDeltaMinor: Number(
-            data.consultantBalanceDeltaMinor ?? 0,
-          ),
+          consultantBalanceDeltaMinor: balanceDelta,
           visibleDescription: String(data.visibleDescription ?? ""),
           internalNote: manager ? String(data.internalNote ?? "") : "",
           status: data.status as "posted" | "reversal",
