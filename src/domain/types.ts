@@ -56,12 +56,23 @@ export interface FinanceCategory {
   active: boolean;
 }
 
+export interface FinanceCustomer {
+  id: string;
+  organizationId: string;
+  name: string;
+  contactPerson: string;
+  financeEmail: string;
+}
+
 export interface Invoice {
   id: string;
   organizationId: string;
   invoiceNumber: string;
   consultantId: string | null;
+  customerId: string;
   customerName: string;
+  customerContactPerson: string;
+  customerFinanceEmail: string;
   issueDate: string;
   dueDate: string;
   paidDate: string | null;

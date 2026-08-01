@@ -32,6 +32,10 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
           },
           { label: t("invoiceManagement"), href: "/finance?section=invoices" },
           {
+            label: t("customerManagement"),
+            href: "/finance?section=customers",
+          },
+          {
             label: t("categoryManagement"),
             href: "/finance?section=categories",
           },
@@ -82,6 +86,10 @@ function navigation(user: PortalUser, t: ReturnType<typeof useLocale>["t"]) {
             href: "/finance?section=compensation",
           },
           { label: t("invoiceManagement"), href: "/finance?section=invoices" },
+          {
+            label: t("customerManagement"),
+            href: "/finance?section=customers",
+          },
           {
             label: t("categoryManagement"),
             href: "/finance?section=categories",

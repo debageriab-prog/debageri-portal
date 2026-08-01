@@ -14,6 +14,7 @@ const financeSections = [
   "invoices",
   "categories",
   "transactions",
+  "customers",
 ] as const;
 
 export default async function FinancePage({
@@ -39,6 +40,7 @@ export default async function FinancePage({
     invoicesSnapshot,
     transactionsSnapshot,
     agreementsSnapshot,
+    customersSnapshot,
   ] = await Promise.all([
     db.collection("organizations").doc(organizationId).get(),
     manager
@@ -64,6 +66,12 @@ export default async function FinancePage({
     manager
       ? db
           .collection("compensationAgreements")
+          .where("organizationId", "==", organizationId)
+          .get()
+      : Promise.resolve(null),
+    manager
+      ? db
+          .collection("financeCustomers")
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
@@ -147,12 +155,23 @@ export default async function FinancePage({
       fixedMonthlySalaryMinor: document.data().fixedMonthlySalaryMinor ?? null,
     }))
     .sort((a, b) => b.validFrom.localeCompare(a.validFrom));
+  const customers: FinancePageData["customers"] = (
+    customersSnapshot?.docs ?? []
+  )
+    .map((document) => ({
+      id: document.id,
+      name: String(document.data().name),
+      contactPerson: String(document.data().contactPerson),
+      financeEmail: String(document.data().financeEmail),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <FinanceDashboard
       data={{
         financeEnabled: organizationSnapshot.data()?.financeEnabled === true,
         users,
+        customers,
         categories,
         invoices,
         transactions,

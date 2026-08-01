@@ -14,6 +14,29 @@ export const compensationSchema = z.object({
   fixedMonthlySalaryMinor: minor.nullable(),
 });
 
+export const setCompensationValidToSchema = z.object({
+  action: z.literal("setCompensationValidTo"),
+  agreementId: z.string().min(1).max(128),
+  validTo: date,
+});
+
+const customerFields = {
+  name: z.string().trim().min(2).max(160),
+  contactPerson: z.string().trim().min(2).max(160),
+  financeEmail: z.email().max(254),
+};
+
+export const customerSchema = z.object({
+  action: z.literal("createCustomer"),
+  ...customerFields,
+});
+
+export const updateCustomerSchema = z.object({
+  action: z.literal("updateCustomer"),
+  customerId: z.string().min(1).max(128),
+  ...customerFields,
+});
+
 export const updateCategorySchema = z.object({
   action: z.literal("updateCategory"),
   categoryId: z.string().min(1).max(128),
@@ -37,7 +60,7 @@ export const invoiceSchema = z.object({
   action: z.literal("createInvoice"),
   invoiceNumber: z.string().trim().min(1).max(60),
   consultantId: z.string().min(1).max(128).nullable(),
-  customerName: z.string().trim().min(2).max(160),
+  customerId: z.string().min(1).max(128),
   issueDate: date,
   dueDate: date,
   netMinor: minor,
@@ -90,6 +113,9 @@ export const voidInvoiceSchema = z.object({
 export const financeActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("enableFinance") }),
   compensationSchema,
+  setCompensationValidToSchema,
+  customerSchema,
+  updateCustomerSchema,
   categorySchema,
   updateCategorySchema,
   invoiceSchema,

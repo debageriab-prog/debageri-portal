@@ -9,3 +9,10 @@ terminal state.
 All new or changed user-facing features must support both English and Swedish.
 Put user-facing copy in the shared locale catalogs and use the localization
 helpers; do not add literal English or Swedish UI labels and descriptions.
+
+All create and edit flows must open on a dedicated, clean page. Do not place
+create or edit forms inline on a list or management page.
+
+Never use browser-native alert, confirm, or prompt dialogs for user-facing
+messages or confirmations. Use the portal's styled modal and notice patterns,
+with all copy provided through the shared locale catalogs.

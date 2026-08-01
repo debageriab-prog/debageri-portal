@@ -215,6 +215,118 @@ export async function setCompensation(
   return ref.id;
 }
 
+export async function setCompensationValidTo(
+  db: Firestore,
+  actor: PortalUser,
+  input: { agreementId: string; validTo: string },
+) {
+  if (actor.role !== "admin") throw new FinanceError("forbidden", 403);
+  const reference = db
+    .collection("compensationAgreements")
+    .doc(input.agreementId);
+  const snapshot = await reference.get();
+  const data = snapshot.data();
+  if (!snapshot.exists || data?.organizationId !== actor.organizationId)
+    throw new FinanceError("compensationMissing", 404);
+  if (data.validTo !== null || input.validTo < data.validFrom)
+    throw new FinanceError("compensationInvalid", 409);
+  const batch = db.batch();
+  batch.update(reference, {
+    validTo: input.validTo,
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: actor.id,
+  });
+  audit(
+    db,
+    batch,
+    actor,
+    "compensation.validToSet",
+    "compensationAgreement",
+    reference.id,
+    { validTo: input.validTo },
+  );
+  await batch.commit();
+}
+
+export async function createCustomer(
+  db: Firestore,
+  actor: PortalUser,
+  input: { name: string; contactPerson: string; financeEmail: string },
+) {
+  requireFinanceManager(actor);
+  const duplicate = await db
+    .collection("financeCustomers")
+    .where("organizationId", "==", actor.organizationId)
+    .where("name", "==", input.name)
+    .limit(1)
+    .get();
+  if (!duplicate.empty) throw new FinanceError("customerDuplicate", 409);
+  const reference = db.collection("financeCustomers").doc();
+  const batch = db.batch();
+  batch.create(reference, {
+    organizationId: actor.organizationId,
+    ...input,
+    createdAt: FieldValue.serverTimestamp(),
+    createdBy: actor.id,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  audit(
+    db,
+    batch,
+    actor,
+    "financeCustomer.created",
+    "financeCustomer",
+    reference.id,
+  );
+  await batch.commit();
+  return reference.id;
+}
+
+export async function updateCustomer(
+  db: Firestore,
+  actor: PortalUser,
+  input: {
+    customerId: string;
+    name: string;
+    contactPerson: string;
+    financeEmail: string;
+  },
+) {
+  requireFinanceManager(actor);
+  const reference = db.collection("financeCustomers").doc(input.customerId);
+  const snapshot = await reference.get();
+  if (
+    !snapshot.exists ||
+    snapshot.data()?.organizationId !== actor.organizationId
+  )
+    throw new FinanceError("customerInvalid", 404);
+  const duplicate = await db
+    .collection("financeCustomers")
+    .where("organizationId", "==", actor.organizationId)
+    .where("name", "==", input.name)
+    .limit(2)
+    .get();
+  if (duplicate.docs.some((document) => document.id !== input.customerId))
+    throw new FinanceError("customerDuplicate", 409);
+  const batch = db.batch();
+  batch.update(reference, {
+    name: input.name,
+    contactPerson: input.contactPerson,
+    financeEmail: input.financeEmail,
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: actor.id,
+  });
+  audit(
+    db,
+    batch,
+    actor,
+    "financeCustomer.updated",
+    "financeCustomer",
+    reference.id,
+  );
+  await batch.commit();
+}
+
 export async function updateCategory(
   db: Firestore,
   actor: PortalUser,
@@ -305,7 +417,7 @@ export async function createInvoice(
   input: {
     invoiceNumber: string;
     consultantId: string | null;
-    customerName: string;
+    customerId: string;
     issueDate: string;
     dueDate: string;
     netMinor: number;
@@ -326,6 +438,14 @@ export async function createInvoice(
     .limit(1)
     .get();
   if (!duplicate.empty) throw new FinanceError("invoiceDuplicate", 409);
+
+  const customer = await db
+    .collection("financeCustomers")
+    .doc(input.customerId)
+    .get();
+  const customerData = customer.data();
+  if (!customer.exists || customerData?.organizationId !== actor.organizationId)
+    throw new FinanceError("customerInvalid", 404);
 
   let model: "flexible" | "fixed" | null = null;
   let shareBps = 0;
@@ -353,6 +473,9 @@ export async function createInvoice(
   batch.create(ref, {
     organizationId: actor.organizationId,
     ...input,
+    customerName: customerData.name,
+    customerContactPerson: customerData.contactPerson,
+    customerFinanceEmail: customerData.financeEmail,
     currency: "SEK",
     vatMinor,
     grossMinor: input.netMinor + vatMinor,

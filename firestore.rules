@@ -85,6 +85,9 @@ service cloud.firestore {
     match /financeCategories/{categoryId} {
       allow read, write: if false;
     }
+    match /financeCustomers/{customerId} {
+      allow read, write: if false;
+    }
     match /invoices/{invoiceId} {
       allow read, write: if false;
     }

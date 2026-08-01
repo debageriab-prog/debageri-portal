@@ -57,7 +57,7 @@ export async function POST(request: Request) {
         { status: 400 },
       );
 
-    const [users, categories, invoices, transactions, agreements] =
+    const [users, categories, invoices, transactions, agreements, customers] =
       await Promise.all([
         db
           .collection("users")
@@ -79,6 +79,10 @@ export async function POST(request: Request) {
           .collection("compensationAgreements")
           .where("organizationId", "==", actor.organizationId)
           .get(),
+        db
+          .collection("financeCustomers")
+          .where("organizationId", "==", actor.organizationId)
+          .get(),
       ]);
     const usersByNumber = new Map(
       users.docs.map((document) => [
@@ -90,6 +94,12 @@ export async function POST(request: Request) {
       categories.docs.map((document) => [
         String(document.data().code),
         { id: document.id, direction: document.data().direction },
+      ]),
+    );
+    const customersByName = new Map(
+      customers.docs.map((document) => [
+        String(document.data().name).trim().toLocaleLowerCase("sv-SE"),
+        document.id,
       ]),
     );
     const invoiceNumbers = new Set(
@@ -161,6 +171,9 @@ export async function POST(request: Request) {
         )
           throw new Error();
         if (parsedRequest.data.kind === "invoices") {
+          const customerId = customersByName.get(
+            value("customer").trim().toLocaleLowerCase("sv-SE"),
+          );
           if (
             !value("invoice_number") ||
             !value("customer") ||
@@ -168,6 +181,11 @@ export async function POST(request: Request) {
             !isoDate.test(value("due_date"))
           )
             throw new Error();
+          if (!customerId)
+            errors.push({
+              row: rowNumber,
+              message: "importRowCustomerMissing",
+            });
           if (consultantId && !hasAgreement(consultantId, value("issue_date")))
             errors.push({
               row: rowNumber,
@@ -187,7 +205,7 @@ export async function POST(request: Request) {
             importKey,
             invoiceNumber: value("invoice_number"),
             consultantId: consultantId ?? null,
-            customerName: value("customer"),
+            customerId,
             issueDate: value("issue_date"),
             dueDate: value("due_date"),
             paidDate: value("paid_date") || null,
@@ -258,7 +276,7 @@ export async function POST(request: Request) {
         const invoiceId = await createInvoice(db, actor, {
           invoiceNumber: String(item.invoiceNumber),
           consultantId: item.consultantId as string | null,
-          customerName: String(item.customerName),
+          customerId: String(item.customerId),
           issueDate: String(item.issueDate),
           dueDate: String(item.dueDate),
           netMinor: Number(item.netMinor),

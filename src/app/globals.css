@@ -1192,6 +1192,20 @@ th {
   margin-bottom: 18px;
   grid-template-columns: 1fr;
 }
+.finance-page-actions {
+  justify-content: flex-end;
+  margin-bottom: 18px;
+}
+.topbar .text-link {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: var(--green);
+  font-weight: 700;
+  text-decoration: none;
+}
+.topbar .text-link:hover {
+  text-decoration: underline;
+}
 .finance-filter-bar {
   display: grid;
   grid-template-columns: repeat(2, minmax(220px, 320px));

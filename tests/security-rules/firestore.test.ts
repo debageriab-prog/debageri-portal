@@ -94,6 +94,7 @@ describe("Firestore rules", () => {
     const manager = env.authenticatedContext("m1").firestore();
     await assertFails(getDoc(doc(consultant, "financialTransactions/f1")));
     await assertFails(getDoc(doc(manager, "financialTransactions/f1")));
+    await assertFails(getDoc(doc(manager, "financeCustomers/c1")));
     await assertFails(
       setDoc(doc(consultant, "financialTransactions/new"), {
         organizationId: "debageri",

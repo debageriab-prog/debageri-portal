@@ -81,6 +81,14 @@
       ]
     },
     {
+      "collectionGroup": "financeCustomers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "financialTransactions",
       "queryScope": "COLLECTION",
       "fields": [

@@ -4,13 +4,16 @@ import { verifySession } from "@/server/auth/session";
 import { financeActionSchema } from "@/server/validators/finance";
 import {
   createCategory,
+  createCustomer,
   createFinancialTransaction,
   createInvoice,
   enableFinance,
   FinanceError,
   markInvoicePaid,
   setCompensation,
+  setCompensationValidTo,
   updateCategory,
+  updateCustomer,
   voidFinancialTransaction,
   voidInvoice,
 } from "@/server/services/finance-service";
@@ -41,6 +44,15 @@ export async function POST(request: Request) {
         break;
       case "setCompensation":
         id = await setCompensation(db, actor, parsed.data);
+        break;
+      case "setCompensationValidTo":
+        await setCompensationValidTo(db, actor, parsed.data);
+        break;
+      case "createCustomer":
+        id = await createCustomer(db, actor, parsed.data);
+        break;
+      case "updateCustomer":
+        await updateCustomer(db, actor, parsed.data);
         break;
       case "createCategory":
         id = await createCategory(db, actor, parsed.data);
