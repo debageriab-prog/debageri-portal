@@ -955,6 +955,8 @@ th {
   gap: 7px;
 }
 .table-action {
+  display: inline-flex;
+  align-items: center;
   border: 1px solid var(--border);
   border-radius: 9px;
   padding: 6px 10px;
@@ -963,6 +965,8 @@ th {
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.5;
+  text-decoration: none;
 }
 .table-action:hover {
   border-color: #b99a83;
@@ -1360,7 +1364,7 @@ th {
 .finance-chart-point {
   fill: white;
   stroke: var(--accent);
-  stroke-width: 4;
+  stroke-width: 2.5;
   cursor: pointer;
   transition:
     r 120ms ease,
@@ -1370,7 +1374,7 @@ th {
 .finance-chart-point:focus {
   fill: var(--accent);
   outline: none;
-  r: 10px;
+  r: 6px;
 }
 .finance-chart-tooltip {
   position: absolute;
@@ -1478,6 +1482,26 @@ th {
 }
 .finance-filter-bar-three {
   grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+.transaction-amount-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.transaction-amount-summary > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #faf8f6;
+}
+.transaction-amount-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.transaction-amount-summary strong {
+  font-size: 15px;
 }
 .protected-action {
   position: relative;
@@ -1992,6 +2016,9 @@ th {
     grid-template-columns: 1fr;
   }
   .finance-filter-bar {
+    grid-template-columns: 1fr;
+  }
+  .transaction-amount-summary {
     grid-template-columns: 1fr;
   }
   .consultant-summary-chart + .consultant-summary-chart {

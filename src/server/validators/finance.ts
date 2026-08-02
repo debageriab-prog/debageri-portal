@@ -83,19 +83,29 @@ export const paymentSchema = z.object({
   categoryId: z.string().min(1).max(128),
 });
 
-export const transactionSchema = z.object({
-  action: z.literal("createTransaction"),
+const transactionFields = {
   direction: z.enum(["income", "expense"]),
   categoryId: z.string().min(1).max(128),
   consultantId: z.string().min(1).max(128).nullable(),
   date,
-  netMinor: minor,
+  amountMode: z.enum(["net", "gross"]),
+  amountMinor: minor,
   vatRateBps,
   funding: z.enum(["company", "consultant"]).nullable(),
   applyConsultantShare: z.boolean().default(false),
   visibleDescription: z.string().trim().max(300).default(""),
   internalNote: z.string().trim().max(1_000).default(""),
-  importKey: z.string().trim().max(160).nullable().default(null),
+};
+
+export const transactionSchema = z.object({
+  action: z.literal("createTransaction"),
+  ...transactionFields,
+});
+
+export const updateTransactionSchema = z.object({
+  action: z.literal("updateTransaction"),
+  transactionId: z.string().min(1).max(128),
+  ...transactionFields,
 });
 
 const copiedExpenseSchema = z.object({
@@ -143,6 +153,7 @@ export const financeActionSchema = z.discriminatedUnion("action", [
   invoiceSchema,
   paymentSchema,
   transactionSchema,
+  updateTransactionSchema,
   copyExpensesSchema,
   voidSchema,
   deleteTransactionSchema,

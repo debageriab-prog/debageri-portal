@@ -602,24 +602,27 @@ export async function markInvoicePaid(
   return companyTransactionRef.id;
 }
 
-export async function createFinancialTransaction(
+type FinancialTransactionInput = {
+  direction: "income" | "expense";
+  categoryId: string;
+  consultantId: string | null;
+  date: string;
+  netMinor: number;
+  vatRateBps: number;
+  vatMinor?: number;
+  grossMinor?: number;
+  funding: "company" | "consultant" | null;
+  applyConsultantShare: boolean;
+  visibleDescription: string;
+  internalNote: string;
+  importKey: string | null;
+};
+
+async function validateFinancialTransaction(
   db: Firestore,
   actor: PortalUser,
-  input: {
-    direction: "income" | "expense";
-    categoryId: string;
-    consultantId: string | null;
-    date: string;
-    netMinor: number;
-    vatRateBps: number;
-    funding: "company" | "consultant" | null;
-    applyConsultantShare: boolean;
-    visibleDescription: string;
-    internalNote: string;
-    importKey: string | null;
-  },
+  input: FinancialTransactionInput,
 ) {
-  requireFinanceManager(actor);
   const category = await db
     .collection("financeCategories")
     .doc(input.categoryId)
@@ -667,7 +670,19 @@ export async function createFinancialTransaction(
       input.direction === "income" ? input.netMinor : -input.netMinor;
   if (input.direction === "expense" && !input.funding)
     throw new FinanceError("fundingRequired");
-  const vatMinor = calculateVatMinor(input.netMinor, input.vatRateBps);
+  return balanceDelta;
+}
+
+export async function createFinancialTransaction(
+  db: Firestore,
+  actor: PortalUser,
+  input: FinancialTransactionInput,
+) {
+  requireFinanceManager(actor);
+  const balanceDelta = await validateFinancialTransaction(db, actor, input);
+  const vatMinor =
+    input.vatMinor ?? calculateVatMinor(input.netMinor, input.vatRateBps);
+  const grossMinor = input.grossMinor ?? input.netMinor + vatMinor;
   const ref = db.collection("financialTransactions").doc();
   const batch = db.batch();
   batch.create(ref, {
@@ -675,7 +690,7 @@ export async function createFinancialTransaction(
     ...input,
     currency: "SEK",
     vatMinor,
-    grossMinor: input.netMinor + vatMinor,
+    grossMinor,
     invoiceId: null,
     consultantBalanceDeltaMinor: balanceDelta,
     status: "posted",
@@ -689,6 +704,64 @@ export async function createFinancialTransaction(
     batch,
     actor,
     "financialTransaction.created",
+    "financialTransaction",
+    ref.id,
+    {
+      direction: input.direction,
+      consultantId: input.consultantId,
+      netMinor: input.netMinor,
+      balanceDelta,
+    },
+  );
+  await batch.commit();
+  return ref.id;
+}
+
+export async function updateFinancialTransaction(
+  db: Firestore,
+  actor: PortalUser,
+  input: FinancialTransactionInput & { transactionId: string },
+) {
+  requireFinanceManager(actor);
+  const ref = db.collection("financialTransactions").doc(input.transactionId);
+  const snapshot = await ref.get();
+  const current = snapshot.data();
+  if (!snapshot.exists || current?.organizationId !== actor.organizationId)
+    throw new FinanceError("transactionMissing", 404);
+  if (
+    current.invoiceId ||
+    current.status === "reversal" ||
+    current.reversedByTransactionId
+  )
+    throw new FinanceError("transactionNotEditable", 409);
+
+  const balanceDelta = await validateFinancialTransaction(db, actor, input);
+  const vatMinor =
+    input.vatMinor ?? calculateVatMinor(input.netMinor, input.vatRateBps);
+  const grossMinor = input.grossMinor ?? input.netMinor + vatMinor;
+  const batch = db.batch();
+  batch.update(ref, {
+    direction: input.direction,
+    categoryId: input.categoryId,
+    consultantId: input.consultantId,
+    date: input.date,
+    netMinor: input.netMinor,
+    vatRateBps: input.vatRateBps,
+    vatMinor,
+    grossMinor,
+    funding: input.funding,
+    applyConsultantShare: input.applyConsultantShare,
+    visibleDescription: input.visibleDescription,
+    internalNote: input.internalNote,
+    consultantBalanceDeltaMinor: balanceDelta,
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: actor.id,
+  });
+  audit(
+    db,
+    batch,
+    actor,
+    "financialTransaction.updated",
     "financialTransaction",
     ref.id,
     {

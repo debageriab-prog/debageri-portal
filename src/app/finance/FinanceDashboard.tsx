@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
   belongsToCompany,
@@ -12,6 +12,10 @@ import {
   formatSek,
 } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
+import {
+  transactionListHref,
+  transactionListState,
+} from "./transaction-navigation";
 
 export interface FinancePageData {
   financeEnabled: boolean;
@@ -283,7 +287,7 @@ function BalanceChart({
               key={point.transaction?.id ?? "origin"}
               cx={x(point.xRatio)}
               cy={y(point.balance)}
-              r={index === 0 ? 5 : 7}
+              r={index === 0 ? 3 : 4}
               tabIndex={0}
               onMouseEnter={() => setHoveredPoint(index)}
               onMouseLeave={() => setHoveredPoint(null)}
@@ -586,6 +590,7 @@ export function FinanceDashboard({
 }) {
   const { t, locale } = useLocale();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const manager = ["admin", "accountant"].includes(actor.role);
   const admin = actor.role === "admin";
   const [busy, setBusy] = useState(false);
@@ -600,13 +605,17 @@ export function FinanceDashboard({
   );
   const [invoiceConsultantFilter, setInvoiceConsultantFilter] = useState("all");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
+  const initialTransactionListState = transactionListState(
+    searchParams,
+    data.transactions[0]?.date.slice(0, 7) ?? today().slice(0, 7),
+  );
   const [transactionConsultantFilter, setTransactionConsultantFilter] =
-    useState("all");
+    useState(initialTransactionListState.scope);
   const [transactionPeriod, setTransactionPeriod] = useState<"month" | "year">(
-    "month",
+    initialTransactionListState.period,
   );
   const [transactionPeriodAnchor, setTransactionPeriodAnchor] = useState(
-    data.transactions[0]?.date.slice(0, 7) ?? today().slice(0, 7),
+    initialTransactionListState.anchor,
   );
   const [endingAgreement, setEndingAgreement] = useState<
     FinancePageData["agreements"][number] | null
@@ -719,6 +728,13 @@ export function FinanceDashboard({
       : transaction.reversedByTransactionId || transaction.status === "reversal"
         ? t("reversalTransactionDeleteProtected")
         : "";
+  const transactionReturnHref = transactionListHref({
+    scope: transactionConsultantFilter,
+    period: transactionPeriod,
+    anchor: transactionPeriodAnchor,
+  });
+  const transactionFormHref = (path: string) =>
+    `${path}?${new URLSearchParams({ returnTo: transactionReturnHref })}`;
   const selectedModel = data.users.find(
     (user) => user.id === selectedConsultant,
   )?.compensationModel;
@@ -1263,7 +1279,10 @@ export function FinanceDashboard({
             >
               {t("csvImport")}
             </Link>
-            <Link className="button" href="/finance/transactions/new">
+            <Link
+              className="button"
+              href={transactionFormHref("/finance/transactions/new")}
+            >
               {t("addTransaction")}
             </Link>
           </div>
@@ -1380,33 +1399,45 @@ export function FinanceDashboard({
                   </td>
                   {manager && (
                     <td>
-                      <div
-                        className="protected-action"
-                        tabIndex={
-                          transactionDeleteProtection(transaction) ? 0 : -1
-                        }
-                      >
-                        <button
-                          className="table-action table-action-danger"
-                          disabled={
-                            busy ||
-                            Boolean(transactionDeleteProtection(transaction))
-                          }
-                          onClick={() => {
-                            setDeletingTransaction(transaction);
-                            setDeleteConfirmation("");
-                          }}
-                        >
-                          {t("delete")}
-                        </button>
-                        {transactionDeleteProtection(transaction) && (
-                          <span
-                            className="protected-action-tooltip"
-                            role="tooltip"
+                      <div className="row-actions">
+                        {!transactionDeleteProtection(transaction) && (
+                          <Link
+                            className="table-action"
+                            href={transactionFormHref(
+                              `/finance/transactions/${encodeURIComponent(transaction.id)}/edit`,
+                            )}
                           >
-                            {transactionDeleteProtection(transaction)}
-                          </span>
+                            {t("edit")}
+                          </Link>
                         )}
+                        <div
+                          className="protected-action"
+                          tabIndex={
+                            transactionDeleteProtection(transaction) ? 0 : -1
+                          }
+                        >
+                          <button
+                            className="table-action table-action-danger"
+                            disabled={
+                              busy ||
+                              Boolean(transactionDeleteProtection(transaction))
+                            }
+                            onClick={() => {
+                              setDeletingTransaction(transaction);
+                              setDeleteConfirmation("");
+                            }}
+                          >
+                            {t("delete")}
+                          </button>
+                          {transactionDeleteProtection(transaction) && (
+                            <span
+                              className="protected-action-tooltip"
+                              role="tooltip"
+                            >
+                              {transactionDeleteProtection(transaction)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
                   )}

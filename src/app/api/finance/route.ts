@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { financeActionSchema } from "@/server/validators/finance";
+import { calculateTransactionAmounts } from "@/domain/finance/calculations";
 import {
   createCategory,
   createCustomer,
@@ -16,6 +17,7 @@ import {
   setCompensationValidTo,
   updateCategory,
   updateCustomer,
+  updateFinancialTransaction,
   voidFinancialTransaction,
   voidInvoice,
 } from "@/server/services/finance-service";
@@ -69,7 +71,43 @@ export async function POST(request: Request) {
         id = await markInvoicePaid(db, actor, parsed.data);
         break;
       case "createTransaction":
-        id = await createFinancialTransaction(db, actor, parsed.data);
+        id = await createFinancialTransaction(db, actor, {
+          direction: parsed.data.direction,
+          categoryId: parsed.data.categoryId,
+          consultantId: parsed.data.consultantId,
+          date: parsed.data.date,
+          ...calculateTransactionAmounts(
+            parsed.data.amountMode,
+            parsed.data.amountMinor,
+            parsed.data.vatRateBps,
+          ),
+          vatRateBps: parsed.data.vatRateBps,
+          funding: parsed.data.funding,
+          applyConsultantShare: parsed.data.applyConsultantShare,
+          visibleDescription: parsed.data.visibleDescription,
+          internalNote: parsed.data.internalNote,
+          importKey: null,
+        });
+        break;
+      case "updateTransaction":
+        id = await updateFinancialTransaction(db, actor, {
+          transactionId: parsed.data.transactionId,
+          direction: parsed.data.direction,
+          categoryId: parsed.data.categoryId,
+          consultantId: parsed.data.consultantId,
+          date: parsed.data.date,
+          ...calculateTransactionAmounts(
+            parsed.data.amountMode,
+            parsed.data.amountMinor,
+            parsed.data.vatRateBps,
+          ),
+          vatRateBps: parsed.data.vatRateBps,
+          funding: parsed.data.funding,
+          applyConsultantShare: parsed.data.applyConsultantShare,
+          visibleDescription: parsed.data.visibleDescription,
+          internalNote: parsed.data.internalNote,
+          importKey: null,
+        });
         break;
       case "createExpenseCopies":
         id = await createExpenseCopies(db, actor, parsed.data);

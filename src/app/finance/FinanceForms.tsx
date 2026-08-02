@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
   calculateVatMinor,
+  calculateTransactionAmounts,
   formatSek,
   parseSek,
 } from "@/domain/finance/calculations";
@@ -16,9 +17,25 @@ type User = { id: string; displayName: string };
 type Customer = { id: string; name: string };
 type Category = {
   id: string;
+  code: string;
   name: { en: string; sv: string };
   direction: "income" | "expense";
   active: boolean;
+};
+
+export type EditableTransaction = {
+  id: string;
+  direction: "income" | "expense";
+  categoryId: string;
+  consultantId: string | null;
+  date: string;
+  netMinor: number;
+  grossMinor: number;
+  vatRateBps: number;
+  funding: "company" | "consultant" | null;
+  applyConsultantShare: boolean;
+  visibleDescription: string;
+  internalNote: string;
 };
 
 function today() {
@@ -452,42 +469,94 @@ export function CategoryForm({
 export function TransactionForm({
   users,
   categories,
+  returnHref = "/finance?section=transactions",
+  transaction,
 }: {
   users: User[];
   categories: Category[];
+  returnHref?: string;
+  transaction?: EditableTransaction;
 }) {
   const { t, locale } = useLocale();
-  const [direction, setDirection] = useState<"income" | "expense">("income");
-  const [consultantId, setConsultantId] = useState("");
-  const { busy, error, submit } = useFinanceSubmit(
-    "/finance?section=transactions",
+  const [direction, setDirection] = useState<"income" | "expense">(
+    transaction?.direction ?? "income",
   );
+  const [consultantId, setConsultantId] = useState(
+    transaction?.consultantId ?? "",
+  );
+  const [amountMode, setAmountMode] = useState<"net" | "gross">("gross");
+  const [amount, setAmount] = useState(
+    transaction ? (transaction.grossMinor / 100).toFixed(2) : "",
+  );
+  const [funding, setFunding] = useState<"company" | "consultant">(
+    transaction?.funding ?? "company",
+  );
+  const [vatPercent, setVatPercent] = useState(
+    String((transaction?.vatRateBps ?? 0) / 100),
+  );
+  const { busy, error, submit } = useFinanceSubmit(returnHref);
+  const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
+  const amountSummary = useMemo(() => {
+    try {
+      return calculateTransactionAmounts(
+        amountMode,
+        parseSek(amount || 0),
+        vatRateBps,
+      );
+    } catch {
+      return { netMinor: 0, vatMinor: 0, grossMinor: 0 };
+    }
+  }, [amount, amountMode, vatRateBps]);
+  const availableCategories = categories
+    .filter(
+      (item) =>
+        (item.active || item.id === transaction?.categoryId) &&
+        item.direction === direction,
+    )
+    .sort((left, right) => {
+      const isOther = (item: Category) =>
+        item.code.trim().toLowerCase().startsWith("other") ||
+        item.name.en.trim().toLowerCase().startsWith("other") ||
+        item.name.sv.trim().toLocaleLowerCase("sv").startsWith("\u00f6vrig");
+      const leftOther = isOther(left);
+      const rightOther = isOther(right);
+      if (leftOther !== rightOther) return leftOther ? 1 : -1;
+      const language = locale === "sv-SE" ? "sv" : "en";
+      return left.name[language].localeCompare(right.name[language], locale);
+    });
+
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     void submit({
-      action: "createTransaction",
+      action: transaction ? "updateTransaction" : "createTransaction",
+      ...(transaction ? { transactionId: transaction.id } : {}),
       direction,
       categoryId: form.get("categoryId"),
       consultantId: consultantId || null,
       date: form.get("date"),
-      netMinor: parseSek(String(form.get("netAmount"))),
-      vatRateBps: Math.round(Number(form.get("vatPercent")) * 100),
-      funding: direction === "expense" ? form.get("funding") : null,
+      amountMode,
+      amountMinor: parseSek(amount),
+      vatRateBps,
+      funding:
+        direction === "expense" ? (consultantId ? funding : "company") : null,
       applyConsultantShare:
         Boolean(consultantId) && form.get("applyConsultantShare") === "on",
       visibleDescription: consultantId
         ? String(form.get("visibleDescription") ?? "")
         : "",
       internalNote: form.get("internalNote"),
-      importKey: null,
     });
   }
   return (
     <FormPage
-      title={t("addTransaction")}
-      description={t("newTransactionDescription")}
-      backHref="/finance?section=transactions"
+      title={transaction ? t("editTransaction") : t("addTransaction")}
+      description={
+        transaction
+          ? t("editTransactionDescription")
+          : t("newTransactionDescription")
+      }
+      backHref={returnHref}
       backLabel={t("backToTransactions")}
     >
       <form className="form-grid" onSubmit={onSubmit}>
@@ -507,15 +576,18 @@ export function TransactionForm({
         </label>
         <label>
           {t("category")}
-          <select className="field" name="categoryId" required>
+          <select
+            className="field"
+            name="categoryId"
+            defaultValue={transaction?.categoryId ?? ""}
+            required
+          >
             <option value="">{t("selectCategory")}</option>
-            {categories
-              .filter((item) => item.active && item.direction === direction)
-              .map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name[locale === "sv-SE" ? "sv" : "en"]}
-                </option>
-              ))}
+            {availableCategories.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name[locale === "sv-SE" ? "sv" : "en"]}
+              </option>
+            ))}
           </select>
         </label>
         <label>
@@ -524,7 +596,11 @@ export function TransactionForm({
             className="field"
             name="consultantId"
             value={consultantId}
-            onChange={(event) => setConsultantId(event.target.value)}
+            onChange={(event) => {
+              const nextConsultantId = event.target.value;
+              setConsultantId(nextConsultantId);
+              if (!nextConsultantId) setFunding("company");
+            }}
           >
             <option value="">{t("companyOnly")}</option>
             {users.map((user) => (
@@ -540,18 +616,38 @@ export function TransactionForm({
             className="field"
             type="date"
             name="date"
-            defaultValue={today()}
+            defaultValue={transaction?.date ?? today()}
             required
           />
         </label>
         <label>
-          {t("netAmountSek")}
+          {t("amountEntryMode")}
+          <select
+            className="field"
+            value={amountMode}
+            onChange={(event) => {
+              const nextMode = event.target.value as "net" | "gross";
+              const nextAmount =
+                nextMode === "gross"
+                  ? amountSummary.grossMinor
+                  : amountSummary.netMinor;
+              setAmountMode(nextMode);
+              if (amount) setAmount((nextAmount / 100).toFixed(2));
+            }}
+          >
+            <option value="gross">{t("enterTotalIncludingVat")}</option>
+            <option value="net">{t("enterNetAmount")}</option>
+          </select>
+        </label>
+        <label>
+          {amountMode === "gross" ? t("totalAmountSek") : t("netAmountSek")}
           <input
             className="field"
             type="number"
-            name="netAmount"
             min="0.01"
             step="0.01"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
             required
           />
         </label>
@@ -560,41 +656,78 @@ export function TransactionForm({
           <input
             className="field"
             type="number"
-            name="vatPercent"
             min="0"
             max="100"
             step="0.01"
-            defaultValue="0"
+            value={vatPercent}
+            onChange={(event) => setVatPercent(event.target.value)}
             required
           />
         </label>
         {direction === "expense" ? (
           <label>
             {t("funding")}
-            <select className="field" name="funding">
+            <select
+              className="field"
+              name="funding"
+              value={consultantId ? funding : "company"}
+              onChange={(event) =>
+                setFunding(event.target.value as typeof funding)
+              }
+              disabled={!consultantId}
+            >
               <option value="company">{t("companyFunded")}</option>
               <option value="consultant">{t("consultantFunded")}</option>
             </select>
           </label>
         ) : consultantId ? (
           <label className="checkbox">
-            <input type="checkbox" name="applyConsultantShare" />
+            <input
+              type="checkbox"
+              name="applyConsultantShare"
+              defaultChecked={transaction?.applyConsultantShare ?? false}
+            />
             {t("applyConsultantShare")}
           </label>
         ) : null}
         {consultantId && (
           <label>
             {t("consultantDescription")}
-            <input className="field" name="visibleDescription" />
+            <input
+              className="field"
+              name="visibleDescription"
+              defaultValue={transaction?.visibleDescription}
+            />
           </label>
         )}
         <label>
           {t("internalNote")}
-          <input className="field" name="internalNote" />
+          <input
+            className="field"
+            name="internalNote"
+            defaultValue={transaction?.internalNote}
+          />
         </label>
+        <div
+          className="transaction-amount-summary form-wide"
+          aria-live="polite"
+        >
+          <div>
+            <span>{t("netAmount")}</span>
+            <strong>{formatSek(amountSummary.netMinor, locale)}</strong>
+          </div>
+          <div>
+            <span>{t("vatAmount")}</span>
+            <strong>{formatSek(amountSummary.vatMinor, locale)}</strong>
+          </div>
+          <div>
+            <span>{t("totalIncludingVat")}</span>
+            <strong>{formatSek(amountSummary.grossMinor, locale)}</strong>
+          </div>
+        </div>
         <div className="form-wide actions">
           <button className="button" disabled={busy}>
-            {t("postTransaction")}
+            {transaction ? t("saveChanges") : t("postTransaction")}
           </button>
         </div>
         {error && <p className="form-wide notice notice-error">{error}</p>}
