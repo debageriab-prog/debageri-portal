@@ -3,6 +3,7 @@ import {
   allocateInvoiceIncome,
   belongsToCompany,
   calculateShareMinor,
+  calculateTransactionAmounts,
   calculateVatMinor,
   companyBalanceDeltaMinor,
   financeTotals,
@@ -24,6 +25,19 @@ describe("finance calculations", () => {
   it("rounds VAT and consultant shares to the nearest Ã¶re", () => {
     expect(calculateVatMinor(100_01, 2_500)).toBe(2_500);
     expect(calculateShareMinor(100_01, 9_000)).toBe(9_001);
+  });
+
+  it("derives exact totals from net or VAT-inclusive entry modes", () => {
+    expect(calculateTransactionAmounts("net", 10_000_00, 2_500)).toEqual({
+      netMinor: 10_000_00,
+      vatMinor: 2_500_00,
+      grossMinor: 12_500_00,
+    });
+    expect(calculateTransactionAmounts("gross", 12_500_00, 2_500)).toEqual({
+      netMinor: 10_000_00,
+      vatMinor: 2_500_00,
+      grossMinor: 12_500_00,
+    });
   });
 
   it("splits flexible invoice income while keeping fixed invoice income in the company", () => {
@@ -97,6 +111,26 @@ describe("finance CSV", () => {
 });
 
 describe("finance deletion confirmation", () => {
+  it("accepts editable transaction details in either amount mode", () => {
+    expect(
+      financeActionSchema.safeParse({
+        action: "updateTransaction",
+        transactionId: "transaction-1",
+        direction: "expense",
+        categoryId: "category-1",
+        consultantId: "consultant-1",
+        date: "2026-08-02",
+        amountMode: "gross",
+        amountMinor: 12_500_00,
+        vatRateBps: 2_500,
+        funding: "company",
+        applyConsultantShare: false,
+        visibleDescription: "Laptop",
+        internalNote: "Corrected total",
+      }).success,
+    ).toBe(true);
+  });
+
   it("requires the exact permanent-deletion phrase", () => {
     expect(
       financeActionSchema.safeParse({

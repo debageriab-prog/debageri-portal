@@ -4,6 +4,27 @@ export function calculateVatMinor(netMinor: number, vatRateBps: number) {
   return Math.round((netMinor * vatRateBps) / 10_000);
 }
 
+export function calculateTransactionAmounts(
+  amountMode: "net" | "gross",
+  amountMinor: number,
+  vatRateBps: number,
+) {
+  if (amountMode === "gross") {
+    const netMinor = Math.round((amountMinor * 10_000) / (10_000 + vatRateBps));
+    return {
+      netMinor,
+      vatMinor: amountMinor - netMinor,
+      grossMinor: amountMinor,
+    };
+  }
+  const vatMinor = calculateVatMinor(amountMinor, vatRateBps);
+  return {
+    netMinor: amountMinor,
+    vatMinor,
+    grossMinor: amountMinor + vatMinor,
+  };
+}
+
 export function calculateShareMinor(netMinor: number, shareBps: number) {
   return Math.round((netMinor * shareBps) / 10_000);
 }
