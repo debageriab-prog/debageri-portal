@@ -4,6 +4,8 @@ import {
   transactionDefaultDate,
   transactionListHref,
   transactionListState,
+  transactionMonthMismatch,
+  transactionViewMonth,
 } from "@/app/finance/transaction-navigation";
 
 describe("transaction list navigation", () => {
@@ -48,5 +50,19 @@ describe("transaction list navigation", () => {
       anchor: "2025-01",
     });
     expect(transactionDefaultDate(yearHref, "2026-08-15")).toBe("2026-08-15");
+    expect(transactionViewMonth(yearHref)).toBeNull();
+  });
+
+  it("detects a transaction outside the selected month", () => {
+    const monthHref = transactionListHref({
+      scope: "all",
+      period: "month",
+      anchor: "2026-03",
+    });
+    expect(transactionMonthMismatch(monthHref, "2026-07-12")).toEqual({
+      viewMonth: "2026-03",
+      transactionMonth: "2026-07",
+    });
+    expect(transactionMonthMismatch(monthHref, "2026-03-12")).toBeNull();
   });
 });
