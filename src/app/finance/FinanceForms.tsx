@@ -664,23 +664,6 @@ export function TransactionForm({
             required
           />
         </label>
-        <div
-          className="transaction-amount-summary form-wide"
-          aria-live="polite"
-        >
-          <div>
-            <span>{t("netAmount")}</span>
-            <strong>{formatSek(amountSummary.netMinor, locale)}</strong>
-          </div>
-          <div>
-            <span>{t("vatAmount")}</span>
-            <strong>{formatSek(amountSummary.vatMinor, locale)}</strong>
-          </div>
-          <div>
-            <span>{t("totalIncludingVat")}</span>
-            <strong>{formatSek(amountSummary.grossMinor, locale)}</strong>
-          </div>
-        </div>
         {direction === "expense" ? (
           <label>
             {t("funding")}
@@ -725,6 +708,23 @@ export function TransactionForm({
             defaultValue={transaction?.internalNote}
           />
         </label>
+        <div
+          className="transaction-amount-summary form-wide"
+          aria-live="polite"
+        >
+          <div>
+            <span>{t("netAmount")}</span>
+            <strong>{formatSek(amountSummary.netMinor, locale)}</strong>
+          </div>
+          <div>
+            <span>{t("vatAmount")}</span>
+            <strong>{formatSek(amountSummary.vatMinor, locale)}</strong>
+          </div>
+          <div>
+            <span>{t("totalIncludingVat")}</span>
+            <strong>{formatSek(amountSummary.grossMinor, locale)}</strong>
+          </div>
+        </div>
         <div className="form-wide actions">
           <button className="button" disabled={busy}>
             {transaction ? t("saveChanges") : t("postTransaction")}
