@@ -1,12 +1,16 @@
 import { TransactionForm } from "../../FinanceForms";
 import { financeFormContext, financeUsers } from "../../form-data";
-import { safeTransactionReturnHref } from "../../transaction-navigation";
+import {
+  safeTransactionReturnHref,
+  transactionDefaultDate,
+} from "../../transaction-navigation";
 
 export default async function NewTransactionPage({
   searchParams,
 }: {
   searchParams: Promise<{ returnTo?: string }>;
 }) {
+  const returnHref = safeTransactionReturnHref((await searchParams).returnTo);
   const { actor, db } = await financeFormContext();
   const snapshot = await db
     .collection("financeCategories")
@@ -23,7 +27,11 @@ export default async function NewTransactionPage({
     <TransactionForm
       users={await financeUsers()}
       categories={categories}
-      returnHref={safeTransactionReturnHref((await searchParams).returnTo)}
+      returnHref={returnHref}
+      defaultDate={transactionDefaultDate(
+        returnHref,
+        new Date().toISOString().slice(0, 10),
+      )}
     />
   );
 }

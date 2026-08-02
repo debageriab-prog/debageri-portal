@@ -12,6 +12,7 @@ import {
 } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { FinanceCsvImport } from "./FinanceCsvImport";
+import { transactionMonthMismatch } from "./transaction-navigation";
 
 type User = { id: string; displayName: string };
 type Customer = { id: string; name: string };
@@ -40,6 +41,14 @@ export type EditableTransaction = {
 
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function formatMonth(month: string, locale: "sv-SE" | "en-SE") {
+  return new Intl.DateTimeFormat(locale, {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${month}-01T12:00:00Z`));
 }
 
 function FormPage({
@@ -470,11 +479,13 @@ export function TransactionForm({
   users,
   categories,
   returnHref = "/finance?section=transactions",
+  defaultDate,
   transaction,
 }: {
   users: User[];
   categories: Category[];
   returnHref?: string;
+  defaultDate?: string;
   transaction?: EditableTransaction;
 }) {
   const { t, locale } = useLocale();
@@ -494,6 +505,11 @@ export function TransactionForm({
   const [vatPercent, setVatPercent] = useState(
     String((transaction?.vatRateBps ?? 0) / 100),
   );
+  const [pendingMonthMismatch, setPendingMonthMismatch] = useState<{
+    payload: Record<string, unknown>;
+    viewMonth: string;
+    transactionMonth: string;
+  } | null>(null);
   const { busy, error, submit } = useFinanceSubmit(returnHref);
   const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
   const amountSummary = useMemo(() => {
@@ -528,13 +544,14 @@ export function TransactionForm({
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    void submit({
+    const date = String(form.get("date") ?? "");
+    const payload = {
       action: transaction ? "updateTransaction" : "createTransaction",
       ...(transaction ? { transactionId: transaction.id } : {}),
       direction,
       categoryId: form.get("categoryId"),
       consultantId: consultantId || null,
-      date: form.get("date"),
+      date,
       amountMode,
       amountMinor: parseSek(amount),
       vatRateBps,
@@ -546,7 +563,15 @@ export function TransactionForm({
         ? String(form.get("visibleDescription") ?? "")
         : "",
       internalNote: form.get("internalNote"),
-    });
+    };
+    const mismatch = transaction
+      ? null
+      : transactionMonthMismatch(returnHref, date);
+    if (mismatch) {
+      setPendingMonthMismatch({ payload, ...mismatch });
+      return;
+    }
+    void submit(payload);
   }
   return (
     <FormPage
@@ -616,7 +641,7 @@ export function TransactionForm({
             className="field"
             type="date"
             name="date"
-            defaultValue={transaction?.date ?? today()}
+            defaultValue={transaction?.date ?? defaultDate ?? today()}
             required
           />
         </label>
@@ -731,6 +756,64 @@ export function TransactionForm({
           </button>
         </div>
         {error && <p className="form-wide notice notice-error">{error}</p>}
+        {pendingMonthMismatch && (
+          <div className="modal-backdrop" role="presentation">
+            <section
+              className="modal modal-small"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="transaction-month-warning-title"
+              aria-describedby="transaction-month-warning-description"
+            >
+              <header className="modal-header">
+                <div>
+                  <h2 id="transaction-month-warning-title">
+                    {t("transactionMonthMismatchTitle")}
+                  </h2>
+                  <p id="transaction-month-warning-description">
+                    {t("transactionMonthMismatchWarning")
+                      .replace(
+                        "{viewMonth}",
+                        formatMonth(pendingMonthMismatch.viewMonth, locale),
+                      )
+                      .replace(
+                        "{transactionType}",
+                        t(direction).toLocaleLowerCase(locale),
+                      )
+                      .replace(
+                        "{transactionMonth}",
+                        formatMonth(
+                          pendingMonthMismatch.transactionMonth,
+                          locale,
+                        ),
+                      )}
+                  </p>
+                </div>
+              </header>
+              <footer className="modal-actions">
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => setPendingMonthMismatch(null)}
+                >
+                  {t("backAndCorrect")}
+                </button>
+                <button
+                  className="button"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    const payload = pendingMonthMismatch.payload;
+                    setPendingMonthMismatch(null);
+                    void submit(payload);
+                  }}
+                >
+                  {t("continuePosting")}
+                </button>
+              </footer>
+            </section>
+          </div>
+        )}
       </form>
     </FormPage>
   );

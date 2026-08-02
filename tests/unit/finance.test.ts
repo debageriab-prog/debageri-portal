@@ -8,6 +8,7 @@ import {
   companyBalanceDeltaMinor,
   financeTotals,
   parseSek,
+  transactionTableDescription,
 } from "@/domain/finance/calculations";
 import {
   missingHeaders,
@@ -93,6 +94,29 @@ describe("finance calculations", () => {
     expect(belongsToCompany({ ...transaction, funding: "consultant" })).toBe(
       false,
     );
+  });
+
+  it("uses the internal note only for company-only funded expenses", () => {
+    const expense = {
+      consultantId: null,
+      direction: "expense" as const,
+      funding: "company" as const,
+      visibleDescription: "",
+      internalNote: "Office rent",
+    };
+    expect(transactionTableDescription(expense)).toBe("Office rent");
+    expect(
+      transactionTableDescription({
+        ...expense,
+        consultantId: "consultant-1",
+      }),
+    ).toBe("");
+    expect(
+      transactionTableDescription({
+        ...expense,
+        visibleDescription: "Consultant-visible description",
+      }),
+    ).toBe("Consultant-visible description");
   });
 });
 

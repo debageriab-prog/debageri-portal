@@ -63,3 +63,43 @@ export function safeTransactionReturnHref(value: unknown) {
     return fallback;
   }
 }
+
+export function transactionDefaultDate(
+  returnHref: string,
+  currentDate: string,
+) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(currentDate)) return currentDate;
+  const viewMonth = transactionViewMonth(returnHref);
+  if (!viewMonth) return currentDate;
+  const year = Number(viewMonth.slice(0, 4));
+  const month = Number(viewMonth.slice(5, 7));
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const day = Math.min(Number(currentDate.slice(8, 10)), lastDay);
+  return `${viewMonth}-${String(day).padStart(2, "0")}`;
+}
+
+export function transactionViewMonth(returnHref: string) {
+  try {
+    const params = new URL(returnHref, "https://portal.invalid").searchParams;
+    const anchor = params.get("anchor") ?? "";
+    if (params.get("period") !== "month" || !/^\d{4}-\d{2}$/.test(anchor))
+      return null;
+    const month = Number(anchor.slice(5, 7));
+    return month >= 1 && month <= 12 ? anchor : null;
+  } catch {
+    return null;
+  }
+}
+
+export function transactionMonthMismatch(
+  returnHref: string,
+  transactionDate: string,
+) {
+  const viewMonth = transactionViewMonth(returnHref);
+  const transactionMonth = /^\d{4}-\d{2}-\d{2}$/.test(transactionDate)
+    ? transactionDate.slice(0, 7)
+    : null;
+  return viewMonth && transactionMonth && viewMonth !== transactionMonth
+    ? { viewMonth, transactionMonth }
+    : null;
+}
