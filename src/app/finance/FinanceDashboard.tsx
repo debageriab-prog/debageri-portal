@@ -10,6 +10,7 @@ import {
   companyBalanceDeltaMinor,
   financeTotals,
   formatSek,
+  transactionTableDescription,
 } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
 import {
@@ -1292,18 +1293,9 @@ export function FinanceDashboard({
               <select
                 className="field"
                 value={transactionConsultantFilter}
-                onChange={(event) => {
-                  const scope = event.target.value;
-                  setTransactionConsultantFilter(scope);
-                  const latest = data.transactions.find(
-                    (transaction) =>
-                      scope === "all" ||
-                      (scope === "company" && belongsToCompany(transaction)) ||
-                      transaction.consultantId === scope,
-                  );
-                  if (latest)
-                    setTransactionPeriodAnchor(latest.date.slice(0, 7));
-                }}
+                onChange={(event) =>
+                  setTransactionConsultantFilter(event.target.value)
+                }
               >
                 <option value="all">{t("allConsultantsAndCompany")}</option>
                 <option value="company">{t("companyOnly")}</option>
@@ -1367,6 +1359,7 @@ export function FinanceDashboard({
                 {manager && <th>{t("consultant")}</th>}
                 <th>{t("description")}</th>
                 <th>{t("netAmount")}</th>
+                <th>{t("totalIncludingVat")}</th>
                 <th>{t("balanceChange")}</th>
                 {manager && (
                   <th>
@@ -1387,8 +1380,9 @@ export function FinanceDashboard({
                   {manager && (
                     <td>{consultantName(transaction.consultantId)}</td>
                   )}
-                  <td>{transaction.visibleDescription || "—"}</td>
+                  <td>{transactionTableDescription(transaction) || "—"}</td>
                   <td>{formatSek(transaction.netMinor, locale)}</td>
+                  <td>{formatSek(transaction.grossMinor, locale)}</td>
                   <td>
                     {formatSek(
                       manager && transactionConsultantFilter === "company"

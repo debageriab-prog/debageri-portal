@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   safeTransactionReturnHref,
+  transactionDefaultDate,
   transactionListHref,
   transactionListState,
 } from "@/app/finance/transaction-navigation";
@@ -28,5 +29,24 @@ describe("transaction list navigation", () => {
     expect(safeTransactionReturnHref("/admin/users")).toBe(
       "/finance?section=transactions",
     );
+  });
+
+  it("uses the current day within the selected month", () => {
+    const monthHref = transactionListHref({
+      scope: "company",
+      period: "month",
+      anchor: "2026-02",
+    });
+    expect(transactionDefaultDate(monthHref, "2026-08-15")).toBe("2026-02-15");
+    expect(transactionDefaultDate(monthHref, "2026-08-31")).toBe("2026-02-28");
+  });
+
+  it("keeps today's date for a year view", () => {
+    const yearHref = transactionListHref({
+      scope: "all",
+      period: "year",
+      anchor: "2025-01",
+    });
+    expect(transactionDefaultDate(yearHref, "2026-08-15")).toBe("2026-08-15");
   });
 });

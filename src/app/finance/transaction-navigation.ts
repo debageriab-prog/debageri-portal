@@ -63,3 +63,24 @@ export function safeTransactionReturnHref(value: unknown) {
     return fallback;
   }
 }
+
+export function transactionDefaultDate(
+  returnHref: string,
+  currentDate: string,
+) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(currentDate)) return currentDate;
+  try {
+    const params = new URL(returnHref, "https://portal.invalid").searchParams;
+    const anchor = params.get("anchor") ?? "";
+    if (params.get("period") !== "month" || !/^\d{4}-\d{2}$/.test(anchor))
+      return currentDate;
+    const year = Number(anchor.slice(0, 4));
+    const month = Number(anchor.slice(5, 7));
+    if (month < 1 || month > 12) return currentDate;
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const day = Math.min(Number(currentDate.slice(8, 10)), lastDay);
+    return `${anchor}-${String(day).padStart(2, "0")}`;
+  } catch {
+    return currentDate;
+  }
+}

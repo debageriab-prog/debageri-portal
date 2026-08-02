@@ -53,6 +53,26 @@ export function companyBalanceDeltaMinor(transaction: TransactionScopeInput) {
   return 0;
 }
 
+export function transactionTableDescription(
+  transaction: Pick<
+    FinancialTransaction,
+    | "consultantId"
+    | "direction"
+    | "funding"
+    | "visibleDescription"
+    | "internalNote"
+  >,
+) {
+  if (transaction.visibleDescription) return transaction.visibleDescription;
+  if (
+    transaction.consultantId === null &&
+    transaction.direction === "expense" &&
+    transaction.funding === "company"
+  )
+    return transaction.internalNote;
+  return "";
+}
+
 export function allocateInvoiceIncome(
   netMinor: number,
   compensationModel: "flexible" | "fixed" | null,

@@ -470,11 +470,13 @@ export function TransactionForm({
   users,
   categories,
   returnHref = "/finance?section=transactions",
+  defaultDate,
   transaction,
 }: {
   users: User[];
   categories: Category[];
   returnHref?: string;
+  defaultDate?: string;
   transaction?: EditableTransaction;
 }) {
   const { t, locale } = useLocale();
@@ -616,7 +618,7 @@ export function TransactionForm({
             className="field"
             type="date"
             name="date"
-            defaultValue={transaction?.date ?? today()}
+            defaultValue={transaction?.date ?? defaultDate ?? today()}
             required
           />
         </label>
