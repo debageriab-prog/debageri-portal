@@ -40,6 +40,9 @@ export default async function EditTransactionPage({
     consultantId: data.consultantId ?? null,
     date: String(data.date),
     netMinor: Number(data.netMinor),
+    grossMinor: Number(
+      data.grossMinor ?? Number(data.netMinor) + Number(data.vatMinor ?? 0),
+    ),
     vatRateBps: Number(data.vatRateBps),
     funding: data.funding ?? null,
     applyConsultantShare: data.applyConsultantShare === true,

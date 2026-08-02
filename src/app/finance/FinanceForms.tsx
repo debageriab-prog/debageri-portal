@@ -30,6 +30,7 @@ export type EditableTransaction = {
   consultantId: string | null;
   date: string;
   netMinor: number;
+  grossMinor: number;
   vatRateBps: number;
   funding: "company" | "consultant" | null;
   applyConsultantShare: boolean;
@@ -483,9 +484,12 @@ export function TransactionForm({
   const [consultantId, setConsultantId] = useState(
     transaction?.consultantId ?? "",
   );
-  const [amountMode, setAmountMode] = useState<"net" | "gross">("net");
+  const [amountMode, setAmountMode] = useState<"net" | "gross">("gross");
   const [amount, setAmount] = useState(
-    transaction ? (transaction.netMinor / 100).toFixed(2) : "",
+    transaction ? (transaction.grossMinor / 100).toFixed(2) : "",
+  );
+  const [funding, setFunding] = useState<"company" | "consultant">(
+    transaction?.funding ?? "company",
   );
   const [vatPercent, setVatPercent] = useState(
     String((transaction?.vatRateBps ?? 0) / 100),
@@ -534,7 +538,8 @@ export function TransactionForm({
       amountMode,
       amountMinor: parseSek(amount),
       vatRateBps,
-      funding: direction === "expense" ? form.get("funding") : null,
+      funding:
+        direction === "expense" ? (consultantId ? funding : "company") : null,
       applyConsultantShare:
         Boolean(consultantId) && form.get("applyConsultantShare") === "on",
       visibleDescription: consultantId
@@ -591,7 +596,11 @@ export function TransactionForm({
             className="field"
             name="consultantId"
             value={consultantId}
-            onChange={(event) => setConsultantId(event.target.value)}
+            onChange={(event) => {
+              const nextConsultantId = event.target.value;
+              setConsultantId(nextConsultantId);
+              if (!nextConsultantId) setFunding("company");
+            }}
           >
             <option value="">{t("companyOnly")}</option>
             {users.map((user) => (
@@ -678,7 +687,11 @@ export function TransactionForm({
             <select
               className="field"
               name="funding"
-              defaultValue={transaction?.funding ?? "company"}
+              value={consultantId ? funding : "company"}
+              onChange={(event) =>
+                setFunding(event.target.value as typeof funding)
+              }
+              disabled={!consultantId}
             >
               <option value="company">{t("companyFunded")}</option>
               <option value="consultant">{t("consultantFunded")}</option>
