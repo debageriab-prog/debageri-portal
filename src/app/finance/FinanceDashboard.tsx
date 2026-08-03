@@ -312,12 +312,14 @@ function BalanceChart({
               position.y > plot.bottom
             )
               return;
+            event.preventDefault();
             const ratio = pointerRatio(event);
             event.currentTarget.setPointerCapture(event.pointerId);
             setSelection({ start: ratio, current: ratio });
           }}
           onPointerMove={(event) => {
             if (selection) {
+              event.preventDefault();
               setSelection({ ...selection, current: pointerRatio(event) });
             }
           }}
@@ -486,65 +488,6 @@ function BalanceChart({
   );
 }
 
-function financialTrendGroups(
-  transactions: FinancePageData["transactions"],
-  locale: Actor["locale"],
-  period: "month" | "year" | "all",
-  anchor: string,
-) {
-  const totalsFor = (items: FinancePageData["transactions"]) => {
-    const income = items
-      .filter((transaction) => transaction.direction === "income")
-      .reduce((sum, transaction) => sum + transaction.netMinor, 0);
-    const expense = items
-      .filter((transaction) => transaction.direction === "expense")
-      .reduce((sum, transaction) => sum + transaction.netMinor, 0);
-    return { income, expense, result: income - expense };
-  };
-  if (period === "month") {
-    const year = Number(anchor.slice(0, 4));
-    const month = Number(anchor.slice(5, 7));
-    const days = new Date(Date.UTC(year, month, 0)).getUTCDate();
-    return Array.from({ length: days }, (_, index) => {
-      const key = `${anchor}-${String(index + 1).padStart(2, "0")}`;
-      return {
-        key,
-        label: String(index + 1),
-        ...totalsFor(
-          transactions.filter((transaction) => transaction.date === key),
-        ),
-      };
-    });
-  }
-  if (period === "year") {
-    const year = anchor.slice(0, 4);
-    return Array.from({ length: 12 }, (_, index) => {
-      const key = `${year}-${String(index + 1).padStart(2, "0")}`;
-      return {
-        key,
-        label: new Intl.DateTimeFormat(locale, { month: "short" }).format(
-          new Date(Date.UTC(Number(year), index, 1)),
-        ),
-        ...totalsFor(
-          transactions.filter((transaction) =>
-            transaction.date.startsWith(key),
-          ),
-        ),
-      };
-    });
-  }
-  const years = [...new Set(transactions.map((item) => item.date.slice(0, 4)))]
-    .filter(Boolean)
-    .sort();
-  return (years.length ? years : [anchor.slice(0, 4)]).map((year) => ({
-    key: year,
-    label: year,
-    ...totalsFor(
-      transactions.filter((transaction) => transaction.date.startsWith(year)),
-    ),
-  }));
-}
-
 function IncomeExpenseBarChart({
   transactions,
   locale,
@@ -564,7 +507,49 @@ function IncomeExpenseBarChart({
     x: number;
     y: number;
   } | null>(null);
-  const groups = financialTrendGroups(transactions, locale, period, anchor);
+  const year = anchor.slice(0, 4);
+  const visible = transactions.filter((transaction) =>
+    period === "all"
+      ? true
+      : transaction.date.startsWith(period === "month" ? anchor : year),
+  );
+  const totalsFor = (items: FinancePageData["transactions"]) => ({
+    income: Math.max(
+      0,
+      items
+        .filter((transaction) => transaction.direction === "income")
+        .reduce((sum, transaction) => sum + transaction.netMinor, 0),
+    ),
+    expense: Math.max(
+      0,
+      items
+        .filter((transaction) => transaction.direction === "expense")
+        .reduce((sum, transaction) => sum + transaction.netMinor, 0),
+    ),
+  });
+  const groups =
+    period === "year"
+      ? Array.from({ length: 12 }, (_, monthIndex) => {
+          const monthKey = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+          return {
+            key: monthKey,
+            label: new Intl.DateTimeFormat(locale, { month: "short" }).format(
+              new Date(Date.UTC(Number(year), monthIndex, 1)),
+            ),
+            ...totalsFor(
+              visible.filter((transaction) =>
+                transaction.date.startsWith(monthKey),
+              ),
+            ),
+          };
+        })
+      : [
+          {
+            key: period,
+            label: period === "month" ? anchor : t("allTime"),
+            ...totalsFor(visible),
+          },
+        ];
   const maxValue = Math.max(
     10_000,
     ...groups.flatMap((group) => [group.income, group.expense]),
@@ -584,7 +569,7 @@ function IncomeExpenseBarChart({
       maximumFractionDigits: 1,
     }).format(minor / 100);
   const groupWidth = plotWidth / groups.length;
-  const pairWidth = Math.min(groupWidth * 0.72, 52);
+  const pairWidth = Math.min(groupWidth * 0.72, period === "year" ? 52 : 300);
   const barGap = Math.max(4, pairWidth * 0.1);
   const barWidth = (pairWidth - barGap) / 2;
   return (
@@ -739,272 +724,6 @@ function IncomeExpenseBarChart({
   );
 }
 
-function CashFlowWaterfallChart({
-  transactions,
-  locale,
-  period,
-  anchor,
-}: {
-  transactions: FinancePageData["transactions"];
-  locale: Actor["locale"];
-  period: "month" | "year" | "all";
-  anchor: string;
-}) {
-  const { t } = useLocale();
-  const prefix = period === "month" ? anchor : anchor.slice(0, 4);
-  const inPeriod = transactions.filter((transaction) =>
-    period === "all" ? true : transaction.date.startsWith(prefix),
-  );
-  const opening =
-    period === "all"
-      ? 0
-      : transactions
-          .filter((transaction) => transaction.date < prefix)
-          .reduce(
-            (sum, transaction) =>
-              sum +
-              (transaction.direction === "income"
-                ? transaction.netMinor
-                : -transaction.netMinor),
-            0,
-          );
-  const income = inPeriod
-    .filter((transaction) => transaction.direction === "income")
-    .reduce((sum, transaction) => sum + transaction.netMinor, 0);
-  const expenses = inPeriod
-    .filter((transaction) => transaction.direction === "expense")
-    .reduce((sum, transaction) => sum + transaction.netMinor, 0);
-  const closing = opening + income - expenses;
-  const steps = [
-    {
-      key: "opening",
-      label: t("openingBalance"),
-      start: 0,
-      end: opening,
-      total: true,
-    },
-    {
-      key: "income",
-      label: t("income"),
-      start: opening,
-      end: opening + income,
-      total: false,
-    },
-    {
-      key: "expenses",
-      label: t("expenses"),
-      start: opening + income,
-      end: closing,
-      total: false,
-    },
-    {
-      key: "closing",
-      label: t("closingBalance"),
-      start: 0,
-      end: closing,
-      total: true,
-    },
-  ];
-  const values = steps.flatMap((step) => [step.start, step.end, 0]);
-  const rawMin = Math.min(...values);
-  const rawMax = Math.max(...values);
-  const padding = Math.max(10_000, (rawMax - rawMin) * 0.12);
-  const min = rawMin - padding;
-  const max = rawMax + padding;
-  const plot = { left: 88, right: 975, top: 20, bottom: 300 };
-  const y = (value: number) =>
-    plot.bottom - ((value - min) / (max - min)) * (plot.bottom - plot.top);
-  const yTicks = Array.from(
-    { length: 5 },
-    (_, index) => min + ((max - min) * index) / 4,
-  );
-  const slot = (plot.right - plot.left) / steps.length;
-  const barWidth = Math.min(120, slot * 0.58);
-  const axisSek = (minor: number) =>
-    new Intl.NumberFormat(locale, {
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(minor / 100);
-  return (
-    <div className="finance-waterfall-chart">
-      <svg
-        viewBox="0 0 1000 360"
-        role="img"
-        aria-label={t("cashFlowWaterfall")}
-      >
-        {yTicks.map((tick) => (
-          <g key={tick}>
-            <line
-              className="finance-chart-gridline"
-              x1={plot.left}
-              x2={plot.right}
-              y1={y(tick)}
-              y2={y(tick)}
-            />
-            <text
-              className="finance-chart-axis-label"
-              x={plot.left - 12}
-              y={y(tick) + 4}
-              textAnchor="end"
-            >
-              {axisSek(tick)}
-            </text>
-          </g>
-        ))}
-        <line
-          className="finance-chart-zero"
-          x1={plot.left}
-          x2={plot.right}
-          y1={y(0)}
-          y2={y(0)}
-        />
-        <text className="finance-chart-axis-title" x={18} y={18}>
-          SEK
-        </text>
-        {steps.map((step, index) => {
-          const center = plot.left + slot * (index + 0.5);
-          const top = Math.min(y(step.start), y(step.end));
-          const height = Math.max(3, Math.abs(y(step.start) - y(step.end)));
-          const value = step.total ? step.end : step.end - step.start;
-          return (
-            <g key={step.key}>
-              {index < steps.length - 1 && (
-                <line
-                  className="finance-waterfall-connector"
-                  x1={center + barWidth / 2}
-                  x2={center + slot - barWidth / 2}
-                  y1={y(step.end)}
-                  y2={y(step.end)}
-                />
-              )}
-              <rect
-                className={`finance-waterfall-bar ${step.total ? "finance-waterfall-total" : value >= 0 ? "finance-waterfall-positive" : "finance-waterfall-negative"}`}
-                x={center - barWidth / 2}
-                y={top}
-                width={barWidth}
-                height={height}
-                rx="5"
-                tabIndex={0}
-              >
-                <title>{`${step.label}: ${formatSek(value, locale)}`}</title>
-              </rect>
-              <text
-                className="finance-chart-axis-label"
-                x={center}
-                y={plot.bottom + 24}
-                textAnchor="middle"
-              >
-                {step.label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
-function ProfitMarginChart({
-  transactions,
-  locale,
-  period,
-  anchor,
-}: {
-  transactions: FinancePageData["transactions"];
-  locale: Actor["locale"];
-  period: "month" | "year" | "all";
-  anchor: string;
-}) {
-  const { t } = useLocale();
-  const groups = financialTrendGroups(transactions, locale, period, anchor).map(
-    (group) => ({
-      ...group,
-      margin: group.income > 0 ? (group.result / group.income) * 100 : 0,
-    }),
-  );
-  const values = groups.map((group) => group.margin);
-  const rawMin = Math.min(0, ...values);
-  const rawMax = Math.max(0, ...values);
-  const padding = Math.max(5, (rawMax - rawMin) * 0.12);
-  const min = rawMin - padding;
-  const max = rawMax + padding;
-  const plot = { left: 72, right: 975, top: 20, bottom: 300 };
-  const x = (index: number) =>
-    groups.length === 1
-      ? (plot.left + plot.right) / 2
-      : plot.left + (index / (groups.length - 1)) * (plot.right - plot.left);
-  const y = (value: number) =>
-    plot.bottom - ((value - min) / (max - min)) * (plot.bottom - plot.top);
-  const points = groups
-    .map((group, index) => `${x(index)},${y(group.margin)}`)
-    .join(" ");
-  const yTicks = Array.from(
-    { length: 5 },
-    (_, index) => min + ((max - min) * index) / 4,
-  );
-  const labelEvery = Math.max(1, Math.ceil(groups.length / 12));
-  return (
-    <div className="finance-margin-chart">
-      <svg
-        viewBox="0 0 1000 360"
-        role="img"
-        aria-label={t("profitMarginTrend")}
-      >
-        {yTicks.map((tick) => (
-          <g key={tick}>
-            <line
-              className="finance-chart-gridline"
-              x1={plot.left}
-              x2={plot.right}
-              y1={y(tick)}
-              y2={y(tick)}
-            />
-            <text
-              className="finance-chart-axis-label"
-              x={plot.left - 12}
-              y={y(tick) + 4}
-              textAnchor="end"
-            >
-              {Math.round(tick)}%
-            </text>
-          </g>
-        ))}
-        <line
-          className="finance-chart-zero"
-          x1={plot.left}
-          x2={plot.right}
-          y1={y(0)}
-          y2={y(0)}
-        />
-        <polyline className="finance-margin-line" points={points} fill="none" />
-        {groups.map((group, index) => (
-          <g key={group.key}>
-            <circle
-              className="finance-margin-point"
-              cx={x(index)}
-              cy={y(group.margin)}
-              r="4"
-              tabIndex={0}
-            >
-              <title>{`${group.label}: ${group.margin.toFixed(1)}% · ${t("netResult")}: ${formatSek(group.result, locale)}`}</title>
-            </circle>
-            {index % labelEvery === 0 && (
-              <text
-                className="finance-chart-axis-label"
-                x={x(index)}
-                y={plot.bottom + 24}
-                textAnchor="middle"
-              >
-                {group.label}
-              </text>
-            )}
-          </g>
-        ))}
-      </svg>
-    </div>
-  );
-}
-
 function ExpenseCategoryChart({
   transactions,
   locale,
@@ -1019,30 +738,101 @@ function ExpenseCategoryChart({
   const maximum = Math.max(0, ...totals.map((item) => item.amountMinor));
   if (totals.length === 0)
     return <div className="finance-chart-empty">{t("noCategoryExpenses")}</div>;
+  const chartMax = maximum * 1.1;
+  const chartHeight = Math.max(250, totals.length * 48 + 64);
+  const plot = { left: 230, right: 965, top: 22, bottom: chartHeight - 42 };
+  const rowHeight = (plot.bottom - plot.top) / totals.length;
+  const barHeight = Math.min(26, rowHeight * 0.62);
+  const x = (value: number) =>
+    plot.left + (value / chartMax) * (plot.right - plot.left);
+  const xTicks = Array.from(
+    { length: 5 },
+    (_, index) => (chartMax * index) / 4,
+  );
+  const axisSek = (minor: number) =>
+    new Intl.NumberFormat(locale, {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(minor / 100);
   return (
-    <div
-      className="finance-expense-category-chart"
-      role="list"
-      aria-label={t("expenseCategoryChart")}
-    >
-      {totals.map((item) => (
-        <div
-          className="finance-expense-category-row"
-          role="listitem"
-          key={item.categoryId}
-        >
-          <span className="finance-expense-category-label">
-            {categoryName(item.categoryId)}
-          </span>
-          <span className="finance-expense-category-track" aria-hidden="true">
-            <span
-              className="finance-expense-category-fill"
-              style={{ width: `${(item.amountMinor / maximum) * 100}%` }}
+    <div className="finance-expense-category-chart">
+      <svg
+        viewBox={`0 0 1000 ${chartHeight}`}
+        role="img"
+        aria-label={t("expenseCategoryChart")}
+      >
+        {xTicks.map((tick) => (
+          <g key={tick}>
+            <line
+              className="finance-chart-gridline"
+              x1={x(tick)}
+              x2={x(tick)}
+              y1={plot.top}
+              y2={plot.bottom}
             />
-          </span>
-          <strong>{formatSek(item.amountMinor, locale)}</strong>
-        </div>
-      ))}
+            <text
+              className="finance-chart-axis-label"
+              x={x(tick)}
+              y={chartHeight - 14}
+              textAnchor="middle"
+            >
+              {axisSek(tick)}
+            </text>
+          </g>
+        ))}
+        <line
+          className="finance-chart-axis"
+          x1={plot.left}
+          x2={plot.left}
+          y1={plot.top}
+          y2={plot.bottom}
+        />
+        {totals.map((item, index) => {
+          const center = plot.top + rowHeight * (index + 0.5);
+          const label = categoryName(item.categoryId);
+          return (
+            <g key={item.categoryId}>
+              <text
+                className="finance-expense-category-label"
+                x={plot.left - 14}
+                y={center + 5}
+                textAnchor="end"
+              >
+                {label}
+              </text>
+              <rect
+                className="finance-expense-category-bar"
+                x={plot.left}
+                y={center - barHeight / 2}
+                width={Math.max(3, x(item.amountMinor) - plot.left)}
+                height={barHeight}
+                rx="5"
+                tabIndex={0}
+              >
+                <title>{`${label}: ${formatSek(item.amountMinor, locale)}`}</title>
+              </rect>
+              <text
+                className="finance-expense-category-value"
+                x={Math.min(plot.right - 8, x(item.amountMinor) + 10)}
+                y={center + 5}
+                textAnchor={
+                  x(item.amountMinor) > plot.right - 115 ? "end" : "start"
+                }
+              >
+                {axisSek(item.amountMinor)}
+              </text>
+            </g>
+          );
+        })}
+        <text
+          className="finance-chart-axis-title"
+          x={plot.right}
+          y={chartHeight - 14}
+          textAnchor="end"
+        >
+          SEK
+        </text>
+      </svg>
     </div>
   );
 }
@@ -1471,26 +1261,8 @@ export function FinanceDashboard({
             />
           </section>
           <section className="card finance-chart-card">
-            <h2>{t("cashFlowWaterfall")}</h2>
-            <CashFlowWaterfallChart
-              transactions={visibleTransactions}
-              locale={locale}
-              period={chartPeriod}
-              anchor={chartAnchor}
-            />
-          </section>
-          <section className="card finance-chart-card">
-            <h2>{t("incomeExpenseTrend")}</h2>
+            <h2>{t("incomeExpenseChart")}</h2>
             <IncomeExpenseBarChart
-              transactions={visibleTransactions}
-              locale={locale}
-              period={chartPeriod}
-              anchor={chartAnchor}
-            />
-          </section>
-          <section className="card finance-chart-card">
-            <h2>{t("profitMarginTrend")}</h2>
-            <ProfitMarginChart
               transactions={visibleTransactions}
               locale={locale}
               period={chartPeriod}
