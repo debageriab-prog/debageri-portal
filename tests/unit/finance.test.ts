@@ -10,6 +10,7 @@ import {
   companyOutstandingInvoiceShareMinor,
   expenseTotalsByCategory,
   financeTotals,
+  isSalaryRelatedExpenseCode,
   parseSek,
   transactionTableDescription,
 } from "@/domain/finance/calculations";
@@ -21,6 +22,13 @@ import {
 import { financeActionSchema } from "@/server/validators/finance";
 
 describe("finance calculations", () => {
+  it("identifies salary-related expense category codes", () => {
+    expect(isSalaryRelatedExpenseCode("salary")).toBe(true);
+    expect(isSalaryRelatedExpenseCode("SALARY_TAX")).toBe(true);
+    expect(isSalaryRelatedExpenseCode("employer_tax")).toBe(true);
+    expect(isSalaryRelatedExpenseCode("travel")).toBe(false);
+  });
+
   it("calculates the company net share of outstanding invoices", () => {
     expect(
       companyOutstandingInvoiceShareMinor({

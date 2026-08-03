@@ -342,6 +342,7 @@
   "balanceHistory": "Saldohistorik",
   "expenseCategoryChart": "Kostnadskategori",
   "noCategoryExpenses": "Inga kostnader under den här perioden.",
+  "includeSalaryRelatedExpenses": "Inkludera lönerelaterade kostnader",
   "allTime": "Hela perioden",
   "compensation": "Ersättning",
   "compensationModel": "Ersättningsmodell",

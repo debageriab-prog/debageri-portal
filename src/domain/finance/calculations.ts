@@ -1,5 +1,11 @@
 import type { FinancialTransaction } from "@/domain/types";
 
+const salaryExpenseCodes = new Set(["salary", "salary_tax", "employer_tax"]);
+
+export function isSalaryRelatedExpenseCode(code: string) {
+  return salaryExpenseCodes.has(code.trim().toLowerCase());
+}
+
 export function calculateVatMinor(netMinor: number, vatRateBps: number) {
   return Math.round((netMinor * vatRateBps) / 10_000);
 }

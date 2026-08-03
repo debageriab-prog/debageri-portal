@@ -19,6 +19,7 @@ import {
   expenseTotalsByCategory,
   financeTotals,
   formatSek,
+  isSalaryRelatedExpenseCode,
   transactionTableDescription,
 } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
@@ -729,21 +730,27 @@ function ExpenseCategoryChart({
   transactions,
   locale,
   categoryName,
+  categoryCode,
 }: {
   transactions: FinancePageData["transactions"];
   locale: Actor["locale"];
   categoryName: (id: string) => string;
+  categoryCode: (id: string) => string;
 }) {
   const { t } = useLocale();
-  const totals = expenseTotalsByCategory(transactions);
+  const [includeSalaryRelated, setIncludeSalaryRelated] = useState(false);
+  const allTotals = expenseTotalsByCategory(transactions);
+  const totals = includeSalaryRelated
+    ? allTotals
+    : allTotals.filter(
+        (item) => !isSalaryRelatedExpenseCode(categoryCode(item.categoryId)),
+      );
   const maximum = Math.max(0, ...totals.map((item) => item.amountMinor));
-  if (totals.length === 0)
-    return <div className="finance-chart-empty">{t("noCategoryExpenses")}</div>;
-  const chartMax = maximum * 1.1;
-  const chartHeight = 410;
-  const plot = { left: 88, right: 975, top: 20, bottom: 300 };
-  const groupWidth = (plot.right - plot.left) / totals.length;
-  const barWidth = Math.min(74, groupWidth * 0.58);
+  const chartMax = Math.max(10_000, maximum * 1.1);
+  const chartHeight = 380;
+  const plot = { left: 88, right: 975, top: 20, bottom: 270 };
+  const groupWidth = (plot.right - plot.left) / Math.max(1, totals.length);
+  const barWidth = Math.min(46, groupWidth * 0.52);
   const y = (value: number) =>
     plot.bottom - (value / chartMax) * (plot.bottom - plot.top);
   const yTicks = Array.from(
@@ -757,84 +764,98 @@ function ExpenseCategoryChart({
     }).format(minor / 100);
   return (
     <div className="finance-expense-category-chart">
-      <svg
-        viewBox={`0 0 1000 ${chartHeight}`}
-        style={{ minWidth: `${Math.max(700, totals.length * 105)}px` }}
-        role="img"
-        aria-label={t("expenseCategoryChart")}
-      >
-        {yTicks.map((tick) => (
-          <g key={tick}>
+      <label className="checkbox-row finance-expense-category-toggle">
+        <input
+          type="checkbox"
+          checked={includeSalaryRelated}
+          onChange={(event) => setIncludeSalaryRelated(event.target.checked)}
+        />
+        <span>{t("includeSalaryRelatedExpenses")}</span>
+      </label>
+      {totals.length === 0 ? (
+        <div className="finance-chart-empty">{t("noCategoryExpenses")}</div>
+      ) : (
+        <div className="finance-expense-category-canvas">
+          <svg
+            viewBox={`0 0 1000 ${chartHeight}`}
+            style={{ minWidth: `${Math.max(620, totals.length * 82)}px` }}
+            role="img"
+            aria-label={t("expenseCategoryChart")}
+          >
+            {yTicks.map((tick) => (
+              <g key={tick}>
+                <line
+                  className="finance-chart-gridline"
+                  x1={plot.left}
+                  x2={plot.right}
+                  y1={y(tick)}
+                  y2={y(tick)}
+                />
+                <text
+                  className="finance-chart-axis-label"
+                  x={plot.left - 12}
+                  y={y(tick) + 4}
+                  textAnchor="end"
+                >
+                  {axisSek(tick)}
+                </text>
+              </g>
+            ))}
             <line
-              className="finance-chart-gridline"
+              className="finance-chart-axis"
+              x1={plot.left}
+              x2={plot.left}
+              y1={plot.top}
+              y2={plot.bottom}
+            />
+            <line
+              className="finance-chart-zero"
               x1={plot.left}
               x2={plot.right}
-              y1={y(tick)}
-              y2={y(tick)}
+              y1={plot.bottom}
+              y2={plot.bottom}
             />
-            <text
-              className="finance-chart-axis-label"
-              x={plot.left - 12}
-              y={y(tick) + 4}
-              textAnchor="end"
-            >
-              {axisSek(tick)}
+            <text className="finance-chart-axis-title" x={18} y={18}>
+              SEK
             </text>
-          </g>
-        ))}
-        <line
-          className="finance-chart-axis"
-          x1={plot.left}
-          x2={plot.left}
-          y1={plot.top}
-          y2={plot.bottom}
-        />
-        <line
-          className="finance-chart-zero"
-          x1={plot.left}
-          x2={plot.right}
-          y1={plot.bottom}
-          y2={plot.bottom}
-        />
-        <text className="finance-chart-axis-title" x={18} y={18}>
-          SEK
-        </text>
-        {totals.map((item, index) => {
-          const center = plot.left + groupWidth * (index + 0.5);
-          const label = categoryName(item.categoryId);
-          return (
-            <g key={item.categoryId}>
-              <line
-                className="finance-chart-axis"
-                x1={center}
-                x2={center}
-                y1={plot.bottom}
-                y2={plot.bottom + 6}
-              />
-              <text
-                className="finance-expense-category-label"
-                x={center}
-                y={plot.bottom + 28}
-                textAnchor="end"
-                transform={`rotate(-35 ${center} ${plot.bottom + 28})`}
-              >
-                {label}
-              </text>
-              <rect
-                className="finance-expense-category-bar"
-                x={center - barWidth / 2}
-                y={Math.min(y(item.amountMinor), plot.bottom - 3)}
-                width={barWidth}
-                height={Math.max(3, plot.bottom - y(item.amountMinor))}
-                rx="5"
-                tabIndex={0}
-              >
-                <title>{`${label}: ${formatSek(item.amountMinor, locale)}`}</title>
-              </rect>
-            </g>
-          );
-        })}
-      </svg>
+            {totals.map((item, index) => {
+              const center = plot.left + groupWidth * (index + 0.5);
+              const label = categoryName(item.categoryId);
+              return (
+                <g key={item.categoryId}>
+                  <line
+                    className="finance-chart-axis"
+                    x1={center}
+                    x2={center}
+                    y1={plot.bottom}
+                    y2={plot.bottom + 6}
+                  />
+                  <text
+                    className="finance-chart-axis-label finance-expense-category-label"
+                    x={center}
+                    y={plot.bottom + 28}
+                    textAnchor="end"
+                    transform={`rotate(-35 ${center} ${plot.bottom + 28})`}
+                  >
+                    {label}
+                  </text>
+                  <rect
+                    className="finance-expense-category-bar"
+                    x={center - barWidth / 2}
+                    y={Math.min(y(item.amountMinor), plot.bottom - 3)}
+                    width={barWidth}
+                    height={Math.max(3, plot.bottom - y(item.amountMinor))}
+                    rx="4"
+                    tabIndex={0}
+                  >
+                    <title>{`${label}: ${formatSek(item.amountMinor, locale)}`}</title>
+                  </rect>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      )}
     </div>
   );
 }
@@ -891,6 +912,8 @@ export function FinanceDashboard({
     const item = data.categories.find((category) => category.id === id);
     return item ? item.name[locale === "sv-SE" ? "sv" : "en"] : "—";
   };
+  const categoryCode = (id: string) =>
+    data.categories.find((category) => category.id === id)?.code ?? "";
   const consultantName = (id: string | null) =>
     id
       ? (data.users.find((user) => user.id === id)?.displayName ?? "—")
@@ -1291,6 +1314,7 @@ export function FinanceDashboard({
                 transactions={visibleOverviewTransactions}
                 locale={locale}
                 categoryName={categoryName}
+                categoryCode={categoryCode}
               />
             </section>
           )}

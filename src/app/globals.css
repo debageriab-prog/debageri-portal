@@ -636,7 +636,7 @@ a.card:hover {
 table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 700px;
+  min-width: 620px;
 }
 th,
 td {
@@ -1506,6 +1506,10 @@ th {
   background: var(--danger);
 }
 .finance-expense-category-chart {
+  display: grid;
+  gap: 12px;
+}
+.finance-expense-category-canvas {
   overflow-x: auto;
 }
 .finance-expense-category-chart svg {
@@ -1513,13 +1517,20 @@ th {
   width: 100%;
   min-width: 700px;
   height: auto;
+  max-height: 380px;
   border-radius: 12px;
   background: linear-gradient(to bottom, rgb(165 111 78 / 5%), transparent 75%);
 }
 .finance-expense-category-label {
-  fill: var(--foreground);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 650;
+}
+.finance-expense-category-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin: 0;
 }
 .finance-expense-category-bar {
   fill: var(--danger);
