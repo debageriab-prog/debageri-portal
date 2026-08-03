@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
   belongsToCompany,
+  belongsToFixedConsultantResult,
   calculateShareMinor,
   companyBalanceDeltaMinor,
   expenseTotalsByCategory,
@@ -671,6 +672,16 @@ export function FinanceDashboard({
     id
       ? (data.users.find((user) => user.id === id)?.displayName ?? "—")
       : t("companyOnly");
+  const selectedModel = data.users.find(
+    (user) => user.id === selectedConsultant,
+  )?.compensationModel;
+  const invoiceConsultantIds = useMemo(
+    () =>
+      new Map(
+        data.invoices.map((invoice) => [invoice.id, invoice.consultantId]),
+      ),
+    [data.invoices],
+  );
   const visibleTransactions = useMemo(
     () =>
       selectedConsultant === "all"
@@ -678,9 +689,25 @@ export function FinanceDashboard({
         : selectedConsultant === "company"
           ? data.transactions.filter(belongsToCompany)
           : data.transactions.filter(
-              (item) => item.consultantId === selectedConsultant,
+              (item) =>
+                item.consultantId === selectedConsultant ||
+                (manager &&
+                  selectedModel === "fixed" &&
+                  belongsToFixedConsultantResult(
+                    item,
+                    selectedConsultant,
+                    item.invoiceId
+                      ? (invoiceConsultantIds.get(item.invoiceId) ?? null)
+                      : null,
+                  )),
             ),
-    [data.transactions, selectedConsultant],
+    [
+      data.transactions,
+      invoiceConsultantIds,
+      manager,
+      selectedConsultant,
+      selectedModel,
+    ],
   );
   const visibleOverviewTransactions = useMemo(
     () =>
@@ -771,9 +798,6 @@ export function FinanceDashboard({
   });
   const transactionFormHref = (path: string) =>
     `${path}?${new URLSearchParams({ returnTo: transactionReturnHref })}`;
-  const selectedModel = data.users.find(
-    (user) => user.id === selectedConsultant,
-  )?.compensationModel;
   const chartMode =
     !manager || selectedModel === "flexible" ? "balance" : "result";
 

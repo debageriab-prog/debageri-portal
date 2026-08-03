@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   allocateInvoiceIncome,
   belongsToCompany,
+  belongsToFixedConsultantResult,
   calculateShareMinor,
   calculateTransactionAmounts,
   calculateVatMinor,
@@ -95,6 +96,39 @@ describe("finance calculations", () => {
     expect(belongsToCompany({ ...transaction, funding: "consultant" })).toBe(
       false,
     );
+  });
+
+  it("attributes company invoice income to a fixed consultant result", () => {
+    const companyInvoiceIncome = {
+      consultantId: null,
+      direction: "income" as const,
+      invoiceId: "invoice-1",
+    };
+    expect(
+      belongsToFixedConsultantResult(
+        companyInvoiceIncome,
+        "consultant-1",
+        "consultant-1",
+      ),
+    ).toBe(true);
+    expect(
+      belongsToFixedConsultantResult(
+        companyInvoiceIncome,
+        "consultant-1",
+        "consultant-2",
+      ),
+    ).toBe(false);
+    expect(
+      belongsToFixedConsultantResult(
+        {
+          consultantId: "consultant-1",
+          direction: "expense",
+          invoiceId: null,
+        },
+        "consultant-1",
+        null,
+      ),
+    ).toBe(true);
   });
 
   it("uses the internal note only for company-only funded expenses", () => {

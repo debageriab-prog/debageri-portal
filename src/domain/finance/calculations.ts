@@ -53,6 +53,23 @@ export function companyBalanceDeltaMinor(transaction: TransactionScopeInput) {
   return 0;
 }
 
+export function belongsToFixedConsultantResult(
+  transaction: Pick<
+    FinancialTransaction,
+    "consultantId" | "direction" | "invoiceId"
+  >,
+  consultantId: string,
+  invoiceConsultantId: string | null,
+) {
+  return (
+    transaction.consultantId === consultantId ||
+    (transaction.consultantId === null &&
+      transaction.direction === "income" &&
+      transaction.invoiceId !== null &&
+      invoiceConsultantId === consultantId)
+  );
+}
+
 export function transactionTableDescription(
   transaction: Pick<
     FinancialTransaction,
