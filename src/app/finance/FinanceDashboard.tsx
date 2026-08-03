@@ -555,7 +555,7 @@ function IncomeExpenseBarChart({
     ...groups.flatMap((group) => [group.income, group.expense]),
   );
   const chartMax = maxValue * 1.12;
-  const plot = { left: 88, right: 975, top: 20, bottom: 294 };
+  const plot = { left: 88, right: 975, top: 20, bottom: 300 };
   const plotWidth = plot.right - plot.left;
   const y = (value: number) =>
     plot.bottom - (value / chartMax) * (plot.bottom - plot.top);
@@ -576,7 +576,7 @@ function IncomeExpenseBarChart({
     <div className="finance-bar-chart">
       <div className="finance-bar-chart-canvas">
         <svg
-          viewBox="0 0 1000 390"
+          viewBox="0 0 1000 360"
           role="img"
           aria-label={t("incomeExpenseChart")}
         >
@@ -622,13 +622,6 @@ function IncomeExpenseBarChart({
             const expenseX = incomeX + barWidth + barGap;
             return (
               <g key={group.key}>
-                <line
-                  className="finance-chart-axis"
-                  x1={center}
-                  x2={center}
-                  y1={plot.bottom}
-                  y2={plot.bottom + 6}
-                />
                 <rect
                   className="finance-bar finance-bar-income"
                   x={incomeX}
@@ -688,11 +681,10 @@ function IncomeExpenseBarChart({
                   onBlur={() => setHoveredBar(null)}
                 />
                 <text
-                  className="finance-chart-axis-label finance-bar-axis-label"
+                  className="finance-chart-axis-label"
                   x={center}
-                  y={plot.bottom + 28}
-                  textAnchor="end"
-                  transform={`rotate(-35 ${center} ${plot.bottom + 28})`}
+                  y={plot.bottom + 23}
+                  textAnchor="middle"
                 >
                   {group.label}
                 </text>
@@ -705,7 +697,7 @@ function IncomeExpenseBarChart({
             className="finance-chart-tooltip"
             style={{
               left: `clamp(120px, ${(hoveredBar.x / 1000) * 100}%, calc(100% - 120px))`,
-              top: `${(hoveredBar.y / 390) * 100}%`,
+              top: `${(hoveredBar.y / 360) * 100}%`,
               transform:
                 hoveredBar.y < 105
                   ? "translate(-50%, 12px)"
@@ -747,13 +739,13 @@ function ExpenseCategoryChart({
   if (totals.length === 0)
     return <div className="finance-chart-empty">{t("noCategoryExpenses")}</div>;
   const chartMax = maximum * 1.1;
-  const chartHeight = Math.max(250, totals.length * 48 + 64);
-  const plot = { left: 230, right: 965, top: 22, bottom: chartHeight - 42 };
-  const rowHeight = (plot.bottom - plot.top) / totals.length;
-  const barHeight = Math.min(26, rowHeight * 0.62);
-  const x = (value: number) =>
-    plot.left + (value / chartMax) * (plot.right - plot.left);
-  const xTicks = Array.from(
+  const chartHeight = 410;
+  const plot = { left: 88, right: 975, top: 20, bottom: 300 };
+  const groupWidth = (plot.right - plot.left) / totals.length;
+  const barWidth = Math.min(74, groupWidth * 0.58);
+  const y = (value: number) =>
+    plot.bottom - (value / chartMax) * (plot.bottom - plot.top);
+  const yTicks = Array.from(
     { length: 5 },
     (_, index) => (chartMax * index) / 4,
   );
@@ -766,23 +758,24 @@ function ExpenseCategoryChart({
     <div className="finance-expense-category-chart">
       <svg
         viewBox={`0 0 1000 ${chartHeight}`}
+        style={{ minWidth: `${Math.max(700, totals.length * 105)}px` }}
         role="img"
         aria-label={t("expenseCategoryChart")}
       >
-        {xTicks.map((tick) => (
+        {yTicks.map((tick) => (
           <g key={tick}>
             <line
               className="finance-chart-gridline"
-              x1={x(tick)}
-              x2={x(tick)}
-              y1={plot.top}
-              y2={plot.bottom}
+              x1={plot.left}
+              x2={plot.right}
+              y1={y(tick)}
+              y2={y(tick)}
             />
             <text
               className="finance-chart-axis-label"
-              x={x(tick)}
-              y={chartHeight - 14}
-              textAnchor="middle"
+              x={plot.left - 12}
+              y={y(tick) + 4}
+              textAnchor="end"
             >
               {axisSek(tick)}
             </text>
@@ -795,51 +788,51 @@ function ExpenseCategoryChart({
           y1={plot.top}
           y2={plot.bottom}
         />
+        <line
+          className="finance-chart-zero"
+          x1={plot.left}
+          x2={plot.right}
+          y1={plot.bottom}
+          y2={plot.bottom}
+        />
+        <text className="finance-chart-axis-title" x={18} y={18}>
+          SEK
+        </text>
         {totals.map((item, index) => {
-          const center = plot.top + rowHeight * (index + 0.5);
+          const center = plot.left + groupWidth * (index + 0.5);
           const label = categoryName(item.categoryId);
           return (
             <g key={item.categoryId}>
+              <line
+                className="finance-chart-axis"
+                x1={center}
+                x2={center}
+                y1={plot.bottom}
+                y2={plot.bottom + 6}
+              />
               <text
                 className="finance-expense-category-label"
-                x={plot.left - 14}
-                y={center + 5}
+                x={center}
+                y={plot.bottom + 28}
                 textAnchor="end"
+                transform={`rotate(-35 ${center} ${plot.bottom + 28})`}
               >
                 {label}
               </text>
               <rect
                 className="finance-expense-category-bar"
-                x={plot.left}
-                y={center - barHeight / 2}
-                width={Math.max(3, x(item.amountMinor) - plot.left)}
-                height={barHeight}
+                x={center - barWidth / 2}
+                y={Math.min(y(item.amountMinor), plot.bottom - 3)}
+                width={barWidth}
+                height={Math.max(3, plot.bottom - y(item.amountMinor))}
                 rx="5"
                 tabIndex={0}
               >
                 <title>{`${label}: ${formatSek(item.amountMinor, locale)}`}</title>
               </rect>
-              <text
-                className="finance-expense-category-value"
-                x={Math.min(plot.right - 8, x(item.amountMinor) + 10)}
-                y={center + 5}
-                textAnchor={
-                  x(item.amountMinor) > plot.right - 115 ? "end" : "start"
-                }
-              >
-                {axisSek(item.amountMinor)}
-              </text>
             </g>
           );
         })}
-        <text
-          className="finance-chart-axis-title"
-          x={plot.right}
-          y={chartHeight - 14}
-          textAnchor="end"
-        >
-          SEK
-        </text>
       </svg>
     </div>
   );

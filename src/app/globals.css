@@ -1461,12 +1461,9 @@ th {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 390px;
+  max-height: 360px;
   border-radius: 12px;
   background: linear-gradient(to bottom, rgb(165 111 78 / 7%), transparent 75%);
-}
-.finance-bar-axis-label {
-  font-weight: 650;
 }
 .finance-bar {
   cursor: pointer;
@@ -1517,18 +1514,12 @@ th {
   min-width: 700px;
   height: auto;
   border-radius: 12px;
-  background: linear-gradient(to right, rgb(165 111 78 / 5%), transparent 75%);
+  background: linear-gradient(to bottom, rgb(165 111 78 / 5%), transparent 75%);
 }
-.finance-expense-category-label,
-.finance-expense-category-value {
+.finance-expense-category-label {
   fill: var(--foreground);
   font-size: 13px;
   font-weight: 700;
-}
-.finance-expense-category-value {
-  fill: var(--muted);
-  font-weight: 650;
-  pointer-events: none;
 }
 .finance-expense-category-bar {
   fill: var(--danger);
