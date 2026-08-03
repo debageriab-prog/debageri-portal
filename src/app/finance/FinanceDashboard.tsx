@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import {
+  FormEvent,
+  PointerEvent as ReactPointerEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
@@ -114,6 +120,21 @@ function BalanceChart({
 }) {
   const { t } = useLocale();
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
+  const zoomScope = `${period}:${anchor}:${mode}`;
+  const [storedZoom, setZoom] = useState({
+    start: 0,
+    end: 1,
+    scope: zoomScope,
+  });
+  const zoom =
+    storedZoom.scope === zoomScope
+      ? storedZoom
+      : { start: 0, end: 1, scope: zoomScope };
+  const [selection, setSelection] = useState<{
+    start: number;
+    current: number;
+  } | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const prefix = period === "month" ? anchor : anchor.slice(0, 4);
   const sorted = [...transactions]
     .filter((transaction) =>
@@ -156,7 +177,9 @@ function BalanceChart({
           : (index + 1) / Math.max(1, sorted.length);
     return [...points, { transaction, change, balance, xRatio }];
   }, []);
-  const chartPoints = transactionPoints;
+  const chartPoints = transactionPoints.filter(
+    (point) => point.xRatio >= zoom.start && point.xRatio <= zoom.end,
+  );
   const values = chartPoints.map((point) => point.balance);
   let min = Math.min(0, ...values);
   let max = Math.max(0, ...values);
@@ -167,17 +190,26 @@ function BalanceChart({
   if (min === max) max = padding;
   const range = max - min;
   const plot = { left: 88, right: 975, top: 20, bottom: 308 };
-  const x = (ratio: number) => plot.left + ratio * (plot.right - plot.left);
+  const visibleRatio = (ratio: number) =>
+    (ratio - zoom.start) / (zoom.end - zoom.start);
+  const x = (ratio: number) =>
+    plot.left + visibleRatio(ratio) * (plot.right - plot.left);
   const y = (value: number) =>
     plot.bottom - ((value - min) / range) * (plot.bottom - plot.top);
   const polyline = chartPoints
     .map((point) => `${x(point.xRatio)},${y(point.balance)}`)
     .join(" ");
+  const firstChartPoint = chartPoints[0];
+  const area = firstChartPoint
+    ? `M ${x(firstChartPoint.xRatio)} ${y(0)} L ${chartPoints
+        .map((point) => `${x(point.xRatio)} ${y(point.balance)}`)
+        .join(" L ")} L ${x(chartPoints.at(-1)?.xRatio ?? 0)} ${y(0)} Z`
+    : "";
   const yTicks = Array.from(
     { length: 5 },
     (_, index) => min + (range * index) / 4,
   );
-  const xTicks =
+  const allXTicks =
     period === "month"
       ? [0, 5, 10, 15, 20, 25, daysInMonth]
           .filter(
@@ -202,16 +234,73 @@ function BalanceChart({
               ? [{ ratio: 1, label: sorted.at(-1)?.date ?? "" }]
               : []),
           ];
+  const xTicks = allXTicks.filter(
+    (tick) => tick.ratio >= zoom.start && tick.ratio <= zoom.end,
+  );
   const axisSek = (minor: number) =>
     new Intl.NumberFormat(locale, {
       notation: "compact",
       maximumFractionDigits: 1,
     }).format(minor / 100);
   const hovered = hoveredPoint === null ? null : chartPoints[hoveredPoint];
+  const pointerRatio = (event: ReactPointerEvent<SVGRectElement>) => {
+    const bounds = svgRef.current?.getBoundingClientRect();
+    if (!bounds) return zoom.start;
+    const viewBoxX = ((event.clientX - bounds.left) / bounds.width) * 1000;
+    const plotRatio = Math.max(
+      0,
+      Math.min(1, (viewBoxX - plot.left) / (plot.right - plot.left)),
+    );
+    return zoom.start + plotRatio * (zoom.end - zoom.start);
+  };
+  const finishSelection = (event: ReactPointerEvent<SVGRectElement>) => {
+    if (!selection) return;
+    const end = pointerRatio(event);
+    const start = Math.min(selection.start, end);
+    const finish = Math.max(selection.start, end);
+    if (finish - start >= (zoom.end - zoom.start) * 0.025) {
+      setZoom({ start, end: finish, scope: zoomScope });
+      setHoveredPoint(null);
+    }
+    setSelection(null);
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const selectionStart = selection
+    ? Math.min(selection.start, selection.current)
+    : 0;
+  const selectionEnd = selection
+    ? Math.max(selection.start, selection.current)
+    : 0;
   return (
     <div className="finance-chart">
+      <div className="finance-chart-toolbar">
+        <span>{t("chartZoomHint")}</span>
+        <button
+          className="button button-secondary finance-chart-reset"
+          type="button"
+          disabled={zoom.start === 0 && zoom.end === 1}
+          onClick={() => setZoom({ start: 0, end: 1, scope: zoomScope })}
+        >
+          {t("resetZoom")}
+        </button>
+      </div>
       <div className="finance-chart-canvas">
-        <svg viewBox="0 0 1000 360" role="img" aria-label={t("balanceHistory")}>
+        <svg
+          ref={svgRef}
+          viewBox="0 0 1000 360"
+          role="img"
+          aria-label={t("balanceHistory")}
+        >
+          <defs>
+            <linearGradient id="balance-area" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="currentColor" stopOpacity="0.22" />
+              <stop
+                offset="100%"
+                stopColor="currentColor"
+                stopOpacity="0.015"
+              />
+            </linearGradient>
+          </defs>
           {yTicks.map((tick) => (
             <g key={tick}>
               <line
@@ -279,11 +368,40 @@ function BalanceChart({
                 ? t("month")
                 : t("date")}
           </text>
+          <rect
+            className="finance-chart-interaction"
+            x={plot.left}
+            y={plot.top}
+            width={plot.right - plot.left}
+            height={plot.bottom - plot.top}
+            onPointerDown={(event) => {
+              const ratio = pointerRatio(event);
+              event.currentTarget.setPointerCapture(event.pointerId);
+              setSelection({ start: ratio, current: ratio });
+            }}
+            onPointerMove={(event) => {
+              if (selection) {
+                setSelection({ ...selection, current: pointerRatio(event) });
+              }
+            }}
+            onPointerUp={finishSelection}
+            onPointerCancel={() => setSelection(null)}
+          />
+          {area && <path className="finance-chart-area" d={area} />}
           <polyline
             className="finance-chart-line"
             points={polyline}
             fill="none"
           />
+          {hovered && (
+            <line
+              className="finance-chart-crosshair"
+              x1={x(hovered.xRatio)}
+              x2={x(hovered.xRatio)}
+              y1={plot.top}
+              y2={plot.bottom}
+            />
+          )}
           {chartPoints.map((point, index) => (
             <circle
               className="finance-chart-point"
@@ -298,6 +416,15 @@ function BalanceChart({
               onBlur={() => setHoveredPoint(null)}
             />
           ))}
+          {selection && (
+            <rect
+              className="finance-chart-selection"
+              x={x(selectionStart)}
+              y={plot.top}
+              width={Math.max(0, x(selectionEnd) - x(selectionStart))}
+              height={plot.bottom - plot.top}
+            />
+          )}
         </svg>
         {hovered && (
           <div

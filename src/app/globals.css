@@ -1322,6 +1322,21 @@ th {
   min-height: 260px;
   overflow-x: auto;
 }
+.finance-chart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.finance-chart-reset {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
 .finance-chart-canvas {
   position: relative;
   min-width: 620px;
@@ -1332,12 +1347,19 @@ th {
   max-height: 360px;
   width: 100%;
   overflow: visible;
-  border-radius: 12px;
-  background: linear-gradient(to bottom, rgb(165 111 78 / 7%), transparent 75%);
+  border: 1px solid rgb(61 48 39 / 8%);
+  border-radius: 14px;
+  background: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 92%),
+    rgb(165 111 78 / 4%)
+  );
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 85%);
 }
 .finance-chart-gridline {
-  stroke: rgb(61 48 39 / 10%);
+  stroke: rgb(61 48 39 / 9%);
   stroke-width: 1;
+  stroke-dasharray: 3 5;
 }
 .finance-chart-axis {
   stroke: rgb(61 48 39 / 45%);
@@ -1357,9 +1379,20 @@ th {
 }
 .finance-chart-line {
   stroke: var(--accent);
-  stroke-width: 3;
+  stroke-width: 3.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+.finance-chart-area {
+  fill: url("#balance-area");
+  pointer-events: none;
+}
+.finance-chart-crosshair {
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  opacity: 0.55;
+  pointer-events: none;
 }
 .finance-chart-point {
   fill: white;
@@ -1375,6 +1408,18 @@ th {
   fill: var(--accent);
   outline: none;
   r: 6px;
+}
+.finance-chart-selection {
+  fill: rgb(165 111 78 / 16%);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  pointer-events: none;
+}
+.finance-chart-interaction {
+  fill: transparent;
+  cursor: crosshair;
+  touch-action: none;
 }
 .finance-chart-tooltip {
   position: absolute;

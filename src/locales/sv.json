@@ -432,6 +432,8 @@
   "chartStartingPoint": "Startpunkt",
   "chartDay": "Dag",
   "balanceAtPoint": "Saldo vid denna punkt",
+  "chartZoomHint": "Dra över diagrammet för att zooma in på ett intervall.",
+  "resetZoom": "Återställ zoom",
   "incomeExpenseChart": "Totala intäkter och kostnader",
   "myInvoices": "Mina fakturor",
   "consultantInvoicesDescription": "Se hela fakturabeloppet för ditt arbete. Din ekonomiöversikt registrerar endast din konfigurerade andel som intäkt.",
