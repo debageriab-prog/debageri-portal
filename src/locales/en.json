@@ -331,6 +331,7 @@
   "balanceHistory": "Balance history",
   "expenseCategoryChart": "Expense category",
   "noCategoryExpenses": "No expenses in this period.",
+  "includeSalaryRelatedExpenses": "Include salary related expenses",
   "allTime": "All time",
   "compensation": "Compensation",
   "compensationModel": "Compensation model",
