@@ -2,46 +2,19 @@ import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
-import { reminderSettingsSchema } from "@/server/validators/reminder";
-import {
-  defaultReminderSubject,
-  defaultReminderTemplate,
-  encryptPassword,
-} from "@/server/services/reminder-service";
-
-export async function GET() {
-  const actor = await verifySession();
-  if (!actor || actor.role !== "admin")
-    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-  const { db } = getAdminServices();
-  const doc = await db
-    .collection("reminderSettings")
-    .doc(actor.organizationId)
-    .get();
-  const data = doc.data();
-  return NextResponse.json({
-    smtpHost: data?.smtpHost ?? "",
-    smtpPort: data?.smtpPort ?? 587,
-    smtpSecure: data?.smtpSecure ?? false,
-    smtpUsername: data?.smtpUsername ?? "",
-    passwordConfigured: Boolean(data?.encryptedPassword),
-    fromEmail: data?.fromEmail ?? "",
-    senderName: data?.senderName ?? "",
-    subject: data?.subject ?? defaultReminderSubject,
-    template: data?.template ?? defaultReminderTemplate,
-  });
-}
+import { emailSettingsSchema } from "@/server/validators/reminder";
+import { encryptPassword } from "@/server/services/reminder-service";
 
 export async function PUT(request: Request) {
   const actor = await verifySession();
   if (!actor || actor.role !== "admin")
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-  const parsed = reminderSettingsSchema.safeParse(
+  const parsed = emailSettingsSchema.safeParse(
     await request.json().catch(() => null),
   );
   if (!parsed.success)
     return NextResponse.json(
-      { error: "Check the SMTP and template settings." },
+      { error: "Check the email connection settings." },
       { status: 400 },
     );
   const { db } = getAdminServices();
