@@ -1471,14 +1471,15 @@ th {
   height: 18px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgb(176 74 74 / 11%);
+  background: var(--accent-soft);
 }
 .finance-expense-category-fill {
   display: block;
   min-width: 3px;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #d79a85, var(--danger));
+  background: var(--accent);
+  opacity: 0.72;
 }
 .finance-expense-category-row strong {
   color: var(--foreground);

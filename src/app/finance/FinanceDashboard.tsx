@@ -151,7 +151,7 @@ function BalanceChart({
       period === "month"
         ? Number(transaction.date.slice(8, 10)) / daysInMonth
         : period === "year"
-          ? dayOfYear(transaction.date) / daysInYear
+          ? (dayOfYear(transaction.date) - 0.5) / daysInYear
           : (index + 1) / Math.max(1, sorted.length);
     return [...points, { transaction, change, balance, xRatio }];
   }, []);
@@ -189,7 +189,10 @@ function BalanceChart({
           }))
       : period === "year"
         ? Array.from({ length: 12 }, (_, index) => ({
-            ratio: (index + 1) / 12,
+            ratio:
+              (Date.UTC(year, index, 1) - Date.UTC(year, 0, 1)) /
+              86_400_000 /
+              daysInYear,
             label: String(index + 1),
           }))
         : [
