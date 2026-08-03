@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
 
-type Settings = {
+type EmailSettings = {
   smtpHost: string;
   smtpPort: number;
   smtpSecure: boolean;
@@ -12,11 +12,9 @@ type Settings = {
   passwordConfigured: boolean;
   fromEmail: string;
   senderName: string;
-  subject: string;
-  template: string;
 };
 
-export function ReminderSettingsForm({ settings }: { settings: Settings }) {
+export function EmailSettingsForm({ settings }: { settings: EmailSettings }) {
   const { t } = useLocale();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -28,7 +26,7 @@ export function ReminderSettingsForm({ settings }: { settings: Settings }) {
     setMessage("");
     setError("");
     const form = new FormData(event.currentTarget);
-    const response = await appCheckFetch("/api/reminders/settings", {
+    const response = await appCheckFetch("/api/admin/email-settings", {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -39,16 +37,11 @@ export function ReminderSettingsForm({ settings }: { settings: Settings }) {
         password: form.get("password") || undefined,
         fromEmail: form.get("fromEmail"),
         senderName: form.get("senderName"),
-        subject: form.get("subject"),
-        template: form.get("template"),
       }),
     });
-    const result = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
     setBusy(false);
-    if (!response.ok) return setError(result.error ?? t("settingsSaveFailed"));
-    setMessage(t("settingsSaved"));
+    if (!response.ok) return setError(t("emailSettingsSaveFailed"));
+    setMessage(t("emailSettingsSaved"));
   }
 
   return (
@@ -122,26 +115,6 @@ export function ReminderSettingsForm({ settings }: { settings: Settings }) {
             defaultChecked={settings.smtpSecure}
           />
           <span>{t("smtpSecure")}</span>
-        </label>
-        <label className="form-wide">
-          {t("emailSubject")}
-          <input
-            className="field"
-            name="subject"
-            defaultValue={settings.subject}
-            required
-          />
-        </label>
-        <label className="form-wide">
-          {t("emailTemplate")}
-          <textarea
-            className="field reminder-template"
-            name="template"
-            defaultValue={settings.template}
-            rows={12}
-            required
-          />
-          <small>{t("templatePlaceholders")}</small>
         </label>
       </div>
       {error && <p className="notice notice-error">{error}</p>}

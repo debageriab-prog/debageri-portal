@@ -4,7 +4,11 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { sendReminderSchema } from "@/server/validators/reminder";
 import { findMissingWeeks } from "@/domain/reminders/missing-weeks";
-import { sendReminderEmail } from "@/server/services/reminder-service";
+import {
+  defaultReminderSubject,
+  defaultReminderTemplate,
+  sendReminderEmail,
+} from "@/server/services/reminder-service";
 
 export async function POST(request: Request) {
   const actor = await verifySession();
@@ -17,12 +21,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Select an employee." }, { status: 400 });
 
   const { db } = getAdminServices();
-  const [userDoc, settingsDoc, organizationDoc, sheets] = await Promise.all([
-    db.collection("users").doc(parsed.data.userId).get(),
-    db.collection("reminderSettings").doc(actor.organizationId).get(),
-    db.collection("organizations").doc(actor.organizationId).get(),
-    db.collection("timesheets").where("userId", "==", parsed.data.userId).get(),
-  ]);
+  const [userDoc, settingsDoc, templatesDoc, organizationDoc, sheets] =
+    await Promise.all([
+      db.collection("users").doc(parsed.data.userId).get(),
+      db.collection("reminderSettings").doc(actor.organizationId).get(),
+      db.collection("emailTemplates").doc(actor.organizationId).get(),
+      db.collection("organizations").doc(actor.organizationId).get(),
+      db
+        .collection("timesheets")
+        .where("userId", "==", parsed.data.userId)
+        .get(),
+    ]);
   const user = userDoc.data();
   if (
     !user ||
@@ -31,6 +40,7 @@ export async function POST(request: Request) {
   )
     return NextResponse.json({ error: "Employee not found." }, { status: 404 });
   const settings = settingsDoc.data();
+  const reminderTemplate = templatesDoc.data()?.timeReportReminder;
   if (!settings?.encryptedPassword)
     return NextResponse.json(
       { error: "Reminder email settings are not configured." },
@@ -88,8 +98,14 @@ export async function POST(request: Request) {
       encryptedPassword: String(settings.encryptedPassword),
       fromEmail: String(settings.fromEmail),
       senderName: String(settings.senderName),
-      subject: String(settings.subject),
-      template: String(settings.template),
+      subject: String(
+        reminderTemplate?.subject ?? settings.subject ?? defaultReminderSubject,
+      ),
+      template: String(
+        reminderTemplate?.template ??
+          settings.template ??
+          defaultReminderTemplate,
+      ),
       recipientEmail: String(user.email),
       values: {
         employeeName: String(user.displayName ?? user.email),

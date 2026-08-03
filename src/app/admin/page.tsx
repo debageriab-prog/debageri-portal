@@ -6,13 +6,17 @@ export default function AdminPage() {
   const { t } = useLocale();
   const cards = [
     [t("users"), t("usersDescription"), "/admin/users"],
-    [t("timeCodes"), t("timeCodesDescription"), "/admin/time-codes"],
-    [
-      "Red days",
-      "Configure holidays and non-working dates by year",
-      "/admin/red-days",
-    ],
     [t("organization"), t("organizationDescription"), "/admin/settings"],
+    [
+      t("emailSettings"),
+      t("emailSettingsDescription"),
+      "/admin/email-settings",
+    ],
+    [
+      t("emailTemplates"),
+      t("emailTemplatesDescription"),
+      "/admin/email-templates",
+    ],
     [t("auditHistory"), t("auditHistoryDescription"), "/admin/audit"],
   ];
   return (
@@ -22,8 +26,7 @@ export default function AdminPage() {
           <div className="eyebrow">{t("admin")}</div>
           <h1>{t("portalSettings")}</h1>
           <p className="muted page-description">
-            Manage your people, working agreements, reporting categories and
-            organization-wide portal settings.
+            {t("portalSettingsDescription")}
           </p>
         </div>
       </div>

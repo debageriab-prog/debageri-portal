@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const reminderSettingsSchema = z.object({
+export const emailSettingsSchema = z.object({
   smtpHost: z.string().trim().min(1).max(255),
   smtpPort: z.number().int().min(1).max(65535),
   smtpSecure: z.boolean(),
@@ -8,6 +8,10 @@ export const reminderSettingsSchema = z.object({
   password: z.string().min(1).max(500).optional(),
   fromEmail: z.string().email(),
   senderName: z.string().trim().min(1).max(120),
+});
+
+export const emailTemplateSchema = z.object({
+  templateId: z.literal("time-report-reminder"),
   subject: z.string().trim().min(1).max(200),
   template: z.string().trim().min(1).max(10000),
 });

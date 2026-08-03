@@ -119,6 +119,9 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
         items: [
           { label: t("approvals"), href: "/manager/approvals" },
           { label: t("timeReports"), href: "/time-reports" },
+          { label: t("reminder"), href: "/reminders" },
+          { label: t("timeCodes"), href: "/admin/time-codes" },
+          { label: t("redDays"), href: "/admin/red-days" },
         ],
       },
       {
@@ -128,30 +131,14 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
         items: financeItems(t),
       },
       {
-        id: "reminders",
-        label: t("reminders"),
-        icon: "bell",
-        items: [
-          { label: t("reminder"), href: "/reminders" },
-          { label: t("reminderSettings"), href: "/reminders/settings" },
-        ],
-      },
-      {
-        id: "time-management",
-        label: t("timeManagement"),
-        icon: "settings",
-        items: [
-          { label: t("timeCodes"), href: "/admin/time-codes" },
-          { label: t("redDays"), href: "/admin/red-days" },
-        ],
-      },
-      {
         id: "admin",
         label: t("admin"),
         icon: "admin",
         items: [
           { label: t("employees"), href: "/admin/users" },
           { label: t("organization"), href: "/admin/settings" },
+          { label: t("emailSettings"), href: "/admin/email-settings" },
+          { label: t("emailTemplates"), href: "/admin/email-templates" },
           { label: t("auditHistory"), href: "/admin/audit" },
         ],
       },
