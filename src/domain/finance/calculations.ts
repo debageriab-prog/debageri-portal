@@ -121,6 +121,29 @@ export function financeTotals(
   );
 }
 
+export function expenseTotalsByCategory(
+  transactions: Array<
+    Pick<FinancialTransaction, "categoryId" | "direction" | "netMinor">
+  >,
+) {
+  const totals = new Map<string, number>();
+  for (const transaction of transactions) {
+    if (transaction.direction !== "expense") continue;
+    totals.set(
+      transaction.categoryId,
+      (totals.get(transaction.categoryId) ?? 0) + transaction.netMinor,
+    );
+  }
+  return [...totals.entries()]
+    .map(([categoryId, amountMinor]) => ({ categoryId, amountMinor }))
+    .filter((item) => item.amountMinor > 0)
+    .sort(
+      (left, right) =>
+        right.amountMinor - left.amountMinor ||
+        left.categoryId.localeCompare(right.categoryId),
+    );
+}
+
 export function formatSek(minor: number, locale: "sv-SE" | "en-SE") {
   return new Intl.NumberFormat(locale, {
     style: "currency",

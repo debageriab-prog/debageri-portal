@@ -328,6 +328,8 @@
   "vatPayable": "VAT payable",
   "retainedResult": "Retained company result",
   "balanceHistory": "Balance history",
+  "expenseCategoryChart": "Expense category",
+  "noCategoryExpenses": "No expenses in this period.",
   "allTime": "All time",
   "compensation": "Compensation",
   "compensationModel": "Compensation model",

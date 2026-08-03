@@ -6,6 +6,7 @@ import {
   calculateTransactionAmounts,
   calculateVatMinor,
   companyBalanceDeltaMinor,
+  expenseTotalsByCategory,
   financeTotals,
   parseSek,
   transactionTableDescription,
@@ -117,6 +118,18 @@ describe("finance calculations", () => {
         visibleDescription: "Consultant-visible description",
       }),
     ).toBe("Consultant-visible description");
+  });
+
+  it("groups positive net expenses by category and omits zero totals", () => {
+    expect(
+      expenseTotalsByCategory([
+        { categoryId: "insurance", direction: "expense", netMinor: 60_000 },
+        { categoryId: "tax", direction: "expense", netMinor: 100_000 },
+        { categoryId: "insurance", direction: "expense", netMinor: 40_000 },
+        { categoryId: "tax", direction: "expense", netMinor: -100_000 },
+        { categoryId: "sales", direction: "income", netMinor: 500_000 },
+      ]),
+    ).toEqual([{ categoryId: "insurance", amountMinor: 100_000 }]);
   });
 });
 
