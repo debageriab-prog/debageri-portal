@@ -153,6 +153,24 @@ export function financeTotals(
   );
 }
 
+export function vatPayableMinor(
+  transactions: Array<Pick<FinancialTransaction, "direction" | "vatMinor">>,
+  settlements: Array<{ amountMinor: number; status: "active" | "reversed" }>,
+) {
+  const vat = transactions.reduce(
+    (total, transaction) =>
+      total +
+      (transaction.direction === "income"
+        ? transaction.vatMinor
+        : -transaction.vatMinor),
+    0,
+  );
+  const paid = settlements
+    .filter((settlement) => settlement.status === "active")
+    .reduce((total, settlement) => total + settlement.amountMinor, 0);
+  return vat - paid;
+}
+
 export function expenseTotalsByCategory(
   transactions: Array<
     Pick<FinancialTransaction, "categoryId" | "direction" | "netMinor">

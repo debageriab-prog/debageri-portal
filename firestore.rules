@@ -94,6 +94,9 @@ service cloud.firestore {
     match /financialTransactions/{transactionId} {
       allow read, write: if false;
     }
+    match /vatSettlements/{settlementId} {
+      allow read, write: if false;
+    }
     match /financeImportJobs/{importId} {
       allow read, write: if false;
     }

@@ -21,6 +21,7 @@ import {
   formatSek,
   isSalaryRelatedExpenseCode,
   transactionTableDescription,
+  vatPayableMinor,
 } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
 import {
@@ -90,6 +91,11 @@ export interface FinancePageData {
     validTo: string | null;
     shareBps: number;
     fixedMonthlySalaryMinor: number | null;
+  }>;
+  vatSettlements: Array<{
+    id: string;
+    amountMinor: number;
+    status: "active" | "reversed";
   }>;
 }
 
@@ -974,6 +980,10 @@ export function FinanceDashboard({
         }))
       : visibleTransactions,
   );
+  const organizationVatPayable = vatPayableMinor(
+    data.transactions,
+    data.vatSettlements,
+  );
   const earnedShare = visibleTransactions.reduce(
     (sum, item) => sum + Math.max(0, item.consultantBalanceDeltaMinor),
     0,
@@ -1211,12 +1221,7 @@ export function FinanceDashboard({
               <>
                 <div className="metric">
                   <span>{t("vatPayable")}</span>
-                  <strong>
-                    {formatSek(
-                      totals.outputVatMinor - totals.inputVatMinor,
-                      locale,
-                    )}
-                  </strong>
+                  <strong>{formatSek(organizationVatPayable, locale)}</strong>
                 </div>
                 <div className="metric">
                   <span>{t("retainedResult")}</span>

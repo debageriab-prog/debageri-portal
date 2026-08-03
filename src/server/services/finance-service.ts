@@ -6,6 +6,7 @@ import {
   allocateInvoiceIncome,
   calculateShareMinor,
   calculateVatMinor,
+  vatPayableMinor,
 } from "@/domain/finance/calculations";
 
 export class FinanceError extends Error {
@@ -1011,4 +1012,108 @@ export async function voidInvoice(
     previousStatus: data.status,
   });
   await batch.commit();
+}
+
+export async function createVatSettlement(
+  db: Firestore,
+  actor: PortalUser,
+  input: {
+    paymentDate: string;
+    periodFrom: string;
+    periodTo: string;
+    amountMinor: number;
+    reference: string;
+    note: string;
+  },
+) {
+  requireFinanceManager(actor);
+  const settlementRef = db.collection("vatSettlements").doc();
+  await db.runTransaction(async (transaction) => {
+    const [transactionsSnapshot, settlementsSnapshot] = await Promise.all([
+      transaction.get(
+        db
+          .collection("financialTransactions")
+          .where("organizationId", "==", actor.organizationId),
+      ),
+      transaction.get(
+        db
+          .collection("vatSettlements")
+          .where("organizationId", "==", actor.organizationId),
+      ),
+    ]);
+    const payable = vatPayableMinor(
+      transactionsSnapshot.docs.map((document) => ({
+        direction: document.data().direction as "income" | "expense",
+        vatMinor: Number(document.data().vatMinor ?? 0),
+      })),
+      settlementsSnapshot.docs.map((document) => ({
+        amountMinor: Number(document.data().amountMinor ?? 0),
+        status: document.data().status as "active" | "reversed",
+      })),
+    );
+    if (payable <= 0) throw new FinanceError("noVatPayable", 409);
+    if (input.amountMinor > payable)
+      throw new FinanceError("vatSettlementExceedsPayable", 409);
+    transaction.create(settlementRef, {
+      organizationId: actor.organizationId,
+      paymentDate: input.paymentDate,
+      periodFrom: input.periodFrom,
+      periodTo: input.periodTo,
+      amountMinor: input.amountMinor,
+      currency: "SEK",
+      reference: input.reference,
+      note: input.note,
+      status: "active",
+      reversalReason: null,
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: actor.id,
+    });
+    transaction.create(db.collection("auditLogs").doc(), {
+      organizationId: actor.organizationId,
+      actorUserId: actor.id,
+      action: "vatSettlement.created",
+      entityType: "vatSettlement",
+      entityId: settlementRef.id,
+      timestamp: FieldValue.serverTimestamp(),
+      metadata: {
+        amountMinor: input.amountMinor,
+        paymentDate: input.paymentDate,
+        periodFrom: input.periodFrom,
+        periodTo: input.periodTo,
+      },
+    });
+  });
+  return settlementRef.id;
+}
+
+export async function reverseVatSettlement(
+  db: Firestore,
+  actor: PortalUser,
+  input: { settlementId: string; reason: string },
+) {
+  requireFinanceManager(actor);
+  const reference = db.collection("vatSettlements").doc(input.settlementId);
+  await db.runTransaction(async (transaction) => {
+    const document = await transaction.get(reference);
+    const data = document.data();
+    if (!data || data.organizationId !== actor.organizationId)
+      throw new FinanceError("vatSettlementNotFound", 404);
+    if (data.status === "reversed")
+      throw new FinanceError("vatSettlementAlreadyReversed", 409);
+    transaction.update(reference, {
+      status: "reversed",
+      reversalReason: input.reason,
+      reversedAt: FieldValue.serverTimestamp(),
+      reversedBy: actor.id,
+    });
+    transaction.create(db.collection("auditLogs").doc(), {
+      organizationId: actor.organizationId,
+      actorUserId: actor.id,
+      action: "vatSettlement.reversed",
+      entityType: "vatSettlement",
+      entityId: reference.id,
+      timestamp: FieldValue.serverTimestamp(),
+      metadata: { amountMinor: Number(data.amountMinor), reason: input.reason },
+    });
+  });
 }

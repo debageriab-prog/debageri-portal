@@ -96,6 +96,7 @@ function financeItems(t: Translate): NavItem[] {
       label: t("incomeExpenseManagement"),
       href: "/finance?section=transactions",
     },
+    { label: t("vatSettlements"), href: "/finance/vat-settlements" },
   ];
 }
 

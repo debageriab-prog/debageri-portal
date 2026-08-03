@@ -13,6 +13,7 @@ import {
   isSalaryRelatedExpenseCode,
   parseSek,
   transactionTableDescription,
+  vatPayableMinor,
 } from "@/domain/finance/calculations";
 import {
   missingHeaders,
@@ -22,6 +23,51 @@ import {
 import { financeActionSchema } from "@/server/validators/finance";
 
 describe("finance calculations", () => {
+  it("reduces VAT payable only by active settlements", () => {
+    expect(
+      vatPayableMinor(
+        [
+          { direction: "income", vatMinor: 25_000 },
+          { direction: "expense", vatMinor: 5_000 },
+        ],
+        [
+          { amountMinor: 12_000, status: "active" },
+          { amountMinor: 3_000, status: "reversed" },
+        ],
+      ),
+    ).toBe(8_000);
+  });
+
+  it("validates VAT settlement periods and reversal reasons", () => {
+    expect(
+      financeActionSchema.safeParse({
+        action: "createVatSettlement",
+        paymentDate: "2026-08-04",
+        periodFrom: "2026-04-01",
+        periodTo: "2026-06-30",
+        amountMinor: 10_000,
+        reference: "VAT Q2",
+        note: "",
+      }).success,
+    ).toBe(true);
+    expect(
+      financeActionSchema.safeParse({
+        action: "createVatSettlement",
+        paymentDate: "2026-08-04",
+        periodFrom: "2026-06-30",
+        periodTo: "2026-04-01",
+        amountMinor: 10_000,
+      }).success,
+    ).toBe(false);
+    expect(
+      financeActionSchema.safeParse({
+        action: "reverseVatSettlement",
+        settlementId: "settlement-1",
+        reason: "Incorrect amount",
+      }).success,
+    ).toBe(true);
+  });
+
   it("identifies salary-related expense category codes", () => {
     expect(isSalaryRelatedExpenseCode("salary")).toBe(true);
     expect(isSalaryRelatedExpenseCode("SALARY_TAX")).toBe(true);
