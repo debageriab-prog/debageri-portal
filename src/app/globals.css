@@ -1461,9 +1461,12 @@ th {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 360px;
+  max-height: 390px;
   border-radius: 12px;
   background: linear-gradient(to bottom, rgb(165 111 78 / 7%), transparent 75%);
+}
+.finance-bar-axis-label {
+  font-weight: 650;
 }
 .finance-bar {
   cursor: pointer;

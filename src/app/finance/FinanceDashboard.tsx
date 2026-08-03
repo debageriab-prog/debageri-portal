@@ -555,7 +555,7 @@ function IncomeExpenseBarChart({
     ...groups.flatMap((group) => [group.income, group.expense]),
   );
   const chartMax = maxValue * 1.12;
-  const plot = { left: 88, right: 975, top: 20, bottom: 300 };
+  const plot = { left: 88, right: 975, top: 20, bottom: 294 };
   const plotWidth = plot.right - plot.left;
   const y = (value: number) =>
     plot.bottom - (value / chartMax) * (plot.bottom - plot.top);
@@ -576,7 +576,7 @@ function IncomeExpenseBarChart({
     <div className="finance-bar-chart">
       <div className="finance-bar-chart-canvas">
         <svg
-          viewBox="0 0 1000 360"
+          viewBox="0 0 1000 390"
           role="img"
           aria-label={t("incomeExpenseChart")}
         >
@@ -622,6 +622,13 @@ function IncomeExpenseBarChart({
             const expenseX = incomeX + barWidth + barGap;
             return (
               <g key={group.key}>
+                <line
+                  className="finance-chart-axis"
+                  x1={center}
+                  x2={center}
+                  y1={plot.bottom}
+                  y2={plot.bottom + 6}
+                />
                 <rect
                   className="finance-bar finance-bar-income"
                   x={incomeX}
@@ -681,10 +688,11 @@ function IncomeExpenseBarChart({
                   onBlur={() => setHoveredBar(null)}
                 />
                 <text
-                  className="finance-chart-axis-label"
+                  className="finance-chart-axis-label finance-bar-axis-label"
                   x={center}
-                  y={plot.bottom + 23}
-                  textAnchor="middle"
+                  y={plot.bottom + 28}
+                  textAnchor="end"
+                  transform={`rotate(-35 ${center} ${plot.bottom + 28})`}
                 >
                   {group.label}
                 </text>
@@ -697,7 +705,7 @@ function IncomeExpenseBarChart({
             className="finance-chart-tooltip"
             style={{
               left: `clamp(120px, ${(hoveredBar.x / 1000) * 100}%, calc(100% - 120px))`,
-              top: `${(hoveredBar.y / 360) * 100}%`,
+              top: `${(hoveredBar.y / 390) * 100}%`,
               transform:
                 hoveredBar.y < 105
                   ? "translate(-50%, 12px)"
