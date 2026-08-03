@@ -327,6 +327,7 @@
   "remainingBalance": "Återstående saldo",
   "vatPayable": "Moms att betala",
   "retainedResult": "Företagets kvarvarande resultat",
+  "companyOutstandingInvoiceShare": "Företagets andel av obetalda fakturor",
   "balanceHistory": "Saldohistorik",
   "expenseCategoryChart": "Kostnadskategori",
   "noCategoryExpenses": "Inga kostnader under den här perioden.",

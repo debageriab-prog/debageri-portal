@@ -14,6 +14,7 @@ import {
   belongsToCompany,
   belongsToFixedConsultantResult,
   calculateShareMinor,
+  companyOutstandingInvoiceShareMinor,
   companyBalanceDeltaMinor,
   expenseTotalsByCategory,
   financeTotals,
@@ -981,10 +982,17 @@ export function FinanceDashboard({
       (invoice) =>
         invoice.status === "issued" &&
         (selectedConsultant === "all" ||
-          (selectedConsultant === "company" && invoice.consultantId === null) ||
+          selectedConsultant === "company" ||
           invoice.consultantId === selectedConsultant),
     )
-    .reduce((sum, invoice) => sum + invoice.grossMinor, 0);
+    .reduce(
+      (sum, invoice) =>
+        sum +
+        (selectedConsultant === "company"
+          ? companyOutstandingInvoiceShareMinor(invoice)
+          : invoice.grossMinor),
+      0,
+    );
   const filteredInvoices = data.invoices.filter(
     (invoice) =>
       (invoiceConsultantFilter === "all" ||
@@ -1200,7 +1208,13 @@ export function FinanceDashboard({
                   </strong>
                 </div>
                 <div className="metric">
-                  <span>{t("outstandingInvoices")}</span>
+                  <span>
+                    {t(
+                      selectedConsultant === "company"
+                        ? "companyOutstandingInvoiceShare"
+                        : "outstandingInvoices",
+                    )}
+                  </span>
                   <strong>{formatSek(outstandingInvoices, locale)}</strong>
                 </div>
               </>

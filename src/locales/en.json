@@ -327,6 +327,7 @@
   "remainingBalance": "Remaining balance",
   "vatPayable": "VAT payable",
   "retainedResult": "Retained company result",
+  "companyOutstandingInvoiceShare": "Company share of outstanding invoices",
   "balanceHistory": "Balance history",
   "expenseCategoryChart": "Expense category",
   "noCategoryExpenses": "No expenses in this period.",
