@@ -1418,6 +1418,9 @@ th {
 }
 .finance-chart-interaction {
   fill: transparent;
+  pointer-events: none;
+}
+.finance-chart svg {
   cursor: crosshair;
   touch-action: none;
 }
@@ -1447,13 +1450,62 @@ th {
   position: relative;
   min-width: 620px;
 }
-.finance-bar-chart svg {
+.finance-bar-chart svg,
+.finance-waterfall-chart svg,
+.finance-margin-chart svg {
   display: block;
   width: 100%;
   height: auto;
   max-height: 360px;
   border-radius: 12px;
   background: linear-gradient(to bottom, rgb(165 111 78 / 7%), transparent 75%);
+}
+.finance-waterfall-chart,
+.finance-margin-chart {
+  overflow-x: auto;
+}
+.finance-waterfall-chart svg,
+.finance-margin-chart svg {
+  min-width: 620px;
+}
+.finance-waterfall-bar {
+  outline: none;
+  transition: opacity 120ms ease;
+}
+.finance-waterfall-bar:hover,
+.finance-waterfall-bar:focus {
+  opacity: 0.78;
+}
+.finance-waterfall-total {
+  fill: var(--accent);
+}
+.finance-waterfall-positive {
+  fill: var(--green);
+}
+.finance-waterfall-negative {
+  fill: var(--danger);
+}
+.finance-waterfall-connector {
+  stroke: rgb(61 48 39 / 35%);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+.finance-margin-line {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.finance-margin-point {
+  fill: white;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  outline: none;
+}
+.finance-margin-point:hover,
+.finance-margin-point:focus {
+  fill: var(--accent);
+  r: 6px;
 }
 .finance-bar {
   cursor: pointer;
