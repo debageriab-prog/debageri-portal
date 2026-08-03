@@ -7,6 +7,7 @@ import {
   calculateTransactionAmounts,
   calculateVatMinor,
   companyBalanceDeltaMinor,
+  companyOutstandingInvoiceShareMinor,
   expenseTotalsByCategory,
   financeTotals,
   parseSek,
@@ -20,6 +21,20 @@ import {
 import { financeActionSchema } from "@/server/validators/finance";
 
 describe("finance calculations", () => {
+  it("calculates the company net share of outstanding invoices", () => {
+    expect(
+      companyOutstandingInvoiceShareMinor({
+        netMinor: 100_000,
+        shareBps: 9_000,
+      }),
+    ).toBe(10_000);
+    expect(
+      companyOutstandingInvoiceShareMinor({
+        netMinor: 100_000,
+        shareBps: 0,
+      }),
+    ).toBe(100_000);
+  });
   it("stores SEK in integer Ã¶re and accepts Swedish decimal commas", () => {
     expect(parseSek("1 234,56")).toBe(123_456);
     expect(() => parseSek("-1")).toThrow();

@@ -29,6 +29,15 @@ export function calculateShareMinor(netMinor: number, shareBps: number) {
   return Math.round((netMinor * shareBps) / 10_000);
 }
 
+export function companyOutstandingInvoiceShareMinor(invoice: {
+  netMinor: number;
+  shareBps: number;
+}) {
+  return (
+    invoice.netMinor - calculateShareMinor(invoice.netMinor, invoice.shareBps)
+  );
+}
+
 type TransactionScopeInput = Pick<
   FinancialTransaction,
   | "consultantId"

@@ -1,13 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import {
+  FormEvent,
+  PointerEvent as ReactPointerEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
   belongsToCompany,
   belongsToFixedConsultantResult,
   calculateShareMinor,
+  companyOutstandingInvoiceShareMinor,
   companyBalanceDeltaMinor,
   expenseTotalsByCategory,
   financeTotals,
@@ -114,6 +121,21 @@ function BalanceChart({
 }) {
   const { t } = useLocale();
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
+  const zoomScope = `${period}:${anchor}:${mode}`;
+  const [storedZoom, setZoom] = useState({
+    start: 0,
+    end: 1,
+    scope: zoomScope,
+  });
+  const zoom =
+    storedZoom.scope === zoomScope
+      ? storedZoom
+      : { start: 0, end: 1, scope: zoomScope };
+  const [selection, setSelection] = useState<{
+    start: number;
+    current: number;
+  } | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const prefix = period === "month" ? anchor : anchor.slice(0, 4);
   const sorted = [...transactions]
     .filter((transaction) =>
@@ -156,7 +178,9 @@ function BalanceChart({
           : (index + 1) / Math.max(1, sorted.length);
     return [...points, { transaction, change, balance, xRatio }];
   }, []);
-  const chartPoints = transactionPoints;
+  const chartPoints = transactionPoints.filter(
+    (point) => point.xRatio >= zoom.start && point.xRatio <= zoom.end,
+  );
   const values = chartPoints.map((point) => point.balance);
   let min = Math.min(0, ...values);
   let max = Math.max(0, ...values);
@@ -167,17 +191,26 @@ function BalanceChart({
   if (min === max) max = padding;
   const range = max - min;
   const plot = { left: 88, right: 975, top: 20, bottom: 308 };
-  const x = (ratio: number) => plot.left + ratio * (plot.right - plot.left);
+  const visibleRatio = (ratio: number) =>
+    (ratio - zoom.start) / (zoom.end - zoom.start);
+  const x = (ratio: number) =>
+    plot.left + visibleRatio(ratio) * (plot.right - plot.left);
   const y = (value: number) =>
     plot.bottom - ((value - min) / range) * (plot.bottom - plot.top);
   const polyline = chartPoints
     .map((point) => `${x(point.xRatio)},${y(point.balance)}`)
     .join(" ");
+  const firstChartPoint = chartPoints[0];
+  const area = firstChartPoint
+    ? `M ${x(firstChartPoint.xRatio)} ${y(0)} L ${chartPoints
+        .map((point) => `${x(point.xRatio)} ${y(point.balance)}`)
+        .join(" L ")} L ${x(chartPoints.at(-1)?.xRatio ?? 0)} ${y(0)} Z`
+    : "";
   const yTicks = Array.from(
     { length: 5 },
     (_, index) => min + (range * index) / 4,
   );
-  const xTicks =
+  const allXTicks =
     period === "month"
       ? [0, 5, 10, 15, 20, 25, daysInMonth]
           .filter(
@@ -202,16 +235,108 @@ function BalanceChart({
               ? [{ ratio: 1, label: sorted.at(-1)?.date ?? "" }]
               : []),
           ];
+  const xTicks = allXTicks.filter(
+    (tick) => tick.ratio >= zoom.start && tick.ratio <= zoom.end,
+  );
   const axisSek = (minor: number) =>
     new Intl.NumberFormat(locale, {
       notation: "compact",
       maximumFractionDigits: 1,
     }).format(minor / 100);
   const hovered = hoveredPoint === null ? null : chartPoints[hoveredPoint];
+  const pointerPosition = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const bounds = svgRef.current?.getBoundingClientRect();
+    if (!bounds) return null;
+    const scale = Math.min(bounds.width / 1000, bounds.height / 360);
+    const renderedWidth = 1000 * scale;
+    const renderedHeight = 360 * scale;
+    const offsetX = (bounds.width - renderedWidth) / 2;
+    const offsetY = (bounds.height - renderedHeight) / 2;
+    return {
+      x: (event.clientX - bounds.left - offsetX) / scale,
+      y: (event.clientY - bounds.top - offsetY) / scale,
+    };
+  };
+  const pointerRatio = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const position = pointerPosition(event);
+    if (position === null) return zoom.start;
+    const plotRatio = Math.max(
+      0,
+      Math.min(1, (position.x - plot.left) / (plot.right - plot.left)),
+    );
+    return zoom.start + plotRatio * (zoom.end - zoom.start);
+  };
+  const finishSelection = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (!selection) return;
+    const end = pointerRatio(event);
+    const start = Math.min(selection.start, end);
+    const finish = Math.max(selection.start, end);
+    if (finish - start >= (zoom.end - zoom.start) * 0.025) {
+      setZoom({ start, end: finish, scope: zoomScope });
+      setHoveredPoint(null);
+    }
+    setSelection(null);
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const selectionStart = selection
+    ? Math.min(selection.start, selection.current)
+    : 0;
+  const selectionEnd = selection
+    ? Math.max(selection.start, selection.current)
+    : 0;
   return (
     <div className="finance-chart">
+      <div className="finance-chart-toolbar">
+        <span>{t("chartZoomHint")}</span>
+        <button
+          className="button button-secondary finance-chart-reset"
+          type="button"
+          disabled={zoom.start === 0 && zoom.end === 1}
+          onClick={() => setZoom({ start: 0, end: 1, scope: zoomScope })}
+        >
+          {t("resetZoom")}
+        </button>
+      </div>
       <div className="finance-chart-canvas">
-        <svg viewBox="0 0 1000 360" role="img" aria-label={t("balanceHistory")}>
+        <svg
+          ref={svgRef}
+          viewBox="0 0 1000 360"
+          role="img"
+          aria-label={t("balanceHistory")}
+          onPointerDown={(event) => {
+            const position = pointerPosition(event);
+            if (
+              position === null ||
+              position.x < plot.left ||
+              position.x > plot.right ||
+              position.y < plot.top ||
+              position.y > plot.bottom
+            )
+              return;
+            event.preventDefault();
+            const ratio = pointerRatio(event);
+            event.currentTarget.setPointerCapture(event.pointerId);
+            setSelection({ start: ratio, current: ratio });
+          }}
+          onPointerMove={(event) => {
+            if (selection) {
+              event.preventDefault();
+              setSelection({ ...selection, current: pointerRatio(event) });
+            }
+          }}
+          onPointerUp={finishSelection}
+          onPointerCancel={() => setSelection(null)}
+        >
+          <defs>
+            <linearGradient id="balance-area" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="currentColor" stopOpacity="0.22" />
+              <stop
+                offset="100%"
+                stopColor="currentColor"
+                stopOpacity="0.015"
+              />
+            </linearGradient>
+          </defs>
           {yTicks.map((tick) => (
             <g key={tick}>
               <line
@@ -279,11 +404,28 @@ function BalanceChart({
                 ? t("month")
                 : t("date")}
           </text>
+          <rect
+            className="finance-chart-interaction"
+            x={plot.left}
+            y={plot.top}
+            width={plot.right - plot.left}
+            height={plot.bottom - plot.top}
+          />
+          {area && <path className="finance-chart-area" d={area} />}
           <polyline
             className="finance-chart-line"
             points={polyline}
             fill="none"
           />
+          {hovered && (
+            <line
+              className="finance-chart-crosshair"
+              x1={x(hovered.xRatio)}
+              x2={x(hovered.xRatio)}
+              y1={plot.top}
+              y2={plot.bottom}
+            />
+          )}
           {chartPoints.map((point, index) => (
             <circle
               className="finance-chart-point"
@@ -298,6 +440,15 @@ function BalanceChart({
               onBlur={() => setHoveredPoint(null)}
             />
           ))}
+          {selection && (
+            <rect
+              className="finance-chart-selection"
+              x={x(selectionStart)}
+              y={plot.top}
+              width={Math.max(0, x(selectionEnd) - x(selectionStart))}
+              height={plot.bottom - plot.top}
+            />
+          )}
         </svg>
         {hovered && (
           <div
@@ -588,30 +739,102 @@ function ExpenseCategoryChart({
   const maximum = Math.max(0, ...totals.map((item) => item.amountMinor));
   if (totals.length === 0)
     return <div className="finance-chart-empty">{t("noCategoryExpenses")}</div>;
+  const chartMax = maximum * 1.1;
+  const chartHeight = 410;
+  const plot = { left: 88, right: 975, top: 20, bottom: 300 };
+  const groupWidth = (plot.right - plot.left) / totals.length;
+  const barWidth = Math.min(74, groupWidth * 0.58);
+  const y = (value: number) =>
+    plot.bottom - (value / chartMax) * (plot.bottom - plot.top);
+  const yTicks = Array.from(
+    { length: 5 },
+    (_, index) => (chartMax * index) / 4,
+  );
+  const axisSek = (minor: number) =>
+    new Intl.NumberFormat(locale, {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(minor / 100);
   return (
-    <div
-      className="finance-expense-category-chart"
-      role="list"
-      aria-label={t("expenseCategoryChart")}
-    >
-      {totals.map((item) => (
-        <div
-          className="finance-expense-category-row"
-          role="listitem"
-          key={item.categoryId}
-        >
-          <span className="finance-expense-category-label">
-            {categoryName(item.categoryId)}
-          </span>
-          <span className="finance-expense-category-track" aria-hidden="true">
-            <span
-              className="finance-expense-category-fill"
-              style={{ width: `${(item.amountMinor / maximum) * 100}%` }}
+    <div className="finance-expense-category-chart">
+      <svg
+        viewBox={`0 0 1000 ${chartHeight}`}
+        style={{ minWidth: `${Math.max(700, totals.length * 105)}px` }}
+        role="img"
+        aria-label={t("expenseCategoryChart")}
+      >
+        {yTicks.map((tick) => (
+          <g key={tick}>
+            <line
+              className="finance-chart-gridline"
+              x1={plot.left}
+              x2={plot.right}
+              y1={y(tick)}
+              y2={y(tick)}
             />
-          </span>
-          <strong>{formatSek(item.amountMinor, locale)}</strong>
-        </div>
-      ))}
+            <text
+              className="finance-chart-axis-label"
+              x={plot.left - 12}
+              y={y(tick) + 4}
+              textAnchor="end"
+            >
+              {axisSek(tick)}
+            </text>
+          </g>
+        ))}
+        <line
+          className="finance-chart-axis"
+          x1={plot.left}
+          x2={plot.left}
+          y1={plot.top}
+          y2={plot.bottom}
+        />
+        <line
+          className="finance-chart-zero"
+          x1={plot.left}
+          x2={plot.right}
+          y1={plot.bottom}
+          y2={plot.bottom}
+        />
+        <text className="finance-chart-axis-title" x={18} y={18}>
+          SEK
+        </text>
+        {totals.map((item, index) => {
+          const center = plot.left + groupWidth * (index + 0.5);
+          const label = categoryName(item.categoryId);
+          return (
+            <g key={item.categoryId}>
+              <line
+                className="finance-chart-axis"
+                x1={center}
+                x2={center}
+                y1={plot.bottom}
+                y2={plot.bottom + 6}
+              />
+              <text
+                className="finance-expense-category-label"
+                x={center}
+                y={plot.bottom + 28}
+                textAnchor="end"
+                transform={`rotate(-35 ${center} ${plot.bottom + 28})`}
+              >
+                {label}
+              </text>
+              <rect
+                className="finance-expense-category-bar"
+                x={center - barWidth / 2}
+                y={Math.min(y(item.amountMinor), plot.bottom - 3)}
+                width={barWidth}
+                height={Math.max(3, plot.bottom - y(item.amountMinor))}
+                rx="5"
+                tabIndex={0}
+              >
+                <title>{`${label}: ${formatSek(item.amountMinor, locale)}`}</title>
+              </rect>
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }
@@ -759,10 +982,17 @@ export function FinanceDashboard({
       (invoice) =>
         invoice.status === "issued" &&
         (selectedConsultant === "all" ||
-          (selectedConsultant === "company" && invoice.consultantId === null) ||
+          selectedConsultant === "company" ||
           invoice.consultantId === selectedConsultant),
     )
-    .reduce((sum, invoice) => sum + invoice.grossMinor, 0);
+    .reduce(
+      (sum, invoice) =>
+        sum +
+        (selectedConsultant === "company"
+          ? companyOutstandingInvoiceShareMinor(invoice)
+          : invoice.grossMinor),
+      0,
+    );
   const filteredInvoices = data.invoices.filter(
     (invoice) =>
       (invoiceConsultantFilter === "all" ||
@@ -978,7 +1208,13 @@ export function FinanceDashboard({
                   </strong>
                 </div>
                 <div className="metric">
-                  <span>{t("outstandingInvoices")}</span>
+                  <span>
+                    {t(
+                      selectedConsultant === "company"
+                        ? "companyOutstandingInvoiceShare"
+                        : "outstandingInvoices",
+                    )}
+                  </span>
                   <strong>{formatSek(outstandingInvoices, locale)}</strong>
                 </div>
               </>
