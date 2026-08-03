@@ -119,6 +119,19 @@ export interface FinancialTransaction {
   importKey: string | null;
 }
 
+export interface VatSettlement {
+  id: string;
+  organizationId: string;
+  paymentDate: string;
+  periodFrom: string;
+  periodTo: string;
+  amountMinor: number;
+  reference: string;
+  note: string;
+  status: "active" | "reversed";
+  reversalReason: string | null;
+}
+
 export interface TimeCode {
   id: string;
   organizationId: string;

@@ -64,6 +64,11 @@ beforeAll(async () => {
       consultantId: "u1",
       internalNote: "private",
     });
+    await setDoc(doc(db, "vatSettlements/v1"), {
+      organizationId: "debageri",
+      amountMinor: 10_000,
+      status: "active",
+    });
   });
 });
 afterAll(async () => env.cleanup());
@@ -95,10 +100,18 @@ describe("Firestore rules", () => {
     await assertFails(getDoc(doc(consultant, "financialTransactions/f1")));
     await assertFails(getDoc(doc(manager, "financialTransactions/f1")));
     await assertFails(getDoc(doc(manager, "financeCustomers/c1")));
+    await assertFails(getDoc(doc(manager, "vatSettlements/v1")));
     await assertFails(
       setDoc(doc(consultant, "financialTransactions/new"), {
         organizationId: "debageri",
         consultantId: "u1",
+      }),
+    );
+    await assertFails(
+      setDoc(doc(manager, "vatSettlements/new"), {
+        organizationId: "debageri",
+        amountMinor: 10_000,
+        status: "active",
       }),
     );
   });

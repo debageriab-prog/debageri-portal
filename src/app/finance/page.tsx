@@ -52,6 +52,7 @@ export default async function FinancePage({
     transactionsSnapshot,
     agreementsSnapshot,
     customersSnapshot,
+    vatSettlementsSnapshot,
   ] = await Promise.all([
     db.collection("organizations").doc(organizationId).get(),
     manager
@@ -85,6 +86,12 @@ export default async function FinancePage({
     manager
       ? db
           .collection("financeCustomers")
+          .where("organizationId", "==", organizationId)
+          .get()
+      : Promise.resolve(null),
+    manager
+      ? db
+          .collection("vatSettlements")
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
@@ -187,6 +194,13 @@ export default async function FinancePage({
       financeEmail: String(document.data().financeEmail),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+  const vatSettlements: FinancePageData["vatSettlements"] = (
+    vatSettlementsSnapshot?.docs ?? []
+  ).map((document) => ({
+    id: document.id,
+    amountMinor: Number(document.data().amountMinor ?? 0),
+    status: document.data().status as "active" | "reversed",
+  }));
 
   return (
     <FinanceDashboard
@@ -198,6 +212,7 @@ export default async function FinancePage({
         invoices,
         transactions,
         agreements,
+        vatSettlements,
       }}
       actor={{ id: actor.id, role: actor.role, locale: actor.locale }}
       section={visibleSection}

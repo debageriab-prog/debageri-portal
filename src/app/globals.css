@@ -1001,6 +1001,18 @@ th {
   background: #eeeae7;
   color: #6e625a;
 }
+.status-reversed {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.vat-settlement-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 750;
+}
 .notice-error {
   background: var(--danger-bg);
   color: var(--danger);

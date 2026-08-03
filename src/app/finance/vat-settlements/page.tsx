@@ -1,0 +1,50 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getAdminServices } from "@/lib/firebase/admin";
+import { getTranslator } from "@/lib/localization/server";
+import { verifySession } from "@/server/auth/session";
+import {
+  VatSettlementHistory,
+  type VatSettlementRow,
+} from "./VatSettlementHistory";
+
+export default async function VatSettlementsPage() {
+  const actor = (await verifySession())!;
+  if (!["admin", "accountant"].includes(actor.role)) redirect("/unauthorized");
+  const t = await getTranslator();
+  const { db } = getAdminServices();
+  const snapshot = await db
+    .collection("vatSettlements")
+    .where("organizationId", "==", actor.organizationId)
+    .get();
+  const settlements: VatSettlementRow[] = snapshot.docs
+    .map((document) => ({
+      id: document.id,
+      paymentDate: String(document.data().paymentDate),
+      periodFrom: String(document.data().periodFrom),
+      periodTo: String(document.data().periodTo),
+      amountMinor: Number(document.data().amountMinor),
+      reference: String(document.data().reference ?? ""),
+      note: String(document.data().note ?? ""),
+      status: document.data().status as "active" | "reversed",
+      reversalReason: String(document.data().reversalReason ?? ""),
+    }))
+    .sort((left, right) => right.paymentDate.localeCompare(left.paymentDate));
+  return (
+    <>
+      <div className="topbar">
+        <div>
+          <div className="eyebrow">{t("finance")}</div>
+          <h1>{t("vatSettlements")}</h1>
+          <p className="muted page-description">
+            {t("vatSettlementsDescription")}
+          </p>
+        </div>
+        <Link className="button" href="/finance/vat-settlements/new">
+          {t("recordVatPayment")}
+        </Link>
+      </div>
+      <VatSettlementHistory settlements={settlements} locale={actor.locale} />
+    </>
+  );
+}

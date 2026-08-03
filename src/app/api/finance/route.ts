@@ -9,10 +9,12 @@ import {
   createFinancialTransaction,
   createExpenseCopies,
   createInvoice,
+  createVatSettlement,
   deleteFinancialTransaction,
   enableFinance,
   FinanceError,
   markInvoicePaid,
+  reverseVatSettlement,
   setCompensation,
   setCompensationValidTo,
   updateCategory,
@@ -120,6 +122,12 @@ export async function POST(request: Request) {
         break;
       case "voidInvoice":
         await voidInvoice(db, actor, parsed.data);
+        break;
+      case "createVatSettlement":
+        id = await createVatSettlement(db, actor, parsed.data);
+        break;
+      case "reverseVatSettlement":
+        await reverseVatSettlement(db, actor, parsed.data);
         break;
     }
     return NextResponse.json({ ok: true, id });
