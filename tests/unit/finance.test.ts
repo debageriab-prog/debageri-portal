@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   allocateInvoiceIncome,
   belongsToCompany,
+  belongsToFixedConsultantResult,
   calculateShareMinor,
   calculateTransactionAmounts,
   calculateVatMinor,
   companyBalanceDeltaMinor,
+  expenseTotalsByCategory,
   financeTotals,
   parseSek,
   transactionTableDescription,
@@ -96,6 +98,39 @@ describe("finance calculations", () => {
     );
   });
 
+  it("attributes company invoice income to a fixed consultant result", () => {
+    const companyInvoiceIncome = {
+      consultantId: null,
+      direction: "income" as const,
+      invoiceId: "invoice-1",
+    };
+    expect(
+      belongsToFixedConsultantResult(
+        companyInvoiceIncome,
+        "consultant-1",
+        "consultant-1",
+      ),
+    ).toBe(true);
+    expect(
+      belongsToFixedConsultantResult(
+        companyInvoiceIncome,
+        "consultant-1",
+        "consultant-2",
+      ),
+    ).toBe(false);
+    expect(
+      belongsToFixedConsultantResult(
+        {
+          consultantId: "consultant-1",
+          direction: "expense",
+          invoiceId: null,
+        },
+        "consultant-1",
+        null,
+      ),
+    ).toBe(true);
+  });
+
   it("uses the internal note only for company-only funded expenses", () => {
     const expense = {
       consultantId: null,
@@ -117,6 +152,18 @@ describe("finance calculations", () => {
         visibleDescription: "Consultant-visible description",
       }),
     ).toBe("Consultant-visible description");
+  });
+
+  it("groups positive net expenses by category and omits zero totals", () => {
+    expect(
+      expenseTotalsByCategory([
+        { categoryId: "insurance", direction: "expense", netMinor: 60_000 },
+        { categoryId: "tax", direction: "expense", netMinor: 100_000 },
+        { categoryId: "insurance", direction: "expense", netMinor: 40_000 },
+        { categoryId: "tax", direction: "expense", netMinor: -100_000 },
+        { categoryId: "sales", direction: "income", netMinor: 500_000 },
+      ]),
+    ).toEqual([{ categoryId: "insurance", amountMinor: 100_000 }]);
   });
 });
 

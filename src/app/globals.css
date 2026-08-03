@@ -1450,6 +1450,42 @@ th {
 .finance-bar-legend .finance-bar-expense {
   background: var(--danger);
 }
+.finance-expense-category-chart {
+  display: grid;
+  gap: 14px;
+}
+.finance-expense-category-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 220px) minmax(180px, 1fr) minmax(
+      110px,
+      auto
+    );
+  align-items: center;
+  gap: 14px;
+}
+.finance-expense-category-label {
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+.finance-expense-category-track {
+  height: 18px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--accent-soft);
+}
+.finance-expense-category-fill {
+  display: block;
+  min-width: 3px;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  opacity: 0.72;
+}
+.finance-expense-category-row strong {
+  color: var(--foreground);
+  text-align: right;
+  white-space: nowrap;
+}
 .finance-chart-empty {
   min-height: 180px;
   display: grid;
@@ -2011,6 +2047,14 @@ th {
   }
   .finance-chart svg {
     height: auto;
+  }
+  .finance-expense-category-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+  .finance-expense-category-track {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
   .finance-admin-grid {
     grid-template-columns: 1fr;

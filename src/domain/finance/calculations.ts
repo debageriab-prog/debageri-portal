@@ -53,6 +53,23 @@ export function companyBalanceDeltaMinor(transaction: TransactionScopeInput) {
   return 0;
 }
 
+export function belongsToFixedConsultantResult(
+  transaction: Pick<
+    FinancialTransaction,
+    "consultantId" | "direction" | "invoiceId"
+  >,
+  consultantId: string,
+  invoiceConsultantId: string | null,
+) {
+  return (
+    transaction.consultantId === consultantId ||
+    (transaction.consultantId === null &&
+      transaction.direction === "income" &&
+      transaction.invoiceId !== null &&
+      invoiceConsultantId === consultantId)
+  );
+}
+
 export function transactionTableDescription(
   transaction: Pick<
     FinancialTransaction,
@@ -119,6 +136,29 @@ export function financeTotals(
       netResultMinor: 0,
     },
   );
+}
+
+export function expenseTotalsByCategory(
+  transactions: Array<
+    Pick<FinancialTransaction, "categoryId" | "direction" | "netMinor">
+  >,
+) {
+  const totals = new Map<string, number>();
+  for (const transaction of transactions) {
+    if (transaction.direction !== "expense") continue;
+    totals.set(
+      transaction.categoryId,
+      (totals.get(transaction.categoryId) ?? 0) + transaction.netMinor,
+    );
+  }
+  return [...totals.entries()]
+    .map(([categoryId, amountMinor]) => ({ categoryId, amountMinor }))
+    .filter((item) => item.amountMinor > 0)
+    .sort(
+      (left, right) =>
+        right.amountMinor - left.amountMinor ||
+        left.categoryId.localeCompare(right.categoryId),
+    );
 }
 
 export function formatSek(minor: number, locale: "sv-SE" | "en-SE") {

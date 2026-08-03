@@ -6,8 +6,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
   belongsToCompany,
+  belongsToFixedConsultantResult,
   calculateShareMinor,
   companyBalanceDeltaMinor,
+  expenseTotalsByCategory,
   financeTotals,
   formatSek,
   transactionTableDescription,
@@ -150,14 +152,11 @@ function BalanceChart({
       period === "month"
         ? Number(transaction.date.slice(8, 10)) / daysInMonth
         : period === "year"
-          ? dayOfYear(transaction.date) / daysInYear
+          ? (dayOfYear(transaction.date) - 0.5) / daysInYear
           : (index + 1) / Math.max(1, sorted.length);
     return [...points, { transaction, change, balance, xRatio }];
   }, []);
-  const chartPoints = [
-    { xRatio: 0, balance: 0, change: 0, transaction: null },
-    ...transactionPoints,
-  ];
+  const chartPoints = transactionPoints;
   const values = chartPoints.map((point) => point.balance);
   let min = Math.min(0, ...values);
   let max = Math.max(0, ...values);
@@ -190,9 +189,12 @@ function BalanceChart({
             label: String(value),
           }))
       : period === "year"
-        ? [0, 2, 4, 6, 8, 10, 12].map((value) => ({
-            ratio: value / 12,
-            label: String(value),
+        ? Array.from({ length: 12 }, (_, index) => ({
+            ratio:
+              (Date.UTC(year, index, 1) - Date.UTC(year, 0, 1)) /
+              86_400_000 /
+              daysInYear,
+            label: String(index + 1),
           }))
         : [
             { ratio: 0, label: "0" },
@@ -285,10 +287,10 @@ function BalanceChart({
           {chartPoints.map((point, index) => (
             <circle
               className="finance-chart-point"
-              key={point.transaction?.id ?? "origin"}
+              key={point.transaction.id}
               cx={x(point.xRatio)}
               cy={y(point.balance)}
-              r={index === 0 ? 3 : 4}
+              r={4}
               tabIndex={0}
               onMouseEnter={() => setHoveredPoint(index)}
               onMouseLeave={() => setHoveredPoint(null)}
@@ -309,34 +311,26 @@ function BalanceChart({
                   : "translate(-50%, calc(-100% - 12px))",
             }}
           >
-            {hovered.transaction ? (
-              <>
-                <strong>{categoryName(hovered.transaction.categoryId)}</strong>
+            <>
+              <strong>{categoryName(hovered.transaction.categoryId)}</strong>
+              <span>
+                {hovered.transaction.date} · {t(hovered.transaction.direction)}
+              </span>
+              {(hovered.transaction.internalNote ||
+                hovered.transaction.visibleDescription) && (
                 <span>
-                  {hovered.transaction.date} ·{" "}
-                  {t(hovered.transaction.direction)}
+                  {t("description")}:{" "}
+                  {hovered.transaction.internalNote ||
+                    hovered.transaction.visibleDescription}
                 </span>
-                {(hovered.transaction.internalNote ||
-                  hovered.transaction.visibleDescription) && (
-                  <span>
-                    {t("description")}:{" "}
-                    {hovered.transaction.internalNote ||
-                      hovered.transaction.visibleDescription}
-                  </span>
-                )}
-                <span>
-                  {t("balanceChange")}: {formatSek(hovered.change, locale)}
-                </span>
-                <span>
-                  {t("balanceAtPoint")}: {formatSek(hovered.balance, locale)}
-                </span>
-              </>
-            ) : (
-              <>
-                <strong>{t("chartStartingPoint")}</strong>
-                <span>{formatSek(0, locale)}</span>
-              </>
-            )}
+              )}
+              <span>
+                {t("balanceChange")}: {formatSek(hovered.change, locale)}
+              </span>
+              <span>
+                {t("balanceAtPoint")}: {formatSek(hovered.balance, locale)}
+              </span>
+            </>
           </div>
         )}
       </div>
@@ -580,6 +574,48 @@ function IncomeExpenseBarChart({
   );
 }
 
+function ExpenseCategoryChart({
+  transactions,
+  locale,
+  categoryName,
+}: {
+  transactions: FinancePageData["transactions"];
+  locale: Actor["locale"];
+  categoryName: (id: string) => string;
+}) {
+  const { t } = useLocale();
+  const totals = expenseTotalsByCategory(transactions);
+  const maximum = Math.max(0, ...totals.map((item) => item.amountMinor));
+  if (totals.length === 0)
+    return <div className="finance-chart-empty">{t("noCategoryExpenses")}</div>;
+  return (
+    <div
+      className="finance-expense-category-chart"
+      role="list"
+      aria-label={t("expenseCategoryChart")}
+    >
+      {totals.map((item) => (
+        <div
+          className="finance-expense-category-row"
+          role="listitem"
+          key={item.categoryId}
+        >
+          <span className="finance-expense-category-label">
+            {categoryName(item.categoryId)}
+          </span>
+          <span className="finance-expense-category-track" aria-hidden="true">
+            <span
+              className="finance-expense-category-fill"
+              style={{ width: `${(item.amountMinor / maximum) * 100}%` }}
+            />
+          </span>
+          <strong>{formatSek(item.amountMinor, locale)}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function FinanceDashboard({
   data,
   actor,
@@ -636,6 +672,16 @@ export function FinanceDashboard({
     id
       ? (data.users.find((user) => user.id === id)?.displayName ?? "—")
       : t("companyOnly");
+  const selectedModel = data.users.find(
+    (user) => user.id === selectedConsultant,
+  )?.compensationModel;
+  const invoiceConsultantIds = useMemo(
+    () =>
+      new Map(
+        data.invoices.map((invoice) => [invoice.id, invoice.consultantId]),
+      ),
+    [data.invoices],
+  );
   const visibleTransactions = useMemo(
     () =>
       selectedConsultant === "all"
@@ -643,9 +689,25 @@ export function FinanceDashboard({
         : selectedConsultant === "company"
           ? data.transactions.filter(belongsToCompany)
           : data.transactions.filter(
-              (item) => item.consultantId === selectedConsultant,
+              (item) =>
+                item.consultantId === selectedConsultant ||
+                (manager &&
+                  selectedModel === "fixed" &&
+                  belongsToFixedConsultantResult(
+                    item,
+                    selectedConsultant,
+                    item.invoiceId
+                      ? (invoiceConsultantIds.get(item.invoiceId) ?? null)
+                      : null,
+                  )),
             ),
-    [data.transactions, selectedConsultant],
+    [
+      data.transactions,
+      invoiceConsultantIds,
+      manager,
+      selectedConsultant,
+      selectedModel,
+    ],
   );
   const visibleOverviewTransactions = useMemo(
     () =>
@@ -736,9 +798,6 @@ export function FinanceDashboard({
   });
   const transactionFormHref = (path: string) =>
     `${path}?${new URLSearchParams({ returnTo: transactionReturnHref })}`;
-  const selectedModel = data.users.find(
-    (user) => user.id === selectedConsultant,
-  )?.compensationModel;
   const chartMode =
     !manager || selectedModel === "flexible" ? "balance" : "result";
 
@@ -989,6 +1048,16 @@ export function FinanceDashboard({
               anchor={chartAnchor}
             />
           </section>
+          {chartPeriod !== "all" && (
+            <section className="card finance-chart-card">
+              <h2>{t("expenseCategoryChart")}</h2>
+              <ExpenseCategoryChart
+                transactions={visibleOverviewTransactions}
+                locale={locale}
+                categoryName={categoryName}
+              />
+            </section>
+          )}
         </>
       )}
 
