@@ -12,10 +12,17 @@ const entityCollections = {
 } as const;
 const allowedTypes = new Set([
   "application/pdf",
+  "message/rfc822",
   "image/jpeg",
   "image/png",
   "image/webp",
 ]);
+
+function contentType(file: File) {
+  return file.name.toLowerCase().endsWith(".eml")
+    ? "message/rfc822"
+    : file.type;
+}
 
 function safeName(name: string) {
   return name.replace(/[\r\n]/g, "").slice(0, 180) || "attachment";
@@ -95,7 +102,7 @@ export async function POST(
     return NextResponse.json({ error: "attachmentLimit" }, { status: 400 });
   if (files.some((file) => file.size > MAX_BYTES))
     return NextResponse.json({ error: "attachmentTooLarge" }, { status: 400 });
-  if (files.some((file) => !allowedTypes.has(file.type)))
+  if (files.some((file) => !allowedTypes.has(contentType(file))))
     return NextResponse.json({ error: "attachmentType" }, { status: 400 });
 
   const uploaded: string[] = [];
@@ -109,7 +116,7 @@ export async function POST(
         .save(Buffer.from(await file.arrayBuffer()), {
           resumable: false,
           metadata: {
-            contentType: file.type,
+            contentType: contentType(file),
             cacheControl: "private, no-cache",
           },
         });
@@ -123,7 +130,7 @@ export async function POST(
           entityId,
           name: safeName(file.name),
           size: file.size,
-          contentType: file.type,
+          contentType: contentType(file),
           storagePath: path,
           createdAt: FieldValue.serverTimestamp(),
           createdBy: value.actor.id,

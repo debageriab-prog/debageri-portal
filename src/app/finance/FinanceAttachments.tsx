@@ -98,7 +98,7 @@ export function FinanceAttachments({
         <input
           className="field"
           type="file"
-          accept="application/pdf,image/jpeg,image/png,image/webp"
+          accept="application/pdf,message/rfc822,.eml,image/jpeg,image/png,image/webp"
           multiple
           onChange={(event) => {
             const selected = Array.from(event.target.files ?? []);
@@ -128,15 +128,20 @@ export function FinanceAttachments({
               <li key={`${file.name}-${file.size}-${file.lastModified}`}>
                 <span>{file.name}</span>
                 <button
-                  className="table-action table-action-danger"
+                  className="pending-attachment-remove"
                   type="button"
+                  aria-label={t("removeAttachment").replace(
+                    "{name}",
+                    file.name,
+                  )}
+                  title={t("removeAttachment").replace("{name}", file.name)}
                   onClick={() =>
                     onFilesChange(
                       files.filter((_, itemIndex) => itemIndex !== index),
                     )
                   }
                 >
-                  {t("remove")}
+                  {"\u00d7"}
                 </button>
               </li>
             ))}

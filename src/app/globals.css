@@ -971,20 +971,51 @@ th {
   overflow-wrap: anywhere;
 }
 
+.pending-attachment-list li,
+.detail-attachments .attachment-list li {
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+
+.pending-attachment-remove {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 1.65rem;
+  height: 1.65rem;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--danger);
+  border-radius: 50%;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pending-attachment-remove:hover,
+.pending-attachment-remove:focus-visible {
+  background: var(--danger);
+  color: white;
+}
+
 .attachment-download {
   display: inline-grid;
   flex: 0 0 auto;
   width: 2rem;
   height: 2rem;
   place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  color: inherit;
+  border: 1px solid var(--success);
+  border-radius: 50%;
+  background: var(--success-bg);
+  color: var(--success);
 }
 
 .attachment-download:hover,
 .attachment-download:focus-visible {
-  background: var(--accent-soft);
+  background: var(--success);
+  color: white;
 }
 
 .attachment-download svg {
