@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { ActionIcon } from "@/components/ui/ActionIcon";
 
 type RedDay = { id: string; date: string; name: string };
 
@@ -131,11 +132,13 @@ export function RedDayManagement({
                   <td>{day.name}</td>
                   <td>
                     <button
-                      className="table-action table-action-danger"
+                      className="table-action table-action-danger icon-action"
+                      aria-label={t("delete")}
+                      title={t("delete")}
                       disabled={busy}
                       onClick={() => remove(day.id)}
                     >
-                      {t("remove")}
+                      <ActionIcon type="delete" />
                     </button>
                   </td>
                 </tr>

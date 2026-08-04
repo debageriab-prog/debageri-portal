@@ -7,6 +7,7 @@ import { formatDuration } from "@/lib/durations/duration";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { ActionIcon } from "@/components/ui/ActionIcon";
 
 type HistorySheet = {
   id: string;
@@ -413,21 +414,25 @@ export function HistoryView({
                     <div className="row-actions">
                       {sheet.status === "draft" && (
                         <Link
-                          className="table-action"
+                          className="table-action icon-action"
+                          aria-label={t("edit")}
+                          title={t("edit")}
                           href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
                         >
-                          {t("edit")}
+                          <ActionIcon type="edit" />
                         </Link>
                       )}
                       <button
-                        className="table-action table-action-danger"
+                        className="table-action table-action-danger icon-action"
+                        aria-label={t("delete")}
+                        title={t("delete")}
                         onClick={() => {
                           setError("");
                           setDeleteConfirmation("");
                           setDeleting(sheet);
                         }}
                       >
-                        {t("delete")}
+                        <ActionIcon type="delete" />
                       </button>
                     </div>
                   )

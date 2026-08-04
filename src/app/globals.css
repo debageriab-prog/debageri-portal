@@ -1101,6 +1101,25 @@ th {
   opacity: 0.35;
   cursor: not-allowed;
 }
+
+.table-action.icon-action {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  place-items: center;
+  border-radius: 0.4rem;
+}
+
+.action-icon-svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
 .self-label {
   display: inline-block;
   margin-left: 8px;
