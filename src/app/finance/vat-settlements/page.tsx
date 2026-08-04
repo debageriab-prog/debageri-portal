@@ -23,13 +23,13 @@ export default async function VatSettlementsPage() {
       .where("organizationId", "==", actor.organizationId)
       .get(),
   ]);
-  const attachmentNames = new Map<string, string[]>();
+  const attachments = new Map<string, Array<{ id: string; name: string }>>();
   for (const document of attachmentsSnapshot.docs) {
     const data = document.data();
     if (data.entityType !== "vatSettlement") continue;
-    const names = attachmentNames.get(String(data.entityId)) ?? [];
-    names.push(String(data.name));
-    attachmentNames.set(String(data.entityId), names);
+    const entityAttachments = attachments.get(String(data.entityId)) ?? [];
+    entityAttachments.push({ id: document.id, name: String(data.name) });
+    attachments.set(String(data.entityId), entityAttachments);
   }
   const settlements: VatSettlementRow[] = snapshot.docs
     .map((document) => ({
@@ -42,7 +42,7 @@ export default async function VatSettlementsPage() {
       note: String(document.data().note ?? ""),
       status: document.data().status as "active" | "reversed",
       reversalReason: String(document.data().reversalReason ?? ""),
-      attachmentNames: attachmentNames.get(document.id) ?? [],
+      attachments: attachments.get(document.id) ?? [],
     }))
     .sort((left, right) => right.paymentDate.localeCompare(left.paymentDate));
   return (
