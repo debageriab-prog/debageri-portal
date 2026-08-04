@@ -12,6 +12,14 @@ type Attachment = {
   contentType: string;
 };
 
+function DeleteIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
+      <path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" />
+    </svg>
+  );
+}
+
 export async function uploadFinanceAttachments(
   entityType: FinanceEntityType,
   entityId: string,
@@ -63,7 +71,7 @@ export function FinanceAttachments({
       <legend>{t("attachments")}</legend>
       <p className="muted">{t("financeAttachmentsHelp")}</p>
       {existing.length > 0 && (
-        <ul className="attachment-list">
+        <ul className="attachment-list editable-attachment-list">
           {existing.map((attachment) => (
             <li key={attachment.id}>
               <a
@@ -73,8 +81,13 @@ export function FinanceAttachments({
                 {attachment.name}
               </a>
               <button
-                className="table-action table-action-danger"
+                className="attachment-remove"
                 type="button"
+                aria-label={t("removeAttachment").replace(
+                  "{name}",
+                  attachment.name,
+                )}
+                title={t("removeAttachment").replace("{name}", attachment.name)}
                 onClick={async () => {
                   setError("");
                   const response = await appCheckFetch(
@@ -88,7 +101,7 @@ export function FinanceAttachments({
                   else setError(t("financeError_attachmentDeleteFailed"));
                 }}
               >
-                {t("remove")}
+                <DeleteIcon />
               </button>
             </li>
           ))}
@@ -128,7 +141,7 @@ export function FinanceAttachments({
               <li key={`${file.name}-${file.size}-${file.lastModified}`}>
                 <span>{file.name}</span>
                 <button
-                  className="pending-attachment-remove"
+                  className="attachment-remove"
                   type="button"
                   aria-label={t("removeAttachment").replace(
                     "{name}",
@@ -141,7 +154,7 @@ export function FinanceAttachments({
                     )
                   }
                 >
-                  {"\u00d7"}
+                  <DeleteIcon />
                 </button>
               </li>
             ))}
