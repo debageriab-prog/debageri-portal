@@ -1,4 +1,4 @@
-export type TransactionPeriod = "month" | "year";
+export type TransactionPeriod = "month" | "year" | "range";
 
 type SearchParamsReader = { get(name: string): string | null };
 
@@ -8,7 +8,9 @@ export function transactionListState(
 ) {
   const requestedPeriod = searchParams.get("period");
   const period: TransactionPeriod =
-    requestedPeriod === "year" ? "year" : "month";
+    requestedPeriod === "year" || requestedPeriod === "range"
+      ? requestedPeriod
+      : "month";
   const requestedAnchor = searchParams.get("anchor") ?? "";
   const validAnchor = /^\d{4}-\d{2}$/.test(requestedAnchor)
     ? requestedAnchor
@@ -18,13 +20,28 @@ export function transactionListState(
     requestedScope.length > 0 && requestedScope.length <= 128
       ? requestedScope
       : "all";
-  return { scope, period, anchor: validAnchor };
+  const requestedFrom = searchParams.get("from") ?? "";
+  const requestedTo = searchParams.get("to") ?? "";
+  const fallbackYear = Number(validAnchor.slice(0, 4));
+  const fallbackMonth = Number(validAnchor.slice(5, 7));
+  const fallbackLastDay = new Date(
+    Date.UTC(fallbackYear, fallbackMonth, 0),
+  ).getUTCDate();
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(requestedFrom)
+    ? requestedFrom
+    : `${validAnchor}-01`;
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(requestedTo)
+    ? requestedTo
+    : `${validAnchor}-${String(fallbackLastDay).padStart(2, "0")}`;
+  return { scope, period, anchor: validAnchor, from, to };
 }
 
 export function transactionListHref(state: {
   scope: string;
   period: TransactionPeriod;
   anchor: string;
+  from?: string;
+  to?: string;
 }) {
   const params = new URLSearchParams({
     section: "transactions",
@@ -32,6 +49,10 @@ export function transactionListHref(state: {
     period: state.period,
     anchor: state.anchor,
   });
+  if (state.period === "range") {
+    if (state.from) params.set("from", state.from);
+    if (state.to) params.set("to", state.to);
+  }
   return `/finance?${params.toString()}`;
 }
 
@@ -54,10 +75,27 @@ export function safeTransactionReturnHref(value: unknown) {
       requestedScope.length > 128
     )
       return fallback;
+    const period =
+      url.searchParams.get("period") === "year" ||
+      url.searchParams.get("period") === "range"
+        ? (url.searchParams.get("period") as "year" | "range")
+        : "month";
+    const from = url.searchParams.get("from") ?? undefined;
+    const to = url.searchParams.get("to") ?? undefined;
+    if (
+      period === "range" &&
+      (!from ||
+        !to ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(from) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(to))
+    )
+      return fallback;
     return transactionListHref({
       scope: requestedScope,
-      period: url.searchParams.get("period") === "year" ? "year" : "month",
+      period,
       anchor: requestedAnchor,
+      from,
+      to,
     });
   } catch {
     return fallback;

@@ -14,12 +14,35 @@ describe("transaction list navigation", () => {
       scope: "consultant-1",
       period: "year",
       anchor: "2025-01",
+      from: "2025-01-01",
+      to: "2025-01-31",
     });
     const params = new URL(href, "https://portal.invalid").searchParams;
     expect(transactionListState(params, "2026-08")).toEqual({
       scope: "consultant-1",
       period: "year",
       anchor: "2025-01",
+      from: "2025-01-01",
+      to: "2025-01-31",
+    });
+    expect(safeTransactionReturnHref(href)).toBe(href);
+  });
+
+  it("round-trips an inclusive date range", () => {
+    const href = transactionListHref({
+      scope: "all",
+      period: "range",
+      anchor: "2026-02",
+      from: "2026-01-15",
+      to: "2026-02-20",
+    });
+    const params = new URL(href, "https://portal.invalid").searchParams;
+    expect(transactionListState(params, "2026-08")).toEqual({
+      scope: "all",
+      period: "range",
+      anchor: "2026-02",
+      from: "2026-01-15",
+      to: "2026-02-20",
     });
     expect(safeTransactionReturnHref(href)).toBe(href);
   });

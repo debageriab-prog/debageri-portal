@@ -1483,6 +1483,9 @@ th {
 .finance-chart-controls .week-head {
   margin-bottom: 0;
 }
+.finance-chart-controls .actions {
+  align-items: flex-end;
+}
 .finance-period {
   width: auto;
   min-width: 140px;
@@ -1760,6 +1763,35 @@ th {
 }
 .finance-filter-bar-three {
   grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+.finance-filter-bar-wide {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.finance-filter-control {
+  display: grid;
+  gap: 0.25rem;
+}
+.month-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.month-stepper .field {
+  min-width: 0;
+}
+.month-step-button {
+  width: 2.4rem;
+  min-width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.compact-date-field {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 .transaction-amount-summary {
   display: grid;
