@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { parseSek } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
+import { ActionIcon } from "@/components/ui/ActionIcon";
 
 type ExpenseTemplate = {
   id: string;
@@ -332,15 +333,17 @@ export function ExpenseCopyForm({
                     </td>
                     <td>
                       <button
-                        className="table-action table-action-danger"
+                        className="table-action table-action-danger icon-action"
                         type="button"
+                        aria-label={t("remove")}
+                        title={t("remove")}
                         onClick={() =>
                           setRows((current) =>
                             current.filter((item) => item.id !== row.id),
                           )
                         }
                       >
-                        {t("remove")}
+                        <ActionIcon type="delete" />
                       </button>
                     </td>
                   </tr>

@@ -578,6 +578,7 @@
   "noCustomersForInvoice": "Lägg till en kund innan du skapar en faktura.",
   "saveCustomer": "Spara kund",
   "attachments": "Bilagor",
+  "attachment": "Bilaga",
   "financeAttachmentsHelp": "Bifoga upp till 3 PDF-, EML-, JPEG-, PNG- eller WebP-filer. Varje fil får vara högst 10 MB.",
   "filesSelected": "{count} fil(er) valda",
   "noAttachments": "Inga filer bifogade.",

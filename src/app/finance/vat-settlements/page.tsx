@@ -13,10 +13,24 @@ export default async function VatSettlementsPage() {
   if (!["admin", "accountant"].includes(actor.role)) redirect("/unauthorized");
   const t = await getTranslator();
   const { db } = getAdminServices();
-  const snapshot = await db
-    .collection("vatSettlements")
-    .where("organizationId", "==", actor.organizationId)
-    .get();
+  const [snapshot, attachmentsSnapshot] = await Promise.all([
+    db
+      .collection("vatSettlements")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+    db
+      .collection("financeAttachments")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+  ]);
+  const attachmentNames = new Map<string, string[]>();
+  for (const document of attachmentsSnapshot.docs) {
+    const data = document.data();
+    if (data.entityType !== "vatSettlement") continue;
+    const names = attachmentNames.get(String(data.entityId)) ?? [];
+    names.push(String(data.name));
+    attachmentNames.set(String(data.entityId), names);
+  }
   const settlements: VatSettlementRow[] = snapshot.docs
     .map((document) => ({
       id: document.id,
@@ -28,6 +42,7 @@ export default async function VatSettlementsPage() {
       note: String(document.data().note ?? ""),
       status: document.data().status as "active" | "reversed",
       reversalReason: String(document.data().reversalReason ?? ""),
+      attachmentNames: attachmentNames.get(document.id) ?? [],
     }))
     .sort((left, right) => right.paymentDate.localeCompare(left.paymentDate));
   return (

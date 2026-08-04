@@ -53,6 +53,7 @@ export default async function FinancePage({
     agreementsSnapshot,
     customersSnapshot,
     vatSettlementsSnapshot,
+    financeAttachmentsSnapshot,
   ] = await Promise.all([
     db.collection("organizations").doc(organizationId).get(),
     manager
@@ -95,7 +96,22 @@ export default async function FinancePage({
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
+    manager || actor.financeAccess.myFinance
+      ? db
+          .collection("financeAttachments")
+          .where("organizationId", "==", organizationId)
+          .get()
+      : Promise.resolve(null),
   ]);
+
+  const transactionAttachmentNames = new Map<string, string[]>();
+  for (const document of financeAttachmentsSnapshot?.docs ?? []) {
+    const data = document.data();
+    if (data.entityType !== "transaction") continue;
+    const names = transactionAttachmentNames.get(String(data.entityId)) ?? [];
+    names.push(String(data.name));
+    transactionAttachmentNames.set(String(data.entityId), names);
+  }
 
   const users: FinancePageData["users"] = (usersSnapshot?.docs ?? [])
     .map((document) => ({
@@ -167,6 +183,7 @@ export default async function FinancePage({
         status: data.status as "posted" | "reversal",
         reversedByTransactionId: data.reversedByTransactionId ?? null,
         createdAt: millis(data.createdAt),
+        attachmentNames: transactionAttachmentNames.get(document.id) ?? [],
       };
     })
     .filter((transaction) => manager || transaction.consultantId === actor.id)

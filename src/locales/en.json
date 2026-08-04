@@ -578,6 +578,7 @@
   "noCustomersForInvoice": "Add a customer before creating an invoice.",
   "saveCustomer": "Save customer",
   "attachments": "Attachments",
+  "attachment": "Attachment",
   "financeAttachmentsHelp": "Attach up to 3 PDF, EML, JPEG, PNG or WebP files. Each file may be up to 10 MB.",
   "filesSelected": "{count} file(s) selected",
   "noAttachments": "No files attached.",

@@ -7,6 +7,7 @@ import { useLocale } from "@/components/localization/LocaleProvider";
 import { formatSek } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { AttachmentDownloads } from "../FinanceAttachments";
+import { ActionIcon } from "@/components/ui/ActionIcon";
 
 export type VatSettlementRow = {
   id: string;
@@ -18,6 +19,7 @@ export type VatSettlementRow = {
   note: string;
   status: "active" | "reversed";
   reversalReason: string;
+  attachmentNames: string[];
 };
 
 export function VatSettlementHistory({
@@ -89,6 +91,7 @@ export function VatSettlementHistory({
               <th>{t("paymentReference")}</th>
               <th>{t("internalNote")}</th>
               <th>{t("status")}</th>
+              <th>{t("attachment")}</th>
               <th>{t("actions")}</th>
             </tr>
           </thead>
@@ -114,35 +117,50 @@ export function VatSettlementHistory({
                   </span>
                 </td>
                 <td>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    aria-label={t("viewDetails")}
-                    title={t("viewDetails")}
-                    onClick={() => setViewing(settlement)}
-                  >
-                    i
-                  </button>
-                  {settlement.status === "active" && (
-                    <Link
-                      className="table-action"
-                      href={`/finance/vat-settlements/${encodeURIComponent(settlement.id)}/edit`}
-                    >
-                      {t("edit")}
-                    </Link>
+                  {settlement.attachmentNames.length ? (
+                    <span title={settlement.attachmentNames.join(", ")}>
+                      {settlement.attachmentNames.length}
+                    </span>
+                  ) : (
+                    "-"
                   )}
-                  {settlement.status === "active" && (
+                </td>
+                <td>
+                  <div className="row-actions">
                     <button
-                      className="table-action table-action-danger"
+                      className="icon-button"
                       type="button"
-                      onClick={() => {
-                        setError("");
-                        setReversing(settlement);
-                      }}
+                      aria-label={t("viewDetails")}
+                      title={t("viewDetails")}
+                      onClick={() => setViewing(settlement)}
                     >
-                      {t("reverseVatPayment")}
+                      i
                     </button>
-                  )}
+                    {settlement.status === "active" && (
+                      <Link
+                        className="table-action icon-action"
+                        aria-label={t("edit")}
+                        title={t("edit")}
+                        href={`/finance/vat-settlements/${encodeURIComponent(settlement.id)}/edit`}
+                      >
+                        <ActionIcon type="edit" />
+                      </Link>
+                    )}
+                    {settlement.status === "active" && (
+                      <button
+                        className="table-action table-action-danger icon-action"
+                        type="button"
+                        aria-label={t("reverseVatPayment")}
+                        title={t("reverseVatPayment")}
+                        onClick={() => {
+                          setError("");
+                          setReversing(settlement);
+                        }}
+                      >
+                        <ActionIcon type="reverse" />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

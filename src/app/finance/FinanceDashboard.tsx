@@ -29,6 +29,7 @@ import {
   transactionListState,
 } from "./transaction-navigation";
 import { AttachmentDownloads } from "./FinanceAttachments";
+import { ActionIcon } from "@/components/ui/ActionIcon";
 
 export interface FinancePageData {
   financeEnabled: boolean;
@@ -83,6 +84,7 @@ export interface FinancePageData {
     status: "posted" | "reversal";
     reversedByTransactionId: string | null;
     createdAt: number;
+    attachmentNames: string[];
   }>;
   agreements: Array<{
     id: string;
@@ -1471,10 +1473,12 @@ export function FinanceDashboard({
                   <td>{customer.financeEmail}</td>
                   <td>
                     <Link
-                      className="table-action"
+                      className="table-action icon-action"
+                      aria-label={t("edit")}
+                      title={t("edit")}
                       href={`/finance/customers/${customer.id}/edit`}
                     >
-                      {t("edit")}
+                      <ActionIcon type="edit" />
                     </Link>
                   </td>
                 </tr>
@@ -1520,10 +1524,12 @@ export function FinanceDashboard({
                   {admin && (
                     <td>
                       <Link
-                        className="table-action"
+                        className="table-action icon-action"
+                        aria-label={t("edit")}
+                        title={t("edit")}
                         href={`/finance/categories/${category.id}/edit`}
                       >
-                        {t("edit")}
+                        <ActionIcon type="edit" />
                       </Link>
                     </td>
                   )}
@@ -1778,6 +1784,7 @@ export function FinanceDashboard({
                 <th>{t("netAmount")}</th>
                 <th>{t("totalIncludingVat")}</th>
                 <th>{t("balanceChange")}</th>
+                <th>{t("attachment")}</th>
                 <th>
                   <span className="sr-only">{t("actions")}</span>
                 </th>
@@ -1807,6 +1814,15 @@ export function FinanceDashboard({
                     )}
                   </td>
                   <td>
+                    {transaction.attachmentNames.length ? (
+                      <span title={transaction.attachmentNames.join(", ")}>
+                        {transaction.attachmentNames.length}
+                      </span>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
+                  <td>
                     <div className="row-actions">
                       <button
                         className="icon-button"
@@ -1821,12 +1837,14 @@ export function FinanceDashboard({
                         <>
                           {!transactionDeleteProtection(transaction) && (
                             <Link
-                              className="table-action"
+                              className="table-action icon-action"
+                              aria-label={t("edit")}
+                              title={t("edit")}
                               href={transactionFormHref(
                                 `/finance/transactions/${encodeURIComponent(transaction.id)}/edit`,
                               )}
                             >
-                              {t("edit")}
+                              <ActionIcon type="edit" />
                             </Link>
                           )}
                           <div
@@ -1836,7 +1854,9 @@ export function FinanceDashboard({
                             }
                           >
                             <button
-                              className="table-action table-action-danger"
+                              className="table-action table-action-danger icon-action"
+                              aria-label={t("delete")}
+                              title={t("delete")}
                               disabled={
                                 busy ||
                                 Boolean(
@@ -1848,7 +1868,7 @@ export function FinanceDashboard({
                                 setDeleteConfirmation("");
                               }}
                             >
-                              {t("delete")}
+                              <ActionIcon type="delete" />
                             </button>
                             {transactionDeleteProtection(transaction) && (
                               <span

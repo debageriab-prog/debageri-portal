@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { ActionIcon } from "@/components/ui/ActionIcon";
 
 export type ManagedTimeCode = {
   id: string;
@@ -189,20 +190,24 @@ export function TimeCodeManagement({
                   <td>
                     <div className="row-actions">
                       <button
-                        className="table-action"
+                        className="table-action icon-action"
+                        aria-label={t("edit")}
+                        title={t("edit")}
                         onClick={() => setEditing(code)}
                       >
-                        {t("edit")}
+                        <ActionIcon type="edit" />
                       </button>
                       <button
-                        className="table-action table-action-danger"
+                        className="table-action table-action-danger icon-action"
+                        aria-label={t("delete")}
+                        title={t("delete")}
                         onClick={() => {
                           setConfirmation("");
                           setError("");
                           setDeleting(code);
                         }}
                       >
-                        {t("delete")}
+                        <ActionIcon type="delete" />
                       </button>
                     </div>
                   </td>

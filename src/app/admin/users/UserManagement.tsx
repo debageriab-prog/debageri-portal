@@ -6,6 +6,7 @@ import { EmployeeForm } from "./EmployeeForm";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import type { FinanceAccess } from "@/domain/types";
+import { ActionIcon } from "@/components/ui/ActionIcon";
 
 export interface ManagedUser {
   id: string;
@@ -251,7 +252,9 @@ export function UserManagement({
                   <td>
                     <div className="row-actions">
                       <button
-                        className="table-action"
+                        className="table-action icon-action"
+                        aria-label={t("edit")}
+                        title={t("edit")}
                         onClick={() => {
                           setError("");
                           setEditing(user);
@@ -259,38 +262,32 @@ export function UserManagement({
                           setEditFinanceAccess(user.financeAccess);
                         }}
                       >
-                        {t("edit")}
+                        <ActionIcon type="edit" />
                       </button>
                       <button
-                        className="table-action"
+                        className="table-action icon-action"
+                        aria-label={t("password")}
                         disabled={user.id === currentUserId}
-                        title={
-                          user.id === currentUserId
-                            ? "Change your password from the account menu"
-                            : "Change employee password"
-                        }
+                        title={t("changePassword")}
                         onClick={() => {
                           setError("");
                           setChangingPassword(user);
                         }}
                       >
-                        {t("password")}
+                        <ActionIcon type="password" />
                       </button>
                       <button
-                        className="table-action table-action-danger"
+                        className="table-action table-action-danger icon-action"
+                        aria-label={t("delete")}
                         disabled={user.id === currentUserId}
-                        title={
-                          user.id === currentUserId
-                            ? "You cannot delete your own account"
-                            : "Delete employee"
-                        }
+                        title={t("deleteEmployee")}
                         onClick={() => {
                           setError("");
                           setDeleteConfirmation("");
                           setDeleting(user);
                         }}
                       >
-                        {t("delete")}
+                        <ActionIcon type="delete" />
                       </button>
                     </div>
                   </td>
