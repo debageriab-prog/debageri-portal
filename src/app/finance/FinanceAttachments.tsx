@@ -57,7 +57,7 @@ export function FinanceAttachments({
       .catch(() => setError(t("financeError_attachmentLoadFailed")));
   }, [entityId, entityType, t]);
 
-  const remaining = Math.max(0, 3 - existing.length);
+  const remaining = Math.max(0, 3 - existing.length - files.length);
   return (
     <fieldset className="form-wide attachment-fieldset">
       <legend>{t("attachments")}</legend>
@@ -101,18 +101,47 @@ export function FinanceAttachments({
           accept="application/pdf,image/jpeg,image/png,image/webp"
           multiple
           onChange={(event) => {
-            const selected = Array.from(event.target.files ?? []).slice(
-              0,
-              remaining,
+            const selected = Array.from(event.target.files ?? []);
+            const unique = selected.filter(
+              (candidate) =>
+                !files.some(
+                  (file) =>
+                    file.name === candidate.name &&
+                    file.size === candidate.size &&
+                    file.lastModified === candidate.lastModified,
+                ),
             );
-            onFilesChange(selected);
+            onFilesChange(
+              [...files, ...unique].slice(0, files.length + remaining),
+            );
+            event.currentTarget.value = "";
           }}
         />
       )}
       {files.length > 0 && (
-        <p className="muted">
-          {t("filesSelected").replace("{count}", String(files.length))}
-        </p>
+        <>
+          <p className="muted">
+            {t("filesSelected").replace("{count}", String(files.length))}
+          </p>
+          <ul className="attachment-list pending-attachment-list">
+            {files.map((file, index) => (
+              <li key={`${file.name}-${file.size}-${file.lastModified}`}>
+                <span>{file.name}</span>
+                <button
+                  className="table-action table-action-danger"
+                  type="button"
+                  onClick={() =>
+                    onFilesChange(
+                      files.filter((_, itemIndex) => itemIndex !== index),
+                    )
+                  }
+                >
+                  {t("remove")}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       {error && <p className="notice notice-error">{error}</p>}
     </fieldset>
@@ -147,11 +176,24 @@ export function AttachmentDownloads({
         <ul className="attachment-list">
           {items.map((item) => (
             <li key={item.id}>
+              <span>{item.name}</span>
               <a
-                className="text-link"
+                className="attachment-download"
                 href={`/api/finance/attachments/${entityType}/${encodeURIComponent(entityId)}/${item.id}`}
+                aria-label={t("downloadAttachment").replace(
+                  "{name}",
+                  item.name,
+                )}
+                title={t("downloadAttachment").replace("{name}", item.name)}
               >
-                {item.name}
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  width="18"
+                  height="18"
+                >
+                  <path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14" />
+                </svg>
               </a>
             </li>
           ))}

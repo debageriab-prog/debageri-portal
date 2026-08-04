@@ -581,6 +581,7 @@
   "financeAttachmentsHelp": "Bifoga upp till 3 PDF-, JPEG-, PNG- eller WebP-filer. Varje fil får vara högst 10 MB.",
   "filesSelected": "{count} fil(er) valda",
   "noAttachments": "Inga filer bifogade.",
+  "downloadAttachment": "Hämta {name}",
   "loading": "Laddar...",
   "viewDetails": "Visa alla detaljer",
   "transactionDetails": "Transaktionsdetaljer",

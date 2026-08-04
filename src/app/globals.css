@@ -964,6 +964,36 @@ th {
 .detail-attachments {
   margin-top: 1.25rem;
 }
+
+.pending-attachment-list span,
+.detail-attachments .attachment-list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.attachment-download {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  color: inherit;
+}
+
+.attachment-download:hover,
+.attachment-download:focus-visible {
+  background: var(--accent-soft);
+}
+
+.attachment-download svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
 .toast {
   position: fixed;
   z-index: 120;
