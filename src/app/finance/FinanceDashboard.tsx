@@ -98,6 +98,7 @@ export interface FinancePageData {
   vatSettlements: Array<{
     id: string;
     amountMinor: number;
+    paymentDate: string;
     status: "active" | "reversed";
   }>;
 }
@@ -1083,21 +1084,30 @@ export function FinanceDashboard({
   );
   const totals = financeTotals(
     selectedConsultant === "company"
-      ? visibleTransactions.map((transaction) => ({
+      ? visibleOverviewTransactions.map((transaction) => ({
           ...transaction,
           consultantBalanceDeltaMinor: companyBalanceDeltaMinor(transaction),
         }))
-      : visibleTransactions,
+      : visibleOverviewTransactions,
+  );
+  const visibleVatSettlements = data.vatSettlements.filter((settlement) =>
+    inFinancePeriod(
+      settlement.paymentDate,
+      chartPeriod,
+      chartAnchor,
+      chartRangeFrom,
+      chartRangeTo,
+    ),
   );
   const organizationVatPayable = vatPayableMinor(
-    data.transactions,
-    data.vatSettlements,
+    visibleOverviewTransactions,
+    visibleVatSettlements,
   );
-  const earnedShare = visibleTransactions.reduce(
+  const earnedShare = visibleOverviewTransactions.reduce(
     (sum, item) => sum + Math.max(0, item.consultantBalanceDeltaMinor),
     0,
   );
-  const spentFromBalance = visibleTransactions.reduce(
+  const spentFromBalance = visibleOverviewTransactions.reduce(
     (sum, item) => sum + Math.max(0, -item.consultantBalanceDeltaMinor),
     0,
   );
@@ -1109,7 +1119,7 @@ export function FinanceDashboard({
             sum +
             Math.max(
               0,
-              data.transactions
+              visibleOverviewTransactions
                 .filter((item) => item.consultantId === user.id)
                 .reduce(
                   (value, item) => value + item.consultantBalanceDeltaMinor,
@@ -1123,6 +1133,13 @@ export function FinanceDashboard({
     .filter(
       (invoice) =>
         invoice.status === "issued" &&
+        inFinancePeriod(
+          invoice.issueDate,
+          chartPeriod,
+          chartAnchor,
+          chartRangeFrom,
+          chartRangeTo,
+        ) &&
         (selectedConsultant === "all" ||
           selectedConsultant === "company" ||
           invoice.consultantId === selectedConsultant),

@@ -219,6 +219,7 @@ export default async function FinancePage({
   ).map((document) => ({
     id: document.id,
     amountMinor: Number(document.data().amountMinor ?? 0),
+    paymentDate: String(document.data().paymentDate),
     status: document.data().status as "active" | "reversed",
   }));
 
