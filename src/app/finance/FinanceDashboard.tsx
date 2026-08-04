@@ -98,7 +98,6 @@ export interface FinancePageData {
   vatSettlements: Array<{
     id: string;
     amountMinor: number;
-    periodTo: string;
     status: "active" | "reversed";
   }>;
 }
@@ -1084,30 +1083,21 @@ export function FinanceDashboard({
   );
   const totals = financeTotals(
     selectedConsultant === "company"
-      ? visibleOverviewTransactions.map((transaction) => ({
+      ? visibleTransactions.map((transaction) => ({
           ...transaction,
           consultantBalanceDeltaMinor: companyBalanceDeltaMinor(transaction),
         }))
-      : visibleOverviewTransactions,
+      : visibleTransactions,
   );
-  const visibleVatSettlements = data.vatSettlements.filter((settlement) =>
-    inFinancePeriod(
-      settlement.periodTo,
-      chartPeriod,
-      chartAnchor,
-      chartRangeFrom,
-      chartRangeTo,
-    ),
+  const organizationVatPayable = vatPayableMinor(
+    data.transactions,
+    data.vatSettlements,
   );
-  const organizationVatPayable = Math.max(
-    0,
-    vatPayableMinor(visibleOverviewTransactions, visibleVatSettlements),
-  );
-  const earnedShare = visibleOverviewTransactions.reduce(
+  const earnedShare = visibleTransactions.reduce(
     (sum, item) => sum + Math.max(0, item.consultantBalanceDeltaMinor),
     0,
   );
-  const spentFromBalance = visibleOverviewTransactions.reduce(
+  const spentFromBalance = visibleTransactions.reduce(
     (sum, item) => sum + Math.max(0, -item.consultantBalanceDeltaMinor),
     0,
   );
@@ -1119,7 +1109,7 @@ export function FinanceDashboard({
             sum +
             Math.max(
               0,
-              visibleOverviewTransactions
+              data.transactions
                 .filter((item) => item.consultantId === user.id)
                 .reduce(
                   (value, item) => value + item.consultantBalanceDeltaMinor,
@@ -1133,13 +1123,6 @@ export function FinanceDashboard({
     .filter(
       (invoice) =>
         invoice.status === "issued" &&
-        inFinancePeriod(
-          invoice.issueDate,
-          chartPeriod,
-          chartAnchor,
-          chartRangeFrom,
-          chartRangeTo,
-        ) &&
         (selectedConsultant === "all" ||
           selectedConsultant === "company" ||
           invoice.consultantId === selectedConsultant),
