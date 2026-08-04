@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { formatSek } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
+import { AttachmentDownloads } from "../FinanceAttachments";
 
 export type VatSettlementRow = {
   id: string;
@@ -30,6 +32,7 @@ export function VatSettlementHistory({
   const [reversing, setReversing] = useState<VatSettlementRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [viewing, setViewing] = useState<VatSettlementRow | null>(null);
 
   async function reverse(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -111,6 +114,23 @@ export function VatSettlementHistory({
                   </span>
                 </td>
                 <td>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    aria-label={t("viewDetails")}
+                    title={t("viewDetails")}
+                    onClick={() => setViewing(settlement)}
+                  >
+                    i
+                  </button>
+                  {settlement.status === "active" && (
+                    <Link
+                      className="table-action"
+                      href={`/finance/vat-settlements/${encodeURIComponent(settlement.id)}/edit`}
+                    >
+                      {t("edit")}
+                    </Link>
+                  )}
                   {settlement.status === "active" && (
                     <button
                       className="table-action table-action-danger"
@@ -129,6 +149,79 @@ export function VatSettlementHistory({
           </tbody>
         </table>
       </section>
+      {viewing && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={() => setViewing(null)}
+        >
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="vat-details-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="modal-header">
+              <div>
+                <h2 id="vat-details-title">{t("vatSettlementDetails")}</h2>
+                <p>{viewing.paymentDate}</p>
+              </div>
+              <button
+                className="modal-close"
+                type="button"
+                aria-label={t("close")}
+                onClick={() => setViewing(null)}
+              >
+                {"\u00d7"}
+              </button>
+            </header>
+            <dl className="detail-grid">
+              <div>
+                <dt>{t("vatPeriod")}</dt>
+                <dd>
+                  {viewing.periodFrom} {"\u2013"} {viewing.periodTo}
+                </dd>
+              </div>
+              <div>
+                <dt>{t("amount")}</dt>
+                <dd>{formatSek(viewing.amountMinor, locale)}</dd>
+              </div>
+              <div>
+                <dt>{t("paymentReference")}</dt>
+                <dd>{viewing.reference || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt>{t("internalNote")}</dt>
+                <dd>{viewing.note || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt>{t("status")}</dt>
+                <dd>{t(viewing.status)}</dd>
+              </div>
+              {viewing.reversalReason && (
+                <div>
+                  <dt>{t("reversalReason")}</dt>
+                  <dd>{viewing.reversalReason}</dd>
+                </div>
+              )}
+            </dl>
+            <AttachmentDownloads
+              entityType="vatSettlement"
+              entityId={viewing.id}
+            />
+            <footer className="modal-actions">
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => setViewing(null)}
+              >
+                {t("close")}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
       {reversing && (
         <div className="modal-backdrop" role="presentation">
           <form

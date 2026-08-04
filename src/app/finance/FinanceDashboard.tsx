@@ -28,6 +28,7 @@ import {
   transactionListHref,
   transactionListState,
 } from "./transaction-navigation";
+import { AttachmentDownloads } from "./FinanceAttachments";
 
 export interface FinancePageData {
   financeEnabled: boolean;
@@ -922,6 +923,9 @@ export function FinanceDashboard({
   const [deletingTransaction, setDeletingTransaction] = useState<
     FinancePageData["transactions"][number] | null
   >(null);
+  const [viewingTransaction, setViewingTransaction] = useState<
+    FinancePageData["transactions"][number] | null
+  >(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [payingInvoice, setPayingInvoice] = useState<
     FinancePageData["invoices"][number] | null
@@ -1774,11 +1778,9 @@ export function FinanceDashboard({
                 <th>{t("netAmount")}</th>
                 <th>{t("totalIncludingVat")}</th>
                 <th>{t("balanceChange")}</th>
-                {manager && (
-                  <th>
-                    <span className="sr-only">{t("actions")}</span>
-                  </th>
-                )}
+                <th>
+                  <span className="sr-only">{t("actions")}</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -1804,55 +1806,162 @@ export function FinanceDashboard({
                       locale,
                     )}
                   </td>
-                  {manager && (
-                    <td>
-                      <div className="row-actions">
-                        {!transactionDeleteProtection(transaction) && (
-                          <Link
-                            className="table-action"
-                            href={transactionFormHref(
-                              `/finance/transactions/${encodeURIComponent(transaction.id)}/edit`,
-                            )}
-                          >
-                            {t("edit")}
-                          </Link>
-                        )}
-                        <div
-                          className="protected-action"
-                          tabIndex={
-                            transactionDeleteProtection(transaction) ? 0 : -1
-                          }
-                        >
-                          <button
-                            className="table-action table-action-danger"
-                            disabled={
-                              busy ||
-                              Boolean(transactionDeleteProtection(transaction))
-                            }
-                            onClick={() => {
-                              setDeletingTransaction(transaction);
-                              setDeleteConfirmation("");
-                            }}
-                          >
-                            {t("delete")}
-                          </button>
-                          {transactionDeleteProtection(transaction) && (
-                            <span
-                              className="protected-action-tooltip"
-                              role="tooltip"
+                  <td>
+                    <div className="row-actions">
+                      <button
+                        className="icon-button"
+                        type="button"
+                        aria-label={t("viewDetails")}
+                        title={t("viewDetails")}
+                        onClick={() => setViewingTransaction(transaction)}
+                      >
+                        i
+                      </button>
+                      {manager && (
+                        <>
+                          {!transactionDeleteProtection(transaction) && (
+                            <Link
+                              className="table-action"
+                              href={transactionFormHref(
+                                `/finance/transactions/${encodeURIComponent(transaction.id)}/edit`,
+                              )}
                             >
-                              {transactionDeleteProtection(transaction)}
-                            </span>
+                              {t("edit")}
+                            </Link>
                           )}
-                        </div>
-                      </div>
-                    </td>
-                  )}
+                          <div
+                            className="protected-action"
+                            tabIndex={
+                              transactionDeleteProtection(transaction) ? 0 : -1
+                            }
+                          >
+                            <button
+                              className="table-action table-action-danger"
+                              disabled={
+                                busy ||
+                                Boolean(
+                                  transactionDeleteProtection(transaction),
+                                )
+                              }
+                              onClick={() => {
+                                setDeletingTransaction(transaction);
+                                setDeleteConfirmation("");
+                              }}
+                            >
+                              {t("delete")}
+                            </button>
+                            {transactionDeleteProtection(transaction) && (
+                              <span
+                                className="protected-action-tooltip"
+                                role="tooltip"
+                              >
+                                {transactionDeleteProtection(transaction)}
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </section>
+      )}
+
+      {viewingTransaction && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={() => setViewingTransaction(null)}
+        >
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="transaction-details-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="modal-header">
+              <div>
+                <h2 id="transaction-details-title">
+                  {t("transactionDetails")}
+                </h2>
+                <p>{viewingTransaction.date}</p>
+              </div>
+              <button
+                className="modal-close"
+                type="button"
+                aria-label={t("close")}
+                onClick={() => setViewingTransaction(null)}
+              >
+                {"\u00d7"}
+              </button>
+            </header>
+            <dl className="detail-grid">
+              <div>
+                <dt>{t("type")}</dt>
+                <dd>{t(viewingTransaction.direction)}</dd>
+              </div>
+              <div>
+                <dt>{t("category")}</dt>
+                <dd>{categoryName(viewingTransaction.categoryId)}</dd>
+              </div>
+              <div>
+                <dt>{t("consultant")}</dt>
+                <dd>{consultantName(viewingTransaction.consultantId)}</dd>
+              </div>
+              <div>
+                <dt>{t("netAmount")}</dt>
+                <dd>{formatSek(viewingTransaction.netMinor, locale)}</dd>
+              </div>
+              <div>
+                <dt>{t("vatAmount")}</dt>
+                <dd>{formatSek(viewingTransaction.vatMinor, locale)}</dd>
+              </div>
+              <div>
+                <dt>{t("totalIncludingVat")}</dt>
+                <dd>{formatSek(viewingTransaction.grossMinor, locale)}</dd>
+              </div>
+              <div>
+                <dt>{t("funding")}</dt>
+                <dd>
+                  {viewingTransaction.funding
+                    ? t(
+                        viewingTransaction.funding === "company"
+                          ? "companyFunded"
+                          : "consultantFunded",
+                      )
+                    : "\u2014"}
+                </dd>
+              </div>
+              <div>
+                <dt>{t("description")}</dt>
+                <dd>{viewingTransaction.visibleDescription || "\u2014"}</dd>
+              </div>
+              {manager && (
+                <div>
+                  <dt>{t("internalNote")}</dt>
+                  <dd>{viewingTransaction.internalNote || "\u2014"}</dd>
+                </div>
+              )}
+            </dl>
+            <AttachmentDownloads
+              entityType="transaction"
+              entityId={viewingTransaction.id}
+            />
+            <footer className="modal-actions">
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => setViewingTransaction(null)}
+              >
+                {t("close")}
+              </button>
+            </footer>
+          </section>
+        </div>
       )}
 
       {payingInvoice && (

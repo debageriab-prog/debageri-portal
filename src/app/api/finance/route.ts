@@ -10,6 +10,7 @@ import {
   createExpenseCopies,
   createInvoice,
   createVatSettlement,
+  updateVatSettlement,
   deleteFinancialTransaction,
   enableFinance,
   FinanceError,
@@ -125,6 +126,9 @@ export async function POST(request: Request) {
         break;
       case "createVatSettlement":
         id = await createVatSettlement(db, actor, parsed.data);
+        break;
+      case "updateVatSettlement":
+        id = await updateVatSettlement(db, actor, parsed.data);
         break;
       case "reverseVatSettlement":
         await reverseVatSettlement(db, actor, parsed.data);

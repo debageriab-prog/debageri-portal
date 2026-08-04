@@ -61,6 +61,16 @@ describe("finance calculations", () => {
     ).toBe(false);
     expect(
       financeActionSchema.safeParse({
+        action: "updateVatSettlement",
+        settlementId: "settlement-1",
+        paymentDate: "2026-08-04",
+        periodFrom: "2026-04-01",
+        periodTo: "2026-06-30",
+        amountMinor: 10_000,
+      }).success,
+    ).toBe(true);
+    expect(
+      financeActionSchema.safeParse({
         action: "reverseVatSettlement",
         settlementId: "settlement-1",
         reason: "Incorrect amount",

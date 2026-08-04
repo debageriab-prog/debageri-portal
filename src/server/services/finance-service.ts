@@ -1117,3 +1117,71 @@ export async function reverseVatSettlement(
     });
   });
 }
+
+export async function updateVatSettlement(
+  db: Firestore,
+  actor: PortalUser,
+  input: {
+    settlementId: string;
+    paymentDate: string;
+    periodFrom: string;
+    periodTo: string;
+    amountMinor: number;
+    reference: string;
+    note: string;
+  },
+) {
+  requireFinanceManager(actor);
+  const reference = db.collection("vatSettlements").doc(input.settlementId);
+  await db.runTransaction(async (transaction) => {
+    const current = await transaction.get(reference);
+    const data = current.data();
+    if (!data || data.organizationId !== actor.organizationId)
+      throw new FinanceError("vatSettlementNotFound", 404);
+    if (data.status !== "active")
+      throw new FinanceError("vatSettlementAlreadyReversed", 409);
+    const transactionsSnapshot = await transaction.get(
+      db
+        .collection("financialTransactions")
+        .where("organizationId", "==", actor.organizationId),
+    );
+    const settlementsSnapshot = await transaction.get(
+      db
+        .collection("vatSettlements")
+        .where("organizationId", "==", actor.organizationId),
+    );
+    const payableIncludingCurrent =
+      vatPayableMinor(
+        transactionsSnapshot.docs.map((document) => ({
+          direction: document.data().direction,
+          vatMinor: Number(document.data().vatMinor ?? 0),
+        })),
+        settlementsSnapshot.docs.map((document) => ({
+          amountMinor: Number(document.data().amountMinor ?? 0),
+          status: document.data().status,
+        })),
+      ) + Number(data.amountMinor ?? 0);
+    if (input.amountMinor > payableIncludingCurrent)
+      throw new FinanceError("vatSettlementExceedsPayable", 409);
+    transaction.update(reference, {
+      paymentDate: input.paymentDate,
+      periodFrom: input.periodFrom,
+      periodTo: input.periodTo,
+      amountMinor: input.amountMinor,
+      reference: input.reference,
+      note: input.note,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: actor.id,
+    });
+    audit(
+      db,
+      transaction as unknown as FirebaseFirestore.WriteBatch,
+      actor,
+      "vatSettlement.updated",
+      "vatSettlement",
+      reference.id,
+      { amountMinor: input.amountMinor },
+    );
+  });
+  return reference.id;
+}

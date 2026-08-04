@@ -142,15 +142,27 @@ export const voidInvoiceSchema = z.object({
   reason: z.string().trim().min(3).max(300),
 });
 
+const vatSettlementFields = {
+  paymentDate: date,
+  periodFrom: date,
+  periodTo: date,
+  amountMinor: z.number().int().min(1).max(10_000_000_000),
+  reference: z.string().trim().max(120).default(""),
+  note: z.string().trim().max(500).default(""),
+};
+
 export const vatSettlementSchema = z
+  .object({ action: z.literal("createVatSettlement"), ...vatSettlementFields })
+  .refine((value) => value.periodFrom <= value.periodTo, {
+    path: ["periodTo"],
+    message: "VAT period end must not be before its start.",
+  });
+
+export const updateVatSettlementSchema = z
   .object({
-    action: z.literal("createVatSettlement"),
-    paymentDate: date,
-    periodFrom: date,
-    periodTo: date,
-    amountMinor: z.number().int().min(1).max(10_000_000_000),
-    reference: z.string().trim().max(120).default(""),
-    note: z.string().trim().max(500).default(""),
+    action: z.literal("updateVatSettlement"),
+    settlementId: z.string().min(1).max(128),
+    ...vatSettlementFields,
   })
   .refine((value) => value.periodFrom <= value.periodTo, {
     path: ["periodTo"],
@@ -180,5 +192,6 @@ export const financeActionSchema = z.discriminatedUnion("action", [
   deleteTransactionSchema,
   voidInvoiceSchema,
   vatSettlementSchema,
+  updateVatSettlementSchema,
   reverseVatSettlementSchema,
 ]);
