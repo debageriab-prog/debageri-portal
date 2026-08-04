@@ -114,24 +114,48 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+type FinancePeriod = "month" | "year" | "all" | "range";
+
+function inFinancePeriod(
+  date: string,
+  period: FinancePeriod,
+  anchor: string,
+  from: string,
+  to: string,
+) {
+  if (period === "all") return true;
+  if (period === "range") return date >= from && date <= to;
+  return date.startsWith(period === "month" ? anchor : anchor.slice(0, 4));
+}
+
+function shiftMonth(month: string, offset: number) {
+  const value = new Date(`${month}-01T12:00:00Z`);
+  value.setUTCMonth(value.getUTCMonth() + offset);
+  return value.toISOString().slice(0, 7);
+}
+
 function BalanceChart({
   transactions,
   locale,
   period,
   anchor,
+  rangeFrom,
+  rangeTo,
   mode,
   categoryName,
 }: {
   transactions: FinancePageData["transactions"];
   locale: Actor["locale"];
-  period: "month" | "year" | "all";
+  period: FinancePeriod;
   anchor: string;
+  rangeFrom: string;
+  rangeTo: string;
   mode: "balance" | "result";
   categoryName: (id: string) => string;
 }) {
   const { t } = useLocale();
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
-  const zoomScope = `${period}:${anchor}:${mode}`;
+  const zoomScope = `${period}:${anchor}:${rangeFrom}:${rangeTo}:${mode}`;
   const [storedZoom, setZoom] = useState({
     start: 0,
     end: 1,
@@ -146,10 +170,9 @@ function BalanceChart({
     current: number;
   } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const prefix = period === "month" ? anchor : anchor.slice(0, 4);
   const sorted = [...transactions]
     .filter((transaction) =>
-      period === "all" ? true : transaction.date.startsWith(prefix),
+      inFinancePeriod(transaction.date, period, anchor, rangeFrom, rangeTo),
     )
     .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
   const year = Number(anchor.slice(0, 4));
@@ -504,12 +527,16 @@ function IncomeExpenseBarChart({
   locale,
   period,
   anchor,
+  rangeFrom,
+  rangeTo,
   includeVat,
 }: {
   transactions: FinancePageData["transactions"];
   locale: Actor["locale"];
-  period: "month" | "year" | "all";
+  period: FinancePeriod;
   anchor: string;
+  rangeFrom: string;
+  rangeTo: string;
   includeVat: boolean;
 }) {
   const { t } = useLocale();
@@ -522,9 +549,7 @@ function IncomeExpenseBarChart({
   } | null>(null);
   const year = anchor.slice(0, 4);
   const visible = transactions.filter((transaction) =>
-    period === "all"
-      ? true
-      : transaction.date.startsWith(period === "month" ? anchor : year),
+    inFinancePeriod(transaction.date, period, anchor, rangeFrom, rangeTo),
   );
   const totalsFor = (items: FinancePageData["transactions"]) => ({
     income: Math.max(
@@ -567,7 +592,12 @@ function IncomeExpenseBarChart({
       : [
           {
             key: period,
-            label: period === "month" ? anchor : t("allTime"),
+            label:
+              period === "month"
+                ? anchor
+                : period === "range"
+                  ? `${rangeFrom} \u2013 ${rangeTo}`
+                  : t("allTime"),
             ...totalsFor(visible),
           },
         ];
@@ -896,10 +926,12 @@ export function FinanceDashboard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [chartPeriod, setChartPeriod] = useState<"month" | "year" | "all">(
-    "month",
-  );
+  const [chartPeriod, setChartPeriod] = useState<FinancePeriod>("month");
   const [chartAnchor, setChartAnchor] = useState(today().slice(0, 7));
+  const [chartRangeFrom, setChartRangeFrom] = useState(
+    `${today().slice(0, 7)}-01`,
+  );
+  const [chartRangeTo, setChartRangeTo] = useState(today());
   const [includeVatInIncomeExpense, setIncludeVatInIncomeExpense] =
     useState(false);
   const [selectedConsultant, setSelectedConsultant] = useState(
@@ -913,12 +945,19 @@ export function FinanceDashboard({
   );
   const [transactionConsultantFilter, setTransactionConsultantFilter] =
     useState(initialTransactionListState.scope);
-  const [transactionPeriod, setTransactionPeriod] = useState<"month" | "year">(
-    initialTransactionListState.period,
-  );
+  const [transactionPeriod, setTransactionPeriod] = useState<
+    "month" | "year" | "range"
+  >(initialTransactionListState.period);
   const [transactionPeriodAnchor, setTransactionPeriodAnchor] = useState(
     initialTransactionListState.anchor,
   );
+  const [transactionRangeFrom, setTransactionRangeFrom] = useState(
+    initialTransactionListState.from,
+  );
+  const [transactionRangeTo, setTransactionRangeTo] = useState(
+    initialTransactionListState.to,
+  );
+  const [transactionSearch, setTransactionSearch] = useState("");
   const [endingAgreement, setEndingAgreement] = useState<
     FinancePageData["agreements"][number] | null
   >(null);
@@ -981,14 +1020,22 @@ export function FinanceDashboard({
   );
   const visibleOverviewTransactions = useMemo(
     () =>
-      visibleTransactions.filter(
-        (transaction) =>
-          chartPeriod === "all" ||
-          transaction.date.startsWith(
-            chartPeriod === "month" ? chartAnchor : chartAnchor.slice(0, 4),
-          ),
+      visibleTransactions.filter((transaction) =>
+        inFinancePeriod(
+          transaction.date,
+          chartPeriod,
+          chartAnchor,
+          chartRangeFrom,
+          chartRangeTo,
+        ),
       ),
-    [chartAnchor, chartPeriod, visibleTransactions],
+    [
+      chartAnchor,
+      chartPeriod,
+      chartRangeFrom,
+      chartRangeTo,
+      visibleTransactions,
+    ],
   );
   const totals = financeTotals(
     selectedConsultant === "company"
@@ -1052,17 +1099,37 @@ export function FinanceDashboard({
         invoice.consultantId === invoiceConsultantFilter) &&
       (invoiceStatusFilter === "all" || invoice.status === invoiceStatusFilter),
   );
+  const normalizedTransactionSearch = transactionSearch
+    .trim()
+    .toLocaleLowerCase(locale);
   const transactionListTransactions = data.transactions.filter(
-    (transaction) =>
-      (transactionConsultantFilter === "all" ||
+    (transaction) => {
+      const matchesConsultant =
+        transactionConsultantFilter === "all" ||
         (transactionConsultantFilter === "company" &&
           belongsToCompany(transaction)) ||
-        transaction.consultantId === transactionConsultantFilter) &&
-      transaction.date.startsWith(
-        transactionPeriod === "month"
-          ? transactionPeriodAnchor
-          : transactionPeriodAnchor.slice(0, 4),
-      ),
+        transaction.consultantId === transactionConsultantFilter;
+      const matchesPeriod = inFinancePeriod(
+        transaction.date,
+        transactionPeriod,
+        transactionPeriodAnchor,
+        transactionRangeFrom,
+        transactionRangeTo,
+      );
+      const searchable = [
+        t(transaction.direction),
+        categoryName(transaction.categoryId),
+        transactionTableDescription(transaction),
+      ]
+        .join(" ")
+        .toLocaleLowerCase(locale);
+      return (
+        matchesConsultant &&
+        matchesPeriod &&
+        (!normalizedTransactionSearch ||
+          searchable.includes(normalizedTransactionSearch))
+      );
+    },
   );
   const transactionListTotals = transactionListTransactions.reduce(
     (summary, transaction) => {
@@ -1094,6 +1161,8 @@ export function FinanceDashboard({
     scope: transactionConsultantFilter,
     period: transactionPeriod,
     anchor: transactionPeriodAnchor,
+    from: transactionRangeFrom,
+    to: transactionRangeTo,
   });
   const transactionFormHref = (path: string) =>
     `${path}?${new URLSearchParams({ returnTo: transactionReturnHref })}`;
@@ -1305,15 +1374,38 @@ export function FinanceDashboard({
                   <option value="month">{t("month")}</option>
                   <option value="year">{t("year")}</option>
                   <option value="all">{t("allTime")}</option>
+                  <option value="range">{t("customDateRange")}</option>
                 </select>
                 {chartPeriod === "month" && (
-                  <input
-                    className="field finance-period"
-                    type="month"
-                    aria-label={t("chartPeriod")}
-                    value={chartAnchor}
-                    onChange={(event) => setChartAnchor(event.target.value)}
-                  />
+                  <div className="month-stepper">
+                    <button
+                      className="button secondary month-step-button"
+                      type="button"
+                      aria-label={t("previousMonth")}
+                      title={t("previousMonth")}
+                      onClick={() =>
+                        setChartAnchor(shiftMonth(chartAnchor, -1))
+                      }
+                    >
+                      {"\u2039"}
+                    </button>
+                    <input
+                      className="field finance-period"
+                      type="month"
+                      aria-label={t("chartPeriod")}
+                      value={chartAnchor}
+                      onChange={(event) => setChartAnchor(event.target.value)}
+                    />
+                    <button
+                      className="button secondary month-step-button"
+                      type="button"
+                      aria-label={t("nextMonth")}
+                      title={t("nextMonth")}
+                      onClick={() => setChartAnchor(shiftMonth(chartAnchor, 1))}
+                    >
+                      {"\u203a"}
+                    </button>
+                  </div>
                 )}
                 {chartPeriod === "year" && (
                   <input
@@ -1327,6 +1419,34 @@ export function FinanceDashboard({
                       setChartAnchor(`${event.target.value}-01`)
                     }
                   />
+                )}
+                {chartPeriod === "range" && (
+                  <>
+                    <label className="compact-date-field">
+                      {t("fromDateInclusive")}
+                      <input
+                        className="field finance-period"
+                        type="date"
+                        max={chartRangeTo}
+                        value={chartRangeFrom}
+                        onChange={(event) =>
+                          setChartRangeFrom(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="compact-date-field">
+                      {t("toDateInclusive")}
+                      <input
+                        className="field finance-period"
+                        type="date"
+                        min={chartRangeFrom}
+                        value={chartRangeTo}
+                        onChange={(event) =>
+                          setChartRangeTo(event.target.value)
+                        }
+                      />
+                    </label>
+                  </>
                 )}
               </div>
             </div>
@@ -1342,6 +1462,8 @@ export function FinanceDashboard({
               locale={locale}
               period={chartPeriod}
               anchor={chartAnchor}
+              rangeFrom={chartRangeFrom}
+              rangeTo={chartRangeTo}
               mode={chartMode}
               categoryName={categoryName}
             />
@@ -1365,6 +1487,8 @@ export function FinanceDashboard({
               locale={locale}
               period={chartPeriod}
               anchor={chartAnchor}
+              rangeFrom={chartRangeFrom}
+              rangeTo={chartRangeTo}
               includeVat={includeVatInIncomeExpense}
             />
           </section>
@@ -1681,7 +1805,7 @@ export function FinanceDashboard({
               {t("addTransaction")}
             </Link>
           </div>
-          <section className="card finance-filter-bar finance-filter-bar-three">
+          <section className="card finance-filter-bar finance-filter-bar-wide">
             <label>
               {t("showFinancialDataFor")}
               <select
@@ -1706,25 +1830,60 @@ export function FinanceDashboard({
                 className="field"
                 value={transactionPeriod}
                 onChange={(event) =>
-                  setTransactionPeriod(event.target.value as "month" | "year")
+                  setTransactionPeriod(
+                    event.target.value as "month" | "year" | "range",
+                  )
                 }
               >
                 <option value="month">{t("month")}</option>
                 <option value="year">{t("year")}</option>
+                <option value="range">{t("customDateRange")}</option>
               </select>
             </label>
-            <label>
-              {t("chartPeriod")}
-              {transactionPeriod === "month" ? (
-                <input
-                  className="field"
-                  type="month"
-                  value={transactionPeriodAnchor}
-                  onChange={(event) =>
-                    setTransactionPeriodAnchor(event.target.value)
-                  }
-                />
-              ) : (
+            {transactionPeriod === "month" && (
+              <div className="finance-filter-control">
+                <span>{t("chartPeriod")}</span>
+                <div className="month-stepper">
+                  <button
+                    className="button secondary month-step-button"
+                    type="button"
+                    aria-label={t("previousMonth")}
+                    title={t("previousMonth")}
+                    onClick={() =>
+                      setTransactionPeriodAnchor(
+                        shiftMonth(transactionPeriodAnchor, -1),
+                      )
+                    }
+                  >
+                    {"\u2039"}
+                  </button>
+                  <input
+                    className="field"
+                    type="month"
+                    value={transactionPeriodAnchor}
+                    onChange={(event) =>
+                      setTransactionPeriodAnchor(event.target.value)
+                    }
+                  />
+                  <button
+                    className="button secondary month-step-button"
+                    type="button"
+                    aria-label={t("nextMonth")}
+                    title={t("nextMonth")}
+                    onClick={() =>
+                      setTransactionPeriodAnchor(
+                        shiftMonth(transactionPeriodAnchor, 1),
+                      )
+                    }
+                  >
+                    {"\u203a"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {transactionPeriod === "year" && (
+              <label>
+                {t("chartPeriod")}
                 <input
                   className="field"
                   type="number"
@@ -1735,7 +1894,45 @@ export function FinanceDashboard({
                     setTransactionPeriodAnchor(`${event.target.value}-01`)
                   }
                 />
-              )}
+              </label>
+            )}
+            {transactionPeriod === "range" && (
+              <>
+                <label>
+                  {t("fromDateInclusive")}
+                  <input
+                    className="field"
+                    type="date"
+                    max={transactionRangeTo}
+                    value={transactionRangeFrom}
+                    onChange={(event) =>
+                      setTransactionRangeFrom(event.target.value)
+                    }
+                  />
+                </label>
+                <label>
+                  {t("toDateInclusive")}
+                  <input
+                    className="field"
+                    type="date"
+                    min={transactionRangeFrom}
+                    value={transactionRangeTo}
+                    onChange={(event) =>
+                      setTransactionRangeTo(event.target.value)
+                    }
+                  />
+                </label>
+              </>
+            )}
+            <label>
+              {t("searchTransactions")}
+              <input
+                className="field"
+                type="search"
+                value={transactionSearch}
+                placeholder={t("searchTransactionsPlaceholder")}
+                onChange={(event) => setTransactionSearch(event.target.value)}
+              />
             </label>
           </section>
           <section
