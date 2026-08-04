@@ -104,13 +104,16 @@ export default async function FinancePage({
       : Promise.resolve(null),
   ]);
 
-  const transactionAttachmentNames = new Map<string, string[]>();
+  const transactionAttachments = new Map<
+    string,
+    Array<{ id: string; name: string }>
+  >();
   for (const document of financeAttachmentsSnapshot?.docs ?? []) {
     const data = document.data();
     if (data.entityType !== "transaction") continue;
-    const names = transactionAttachmentNames.get(String(data.entityId)) ?? [];
-    names.push(String(data.name));
-    transactionAttachmentNames.set(String(data.entityId), names);
+    const attachments = transactionAttachments.get(String(data.entityId)) ?? [];
+    attachments.push({ id: document.id, name: String(data.name) });
+    transactionAttachments.set(String(data.entityId), attachments);
   }
 
   const users: FinancePageData["users"] = (usersSnapshot?.docs ?? [])
@@ -183,7 +186,7 @@ export default async function FinancePage({
         status: data.status as "posted" | "reversal",
         reversedByTransactionId: data.reversedByTransactionId ?? null,
         createdAt: millis(data.createdAt),
-        attachmentNames: transactionAttachmentNames.get(document.id) ?? [],
+        attachments: transactionAttachments.get(document.id) ?? [],
       };
     })
     .filter((transaction) => manager || transaction.consultantId === actor.id)

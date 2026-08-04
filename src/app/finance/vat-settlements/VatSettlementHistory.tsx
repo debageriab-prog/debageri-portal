@@ -19,7 +19,7 @@ export type VatSettlementRow = {
   note: string;
   status: "active" | "reversed";
   reversalReason: string;
-  attachmentNames: string[];
+  attachments: Array<{ id: string; name: string }>;
 };
 
 export function VatSettlementHistory({
@@ -117,10 +117,19 @@ export function VatSettlementHistory({
                   </span>
                 </td>
                 <td>
-                  {settlement.attachmentNames.length ? (
-                    <span title={settlement.attachmentNames.join(", ")}>
-                      {settlement.attachmentNames.length}
-                    </span>
+                  {settlement.attachments.length ? (
+                    <ul className="table-attachment-list">
+                      {settlement.attachments.map((attachment) => (
+                        <li key={attachment.id}>
+                          <a
+                            className="text-link"
+                            href={`/api/finance/attachments/vatSettlement/${encodeURIComponent(settlement.id)}/${encodeURIComponent(attachment.id)}`}
+                          >
+                            {attachment.name}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
                   ) : (
                     "-"
                   )}

@@ -84,7 +84,7 @@ export interface FinancePageData {
     status: "posted" | "reversal";
     reversedByTransactionId: string | null;
     createdAt: number;
-    attachmentNames: string[];
+    attachments: Array<{ id: string; name: string }>;
   }>;
   agreements: Array<{
     id: string;
@@ -1814,10 +1814,19 @@ export function FinanceDashboard({
                     )}
                   </td>
                   <td>
-                    {transaction.attachmentNames.length ? (
-                      <span title={transaction.attachmentNames.join(", ")}>
-                        {transaction.attachmentNames.length}
-                      </span>
+                    {transaction.attachments.length ? (
+                      <ul className="table-attachment-list">
+                        {transaction.attachments.map((attachment) => (
+                          <li key={attachment.id}>
+                            <a
+                              className="text-link"
+                              href={`/api/finance/attachments/transaction/${encodeURIComponent(transaction.id)}/${encodeURIComponent(attachment.id)}`}
+                            >
+                              {attachment.name}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
                     ) : (
                       "-"
                     )}
