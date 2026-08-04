@@ -38,20 +38,44 @@ export async function uploadFinanceAttachments(
   return { ok: response.ok, error: result.error };
 }
 
+export async function saveFinanceAttachmentChanges(
+  entityType: FinanceEntityType,
+  entityId: string,
+  files: File[],
+  removedAttachmentIds: string[],
+) {
+  for (const attachmentId of removedAttachmentIds) {
+    const response = await appCheckFetch(
+      `/api/finance/attachments/${entityType}/${encodeURIComponent(entityId)}/${encodeURIComponent(attachmentId)}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) return { ok: false, error: "attachmentDeleteFailed" };
+  }
+  return uploadFinanceAttachments(entityType, entityId, files);
+}
+
 export function FinanceAttachments({
   entityType,
   entityId,
   files,
   onFilesChange,
+  removedAttachmentIds,
+  onRemovedAttachmentIdsChange,
 }: {
   entityType: FinanceEntityType;
   entityId?: string;
   files: File[];
   onFilesChange(files: File[]): void;
+  removedAttachmentIds: string[];
+  onRemovedAttachmentIdsChange(ids: string[]): void;
 }) {
   const { t } = useLocale();
   const [existing, setExisting] = useState<Attachment[]>([]);
   const [error, setError] = useState("");
+  const [confirmingRemoval, setConfirmingRemoval] = useState<Attachment | null>(
+    null,
+  );
+  const [confirmation, setConfirmation] = useState("");
 
   useEffect(() => {
     if (!entityId) return;
@@ -88,17 +112,9 @@ export function FinanceAttachments({
                   attachment.name,
                 )}
                 title={t("removeAttachment").replace("{name}", attachment.name)}
-                onClick={async () => {
-                  setError("");
-                  const response = await appCheckFetch(
-                    `/api/finance/attachments/${entityType}/${encodeURIComponent(entityId!)}/${attachment.id}`,
-                    { method: "DELETE" },
-                  );
-                  if (response.ok)
-                    setExisting((items) =>
-                      items.filter((item) => item.id !== attachment.id),
-                    );
-                  else setError(t("financeError_attachmentDeleteFailed"));
+                onClick={() => {
+                  setConfirmation("");
+                  setConfirmingRemoval(attachment);
                 }}
               >
                 <DeleteIcon />
@@ -162,6 +178,72 @@ export function FinanceAttachments({
         </>
       )}
       {error && <p className="notice notice-error">{error}</p>}
+      {confirmingRemoval && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="modal modal-small"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="attachment-delete-title"
+          >
+            <header className="modal-header">
+              <div>
+                <h2 id="attachment-delete-title">
+                  {t("removeAttachmentTitle")}
+                </h2>
+                <p>
+                  {t("removeAttachmentDescription").replace(
+                    "{name}",
+                    confirmingRemoval.name,
+                  )}
+                </p>
+              </div>
+            </header>
+            <label>
+              {t("typeAttachmentDeleteConfirmation").replace(
+                "{phrase}",
+                t("attachmentDeleteConfirmationPhrase"),
+              )}
+              <input
+                className="field"
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.target.value)}
+                autoComplete="off"
+                autoFocus
+              />
+            </label>
+            <footer className="modal-actions">
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => setConfirmingRemoval(null)}
+              >
+                {t("cancel")}
+              </button>
+              <button
+                className="button danger"
+                type="button"
+                disabled={
+                  confirmation !== t("attachmentDeleteConfirmationPhrase")
+                }
+                onClick={() => {
+                  setExisting((items) =>
+                    items.filter((item) => item.id !== confirmingRemoval.id),
+                  );
+                  onRemovedAttachmentIdsChange([
+                    ...removedAttachmentIds,
+                    confirmingRemoval.id,
+                  ]);
+                  setConfirmingRemoval(null);
+                  setConfirmation("");
+                }}
+              >
+                {t("removeAttachmentButton")}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
     </fieldset>
   );
 }

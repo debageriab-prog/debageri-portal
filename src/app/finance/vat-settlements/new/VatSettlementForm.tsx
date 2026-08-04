@@ -7,7 +7,7 @@ import { formatSek, parseSek } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
 import {
   FinanceAttachments,
-  uploadFinanceAttachments,
+  saveFinanceAttachmentChanges,
 } from "../../FinanceAttachments";
 
 function today() {
@@ -36,6 +36,9 @@ export function VatSettlementForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
+    [],
+  );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,10 +74,11 @@ export function VatSettlementForm({
         );
         return;
       }
-      const upload = await uploadFinanceAttachments(
+      const upload = await saveFinanceAttachmentChanges(
         "vatSettlement",
         settlement?.id ?? result.id ?? "",
         attachmentFiles,
+        removedAttachmentIds,
       );
       if (!upload.ok) {
         setError(
@@ -157,6 +161,8 @@ export function VatSettlementForm({
         entityId={settlement?.id}
         files={attachmentFiles}
         onFilesChange={setAttachmentFiles}
+        removedAttachmentIds={removedAttachmentIds}
+        onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
       />
       <label className="form-wide">
         {t("internalNote")}

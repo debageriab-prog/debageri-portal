@@ -15,7 +15,7 @@ import { FinanceCsvImport } from "./FinanceCsvImport";
 import { transactionMonthMismatch } from "./transaction-navigation";
 import {
   FinanceAttachments,
-  uploadFinanceAttachments,
+  saveFinanceAttachmentChanges,
 } from "./FinanceAttachments";
 
 type User = { id: string; displayName: string };
@@ -95,6 +95,7 @@ function useFinanceSubmit(successPath: string) {
       entityType: "transaction";
       entityId?: string;
       files: File[];
+      removedAttachmentIds: string[];
     },
   ) {
     setBusy(true);
@@ -117,11 +118,15 @@ function useFinanceSubmit(successPath: string) {
         setError(t(key));
         return;
       }
-      if (attachment?.files.length) {
-        const upload = await uploadFinanceAttachments(
+      if (
+        attachment &&
+        (attachment.files.length || attachment.removedAttachmentIds.length)
+      ) {
+        const upload = await saveFinanceAttachmentChanges(
           attachment.entityType,
           attachment.entityId ?? result.id ?? "",
           attachment.files,
+          attachment.removedAttachmentIds,
         );
         if (!upload.ok) {
           setError(
@@ -540,6 +545,9 @@ export function TransactionForm({
     transactionMonth: string;
   } | null>(null);
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
+    [],
+  );
   const { busy, error, submit } = useFinanceSubmit(returnHref);
   const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
   const amountSummary = useMemo(() => {
@@ -605,6 +613,7 @@ export function TransactionForm({
       entityType: "transaction",
       entityId: transaction?.id,
       files: attachmentFiles,
+      removedAttachmentIds,
     });
   }
   return (
@@ -789,6 +798,8 @@ export function TransactionForm({
           entityId={transaction?.id}
           files={attachmentFiles}
           onFilesChange={setAttachmentFiles}
+          removedAttachmentIds={removedAttachmentIds}
+          onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
         />
         <div className="form-wide actions">
           <button className="button" disabled={busy}>
@@ -849,6 +860,7 @@ export function TransactionForm({
                       entityType: "transaction",
                       entityId: transaction?.id,
                       files: attachmentFiles,
+                      removedAttachmentIds,
                     });
                   }}
                 >
