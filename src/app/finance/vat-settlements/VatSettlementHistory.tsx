@@ -126,37 +126,41 @@ export function VatSettlementHistory({
                   )}
                 </td>
                 <td>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    aria-label={t("viewDetails")}
-                    title={t("viewDetails")}
-                    onClick={() => setViewing(settlement)}
-                  >
-                    i
-                  </button>
-                  {settlement.status === "active" && (
-                    <Link
-                      className="table-action icon-action"
-                      aria-label={t("edit")}
-                      title={t("edit")}
-                      href={`/finance/vat-settlements/${encodeURIComponent(settlement.id)}/edit`}
-                    >
-                      <ActionIcon type="edit" />
-                    </Link>
-                  )}
-                  {settlement.status === "active" && (
+                  <div className="row-actions">
                     <button
-                      className="table-action table-action-danger"
+                      className="icon-button"
                       type="button"
-                      onClick={() => {
-                        setError("");
-                        setReversing(settlement);
-                      }}
+                      aria-label={t("viewDetails")}
+                      title={t("viewDetails")}
+                      onClick={() => setViewing(settlement)}
                     >
-                      {t("reverseVatPayment")}
+                      i
                     </button>
-                  )}
+                    {settlement.status === "active" && (
+                      <Link
+                        className="table-action icon-action"
+                        aria-label={t("edit")}
+                        title={t("edit")}
+                        href={`/finance/vat-settlements/${encodeURIComponent(settlement.id)}/edit`}
+                      >
+                        <ActionIcon type="edit" />
+                      </Link>
+                    )}
+                    {settlement.status === "active" && (
+                      <button
+                        className="table-action table-action-danger icon-action"
+                        type="button"
+                        aria-label={t("reverseVatPayment")}
+                        title={t("reverseVatPayment")}
+                        onClick={() => {
+                          setError("");
+                          setReversing(settlement);
+                        }}
+                      >
+                        <ActionIcon type="reverse" />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

@@ -1,4 +1,4 @@
-export type ActionIconType = "edit" | "delete" | "password";
+export type ActionIconType = "edit" | "delete" | "password" | "reverse";
 
 export function ActionIcon({ type }: { type: ActionIconType }) {
   if (type === "edit")
@@ -13,6 +13,12 @@ export function ActionIcon({ type }: { type: ActionIconType }) {
       <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
         <circle cx="8" cy="15" r="4" />
         <path d="m11 12 8-8m-3 3 3 3m-6 0 2 2" />
+      </svg>
+    );
+  if (type === "reverse")
+    return (
+      <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M4 9V4m0 0h5M4 4l4.2 4.2A7 7 0 1 1 6 15" />
       </svg>
     );
   return (

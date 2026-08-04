@@ -937,8 +937,11 @@ th {
 }
 
 .icon-button {
+  display: inline-grid;
   width: 2rem;
   height: 2rem;
+  padding: 0;
+  place-items: center;
   border: 1px solid var(--border);
   border-radius: 50%;
   background: transparent;
