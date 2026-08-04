@@ -501,11 +501,13 @@ function IncomeExpenseBarChart({
   locale,
   period,
   anchor,
+  includeVat,
 }: {
   transactions: FinancePageData["transactions"];
   locale: Actor["locale"];
   period: "month" | "year" | "all";
   anchor: string;
+  includeVat: boolean;
 }) {
   const { t } = useLocale();
   const [hoveredBar, setHoveredBar] = useState<{
@@ -526,13 +528,21 @@ function IncomeExpenseBarChart({
       0,
       items
         .filter((transaction) => transaction.direction === "income")
-        .reduce((sum, transaction) => sum + transaction.netMinor, 0),
+        .reduce(
+          (sum, transaction) =>
+            sum + (includeVat ? transaction.grossMinor : transaction.netMinor),
+          0,
+        ),
     ),
     expense: Math.max(
       0,
       items
         .filter((transaction) => transaction.direction === "expense")
-        .reduce((sum, transaction) => sum + transaction.netMinor, 0),
+        .reduce(
+          (sum, transaction) =>
+            sum + (includeVat ? transaction.grossMinor : transaction.netMinor),
+          0,
+        ),
     ),
   });
   const groups =
@@ -887,6 +897,8 @@ export function FinanceDashboard({
     "month",
   );
   const [chartAnchor, setChartAnchor] = useState(today().slice(0, 7));
+  const [includeVatInIncomeExpense, setIncludeVatInIncomeExpense] =
+    useState(false);
   const [selectedConsultant, setSelectedConsultant] = useState(
     manager ? "all" : actor.id,
   );
@@ -1046,6 +1058,24 @@ export function FinanceDashboard({
           : transactionPeriodAnchor.slice(0, 4),
       ),
   );
+  const transactionListTotals = transactionListTransactions.reduce(
+    (summary, transaction) => {
+      if (transaction.direction === "income") {
+        summary.incomeNetMinor += transaction.netMinor;
+        summary.incomeGrossMinor += transaction.grossMinor;
+      } else {
+        summary.expenseNetMinor += transaction.netMinor;
+        summary.expenseGrossMinor += transaction.grossMinor;
+      }
+      return summary;
+    },
+    {
+      incomeNetMinor: 0,
+      incomeGrossMinor: 0,
+      expenseNetMinor: 0,
+      expenseGrossMinor: 0,
+    },
+  );
   const transactionDeleteProtection = (
     transaction: FinancePageData["transactions"][number],
   ) =>
@@ -1200,29 +1230,36 @@ export function FinanceDashboard({
                 )}
               </strong>
             </div>
-            <div className="metric">
-              <span>
-                {manager
-                  ? selectedConsultant === "company"
-                    ? t("companyBalance")
-                    : t("consultantLiability")
-                  : t("remainingBalance")}
-              </span>
-              <strong>
-                {formatSek(
-                  selectedConsultant === "all"
-                    ? consultantLiability
-                    : totals.balanceMinor,
-                  locale,
-                )}
-              </strong>
-            </div>
+            {(selectedConsultant === "all" ||
+              selectedConsultant === "company" ||
+              selectedModel !== "fixed") && (
+              <div className="metric">
+                <span>
+                  {manager
+                    ? selectedConsultant === "company"
+                      ? t("companyBalance")
+                      : t("consultantLiability")
+                    : t("remainingBalance")}
+                </span>
+                <strong>
+                  {formatSek(
+                    selectedConsultant === "all"
+                      ? consultantLiability
+                      : totals.balanceMinor,
+                    locale,
+                  )}
+                </strong>
+              </div>
+            )}
             {manager && (
               <>
-                <div className="metric">
-                  <span>{t("vatPayable")}</span>
-                  <strong>{formatSek(organizationVatPayable, locale)}</strong>
-                </div>
+                {(selectedConsultant === "all" ||
+                  selectedConsultant === "company") && (
+                  <div className="metric">
+                    <span>{t("vatPayable")}</span>
+                    <strong>{formatSek(organizationVatPayable, locale)}</strong>
+                  </div>
+                )}
                 <div className="metric">
                   <span>{t("retainedResult")}</span>
                   <strong>
@@ -1304,12 +1341,25 @@ export function FinanceDashboard({
             />
           </section>
           <section className="card finance-chart-card">
-            <h2>{t("incomeExpenseChart")}</h2>
+            <div className="week-head">
+              <h2>{t("incomeExpenseChart")}</h2>
+              <label className="checkbox-row finance-chart-vat-toggle">
+                <input
+                  type="checkbox"
+                  checked={includeVatInIncomeExpense}
+                  onChange={(event) =>
+                    setIncludeVatInIncomeExpense(event.target.checked)
+                  }
+                />
+                <span>{t("includeVat")}</span>
+              </label>
+            </div>
             <IncomeExpenseBarChart
               transactions={visibleTransactions}
               locale={locale}
               period={chartPeriod}
               anchor={chartAnchor}
+              includeVat={includeVatInIncomeExpense}
             />
           </section>
           {chartPeriod !== "all" && (
@@ -1677,6 +1727,35 @@ export function FinanceDashboard({
                 />
               )}
             </label>
+          </section>
+          <section
+            className="transaction-period-summary"
+            aria-label={t("periodTotals")}
+          >
+            <div>
+              <span>{t("totalIncomeExcludingVat")}</span>
+              <strong>
+                {formatSek(transactionListTotals.incomeNetMinor, locale)}
+              </strong>
+            </div>
+            <div>
+              <span>{t("totalIncomeIncludingVat")}</span>
+              <strong>
+                {formatSek(transactionListTotals.incomeGrossMinor, locale)}
+              </strong>
+            </div>
+            <div>
+              <span>{t("totalExpensesExcludingVat")}</span>
+              <strong>
+                {formatSek(transactionListTotals.expenseNetMinor, locale)}
+              </strong>
+            </div>
+            <div>
+              <span>{t("totalExpensesIncludingVat")}</span>
+              <strong>
+                {formatSek(transactionListTotals.expenseGrossMinor, locale)}
+              </strong>
+            </div>
           </section>
         </>
       )}
