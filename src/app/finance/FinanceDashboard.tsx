@@ -134,6 +134,10 @@ function shiftMonth(month: string, offset: number) {
   return value.toISOString().slice(0, 7);
 }
 
+function dateValue(date: string) {
+  return new Date(`${date}T00:00:00Z`).getTime();
+}
+
 function BalanceChart({
   transactions,
   locale,
@@ -180,6 +184,8 @@ function BalanceChart({
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const daysInYear =
     new Date(Date.UTC(year, 1, 29)).getUTCDate() === 29 ? 366 : 365;
+  const rangeStart = dateValue(rangeFrom);
+  const rangeDuration = Math.max(86_400_000, dateValue(rangeTo) - rangeStart);
   const dayOfYear = (date: string) => {
     const value = new Date(`${date}T00:00:00Z`);
     return (
@@ -208,7 +214,9 @@ function BalanceChart({
         ? Number(transaction.date.slice(8, 10)) / daysInMonth
         : period === "year"
           ? (dayOfYear(transaction.date) - 0.5) / daysInYear
-          : (index + 1) / Math.max(1, sorted.length);
+          : period === "range"
+            ? (dateValue(transaction.date) - rangeStart) / rangeDuration
+            : (index + 1) / Math.max(1, sorted.length);
     return [...points, { transaction, change, balance, xRatio }];
   }, []);
   const chartPoints = transactionPoints.filter(
@@ -243,6 +251,21 @@ function BalanceChart({
     { length: 5 },
     (_, index) => min + (range * index) / 4,
   );
+  const rangeTicks = Array.from({ length: 5 }, (_, index) => {
+    const ratio = index / 4;
+    const value = new Date(rangeStart + rangeDuration * ratio);
+    return {
+      ratio,
+      label: new Intl.DateTimeFormat(locale, {
+        month: "short",
+        day: "numeric",
+        ...(value.getUTCFullYear() !== new Date(rangeStart).getUTCFullYear()
+          ? { year: "numeric" }
+          : {}),
+        timeZone: "UTC",
+      }).format(value),
+    };
+  });
   const allXTicks =
     period === "month"
       ? [0, 5, 10, 15, 20, 25, daysInMonth]
@@ -262,12 +285,14 @@ function BalanceChart({
               daysInYear,
             label: String(index + 1),
           }))
-        : [
-            { ratio: 0, label: "0" },
-            ...(sorted.length
-              ? [{ ratio: 1, label: sorted.at(-1)?.date ?? "" }]
-              : []),
-          ];
+        : period === "range"
+          ? rangeTicks
+          : [
+              { ratio: 0, label: "0" },
+              ...(sorted.length
+                ? [{ ratio: 1, label: sorted.at(-1)?.date ?? "" }]
+                : []),
+            ];
   const xTicks = allXTicks.filter(
     (tick) => tick.ratio >= zoom.start && tick.ratio <= zoom.end,
   );
@@ -958,6 +983,25 @@ export function FinanceDashboard({
     initialTransactionListState.to,
   );
   const [transactionSearch, setTransactionSearch] = useState("");
+  const changeChartRangeFrom = (value: string) => {
+    setChartRangeFrom(value);
+    if (value && chartRangeTo && value > chartRangeTo) setChartRangeTo(value);
+  };
+  const changeChartRangeTo = (value: string) => {
+    setChartRangeTo(value);
+    if (value && chartRangeFrom && value < chartRangeFrom)
+      setChartRangeFrom(value);
+  };
+  const changeTransactionRangeFrom = (value: string) => {
+    setTransactionRangeFrom(value);
+    if (value && transactionRangeTo && value > transactionRangeTo)
+      setTransactionRangeTo(value);
+  };
+  const changeTransactionRangeTo = (value: string) => {
+    setTransactionRangeTo(value);
+    if (value && transactionRangeFrom && value < transactionRangeFrom)
+      setTransactionRangeFrom(value);
+  };
   const [endingAgreement, setEndingAgreement] = useState<
     FinancePageData["agreements"][number] | null
   >(null);
@@ -1373,8 +1417,8 @@ export function FinanceDashboard({
                 >
                   <option value="month">{t("month")}</option>
                   <option value="year">{t("year")}</option>
-                  <option value="all">{t("allTime")}</option>
                   <option value="range">{t("customDateRange")}</option>
+                  <option value="all">{t("allTime")}</option>
                 </select>
                 {chartPeriod === "month" && (
                   <div className="month-stepper">
@@ -1427,10 +1471,9 @@ export function FinanceDashboard({
                       <input
                         className="field finance-period"
                         type="date"
-                        max={chartRangeTo}
                         value={chartRangeFrom}
                         onChange={(event) =>
-                          setChartRangeFrom(event.target.value)
+                          changeChartRangeFrom(event.target.value)
                         }
                       />
                     </label>
@@ -1439,10 +1482,9 @@ export function FinanceDashboard({
                       <input
                         className="field finance-period"
                         type="date"
-                        min={chartRangeFrom}
                         value={chartRangeTo}
                         onChange={(event) =>
-                          setChartRangeTo(event.target.value)
+                          changeChartRangeTo(event.target.value)
                         }
                       />
                     </label>
@@ -1903,10 +1945,9 @@ export function FinanceDashboard({
                   <input
                     className="field"
                     type="date"
-                    max={transactionRangeTo}
                     value={transactionRangeFrom}
                     onChange={(event) =>
-                      setTransactionRangeFrom(event.target.value)
+                      changeTransactionRangeFrom(event.target.value)
                     }
                   />
                 </label>
@@ -1915,10 +1956,9 @@ export function FinanceDashboard({
                   <input
                     className="field"
                     type="date"
-                    min={transactionRangeFrom}
                     value={transactionRangeTo}
                     onChange={(event) =>
-                      setTransactionRangeTo(event.target.value)
+                      changeTransactionRangeTo(event.target.value)
                     }
                   />
                 </label>

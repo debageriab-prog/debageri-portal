@@ -1483,6 +1483,12 @@ th {
 .finance-chart-controls .week-head {
   margin-bottom: 0;
 }
+.finance-chart-controls .actions {
+  align-items: flex-end;
+}
+.finance-chart-controls .actions > select {
+  align-self: flex-end;
+}
 .finance-period {
   width: auto;
   min-width: 140px;
