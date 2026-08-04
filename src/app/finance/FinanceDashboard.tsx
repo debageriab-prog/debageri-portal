@@ -98,7 +98,7 @@ export interface FinancePageData {
   vatSettlements: Array<{
     id: string;
     amountMinor: number;
-    paymentDate: string;
+    periodTo: string;
     status: "active" | "reversed";
   }>;
 }
@@ -1092,16 +1092,16 @@ export function FinanceDashboard({
   );
   const visibleVatSettlements = data.vatSettlements.filter((settlement) =>
     inFinancePeriod(
-      settlement.paymentDate,
+      settlement.periodTo,
       chartPeriod,
       chartAnchor,
       chartRangeFrom,
       chartRangeTo,
     ),
   );
-  const organizationVatPayable = vatPayableMinor(
-    visibleOverviewTransactions,
-    visibleVatSettlements,
+  const organizationVatPayable = Math.max(
+    0,
+    vatPayableMinor(visibleOverviewTransactions, visibleVatSettlements),
   );
   const earnedShare = visibleOverviewTransactions.reduce(
     (sum, item) => sum + Math.max(0, item.consultantBalanceDeltaMinor),
