@@ -13,6 +13,10 @@ import {
 import { appCheckFetch } from "@/lib/firebase/client";
 import { FinanceCsvImport } from "./FinanceCsvImport";
 import { transactionMonthMismatch } from "./transaction-navigation";
+import {
+  FinanceAttachments,
+  uploadFinanceAttachments,
+} from "./FinanceAttachments";
 
 type User = { id: string; displayName: string };
 type Customer = { id: string; name: string };
@@ -85,7 +89,14 @@ function useFinanceSubmit(successPath: string) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  async function submit(payload: Record<string, unknown>) {
+  async function submit(
+    payload: Record<string, unknown>,
+    attachment?: {
+      entityType: "transaction";
+      entityId?: string;
+      files: File[];
+    },
+  ) {
     setBusy(true);
     setError("");
     try {
@@ -96,6 +107,7 @@ function useFinanceSubmit(successPath: string) {
       });
       const result = (await response.json().catch(() => ({}))) as {
         error?: string;
+        id?: string;
       };
       if (!response.ok) {
         const key =
@@ -104,6 +116,23 @@ function useFinanceSubmit(successPath: string) {
           >[0];
         setError(t(key));
         return;
+      }
+      if (attachment?.files.length) {
+        const upload = await uploadFinanceAttachments(
+          attachment.entityType,
+          attachment.entityId ?? result.id ?? "",
+          attachment.files,
+        );
+        if (!upload.ok) {
+          setError(
+            t(
+              `financeError_${upload.error ?? "attachmentUploadFailed"}` as Parameters<
+                typeof t
+              >[0],
+            ),
+          );
+          return;
+        }
       }
       router.push(successPath);
       router.refresh();
@@ -510,6 +539,7 @@ export function TransactionForm({
     viewMonth: string;
     transactionMonth: string;
   } | null>(null);
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const { busy, error, submit } = useFinanceSubmit(returnHref);
   const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
   const amountSummary = useMemo(() => {
@@ -571,7 +601,11 @@ export function TransactionForm({
       setPendingMonthMismatch({ payload, ...mismatch });
       return;
     }
-    void submit(payload);
+    void submit(payload, {
+      entityType: "transaction",
+      entityId: transaction?.id,
+      files: attachmentFiles,
+    });
   }
   return (
     <FormPage
@@ -750,6 +784,12 @@ export function TransactionForm({
             <strong>{formatSek(amountSummary.grossMinor, locale)}</strong>
           </div>
         </div>
+        <FinanceAttachments
+          entityType="transaction"
+          entityId={transaction?.id}
+          files={attachmentFiles}
+          onFilesChange={setAttachmentFiles}
+        />
         <div className="form-wide actions">
           <button className="button" disabled={busy}>
             {transaction ? t("saveChanges") : t("postTransaction")}
@@ -805,7 +845,11 @@ export function TransactionForm({
                   onClick={() => {
                     const payload = pendingMonthMismatch.payload;
                     setPendingMonthMismatch(null);
-                    void submit(payload);
+                    void submit(payload, {
+                      entityType: "transaction",
+                      entityId: transaction?.id,
+                      files: attachmentFiles,
+                    });
                   }}
                 >
                   {t("continuePosting")}
