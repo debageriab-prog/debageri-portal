@@ -1341,7 +1341,7 @@ export function FinanceDashboard({
             />
           </section>
           <section className="card finance-chart-card">
-            <div className="week-head">
+            <div className="finance-income-expense-heading">
               <h2>{t("incomeExpenseChart")}</h2>
               <label className="checkbox-row finance-chart-vat-toggle">
                 <input

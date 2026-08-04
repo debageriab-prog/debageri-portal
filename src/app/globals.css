@@ -1551,6 +1551,15 @@ th {
   width: fit-content;
   margin: 0;
 }
+.finance-income-expense-heading {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.finance-income-expense-heading h2 {
+  margin: 0;
+}
 .finance-expense-category-bar {
   fill: var(--danger);
   opacity: 0.82;
