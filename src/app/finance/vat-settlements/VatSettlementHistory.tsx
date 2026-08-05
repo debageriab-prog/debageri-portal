@@ -6,7 +6,10 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { formatSek } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
-import { AttachmentDownloads } from "../FinanceAttachments";
+import {
+  AttachmentDownloadLink,
+  AttachmentDownloads,
+} from "../FinanceAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 
 export type VatSettlementRow = {
@@ -121,12 +124,12 @@ export function VatSettlementHistory({
                     <ul className="table-attachment-list">
                       {settlement.attachments.map((attachment) => (
                         <li key={attachment.id}>
-                          <a
-                            className="text-link"
-                            href={`/api/finance/attachments/vatSettlement/${encodeURIComponent(settlement.id)}/${encodeURIComponent(attachment.id)}`}
-                          >
-                            {attachment.name}
-                          </a>
+                          <AttachmentDownloadLink
+                            entityType="vatSettlement"
+                            entityId={settlement.id}
+                            attachmentId={attachment.id}
+                            name={attachment.name}
+                          />
                         </li>
                       ))}
                     </ul>

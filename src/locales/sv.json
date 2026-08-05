@@ -610,5 +610,6 @@
   "financeError_attachmentType": "Bifoga endast PDF-, EML-, JPEG-, PNG- eller WebP-filer.",
   "financeError_attachmentUploadFailed": "Posten sparades, men filerna kunde inte laddas upp. Redigera posten och försök igen.",
   "financeError_attachmentLoadFailed": "De bifogade filerna kunde inte läsas in.",
+  "financeError_attachmentDownloadFailed": "Bilagan kunde inte hämtas.",
   "financeError_attachmentDeleteFailed": "Den bifogade filen kunde inte tas bort."
 }
