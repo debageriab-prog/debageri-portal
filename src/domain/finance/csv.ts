@@ -1,5 +1,28 @@
 export type CsvRow = Record<string, string>;
 
+function splitRecords(source: string) {
+  const records: string[] = [];
+  let record = "";
+  let quoted = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index]!;
+    if (character === '"') {
+      record += character;
+      if (quoted && source[index + 1] === '"') {
+        record += source[index + 1];
+        index += 1;
+      } else quoted = !quoted;
+    } else if ((character === "\n" || character === "\r") && !quoted) {
+      if (record.trim()) records.push(record);
+      record = "";
+      if (character === "\r" && source[index + 1] === "\n") index += 1;
+    } else record += character;
+  }
+  if (quoted) throw new Error("Unclosed quoted CSV field");
+  if (record.trim()) records.push(record);
+  return records;
+}
+
 function parseLine(line: string) {
   const values: string[] = [];
   let value = "";
@@ -22,10 +45,7 @@ function parseLine(line: string) {
 }
 
 export function parseFinanceCsv(source: string): CsvRow[] {
-  const lines = source
-    .replace(/^\uFEFF/, "")
-    .split(/\r?\n/)
-    .filter((line) => line.trim());
+  const lines = splitRecords(source.replace(/^\uFEFF/, ""));
   if (lines.length < 2)
     throw new Error("CSV must contain a header and at least one row");
   const headers = parseLine(lines[0]!).map((header) => header.toLowerCase());
@@ -70,6 +90,24 @@ export const transactionCsvHeaders = [
   "internal_note",
 ] as const;
 
+export const transactionExportCsvHeaders = [
+  "direction",
+  ...transactionCsvHeaders,
+] as const;
+
 export function missingHeaders(row: CsvRow, required: readonly string[]) {
   return required.filter((header) => !(header in row));
+}
+
+function escapeCsvValue(value: string) {
+  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+}
+
+export function createFinanceCsv(headers: readonly string[], rows: CsvRow[]) {
+  return [
+    headers.join(","),
+    ...rows.map((row) =>
+      headers.map((header) => escapeCsvValue(row[header] ?? "")).join(","),
+    ),
+  ].join("\r\n");
 }

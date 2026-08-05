@@ -3,10 +3,14 @@
 import { ChangeEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
-import { invoiceCsvHeaders, transactionCsvHeaders } from "@/domain/finance/csv";
+import {
+  invoiceCsvHeaders,
+  transactionCsvHeaders,
+  transactionExportCsvHeaders,
+} from "@/domain/finance/csv";
 import { appCheckFetch } from "@/lib/firebase/client";
 
-type Kind = "invoices" | "income" | "expenses";
+type Kind = "invoices" | "transactions" | "income" | "expenses";
 type Preview = {
   ok: boolean;
   rows: number;
@@ -73,7 +77,11 @@ export function FinanceCsvImport({
 
   function downloadTemplate() {
     const headers =
-      kind === "invoices" ? invoiceCsvHeaders : transactionCsvHeaders;
+      kind === "invoices"
+        ? invoiceCsvHeaders
+        : kind === "transactions"
+          ? transactionExportCsvHeaders
+          : transactionCsvHeaders;
     const blob = new Blob([`${headers.join(",")}\n`], {
       type: "text/csv;charset=utf-8",
     });
@@ -107,6 +115,11 @@ export function FinanceCsvImport({
             )}
             {allowedKinds.includes("expenses") && (
               <option value="expenses">{t("expenses")}</option>
+            )}
+            {allowedKinds.includes("transactions") && (
+              <option value="transactions">
+                {t("incomeExpenseManagement")}
+              </option>
             )}
           </select>
         </label>

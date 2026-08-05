@@ -96,6 +96,7 @@ export function transactionTableDescription(
   >,
 ) {
   if (transaction.visibleDescription) return transaction.visibleDescription;
+  if (transaction.direction === "income") return transaction.internalNote;
   if (
     transaction.consultantId === null &&
     transaction.direction === "expense" &&

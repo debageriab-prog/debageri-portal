@@ -9,6 +9,16 @@ import {
 } from "@/app/finance/transaction-navigation";
 
 describe("transaction list navigation", () => {
+  it("preserves the all-time period", () => {
+    const state = transactionListState(
+      new URLSearchParams("period=all&scope=company"),
+      "2026-08",
+    );
+
+    expect(state.period).toBe("all");
+    expect(transactionListHref(state)).toContain("period=all");
+  });
+
   it("round-trips the selected scope and period", () => {
     const href = transactionListHref({
       scope: "consultant-1",
