@@ -968,7 +968,11 @@ export function ImportPage({ kind }: { kind: "invoices" | "transactions" }) {
 function FinanceImport({ kind }: { kind: "invoices" | "transactions" }) {
   return (
     <FinanceCsvImport
-      allowedKinds={kind === "invoices" ? ["invoices"] : ["income", "expenses"]}
+      allowedKinds={
+        kind === "invoices"
+          ? ["invoices"]
+          : ["transactions", "income", "expenses"]
+      }
     />
   );
 }

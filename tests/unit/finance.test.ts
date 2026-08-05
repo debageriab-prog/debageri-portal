@@ -233,6 +233,18 @@ describe("finance calculations", () => {
     ).toBe("Consultant-visible description");
   });
 
+  it("uses an invoice income internal note when its description is empty", () => {
+    expect(
+      transactionTableDescription({
+        consultantId: null,
+        direction: "income",
+        funding: null,
+        visibleDescription: "",
+        internalNote: "Invoice note",
+      }),
+    ).toBe("Invoice note");
+  });
+
   it("groups positive net expenses by category and omits zero totals", () => {
     expect(
       expenseTotalsByCategory([

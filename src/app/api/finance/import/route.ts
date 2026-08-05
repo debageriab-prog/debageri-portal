@@ -7,6 +7,7 @@ import {
   invoiceCsvHeaders,
   missingHeaders,
   parseFinanceCsv,
+  transactionExportCsvHeaders,
   transactionCsvHeaders,
 } from "@/domain/finance/csv";
 import { parseSek } from "@/domain/finance/calculations";
@@ -18,7 +19,7 @@ import {
 } from "@/server/services/finance-service";
 
 const requestSchema = z.object({
-  kind: z.enum(["invoices", "income", "expenses"]),
+  kind: z.enum(["invoices", "transactions", "income", "expenses"]),
   csv: z.string().min(1).max(2_000_000),
   commit: z.boolean(),
 });
@@ -49,7 +50,9 @@ export async function POST(request: Request) {
     const required =
       parsedRequest.data.kind === "invoices"
         ? invoiceCsvHeaders
-        : transactionCsvHeaders;
+        : parsedRequest.data.kind === "transactions"
+          ? transactionExportCsvHeaders
+          : transactionCsvHeaders;
     const missing = missingHeaders(rows[0]!, required);
     if (missing.length)
       return NextResponse.json(
@@ -112,7 +115,10 @@ export async function POST(request: Request) {
     );
     const transactionImportKeys = new Set(
       transactions.docs
-        .map((document) => String(document.data().importKey ?? ""))
+        .flatMap((document) => [
+          document.id,
+          String(document.data().importKey ?? ""),
+        ])
         .filter(Boolean),
     );
     const hasAgreement = (userId: string, date: string) =>
@@ -142,7 +148,13 @@ export async function POST(request: Request) {
           : value("category_code"),
       );
       const direction =
-        parsedRequest.data.kind === "expenses" ? "expense" : "income";
+        parsedRequest.data.kind === "transactions"
+          ? value("direction")
+          : parsedRequest.data.kind === "expenses"
+            ? "expense"
+            : "income";
+      if (!["income", "expense"].includes(direction))
+        errors.push({ row: rowNumber, message: "importRowDirectionInvalid" });
       if (!importKey)
         errors.push({ row: rowNumber, message: "importRowKeyRequired" });
       else if (fileKeys.has(importKey))

@@ -1,4 +1,4 @@
-export type TransactionPeriod = "month" | "year" | "range";
+export type TransactionPeriod = "month" | "year" | "all" | "range";
 
 type SearchParamsReader = { get(name: string): string | null };
 
@@ -8,7 +8,9 @@ export function transactionListState(
 ) {
   const requestedPeriod = searchParams.get("period");
   const period: TransactionPeriod =
-    requestedPeriod === "year" || requestedPeriod === "range"
+    requestedPeriod === "year" ||
+    requestedPeriod === "all" ||
+    requestedPeriod === "range"
       ? requestedPeriod
       : "month";
   const requestedAnchor = searchParams.get("anchor") ?? "";
