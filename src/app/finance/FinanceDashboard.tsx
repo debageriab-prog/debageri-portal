@@ -28,7 +28,10 @@ import {
   transactionListHref,
   transactionListState,
 } from "./transaction-navigation";
-import { AttachmentDownloads } from "./FinanceAttachments";
+import {
+  AttachmentDownloadLink,
+  AttachmentDownloads,
+} from "./FinanceAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import {
   createFinanceCsv,
@@ -2146,12 +2149,12 @@ export function FinanceDashboard({
                       <ul className="table-attachment-list">
                         {transaction.attachments.map((attachment) => (
                           <li key={attachment.id}>
-                            <a
-                              className="text-link"
-                              href={`/api/finance/attachments/transaction/${encodeURIComponent(transaction.id)}/${encodeURIComponent(attachment.id)}`}
-                            >
-                              {attachment.name}
-                            </a>
+                            <AttachmentDownloadLink
+                              entityType="transaction"
+                              entityId={transaction.id}
+                              attachmentId={attachment.id}
+                              name={attachment.name}
+                            />
                           </li>
                         ))}
                       </ul>

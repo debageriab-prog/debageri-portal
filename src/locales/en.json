@@ -610,5 +610,6 @@
   "financeError_attachmentType": "Attach PDF, EML, JPEG, PNG or WebP files only.",
   "financeError_attachmentUploadFailed": "The record was saved, but its files could not be uploaded. Edit the record to try again.",
   "financeError_attachmentLoadFailed": "The attached files could not be loaded.",
+  "financeError_attachmentDownloadFailed": "The attachment could not be downloaded.",
   "financeError_attachmentDeleteFailed": "The attached file could not be removed."
 }

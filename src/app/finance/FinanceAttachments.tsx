@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { appCheckFetch } from "@/lib/firebase/client";
 
@@ -11,6 +11,68 @@ type Attachment = {
   size: number;
   contentType: string;
 };
+
+export function AttachmentDownloadLink({
+  entityType,
+  entityId,
+  attachmentId,
+  name,
+  className = "text-link",
+  children,
+}: {
+  entityType: FinanceEntityType;
+  entityId: string;
+  attachmentId: string;
+  name: string;
+  className?: string;
+  children?: ReactNode;
+}) {
+  const { t } = useLocale();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  const href = `/api/finance/attachments/${entityType}/${encodeURIComponent(entityId)}/${encodeURIComponent(attachmentId)}`;
+  const label = t("downloadAttachment").replace("{name}", name);
+
+  return (
+    <>
+      <a
+        className={className}
+        href={href}
+        aria-label={label}
+        aria-disabled={busy}
+        title={label}
+        onClick={(event) => {
+          event.preventDefault();
+          if (busy) return;
+          setBusy(true);
+          setError(false);
+          void appCheckFetch(href)
+            .then(async (response) => {
+              if (!response.ok) throw new Error("download failed");
+              const url = URL.createObjectURL(await response.blob());
+              const download = document.createElement("a");
+              download.href = url;
+              download.download = name;
+              download.click();
+              window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+            })
+            .catch(() => setError(true))
+            .finally(() => setBusy(false));
+        }}
+      >
+        {children ?? name}
+      </a>
+      {error && (
+        <span
+          className="notice notice-error attachment-download-notice"
+          role="alert"
+        >
+          {t("financeError_attachmentDownloadFailed")}
+        </span>
+      )}
+    </>
+  );
+}
 
 function DeleteIcon() {
   return (
@@ -98,12 +160,12 @@ export function FinanceAttachments({
         <ul className="attachment-list editable-attachment-list">
           {existing.map((attachment) => (
             <li key={attachment.id}>
-              <a
-                className="text-link"
-                href={`/api/finance/attachments/${entityType}/${encodeURIComponent(entityId!)}/${attachment.id}`}
-              >
-                {attachment.name}
-              </a>
+              <AttachmentDownloadLink
+                entityType={entityType}
+                entityId={entityId!}
+                attachmentId={attachment.id}
+                name={attachment.name}
+              />
               <button
                 className="attachment-remove"
                 type="button"
@@ -277,14 +339,12 @@ export function AttachmentDownloads({
           {items.map((item) => (
             <li key={item.id}>
               <span>{item.name}</span>
-              <a
+              <AttachmentDownloadLink
                 className="attachment-download"
-                href={`/api/finance/attachments/${entityType}/${encodeURIComponent(entityId)}/${item.id}`}
-                aria-label={t("downloadAttachment").replace(
-                  "{name}",
-                  item.name,
-                )}
-                title={t("downloadAttachment").replace("{name}", item.name)}
+                entityType={entityType}
+                entityId={entityId}
+                attachmentId={item.id}
+                name={item.name}
               >
                 <svg
                   aria-hidden="true"
@@ -294,7 +354,7 @@ export function AttachmentDownloads({
                 >
                   <path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14" />
                 </svg>
-              </a>
+              </AttachmentDownloadLink>
             </li>
           ))}
         </ul>
