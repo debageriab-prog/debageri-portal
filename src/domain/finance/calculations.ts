@@ -60,6 +60,19 @@ export function belongsToCompany(transaction: TransactionScopeInput) {
   );
 }
 
+export function belongsToConsultant(
+  transaction: Pick<
+    FinancialTransaction,
+    "consultantId" | "direction" | "funding"
+  >,
+  consultantId: string,
+) {
+  return (
+    transaction.consultantId === consultantId &&
+    !(transaction.direction === "expense" && transaction.funding === "company")
+  );
+}
+
 export function companyBalanceDeltaMinor(transaction: TransactionScopeInput) {
   if (transaction.consultantId === null)
     return transaction.consultantBalanceDeltaMinor;
@@ -71,13 +84,13 @@ export function companyBalanceDeltaMinor(transaction: TransactionScopeInput) {
 export function belongsToFixedConsultantResult(
   transaction: Pick<
     FinancialTransaction,
-    "consultantId" | "direction" | "invoiceId"
+    "consultantId" | "direction" | "funding" | "invoiceId"
   >,
   consultantId: string,
   invoiceConsultantId: string | null,
 ) {
   return (
-    transaction.consultantId === consultantId ||
+    belongsToConsultant(transaction, consultantId) ||
     (transaction.consultantId === null &&
       transaction.direction === "income" &&
       transaction.invoiceId !== null &&

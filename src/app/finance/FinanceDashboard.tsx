@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
   belongsToCompany,
+  belongsToConsultant,
   belongsToFixedConsultantResult,
   calculateShareMinor,
   companyOutstandingInvoiceShareMinor,
@@ -1052,7 +1053,7 @@ export function FinanceDashboard({
           ? data.transactions.filter(belongsToCompany)
           : data.transactions.filter(
               (item) =>
-                item.consultantId === selectedConsultant ||
+                belongsToConsultant(item, selectedConsultant) ||
                 (manager &&
                   selectedModel === "fixed" &&
                   belongsToFixedConsultantResult(
@@ -1161,7 +1162,9 @@ export function FinanceDashboard({
         transactionConsultantFilter === "all" ||
         (transactionConsultantFilter === "company" &&
           belongsToCompany(transaction)) ||
-        transaction.consultantId === transactionConsultantFilter;
+        (transactionConsultantFilter !== "all" &&
+          transactionConsultantFilter !== "company" &&
+          belongsToConsultant(transaction, transactionConsultantFilter));
       const matchesPeriod = inFinancePeriod(
         transaction.date,
         transactionPeriod,
