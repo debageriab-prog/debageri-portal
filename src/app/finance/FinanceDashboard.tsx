@@ -500,7 +500,7 @@ function BalanceChart({
               key={point.transaction.id}
               cx={x(point.xRatio)}
               cy={y(point.balance)}
-              r={4}
+              r={2.5}
               tabIndex={0}
               onMouseEnter={() => setHoveredPoint(index)}
               onMouseLeave={() => setHoveredPoint(null)}

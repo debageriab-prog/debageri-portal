@@ -1568,19 +1568,19 @@ th {
   pointer-events: none;
 }
 .finance-chart-point {
-  fill: white;
-  stroke: var(--accent);
-  stroke-width: 2.5;
+  fill: var(--accent);
+  stroke: white;
+  stroke-width: 1;
   cursor: pointer;
   transition:
     r 120ms ease,
-    fill 120ms ease;
+    stroke-width 120ms ease;
 }
 .finance-chart-point:hover,
 .finance-chart-point:focus {
-  fill: var(--accent);
   outline: none;
-  r: 6px;
+  r: 4.5px;
+  stroke-width: 2px;
 }
 .finance-chart-selection {
   fill: rgb(165 111 78 / 16%);
