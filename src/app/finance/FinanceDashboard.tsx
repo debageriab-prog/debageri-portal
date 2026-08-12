@@ -495,18 +495,27 @@ function BalanceChart({
             />
           )}
           {chartPoints.map((point, index) => (
-            <circle
-              className="finance-chart-point"
-              key={point.transaction.id}
-              cx={x(point.xRatio)}
-              cy={y(point.balance)}
-              r={2.5}
-              tabIndex={0}
-              onMouseEnter={() => setHoveredPoint(index)}
-              onMouseLeave={() => setHoveredPoint(null)}
-              onFocus={() => setHoveredPoint(index)}
-              onBlur={() => setHoveredPoint(null)}
-            />
+            <g key={point.transaction.id}>
+              <circle
+                className="finance-chart-point-target"
+                cx={x(point.xRatio)}
+                cy={y(point.balance)}
+                r={7}
+                tabIndex={0}
+                onMouseEnter={() => setHoveredPoint(index)}
+                onMouseLeave={() => setHoveredPoint(null)}
+                onFocus={() => setHoveredPoint(index)}
+                onBlur={() => setHoveredPoint(null)}
+              />
+              {hoveredPoint === index && (
+                <circle
+                  className="finance-chart-active-point"
+                  cx={x(point.xRatio)}
+                  cy={y(point.balance)}
+                  r={4}
+                />
+              )}
+            </g>
           ))}
           {selection && (
             <rect
