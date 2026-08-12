@@ -1567,20 +1567,19 @@ th {
   opacity: 0.55;
   pointer-events: none;
 }
-.finance-chart-point {
+.finance-chart-point-target {
+  fill: transparent;
+  stroke: transparent;
+  cursor: pointer;
+}
+.finance-chart-point-target:focus {
+  outline: none;
+}
+.finance-chart-active-point {
   fill: white;
   stroke: var(--accent);
-  stroke-width: 2.5;
-  cursor: pointer;
-  transition:
-    r 120ms ease,
-    fill 120ms ease;
-}
-.finance-chart-point:hover,
-.finance-chart-point:focus {
-  fill: var(--accent);
-  outline: none;
-  r: 6px;
+  stroke-width: 2px;
+  pointer-events: none;
 }
 .finance-chart-selection {
   fill: rgb(165 111 78 / 16%);
