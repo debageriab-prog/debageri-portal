@@ -12,6 +12,7 @@ import {
   expenseTotalsByCategory,
   financeTotals,
   isSalaryRelatedExpenseCode,
+  paidFlexibleCompanyResultMinor,
   parseSek,
   transactionTableDescription,
   vatPayableMinor,
@@ -99,6 +100,44 @@ describe("finance calculations", () => {
         shareBps: 0,
       }),
     ).toBe(100_000);
+  });
+
+  it("calculates a flexible consultant company result from paid invoices only", () => {
+    expect(
+      paidFlexibleCompanyResultMinor(
+        [
+          {
+            consultantId: "consultant-1",
+            compensationModel: "flexible",
+            status: "paid",
+            netMinor: 100_000,
+            shareBps: 7_000,
+          },
+          {
+            consultantId: "consultant-1",
+            compensationModel: "flexible",
+            status: "issued",
+            netMinor: 200_000,
+            shareBps: 7_000,
+          },
+          {
+            consultantId: "consultant-2",
+            compensationModel: "flexible",
+            status: "paid",
+            netMinor: 300_000,
+            shareBps: 7_000,
+          },
+          {
+            consultantId: "consultant-1",
+            compensationModel: "fixed",
+            status: "paid",
+            netMinor: 400_000,
+            shareBps: 0,
+          },
+        ],
+        "consultant-1",
+      ),
+    ).toBe(30_000);
   });
   it("stores SEK in integer Ã¶re and accepts Swedish decimal commas", () => {
     expect(parseSek("1 234,56")).toBe(123_456);

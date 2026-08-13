@@ -44,6 +44,29 @@ export function companyOutstandingInvoiceShareMinor(invoice: {
   );
 }
 
+export function paidFlexibleCompanyResultMinor(
+  invoices: Array<{
+    consultantId: string | null;
+    compensationModel: "flexible" | "fixed" | null;
+    status: "issued" | "paid" | "void";
+    netMinor: number;
+    shareBps: number;
+  }>,
+  consultantId: string,
+) {
+  return invoices
+    .filter(
+      (invoice) =>
+        invoice.consultantId === consultantId &&
+        invoice.compensationModel === "flexible" &&
+        invoice.status === "paid",
+    )
+    .reduce(
+      (total, invoice) => total + companyOutstandingInvoiceShareMinor(invoice),
+      0,
+    );
+}
+
 type TransactionScopeInput = Pick<
   FinancialTransaction,
   | "consultantId"
