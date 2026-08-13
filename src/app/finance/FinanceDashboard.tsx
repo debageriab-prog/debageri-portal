@@ -971,7 +971,7 @@ export function FinanceDashboard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [chartPeriod, setChartPeriod] = useState<FinancePeriod>("month");
+  const [chartPeriod, setChartPeriod] = useState<FinancePeriod>("year");
   const [chartAnchor, setChartAnchor] = useState(today().slice(0, 7));
   const [chartRangeFrom, setChartRangeFrom] = useState(
     `${today().slice(0, 7)}-01`,
