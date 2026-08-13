@@ -4,6 +4,7 @@ export const contractFieldsSchema = z
   .object({
     name: z.string().trim().min(1).max(180),
     documentDate: z.iso.date(),
+    validTo: z.iso.date().nullable(),
     ownerType: z.enum(["company", "consultant"]),
     consultantId: z.string().trim().max(128).nullable(),
     visibleToConsultant: z.boolean(),
@@ -28,6 +29,7 @@ export function parseContractForm(form: FormData) {
   return contractFieldsSchema.safeParse({
     name: form.get("name"),
     documentDate: form.get("documentDate"),
+    validTo: form.get("validTo") || null,
     ownerType: form.get("ownerType"),
     consultantId: form.get("consultantId") || null,
     visibleToConsultant: form.get("visibleToConsultant") === "true",

@@ -5,6 +5,7 @@ describe("contract input", () => {
   const base = {
     name: "Consulting agreement",
     documentDate: "2026-08-13",
+    validTo: null,
     confidential: true,
   };
 

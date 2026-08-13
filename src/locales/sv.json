@@ -653,5 +653,11 @@
   "contractError_contractFileType": "Använd endast PDF-, Word-, bild- eller textfiler.",
   "contractError_confirmationRequired": "Skriv bekräftelsefrasen exakt.",
   "contractError_contractDeleteFailed": "Avtalet kunde inte tas bort.",
-  "contractError_contractSaveFailed": "Avtalet kunde inte sparas. Försök igen."
+  "contractError_contractSaveFailed": "Avtalet kunde inte sparas. Försök igen.",
+  "contractValidToHelp": "Lämna tomt så länge dokumentet är giltigt. Ett datum markerar det som ogiltigt i standardlistan.",
+  "noEndDate": "Inget slutdatum",
+  "filterDocumentName": "Dokumentnamn",
+  "filterDocumentNamePlaceholder": "Filtrera efter dokumentnamn",
+  "filterConsultant": "Konsult",
+  "showInvalidDocuments": "Visa ogiltiga dokument"
 }

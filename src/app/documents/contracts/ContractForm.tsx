@@ -4,6 +4,10 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { appCheckFetch } from "@/lib/firebase/client";
+import {
+  FileDownloadIcon,
+  FileRemoveIcon,
+} from "@/components/ui/FileActionIcons";
 import type { ContractItem } from "./ContractList";
 
 type Consultant = { id: string; name: string };
@@ -24,6 +28,19 @@ export function ContractForm({
   const [removed, setRemoved] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  async function download(file: ContractItem["files"][number]) {
+    if (!contract) return;
+    const response = await appCheckFetch(
+      `/api/documents/contracts/${encodeURIComponent(contract.id)}/files/${encodeURIComponent(file.id)}`,
+    );
+    if (!response.ok) return setError(t("contractDownloadFailed"));
+    const url = URL.createObjectURL(await response.blob());
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = file.name;
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -93,6 +110,16 @@ export function ContractForm({
           />
         </label>
         <label>
+          {t("validTo")}
+          <input
+            className="field"
+            name="validTo"
+            type="date"
+            defaultValue={contract?.validTo ?? ""}
+          />
+          <small>{t("contractValidToHelp")}</small>
+        </label>
+        <label>
           {t("documentOwner")}
           <select
             className="field"
@@ -151,13 +178,30 @@ export function ContractForm({
           <legend>{t("files")}</legend>
           <p className="muted">{t("contractFilesHelp")}</p>
           {existing.length > 0 && (
-            <ul className="attachment-list">
+            <ul className="attachment-list editable-attachment-list">
               {existing.map((file) => (
                 <li key={file.id}>
                   <span>{file.name}</span>
                   <button
                     type="button"
-                    className="text-link"
+                    className="attachment-download"
+                    aria-label={t("downloadAttachment").replace(
+                      "{name}",
+                      file.name,
+                    )}
+                    title={t("downloadAttachment").replace("{name}", file.name)}
+                    onClick={() => void download(file)}
+                  >
+                    <FileDownloadIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className="attachment-remove"
+                    aria-label={t("removeAttachment").replace(
+                      "{name}",
+                      file.name,
+                    )}
+                    title={t("removeAttachment").replace("{name}", file.name)}
                     onClick={() => {
                       setExisting((items) =>
                         items.filter((item) => item.id !== file.id),
@@ -165,7 +209,7 @@ export function ContractForm({
                       setRemoved((ids) => [...ids, file.id]);
                     }}
                   >
-                    {t("remove")}
+                    <FileRemoveIcon />
                   </button>
                 </li>
               ))}
@@ -183,18 +227,23 @@ export function ContractForm({
             }}
           />
           {files.length > 0 && (
-            <ul className="attachment-list">
+            <ul className="attachment-list pending-attachment-list">
               {files.map((file, index) => (
                 <li key={`${file.name}-${file.lastModified}`}>
                   <span>{file.name}</span>
                   <button
                     type="button"
-                    className="text-link"
+                    className="attachment-remove"
+                    aria-label={t("removeAttachment").replace(
+                      "{name}",
+                      file.name,
+                    )}
+                    title={t("removeAttachment").replace("{name}", file.name)}
                     onClick={() =>
                       setFiles((items) => items.filter((_, i) => i !== index))
                     }
                   >
-                    {t("remove")}
+                    <FileRemoveIcon />
                   </button>
                 </li>
               ))}

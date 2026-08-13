@@ -32,6 +32,7 @@ export default async function ContractsPage() {
       id: doc.id,
       name: String(doc.data().name),
       documentDate: String(doc.data().documentDate),
+      validTo: doc.data().validTo ? String(doc.data().validTo) : null,
       ownerType: doc.data().ownerType as "company" | "consultant",
       consultantId: doc.data().consultantId
         ? String(doc.data().consultantId)

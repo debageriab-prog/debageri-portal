@@ -653,5 +653,11 @@
   "contractError_contractFileType": "Use PDF, Word, image, or text files only.",
   "contractError_confirmationRequired": "Type the confirmation phrase exactly.",
   "contractError_contractDeleteFailed": "The contract could not be deleted.",
-  "contractError_contractSaveFailed": "The contract could not be saved. Please try again."
+  "contractError_contractSaveFailed": "The contract could not be saved. Please try again.",
+  "contractValidToHelp": "Leave blank while the document is valid. Setting a date marks it as invalid in the default list view.",
+  "noEndDate": "No end date",
+  "filterDocumentName": "Document name",
+  "filterDocumentNamePlaceholder": "Filter by document name",
+  "filterConsultant": "Consultant",
+  "showInvalidDocuments": "Show invalid documents"
 }

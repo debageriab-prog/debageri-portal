@@ -6,11 +6,13 @@ import { useRouter } from "next/navigation";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { appCheckFetch } from "@/lib/firebase/client";
+import { FileDownloadIcon } from "@/components/ui/FileActionIcons";
 
 export type ContractItem = {
   id: string;
   name: string;
   documentDate: string;
+  validTo: string | null;
   ownerType: "company" | "consultant";
   consultantId: string | null;
   consultantName: string | null;
@@ -33,6 +35,27 @@ export function ContractList({
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [nameFilter, setNameFilter] = useState("");
+  const [consultantFilter, setConsultantFilter] = useState("");
+  const [showInvalid, setShowInvalid] = useState(false);
+  const consultants = Array.from(
+    new Map(
+      contracts
+        .filter((contract) => contract.consultantId)
+        .map((contract) => [
+          contract.consultantId!,
+          contract.consultantName ?? t("consultant"),
+        ]),
+    ),
+  ).sort((left, right) => left[1].localeCompare(right[1]));
+  const filteredContracts = contracts.filter(
+    (contract) =>
+      (showInvalid || contract.validTo === null) &&
+      contract.name
+        .toLocaleLowerCase()
+        .includes(nameFilter.toLocaleLowerCase()) &&
+      (!consultantFilter || contract.consultantId === consultantFilter),
+  );
   async function download(
     contractId: string,
     file: ContractItem["files"][number],
@@ -93,8 +116,47 @@ export function ContractList({
           {error}
         </p>
       )}
+      <section className="card filters-card">
+        <div className="form-grid">
+          <label>
+            {t("filterDocumentName")}
+            <input
+              className="field"
+              type="search"
+              value={nameFilter}
+              placeholder={t("filterDocumentNamePlaceholder")}
+              onChange={(event) => setNameFilter(event.target.value)}
+            />
+          </label>
+          <label>
+            {t("filterConsultant")}
+            <select
+              className="field"
+              value={consultantFilter}
+              onChange={(event) => setConsultantFilter(event.target.value)}
+            >
+              <option value="">{t("allConsultants")}</option>
+              {consultants.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="checkbox-row form-wide">
+            <input
+              type="checkbox"
+              checked={showInvalid}
+              onChange={(event) => setShowInvalid(event.target.checked)}
+            />
+            <span>
+              <strong>{t("showInvalidDocuments")}</strong>
+            </span>
+          </label>
+        </div>
+      </section>
       <section className="card table-wrap">
-        {contracts.length === 0 ? (
+        {filteredContracts.length === 0 ? (
           <div className="empty-state">
             <h2>{t("noContracts")}</h2>
             <p>{t("noContractsDescription")}</p>
@@ -104,6 +166,7 @@ export function ContractList({
             <thead>
               <tr>
                 <th>{t("documentDate")}</th>
+                <th>{t("validTo")}</th>
                 <th>{t("name")}</th>
                 <th>{t("documentOwner")}</th>
                 <th>{t("confidential")}</th>
@@ -111,9 +174,10 @@ export function ContractList({
               </tr>
             </thead>
             <tbody>
-              {contracts.map((contract) => (
+              {filteredContracts.map((contract) => (
                 <tr key={contract.id}>
                   <td>{contract.documentDate}</td>
+                  <td>{contract.validTo ?? t("noEndDate")}</td>
                   <td>
                     <strong>{contract.name}</strong>
                   </td>
@@ -191,6 +255,10 @@ export function ContractList({
                 <dd>{viewing.documentDate}</dd>
               </div>
               <div>
+                <dt>{t("validTo")}</dt>
+                <dd>{viewing.validTo ?? t("noEndDate")}</dd>
+              </div>
+              <div>
                 <dt>{t("documentOwner")}</dt>
                 <dd>
                   {viewing.ownerType === "company"
@@ -208,15 +276,20 @@ export function ContractList({
               </div>
             </dl>
             <h3>{t("files")}</h3>
-            <ul className="attachment-list">
+            <ul className="attachment-list detail-attachment-list">
               {viewing.files.map((file) => (
                 <li key={file.id}>
                   <span>{file.name}</span>
                   <button
-                    className="text-link"
+                    className="attachment-download"
+                    aria-label={t("downloadAttachment").replace(
+                      "{name}",
+                      file.name,
+                    )}
+                    title={t("downloadAttachment").replace("{name}", file.name)}
                     onClick={() => void download(viewing.id, file)}
                   >
-                    {t("download")}
+                    <FileDownloadIcon />
                   </button>
                 </li>
               ))}

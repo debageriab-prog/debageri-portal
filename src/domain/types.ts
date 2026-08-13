@@ -51,6 +51,7 @@ export interface ContractDocument {
   organizationId: string;
   name: string;
   documentDate: string;
+  validTo: string | null;
   ownerType: "company" | "consultant";
   consultantId: string | null;
   consultantName: string | null;

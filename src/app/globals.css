@@ -941,6 +941,7 @@ th {
   width: 2rem;
   height: 2rem;
   padding: 0;
+  padding: 0;
   place-items: center;
   border: 1px solid var(--border);
   border-radius: 50%;
@@ -969,20 +970,27 @@ th {
 }
 
 .pending-attachment-list span,
-.detail-attachments .attachment-list span {
+.detail-attachments .attachment-list span,
+.detail-attachment-list span {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .editable-attachment-list li,
 .pending-attachment-list li,
-.detail-attachments .attachment-list li {
+.detail-attachments .attachment-list li,
+.detail-attachment-list li {
   justify-content: flex-start;
   gap: 0.5rem;
 }
 
 .editable-attachment-list,
 .pending-attachment-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+.detail-attachment-list {
   padding-left: 0;
   list-style: none;
 }
@@ -1024,6 +1032,7 @@ th {
   border-radius: 50%;
   background: var(--success-bg);
   color: var(--success);
+  cursor: pointer;
 }
 
 .attachment-download:hover,

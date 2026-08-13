@@ -38,6 +38,7 @@ export default async function EditContractPage({
     id,
     name: String(data.name),
     documentDate: String(data.documentDate),
+    validTo: data.validTo ? String(data.validTo) : null,
     ownerType: data.ownerType as "company" | "consultant",
     consultantId: data.consultantId ? String(data.consultantId) : null,
     consultantName: data.consultantName ? String(data.consultantName) : null,

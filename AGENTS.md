@@ -16,3 +16,8 @@ create or edit forms inline on a list or management page.
 Never use browser-native alert, confirm, or prompt dialogs for user-facing
 messages or confirmations. Use the portal's styled modal and notice patterns,
 with all copy provided through the shared locale catalogs.
+
+Keep repeated controls and interaction patterns visually consistent across the
+portal. Reuse shared components and the established icon-button patterns for
+actions such as viewing, downloading, editing, and removing files instead of
+introducing section-specific text controls.
