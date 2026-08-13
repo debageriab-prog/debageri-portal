@@ -142,6 +142,7 @@ export default async function FinancePage({
         id: document.id,
         invoiceNumber: String(data.invoiceNumber),
         consultantId: data.consultantId ?? null,
+        compensationModel: data.compensationModel ?? null,
         customerName: String(data.customerName),
         issueDate: String(data.issueDate),
         dueDate: String(data.dueDate),

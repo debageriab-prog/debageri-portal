@@ -21,6 +21,7 @@ import {
   financeTotals,
   formatSek,
   isSalaryRelatedExpenseCode,
+  paidFlexibleCompanyResultMinor,
   transactionTableDescription,
   vatPayableMinor,
 } from "@/domain/finance/calculations";
@@ -65,6 +66,7 @@ export interface FinancePageData {
     id: string;
     invoiceNumber: string;
     consultantId: string | null;
+    compensationModel: "flexible" | "fixed" | null;
     customerName: string;
     issueDate: string;
     dueDate: string;
@@ -1162,6 +1164,13 @@ export function FinanceDashboard({
           : invoice.grossMinor),
       0,
     );
+  const retainedResult =
+    selectedModel === "flexible" &&
+    selectedConsultant !== "all" &&
+    selectedConsultant !== "company"
+      ? paidFlexibleCompanyResultMinor(data.invoices, selectedConsultant)
+      : totals.netResultMinor -
+        (selectedConsultant === "all" ? consultantLiability : 0);
   const filteredInvoices = data.invoices.filter(
     (invoice) =>
       (invoiceConsultantFilter === "all" ||
@@ -1461,15 +1470,7 @@ export function FinanceDashboard({
                 )}
                 <div className="metric">
                   <span>{t("retainedResult")}</span>
-                  <strong>
-                    {formatSek(
-                      totals.netResultMinor -
-                        (selectedConsultant === "all"
-                          ? consultantLiability
-                          : 0),
-                      locale,
-                    )}
-                  </strong>
+                  <strong>{formatSek(retainedResult, locale)}</strong>
                 </div>
                 <div className="metric">
                   <span>
