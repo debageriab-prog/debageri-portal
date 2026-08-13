@@ -208,7 +208,7 @@ export function ContractList({
                             <ActionIcon type="edit" />
                           </Link>
                           <button
-                            className="table-action icon-action danger"
+                            className="table-action table-action-danger icon-action"
                             aria-label={t("delete")}
                             title={t("delete")}
                             onClick={() => {
