@@ -9,6 +9,9 @@ export interface FinanceAccess {
   myFinance: boolean;
   myInvoices: boolean;
 }
+export interface DocumentAccess {
+  contracts: boolean;
+}
 export type TimesheetStatus =
   "draft" | "submitted" | "approved" | "rejected" | "reopened";
 export type TimeCategory =
@@ -40,6 +43,20 @@ export interface PortalUser {
   locale: "sv-SE" | "en-SE";
   compensationModel?: CompensationModel | null;
   financeAccess: FinanceAccess;
+  documentAccess: DocumentAccess;
+}
+
+export interface ContractDocument {
+  id: string;
+  organizationId: string;
+  name: string;
+  documentDate: string;
+  ownerType: "company" | "consultant";
+  consultantId: string | null;
+  consultantName: string | null;
+  visibleToConsultant: boolean;
+  confidential: boolean;
+  createdBy: string;
 }
 
 export interface CompensationAgreement {

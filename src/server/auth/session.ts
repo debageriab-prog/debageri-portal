@@ -56,6 +56,9 @@ export async function verifySession(): Promise<PortalUser | null> {
         myFinance: data.financeAccess?.myFinance === true,
         myInvoices: data.financeAccess?.myInvoices === true,
       },
+      documentAccess: {
+        contracts: data.documentAccess?.contracts === true,
+      },
     } as PortalUser;
   } catch {
     return null;

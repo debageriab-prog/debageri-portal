@@ -31,6 +31,9 @@ export default async function UsersPage() {
           myFinance: data.financeAccess?.myFinance === true,
           myInvoices: data.financeAccess?.myInvoices === true,
         },
+        documentAccess: {
+          contracts: data.documentAccess?.contracts === true,
+        },
       };
     })
     .sort((a, b) => b.createdAt - a.createdAt);

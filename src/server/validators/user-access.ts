@@ -28,3 +28,12 @@ export function financeAccessMatchesRole(
     (!access.enabled && !access.myFinance && !access.myInvoices)
   );
 }
+
+export const documentAccessSchema = z.object({ contracts: z.boolean() });
+
+export function documentAccessMatchesRole(
+  role: string,
+  access: z.infer<typeof documentAccessSchema>,
+) {
+  return role === "consultant" || !access.contracts;
+}

@@ -6,6 +6,8 @@ import { verifySession } from "@/server/auth/session";
 import {
   financeAccessMatchesRole,
   financeAccessSchema,
+  documentAccessMatchesRole,
+  documentAccessSchema,
 } from "@/server/validators/user-access";
 
 const inputSchema = z
@@ -19,6 +21,7 @@ const inputSchema = z
     employmentStartDate: z.iso.date(),
     reportingStartDate: z.iso.date().nullable(),
     financeAccess: financeAccessSchema,
+    documentAccess: documentAccessSchema,
   })
   .superRefine((value, context) => {
     const expectedReportsTime =
@@ -38,6 +41,11 @@ const inputSchema = z
       context.addIssue({
         code: "custom",
         message: "Finance access is only available to consultants",
+      });
+    if (!documentAccessMatchesRole(value.role, value.documentAccess))
+      context.addIssue({
+        code: "custom",
+        message: "Document access is only available to consultants",
       });
   });
 
@@ -77,6 +85,7 @@ export async function POST(request: Request) {
       employmentEndDate: null,
       reportingStartDate: parsed.data.reportingStartDate,
       financeAccess: parsed.data.financeAccess,
+      documentAccess: parsed.data.documentAccess,
       status: "active",
       managerId: null,
       timezone: actor.timezone,
@@ -95,6 +104,7 @@ export async function POST(request: Request) {
         role: parsed.data.role,
         reportsTime: parsed.data.reportsTime,
         financeAccess: parsed.data.financeAccess,
+        documentAccess: parsed.data.documentAccess,
       },
     });
     await batch.commit();

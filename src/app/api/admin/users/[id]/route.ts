@@ -6,6 +6,8 @@ import { verifySession } from "@/server/auth/session";
 import {
   financeAccessMatchesRole,
   financeAccessSchema,
+  documentAccessMatchesRole,
+  documentAccessSchema,
 } from "@/server/validators/user-access";
 
 const updateSchema = z
@@ -20,12 +22,18 @@ const updateSchema = z
     employmentEndDate: z.iso.date().nullable(),
     reportingStartDate: z.iso.date().nullable(),
     financeAccess: financeAccessSchema,
+    documentAccess: documentAccessSchema,
   })
   .superRefine((value, context) => {
     if (!financeAccessMatchesRole(value.role, value.financeAccess))
       context.addIssue({
         code: "custom",
         message: "Finance access is only available to consultants",
+      });
+    if (!documentAccessMatchesRole(value.role, value.documentAccess))
+      context.addIssue({
+        code: "custom",
+        message: "Document access is only available to consultants",
       });
   });
 
@@ -104,6 +112,7 @@ export async function PATCH(
       employmentEndDate: parsed.data.employmentEndDate,
       reportingStartDate: parsed.data.reportingStartDate,
       financeAccess: parsed.data.financeAccess,
+      documentAccess: parsed.data.documentAccess,
       updatedAt: FieldValue.serverTimestamp(),
     });
     batch.create(loaded.db.collection("auditLogs").doc(), {
@@ -117,6 +126,7 @@ export async function PATCH(
         role: parsed.data.role,
         status: parsed.data.status,
         financeAccess: parsed.data.financeAccess,
+        documentAccess: parsed.data.documentAccess,
       },
     });
     await batch.commit();

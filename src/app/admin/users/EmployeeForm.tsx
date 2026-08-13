@@ -3,7 +3,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
-import type { FinanceAccess } from "@/domain/types";
+import type { DocumentAccess, FinanceAccess } from "@/domain/types";
 
 export function EmployeeForm({
   onCreated,
@@ -21,6 +21,9 @@ export function EmployeeForm({
     enabled: false,
     myFinance: false,
     myInvoices: false,
+  });
+  const [documentAccess, setDocumentAccess] = useState<DocumentAccess>({
+    contracts: false,
   });
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,6 +48,8 @@ export function EmployeeForm({
             role === "consultant"
               ? financeAccess
               : { enabled: false, myFinance: false, myInvoices: false },
+          documentAccess:
+            role === "consultant" ? documentAccess : { contracts: false },
         }),
       });
       const result = (await response.json().catch(() => ({}))) as {
@@ -63,6 +68,7 @@ export function EmployeeForm({
         myFinance: false,
         myInvoices: false,
       });
+      setDocumentAccess({ contracts: false });
       setOpen(false);
       onCreated(t("employeeCreated"));
       router.refresh();
@@ -141,6 +147,8 @@ export function EmployeeForm({
                     onChange={(event) => {
                       setRole(event.target.value);
                       setManagerReportsTime(false);
+                      if (event.target.value !== "consultant")
+                        setDocumentAccess({ contracts: false });
                       if (event.target.value !== "consultant")
                         setFinanceAccess({
                           enabled: false,
@@ -227,6 +235,23 @@ export function EmployeeForm({
                         </span>
                       </label>
                     </div>
+                  </fieldset>
+                )}
+                {role === "consultant" && (
+                  <fieldset className="access-section form-wide">
+                    <legend>{t("documents")}</legend>
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={documentAccess.contracts}
+                        onChange={(event) =>
+                          setDocumentAccess({ contracts: event.target.checked })
+                        }
+                      />
+                      <span>
+                        <strong>{t("contractsAccess")}</strong>
+                      </span>
+                    </label>
                   </fieldset>
                 )}
                 {(role === "consultant" || managerReportsTime) && (
