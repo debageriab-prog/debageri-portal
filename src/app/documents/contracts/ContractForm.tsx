@@ -177,12 +177,8 @@ export function ContractForm({
             multiple
             accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.txt"
             onChange={(event) => {
-              setFiles((items) =>
-                [...items, ...Array.from(event.target.files ?? [])].slice(
-                  0,
-                  10,
-                ),
-              );
+              const selected = Array.from(event.currentTarget.files ?? []);
+              setFiles((items) => [...items, ...selected].slice(0, 10));
               event.currentTarget.value = "";
             }}
           />
