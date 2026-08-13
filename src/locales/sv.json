@@ -659,5 +659,8 @@
   "filterDocumentName": "Dokumentnamn",
   "filterDocumentNamePlaceholder": "Filtrera efter dokumentnamn",
   "filterConsultant": "Konsult",
-  "showInvalidDocuments": "Visa ogiltiga dokument"
+  "showInvalidDocuments": "Visa ogiltiga dokument",
+  "confidentialDocumentNoticeTitle": "Konfidentiellt dokument",
+  "confidentialDocumentNotice": "Detta dokument får inte skickas till eller visas för någon utan företagets tillstånd.",
+  "contractFilesAvailable": "{count} fil(er) tillgängliga för nedladdning"
 }

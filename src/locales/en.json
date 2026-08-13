@@ -659,5 +659,8 @@
   "filterDocumentName": "Document name",
   "filterDocumentNamePlaceholder": "Filter by document name",
   "filterConsultant": "Consultant",
-  "showInvalidDocuments": "Show invalid documents"
+  "showInvalidDocuments": "Show invalid documents",
+  "confidentialDocumentNoticeTitle": "Confidential document",
+  "confidentialDocumentNotice": "This document must not be sent to or shown to anyone without permission from the company.",
+  "contractFilesAvailable": "{count} file(s) available to download"
 }

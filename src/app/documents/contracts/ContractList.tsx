@@ -24,9 +24,11 @@ export type ContractItem = {
 export function ContractList({
   contracts,
   canManage,
+  viewerIsConsultant,
 }: {
   contracts: ContractItem[];
   canManage: boolean;
+  viewerIsConsultant: boolean;
 }) {
   const { t } = useLocale();
   const router = useRouter();
@@ -229,27 +231,44 @@ export function ContractList({
         )}
       </section>
       {viewing && (
-        <div className="modal-backdrop" role="presentation">
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={() => setViewing(null)}
+        >
           <section
-            className="modal"
+            className="modal contract-detail-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="contract-view-title"
+            onMouseDown={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
               <div>
                 <span className="eyebrow">{t("contractDetails")}</span>
                 <h2 id="contract-view-title">{viewing.name}</h2>
+                <p>
+                  {viewing.ownerType === "company"
+                    ? t("company")
+                    : viewing.consultantName}
+                </p>
               </div>
               <button
                 className="modal-close"
+                type="button"
                 aria-label={t("close")}
                 onClick={() => setViewing(null)}
               >
                 ×
               </button>
             </header>
-            <dl className="detail-list">
+            {viewing.confidential && (
+              <aside className="notice notice-warning contract-confidential-notice">
+                <strong>{t("confidentialDocumentNoticeTitle")}</strong>
+                <span>{t("confidentialDocumentNotice")}</span>
+              </aside>
+            )}
+            <dl className="detail-grid contract-detail-grid">
               <div>
                 <dt>{t("documentDate")}</dt>
                 <dd>{viewing.documentDate}</dd>
@@ -266,34 +285,49 @@ export function ContractList({
                     : viewing.consultantName}
                 </dd>
               </div>
-              <div>
-                <dt>{t("visibleToConsultant")}</dt>
-                <dd>{viewing.visibleToConsultant ? t("yes") : t("no")}</dd>
-              </div>
+              {!viewerIsConsultant && (
+                <div>
+                  <dt>{t("visibleToConsultant")}</dt>
+                  <dd>{viewing.visibleToConsultant ? t("yes") : t("no")}</dd>
+                </div>
+              )}
               <div>
                 <dt>{t("confidential")}</dt>
                 <dd>{viewing.confidential ? t("yes") : t("no")}</dd>
               </div>
             </dl>
-            <h3>{t("files")}</h3>
-            <ul className="attachment-list detail-attachment-list">
-              {viewing.files.map((file) => (
-                <li key={file.id}>
-                  <span>{file.name}</span>
-                  <button
-                    className="attachment-download"
-                    aria-label={t("downloadAttachment").replace(
-                      "{name}",
-                      file.name,
-                    )}
-                    title={t("downloadAttachment").replace("{name}", file.name)}
-                    onClick={() => void download(viewing.id, file)}
-                  >
-                    <FileDownloadIcon />
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <section className="contract-detail-files">
+              <div className="contract-detail-files-heading">
+                <h3>{t("files")}</h3>
+                <p>
+                  {t("contractFilesAvailable").replace(
+                    "{count}",
+                    String(viewing.files.length),
+                  )}
+                </p>
+              </div>
+              <ul className="attachment-list detail-attachment-list">
+                {viewing.files.map((file) => (
+                  <li key={file.id}>
+                    <span>{file.name}</span>
+                    <button
+                      className="attachment-download"
+                      aria-label={t("downloadAttachment").replace(
+                        "{name}",
+                        file.name,
+                      )}
+                      title={t("downloadAttachment").replace(
+                        "{name}",
+                        file.name,
+                      )}
+                      onClick={() => void download(viewing.id, file)}
+                    >
+                      <FileDownloadIcon />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
           </section>
         </div>
       )}

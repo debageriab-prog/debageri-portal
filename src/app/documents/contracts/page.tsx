@@ -49,6 +49,7 @@ export default async function ContractsPage() {
     <ContractList
       contracts={contracts}
       canManage={["admin", "manager"].includes(actor.role)}
+      viewerIsConsultant={actor.role === "consultant"}
     />
   );
 }

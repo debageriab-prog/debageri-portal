@@ -995,6 +995,47 @@ th {
   list-style: none;
 }
 
+.contract-detail-modal {
+  width: min(720px, 100%);
+}
+
+.contract-confidential-notice {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.contract-detail-grid > div {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fbf8f5;
+}
+
+.contract-detail-files {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.contract-detail-files-heading h3,
+.contract-detail-files-heading p {
+  margin: 0;
+}
+
+.contract-detail-files-heading p {
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.contract-detail-files .detail-attachment-list li {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: white;
+}
+
 .attachment-remove {
   display: inline-grid;
   flex: 0 0 auto;
