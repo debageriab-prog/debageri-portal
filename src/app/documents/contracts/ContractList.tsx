@@ -130,21 +130,23 @@ export function ContractList({
               onChange={(event) => setNameFilter(event.target.value)}
             />
           </label>
-          <label>
-            {t("filterConsultant")}
-            <select
-              className="field"
-              value={consultantFilter}
-              onChange={(event) => setConsultantFilter(event.target.value)}
-            >
-              <option value="">{t("allConsultants")}</option>
-              {consultants.map(([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {!viewerIsConsultant && (
+            <label>
+              {t("filterConsultant")}
+              <select
+                className="field"
+                value={consultantFilter}
+                onChange={(event) => setConsultantFilter(event.target.value)}
+              >
+                <option value="">{t("allConsultants")}</option>
+                {consultants.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="checkbox-row form-wide">
             <input
               type="checkbox"
