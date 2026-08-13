@@ -1489,21 +1489,19 @@ export function FinanceDashboard({
               <div className="finance-chart-filter-group">
                 <h2>{t("chartPeriod")}</h2>
                 <div className="actions">
-                  <label className="compact-date-field">
-                    {t("periodType")}
-                    <select
-                      className="field finance-period"
-                      value={chartPeriod}
-                      onChange={(event) =>
-                        setChartPeriod(event.target.value as typeof chartPeriod)
-                      }
-                    >
-                      <option value="month">{t("month")}</option>
-                      <option value="year">{t("year")}</option>
-                      <option value="range">{t("customDateRange")}</option>
-                      <option value="all">{t("allTime")}</option>
-                    </select>
-                  </label>
+                  <select
+                    className="field finance-period"
+                    aria-label={t("chartPeriod")}
+                    value={chartPeriod}
+                    onChange={(event) =>
+                      setChartPeriod(event.target.value as typeof chartPeriod)
+                    }
+                  >
+                    <option value="month">{t("month")}</option>
+                    <option value="year">{t("year")}</option>
+                    <option value="range">{t("customDateRange")}</option>
+                    <option value="all">{t("allTime")}</option>
+                  </select>
                   {chartPeriod === "month" && (
                     <div className="month-stepper finance-chart-date-control">
                       <button
