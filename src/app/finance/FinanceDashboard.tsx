@@ -125,6 +125,7 @@ function today() {
 }
 
 type FinancePeriod = "month" | "year" | "all" | "range";
+type ExpenseFundingFilter = "all" | "company" | "consultant";
 
 function inFinancePeriod(
   date: string,
@@ -981,6 +982,8 @@ export function FinanceDashboard({
   const [selectedConsultant, setSelectedConsultant] = useState(
     manager ? "all" : actor.id,
   );
+  const [expenseFundingFilter, setExpenseFundingFilter] =
+    useState<ExpenseFundingFilter>("all");
   const [invoiceConsultantFilter, setInvoiceConsultantFilter] = useState("all");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const initialTransactionListState = transactionListState(
@@ -1062,7 +1065,11 @@ export function FinanceDashboard({
           ? data.transactions.filter(belongsToCompany)
           : data.transactions.filter(
               (item) =>
-                belongsToConsultant(item, selectedConsultant) ||
+                belongsToConsultant(
+                  item,
+                  selectedConsultant,
+                  manager ? expenseFundingFilter : "consultant",
+                ) ||
                 (manager &&
                   selectedModel === "fixed" &&
                   belongsToFixedConsultantResult(
@@ -1075,6 +1082,7 @@ export function FinanceDashboard({
             ),
     [
       data.transactions,
+      expenseFundingFilter,
       invoiceConsultantIds,
       manager,
       selectedConsultant,
@@ -1397,22 +1405,46 @@ export function FinanceDashboard({
           </p>
         </div>
         {manager && section === "overview" && (
-          <label>
-            {t("consultant")}
-            <select
-              className="field"
-              value={selectedConsultant}
-              onChange={(event) => setSelectedConsultant(event.target.value)}
-            >
-              <option value="all">{t("allConsultantsAndCompany")}</option>
-              <option value="company">{t("companyOnly")}</option>
-              {data.users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.displayName}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="form-grid compact">
+            <label>
+              {t("consultant")}
+              <select
+                className="field"
+                value={selectedConsultant}
+                onChange={(event) => {
+                  setSelectedConsultant(event.target.value);
+                  setExpenseFundingFilter("all");
+                }}
+              >
+                <option value="all">{t("allConsultantsAndCompany")}</option>
+                <option value="company">{t("companyOnly")}</option>
+                {data.users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.displayName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedConsultant !== "all" &&
+              selectedConsultant !== "company" && (
+                <label>
+                  {t("expenseFundingFilter")}
+                  <select
+                    className="field"
+                    value={expenseFundingFilter}
+                    onChange={(event) =>
+                      setExpenseFundingFilter(
+                        event.target.value as ExpenseFundingFilter,
+                      )
+                    }
+                  >
+                    <option value="all">{t("allExpenses")}</option>
+                    <option value="company">{t("companyFunded")}</option>
+                    <option value="consultant">{t("consultantFunded")}</option>
+                  </select>
+                </label>
+              )}
+          </div>
         )}
       </div>
       {(error || message) && (

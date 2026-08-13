@@ -401,6 +401,8 @@
   "funding": "Betalas av",
   "companyFunded": "Företaget",
   "consultantFunded": "Konsulten",
+  "expenseFundingFilter": "Finansiering av kostnader",
+  "allExpenses": "Alla kostnader",
   "applyConsultantShare": "Kreditera konsultens konfigurerade andel",
   "postTransaction": "Bokför transaktion",
   "invoices": "Fakturor",
