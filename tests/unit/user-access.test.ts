@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  documentAccessMatchesRole,
   financeAccessMatchesRole,
   financeAccessSchema,
 } from "@/server/validators/user-access";
@@ -34,5 +35,19 @@ describe("finance access", () => {
         myInvoices: false,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("document access", () => {
+  it("allows contract access only on consultant profiles", () => {
+    expect(documentAccessMatchesRole("consultant", { contracts: true })).toBe(
+      true,
+    );
+    expect(documentAccessMatchesRole("manager", { contracts: true })).toBe(
+      false,
+    );
+    expect(documentAccessMatchesRole("accountant", { contracts: false })).toBe(
+      true,
+    );
   });
 });

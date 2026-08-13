@@ -10,7 +10,7 @@ import { AccountMenu } from "@/components/layout/AccountMenu";
 
 type NavItem = { label: string; href: string };
 type NavIconName =
-  "clock" | "reports" | "finance" | "bell" | "settings" | "admin";
+  "clock" | "reports" | "finance" | "documents" | "bell" | "settings" | "admin";
 type NavGroup = {
   id: string;
   label: string;
@@ -38,6 +38,12 @@ function NavIcon({ name }: { name: NavIconName }) {
         <path d="M4 7.5h16v11H4z" />
         <path d="M4 10.5h16M15.5 14.5h1" />
         <path d="M7 7.5V5.25h10V7.5" />
+      </>
+    ),
+    documents: (
+      <>
+        <path d="M6 3.5h9l3 3V20H6z" />
+        <path d="M15 3.5V7h3M9 11h6M9 15h6" />
       </>
     ),
     bell: (
@@ -132,6 +138,12 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
         items: financeItems(t),
       },
       {
+        id: "documents",
+        label: t("documents"),
+        icon: "documents",
+        items: [{ label: t("contracts"), href: "/documents/contracts" }],
+      },
+      {
         id: "admin",
         label: t("admin"),
         icon: "admin",
@@ -162,6 +174,12 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
         icon: "finance",
         items: financeItems(t),
       },
+      {
+        id: "documents",
+        label: t("documents"),
+        icon: "documents",
+        items: [{ label: t("contracts"), href: "/documents/contracts" }],
+      },
     ] satisfies NavGroup[];
 
   if (user.role === "manager") {
@@ -182,6 +200,12 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
         { label: t("timeReports"), href: "/time-reports" },
         { label: t("reminder"), href: "/reminders" },
       ],
+    });
+    groups.push({
+      id: "documents",
+      label: t("documents"),
+      icon: "documents",
+      items: [{ label: t("contracts"), href: "/documents/contracts" }],
     });
     return groups;
   }
@@ -216,6 +240,13 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
             ]
           : []),
       ],
+    });
+  if (user.documentAccess.contracts)
+    groups.push({
+      id: "documents",
+      label: t("documents"),
+      icon: "documents",
+      items: [{ label: t("contracts"), href: "/documents/contracts" }],
     });
   return groups;
 }

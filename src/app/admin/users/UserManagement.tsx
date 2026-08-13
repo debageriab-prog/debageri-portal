@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { EmployeeForm } from "./EmployeeForm";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
-import type { FinanceAccess } from "@/domain/types";
+import type { DocumentAccess, FinanceAccess } from "@/domain/types";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 
 export interface ManagedUser {
@@ -21,6 +21,7 @@ export interface ManagedUser {
   employmentEndDate: string;
   reportingStartDate: string;
   financeAccess: FinanceAccess;
+  documentAccess: DocumentAccess;
 }
 
 export function UserManagement({
@@ -46,6 +47,9 @@ export function UserManagement({
     enabled: false,
     myFinance: false,
     myInvoices: false,
+  });
+  const [editDocumentAccess, setEditDocumentAccess] = useState<DocumentAccess>({
+    contracts: false,
   });
 
   function showSuccess(value: string) {
@@ -90,6 +94,10 @@ export function UserManagement({
               editRole === "consultant"
                 ? editFinanceAccess
                 : { enabled: false, myFinance: false, myInvoices: false },
+            documentAccess:
+              editRole === "consultant"
+                ? editDocumentAccess
+                : { contracts: false },
           }),
         },
       );
@@ -260,6 +268,7 @@ export function UserManagement({
                           setEditing(user);
                           setEditRole(user.role);
                           setEditFinanceAccess(user.financeAccess);
+                          setEditDocumentAccess(user.documentAccess);
                         }}
                       >
                         <ActionIcon type="edit" />
@@ -362,6 +371,8 @@ export function UserManagement({
                       const nextRole = event.target.value;
                       setEditRole(nextRole);
                       if (nextRole !== "consultant")
+                        setEditDocumentAccess({ contracts: false });
+                      if (nextRole !== "consultant")
                         setEditFinanceAccess({
                           enabled: false,
                           myFinance: false,
@@ -447,6 +458,25 @@ export function UserManagement({
                         </span>
                       </label>
                     </div>
+                  </fieldset>
+                )}
+                {editRole === "consultant" && (
+                  <fieldset className="access-section form-wide">
+                    <legend>{t("documents")}</legend>
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={editDocumentAccess.contracts}
+                        onChange={(event) =>
+                          setEditDocumentAccess({
+                            contracts: event.target.checked,
+                          })
+                        }
+                      />
+                      <span>
+                        <strong>{t("contractsAccess")}</strong>
+                      </span>
+                    </label>
                   </fieldset>
                 )}
                 <label className="form-wide">
