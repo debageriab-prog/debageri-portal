@@ -66,11 +66,14 @@ export function belongsToConsultant(
     "consultantId" | "direction" | "funding"
   >,
   consultantId: string,
+  expenseFunding: "all" | "company" | "consultant" = "consultant",
 ) {
-  return (
-    transaction.consultantId === consultantId &&
-    !(transaction.direction === "expense" && transaction.funding === "company")
-  );
+  if (transaction.consultantId !== consultantId) return false;
+  if (transaction.direction !== "expense" || expenseFunding === "all")
+    return true;
+  return expenseFunding === "company"
+    ? transaction.funding === "company"
+    : transaction.funding !== "company";
 }
 
 export function companyBalanceDeltaMinor(transaction: TransactionScopeInput) {

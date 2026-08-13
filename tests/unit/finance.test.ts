@@ -177,10 +177,31 @@ describe("finance calculations", () => {
       false,
     );
     expect(belongsToConsultant(transaction, "consultant-1")).toBe(false);
+    expect(belongsToConsultant(transaction, "consultant-1", "all")).toBe(true);
+    expect(belongsToConsultant(transaction, "consultant-1", "company")).toBe(
+      true,
+    );
+    expect(belongsToConsultant(transaction, "consultant-1", "consultant")).toBe(
+      false,
+    );
     expect(
       belongsToConsultant(
         { ...transaction, funding: "consultant" },
         "consultant-1",
+      ),
+    ).toBe(true);
+    expect(
+      belongsToConsultant(
+        { ...transaction, funding: "consultant" },
+        "consultant-1",
+        "company",
+      ),
+    ).toBe(false);
+    expect(
+      belongsToConsultant(
+        { ...transaction, funding: "consultant" },
+        "consultant-1",
+        "all",
       ),
     ).toBe(true);
     expect(

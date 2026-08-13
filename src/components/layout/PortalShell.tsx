@@ -80,23 +80,23 @@ function financeItems(t: Translate): NavItem[] {
   return [
     { label: t("financialOverview"), href: "/finance" },
     {
-      label: t("compensationManagement"),
-      href: "/finance?section=compensation",
+      label: t("incomeExpenseManagement"),
+      href: "/finance?section=transactions",
     },
     { label: t("invoiceManagement"), href: "/finance?section=invoices" },
-    {
-      label: t("customerManagement"),
-      href: "/finance?section=customers",
-    },
+    { label: t("vatSettlements"), href: "/finance/vat-settlements" },
     {
       label: t("categoryManagement"),
       href: "/finance?section=categories",
     },
     {
-      label: t("incomeExpenseManagement"),
-      href: "/finance?section=transactions",
+      label: t("customerManagement"),
+      href: "/finance?section=customers",
     },
-    { label: t("vatSettlements"), href: "/finance/vat-settlements" },
+    {
+      label: t("compensationManagement"),
+      href: "/finance?section=compensation",
+    },
   ];
 }
 

@@ -1480,11 +1480,35 @@ th {
 .finance-chart-controls {
   margin-bottom: 18px;
 }
-.finance-chart-controls .week-head {
-  margin-bottom: 0;
+.finance-chart-filter-groups {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+.finance-chart-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.finance-chart-filter-group h2 {
+  margin: 0;
+  white-space: nowrap;
+}
+.finance-chart-consultant-filters {
+  margin-left: auto;
 }
 .finance-chart-controls .actions {
-  align-items: flex-end;
+  align-items: center;
+}
+.finance-chart-controls .compact-date-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.finance-chart-date-control {
+  align-self: center;
 }
 .finance-period {
   width: auto;
@@ -2183,6 +2207,17 @@ th {
   }
   .form-grid {
     grid-template-columns: 1fr;
+  }
+  .finance-chart-filter-groups {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .finance-chart-filter-group {
+    flex-wrap: wrap;
+  }
+  .finance-chart-consultant-filters {
+    width: 100%;
+    margin-left: 0;
   }
   .metrics {
     grid-template-columns: repeat(2, 1fr);

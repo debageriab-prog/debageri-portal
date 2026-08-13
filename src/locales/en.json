@@ -401,6 +401,8 @@
   "funding": "Paid by",
   "companyFunded": "Company-funded",
   "consultantFunded": "Consultant-funded",
+  "expenseFundingFilter": "Expense funding",
+  "allExpenses": "All expenses",
   "applyConsultantShare": "Credit the consultant's configured share",
   "postTransaction": "Post transaction",
   "invoices": "Invoices",

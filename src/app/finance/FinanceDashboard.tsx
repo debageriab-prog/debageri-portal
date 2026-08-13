@@ -125,6 +125,7 @@ function today() {
 }
 
 type FinancePeriod = "month" | "year" | "all" | "range";
+type ExpenseFundingFilter = "all" | "company" | "consultant";
 
 function inFinancePeriod(
   date: string,
@@ -970,7 +971,7 @@ export function FinanceDashboard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [chartPeriod, setChartPeriod] = useState<FinancePeriod>("month");
+  const [chartPeriod, setChartPeriod] = useState<FinancePeriod>("year");
   const [chartAnchor, setChartAnchor] = useState(today().slice(0, 7));
   const [chartRangeFrom, setChartRangeFrom] = useState(
     `${today().slice(0, 7)}-01`,
@@ -979,8 +980,10 @@ export function FinanceDashboard({
   const [includeVatInIncomeExpense, setIncludeVatInIncomeExpense] =
     useState(false);
   const [selectedConsultant, setSelectedConsultant] = useState(
-    manager ? "all" : actor.id,
+    manager ? "company" : actor.id,
   );
+  const [expenseFundingFilter, setExpenseFundingFilter] =
+    useState<ExpenseFundingFilter>("all");
   const [invoiceConsultantFilter, setInvoiceConsultantFilter] = useState("all");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const initialTransactionListState = transactionListState(
@@ -1062,7 +1065,11 @@ export function FinanceDashboard({
           ? data.transactions.filter(belongsToCompany)
           : data.transactions.filter(
               (item) =>
-                belongsToConsultant(item, selectedConsultant) ||
+                belongsToConsultant(
+                  item,
+                  selectedConsultant,
+                  manager ? expenseFundingFilter : "consultant",
+                ) ||
                 (manager &&
                   selectedModel === "fixed" &&
                   belongsToFixedConsultantResult(
@@ -1075,6 +1082,7 @@ export function FinanceDashboard({
             ),
     [
       data.transactions,
+      expenseFundingFilter,
       invoiceConsultantIds,
       manager,
       selectedConsultant,
@@ -1396,24 +1404,6 @@ export function FinanceDashboard({
                 : t(`${section}SectionDescription` as Parameters<typeof t>[0])}
           </p>
         </div>
-        {manager && section === "overview" && (
-          <label>
-            {t("consultant")}
-            <select
-              className="field"
-              value={selectedConsultant}
-              onChange={(event) => setSelectedConsultant(event.target.value)}
-            >
-              <option value="all">{t("allConsultantsAndCompany")}</option>
-              <option value="company">{t("companyOnly")}</option>
-              {data.users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.displayName}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
       </div>
       {(error || message) && (
         <p className={`notice ${error ? "notice-error" : "notice-success"}`}>
@@ -1495,13 +1485,13 @@ export function FinanceDashboard({
             )}
           </section>
           <section className="card finance-chart-controls">
-            <div className="week-head">
-              <h2>{t("chartPeriod")}</h2>
-              <div className="actions">
-                <label className="compact-date-field">
-                  {t("periodType")}
+            <div className="finance-chart-filter-groups">
+              <div className="finance-chart-filter-group">
+                <h2>{t("chartPeriod")}</h2>
+                <div className="actions">
                   <select
                     className="field finance-period"
+                    aria-label={t("chartPeriod")}
                     value={chartPeriod}
                     onChange={(event) =>
                       setChartPeriod(event.target.value as typeof chartPeriod)
@@ -1512,78 +1502,130 @@ export function FinanceDashboard({
                     <option value="range">{t("customDateRange")}</option>
                     <option value="all">{t("allTime")}</option>
                   </select>
-                </label>
-                {chartPeriod === "month" && (
-                  <div className="month-stepper">
-                    <button
-                      className="button secondary month-step-button"
-                      type="button"
-                      aria-label={t("previousMonth")}
-                      title={t("previousMonth")}
-                      onClick={() =>
-                        setChartAnchor(shiftMonth(chartAnchor, -1))
-                      }
-                    >
-                      {"\u2039"}
-                    </button>
+                  {chartPeriod === "month" && (
+                    <div className="month-stepper finance-chart-date-control">
+                      <button
+                        className="button secondary month-step-button"
+                        type="button"
+                        aria-label={t("previousMonth")}
+                        title={t("previousMonth")}
+                        onClick={() =>
+                          setChartAnchor(shiftMonth(chartAnchor, -1))
+                        }
+                      >
+                        {"\u2039"}
+                      </button>
+                      <input
+                        className="field finance-period"
+                        type="month"
+                        aria-label={t("chartPeriod")}
+                        value={chartAnchor}
+                        onChange={(event) => setChartAnchor(event.target.value)}
+                      />
+                      <button
+                        className="button secondary month-step-button"
+                        type="button"
+                        aria-label={t("nextMonth")}
+                        title={t("nextMonth")}
+                        onClick={() =>
+                          setChartAnchor(shiftMonth(chartAnchor, 1))
+                        }
+                      >
+                        {"\u203a"}
+                      </button>
+                    </div>
+                  )}
+                  {chartPeriod === "year" && (
                     <input
-                      className="field finance-period"
-                      type="month"
+                      className="field finance-period finance-chart-date-control"
+                      type="number"
+                      min="2000"
+                      max="2100"
                       aria-label={t("chartPeriod")}
-                      value={chartAnchor}
-                      onChange={(event) => setChartAnchor(event.target.value)}
+                      value={chartAnchor.slice(0, 4)}
+                      onChange={(event) =>
+                        setChartAnchor(`${event.target.value}-01`)
+                      }
                     />
-                    <button
-                      className="button secondary month-step-button"
-                      type="button"
-                      aria-label={t("nextMonth")}
-                      title={t("nextMonth")}
-                      onClick={() => setChartAnchor(shiftMonth(chartAnchor, 1))}
-                    >
-                      {"\u203a"}
-                    </button>
-                  </div>
-                )}
-                {chartPeriod === "year" && (
-                  <input
-                    className="field finance-period"
-                    type="number"
-                    min="2000"
-                    max="2100"
-                    aria-label={t("chartPeriod")}
-                    value={chartAnchor.slice(0, 4)}
-                    onChange={(event) =>
-                      setChartAnchor(`${event.target.value}-01`)
-                    }
-                  />
-                )}
-                {chartPeriod === "range" && (
-                  <>
-                    <label className="compact-date-field">
-                      {t("fromDateInclusive")}
-                      <input
-                        className="field finance-period"
-                        type="date"
-                        value={chartRangeFrom}
-                        onChange={(event) =>
-                          changeChartRangeFrom(event.target.value)
-                        }
-                      />
-                    </label>
-                    <label className="compact-date-field">
-                      {t("toDateInclusive")}
-                      <input
-                        className="field finance-period"
-                        type="date"
-                        value={chartRangeTo}
-                        onChange={(event) =>
-                          changeChartRangeTo(event.target.value)
-                        }
-                      />
-                    </label>
-                  </>
-                )}
+                  )}
+                  {chartPeriod === "range" && (
+                    <>
+                      <label className="compact-date-field">
+                        {t("fromDateInclusive")}
+                        <input
+                          className="field finance-period"
+                          type="date"
+                          value={chartRangeFrom}
+                          onChange={(event) =>
+                            changeChartRangeFrom(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="compact-date-field">
+                        {t("toDateInclusive")}
+                        <input
+                          className="field finance-period"
+                          type="date"
+                          value={chartRangeTo}
+                          onChange={(event) =>
+                            changeChartRangeTo(event.target.value)
+                          }
+                        />
+                      </label>
+                    </>
+                  )}
+                </div>
               </div>
+              {manager && (
+                <div className="finance-chart-filter-group finance-chart-consultant-filters">
+                  <div className="actions">
+                    <label className="compact-date-field">
+                      {t("consultant")}
+                      <select
+                        className="field"
+                        value={selectedConsultant}
+                        onChange={(event) => {
+                          setSelectedConsultant(event.target.value);
+                          setExpenseFundingFilter("all");
+                        }}
+                      >
+                        <option value="all">
+                          {t("allConsultantsAndCompany")}
+                        </option>
+                        <option value="company">{t("companyOnly")}</option>
+                        {data.users.map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {selectedConsultant !== "all" &&
+                      selectedConsultant !== "company" && (
+                        <label className="compact-date-field">
+                          {t("expenseFundingFilter")}
+                          <select
+                            className="field"
+                            value={expenseFundingFilter}
+                            onChange={(event) =>
+                              setExpenseFundingFilter(
+                                event.target.value as ExpenseFundingFilter,
+                              )
+                            }
+                          >
+                            <option value="all">{t("allExpenses")}</option>
+                            <option value="company">
+                              {t("companyFunded")}
+                            </option>
+                            <option value="consultant">
+                              {t("consultantFunded")}
+                            </option>
+                          </select>
+                        </label>
+                      )}
+                  </div>
+                </div>
+              )}
             </div>
           </section>
           <section className="card finance-chart-card">
