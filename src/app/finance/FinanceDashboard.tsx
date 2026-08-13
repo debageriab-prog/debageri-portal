@@ -980,7 +980,7 @@ export function FinanceDashboard({
   const [includeVatInIncomeExpense, setIncludeVatInIncomeExpense] =
     useState(false);
   const [selectedConsultant, setSelectedConsultant] = useState(
-    manager ? "all" : actor.id,
+    manager ? "company" : actor.id,
   );
   const [expenseFundingFilter, setExpenseFundingFilter] =
     useState<ExpenseFundingFilter>("all");
@@ -1404,48 +1404,6 @@ export function FinanceDashboard({
                 : t(`${section}SectionDescription` as Parameters<typeof t>[0])}
           </p>
         </div>
-        {manager && section === "overview" && (
-          <div className="form-grid compact">
-            <label>
-              {t("consultant")}
-              <select
-                className="field"
-                value={selectedConsultant}
-                onChange={(event) => {
-                  setSelectedConsultant(event.target.value);
-                  setExpenseFundingFilter("all");
-                }}
-              >
-                <option value="all">{t("allConsultantsAndCompany")}</option>
-                <option value="company">{t("companyOnly")}</option>
-                {data.users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.displayName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {selectedConsultant !== "all" &&
-              selectedConsultant !== "company" && (
-                <label>
-                  {t("expenseFundingFilter")}
-                  <select
-                    className="field"
-                    value={expenseFundingFilter}
-                    onChange={(event) =>
-                      setExpenseFundingFilter(
-                        event.target.value as ExpenseFundingFilter,
-                      )
-                    }
-                  >
-                    <option value="all">{t("allExpenses")}</option>
-                    <option value="company">{t("companyFunded")}</option>
-                    <option value="consultant">{t("consultantFunded")}</option>
-                  </select>
-                </label>
-              )}
-          </div>
-        )}
       </div>
       {(error || message) && (
         <p className={`notice ${error ? "notice-error" : "notice-success"}`}>
@@ -1530,6 +1488,51 @@ export function FinanceDashboard({
             <div className="week-head">
               <h2>{t("chartPeriod")}</h2>
               <div className="actions">
+                {manager && (
+                  <label className="compact-date-field">
+                    {t("consultant")}
+                    <select
+                      className="field"
+                      value={selectedConsultant}
+                      onChange={(event) => {
+                        setSelectedConsultant(event.target.value);
+                        setExpenseFundingFilter("all");
+                      }}
+                    >
+                      <option value="all">
+                        {t("allConsultantsAndCompany")}
+                      </option>
+                      <option value="company">{t("companyOnly")}</option>
+                      {data.users.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.displayName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {manager &&
+                  selectedConsultant !== "all" &&
+                  selectedConsultant !== "company" && (
+                    <label className="compact-date-field">
+                      {t("expenseFundingFilter")}
+                      <select
+                        className="field"
+                        value={expenseFundingFilter}
+                        onChange={(event) =>
+                          setExpenseFundingFilter(
+                            event.target.value as ExpenseFundingFilter,
+                          )
+                        }
+                      >
+                        <option value="all">{t("allExpenses")}</option>
+                        <option value="company">{t("companyFunded")}</option>
+                        <option value="consultant">
+                          {t("consultantFunded")}
+                        </option>
+                      </select>
+                    </label>
+                  )}
                 <label className="compact-date-field">
                   {t("periodType")}
                   <select
