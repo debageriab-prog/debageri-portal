@@ -914,6 +914,9 @@ th {
 .modal-small {
   width: min(520px, 100%);
 }
+.daily-transactions-modal {
+  width: min(820px, 100%);
+}
 
 .attachment-fieldset {
   min-width: 0;
@@ -1756,6 +1759,7 @@ th {
   gap: 12px;
 }
 .finance-expense-category-canvas {
+  position: relative;
   overflow-x: auto;
 }
 .finance-expense-category-chart svg {
@@ -2426,6 +2430,17 @@ th {
   }
   .finance-chart svg {
     height: auto;
+    cursor: default;
+    touch-action: pan-x;
+  }
+  .finance-chart,
+  .finance-expense-category-canvas {
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+  }
+  .finance-expense-category-chart svg {
+    touch-action: pan-x;
   }
   .finance-admin-grid {
     grid-template-columns: 1fr;

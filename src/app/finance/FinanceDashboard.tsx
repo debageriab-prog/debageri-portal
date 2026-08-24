@@ -172,6 +172,7 @@ function BalanceChart({
 }) {
   const { t } = useLocale();
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const zoomScope = `${period}:${anchor}:${rangeFrom}:${rangeTo}:${mode}`;
   const [storedZoom, setZoom] = useState({
     start: 0,
@@ -207,31 +208,51 @@ function BalanceChart({
       ) + 1
     );
   };
-  const transactionPoints = sorted.reduce<
+  const dailyPoints = sorted.reduce<
     Array<{
-      transaction: FinancePageData["transactions"][number];
+      date: string;
+      transactions: FinancePageData["transactions"];
       change: number;
       balance: number;
       xRatio: number;
     }>
-  >((points, transaction, index) => {
+  >((points, transaction) => {
     const change =
       mode === "balance"
         ? transaction.consultantBalanceDeltaMinor
         : transaction.direction === "income"
           ? transaction.netMinor
           : -transaction.netMinor;
-    const balance = (points.at(-1)?.balance ?? 0) + change;
+    const previous = points.at(-1);
+    if (previous?.date === transaction.date) {
+      previous.transactions.push(transaction);
+      previous.change += change;
+      previous.balance += change;
+      return points;
+    }
+    const balance = (previous?.balance ?? 0) + change;
+    return [
+      ...points,
+      {
+        date: transaction.date,
+        transactions: [transaction],
+        change,
+        balance,
+        xRatio: 0,
+      },
+    ];
+  }, []);
+  const transactionPoints = dailyPoints.map((point, index) => {
     const xRatio =
       period === "month"
-        ? Number(transaction.date.slice(8, 10)) / daysInMonth
+        ? Number(point.date.slice(8, 10)) / daysInMonth
         : period === "year"
-          ? (dayOfYear(transaction.date) - 0.5) / daysInYear
+          ? (dayOfYear(point.date) - 0.5) / daysInYear
           : period === "range"
-            ? (dateValue(transaction.date) - rangeStart) / rangeDuration
-            : (index + 1) / Math.max(1, sorted.length);
-    return [...points, { transaction, change, balance, xRatio }];
-  }, []);
+            ? (dateValue(point.date) - rangeStart) / rangeDuration
+            : (index + 1) / Math.max(1, dailyPoints.length);
+    return { ...point, xRatio };
+  });
   const chartPoints = transactionPoints.filter(
     (point) => point.xRatio >= zoom.start && point.xRatio <= zoom.end,
   );
@@ -375,6 +396,7 @@ function BalanceChart({
           role="img"
           aria-label={t("balanceHistory")}
           onPointerDown={(event) => {
+            if (event.pointerType === "touch") return;
             const position = pointerPosition(event);
             if (
               position === null ||
@@ -498,17 +520,27 @@ function BalanceChart({
             />
           )}
           {chartPoints.map((point, index) => (
-            <g key={point.transaction.id}>
+            <g key={point.date}>
               <circle
                 className="finance-chart-point-target"
                 cx={x(point.xRatio)}
                 cy={y(point.balance)}
                 r={7}
                 tabIndex={0}
+                role="button"
+                aria-label={t("viewDayTransactions") + ": " + point.date}
+                onPointerDown={(event) => event.stopPropagation()}
                 onMouseEnter={() => setHoveredPoint(index)}
                 onMouseLeave={() => setHoveredPoint(null)}
                 onFocus={() => setHoveredPoint(index)}
                 onBlur={() => setHoveredPoint(null)}
+                onClick={() => setSelectedDay(point.date)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedDay(point.date);
+                  }
+                }}
               />
               {hoveredPoint === index && (
                 <circle
@@ -543,20 +575,12 @@ function BalanceChart({
             }}
           >
             <>
-              <strong>{categoryName(hovered.transaction.categoryId)}</strong>
+              <strong>{hovered.date}</strong>
               <span>
-                {hovered.transaction.date} · {t(hovered.transaction.direction)}
+                {t("transactionCount")}: {hovered.transactions.length}
               </span>
-              {(hovered.transaction.internalNote ||
-                hovered.transaction.visibleDescription) && (
-                <span>
-                  {t("description")}:{" "}
-                  {hovered.transaction.internalNote ||
-                    hovered.transaction.visibleDescription}
-                </span>
-              )}
               <span>
-                {t("balanceChange")}: {formatSek(hovered.change, locale)}
+                {t("dailyChange")}: {formatSek(hovered.change, locale)}
               </span>
               <span>
                 {t("balanceAtPoint")}: {formatSek(hovered.balance, locale)}
@@ -565,6 +589,95 @@ function BalanceChart({
           </div>
         )}
       </div>
+      {selectedDay && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={() => setSelectedDay(null)}
+        >
+          <section
+            className="modal daily-transactions-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="daily-transactions-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="modal-header">
+              <div>
+                <h2 id="daily-transactions-title">{t("dailyTransactions")}</h2>
+                <p>{selectedDay}</p>
+              </div>
+              <button
+                className="modal-close"
+                type="button"
+                aria-label={t("close")}
+                onClick={() => setSelectedDay(null)}
+              >
+                {"\u00d7"}
+              </button>
+            </header>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("type")}</th>
+                    <th>{t("category")}</th>
+                    <th>{t("description")}</th>
+                    <th>{t("amount")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactionPoints
+                    .find((point) => point.date === selectedDay)
+                    ?.transactions.map((transaction) => (
+                      <tr key={transaction.id}>
+                        <td>{t(transaction.direction)}</td>
+                        <td>{categoryName(transaction.categoryId)}</td>
+                        <td>
+                          {transaction.internalNote ||
+                            transaction.visibleDescription ||
+                            "—"}
+                        </td>
+                        <td>
+                          {formatSek(
+                            mode === "balance"
+                              ? transaction.consultantBalanceDeltaMinor
+                              : transaction.direction === "income"
+                                ? transaction.netMinor
+                                : -transaction.netMinor,
+                            locale,
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th colSpan={3}>{t("dailyChange")}</th>
+                    <th>
+                      {formatSek(
+                        transactionPoints.find(
+                          (point) => point.date === selectedDay,
+                        )?.change ?? 0,
+                        locale,
+                      )}
+                    </th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <footer className="modal-actions">
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => setSelectedDay(null)}
+              >
+                {t("close")}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
@@ -835,6 +948,13 @@ function ExpenseCategoryChart({
 }) {
   const { t } = useLocale();
   const [includeSalaryRelated, setIncludeSalaryRelated] = useState(false);
+  const [hoveredCategory, setHoveredCategory] = useState<{
+    label: string;
+    count: number;
+    amountMinor: number;
+    x: number;
+    y: number;
+  } | null>(null);
   const allTotals = expenseTotalsByCategory(transactions);
   const totals = includeSalaryRelated
     ? allTotals
@@ -917,6 +1037,18 @@ function ExpenseCategoryChart({
             {totals.map((item, index) => {
               const center = plot.left + groupWidth * (index + 0.5);
               const label = categoryName(item.categoryId);
+              const count = transactions.filter(
+                (transaction) =>
+                  transaction.direction === "expense" &&
+                  transaction.categoryId === item.categoryId,
+              ).length;
+              const hoverDetails = {
+                label,
+                count,
+                amountMinor: item.amountMinor,
+                x: center,
+                y: y(item.amountMinor),
+              };
               return (
                 <g key={item.categoryId}>
                   <line
@@ -943,13 +1075,34 @@ function ExpenseCategoryChart({
                     height={Math.max(3, plot.bottom - y(item.amountMinor))}
                     rx="4"
                     tabIndex={0}
-                  >
-                    <title>{`${label}: ${formatSek(item.amountMinor, locale)}`}</title>
-                  </rect>
+                    onMouseEnter={() => setHoveredCategory(hoverDetails)}
+                    onMouseLeave={() => setHoveredCategory(null)}
+                    onFocus={() => setHoveredCategory(hoverDetails)}
+                    onBlur={() => setHoveredCategory(null)}
+                  />
                 </g>
               );
             })}
           </svg>
+          {hoveredCategory && (
+            <div
+              className="finance-chart-tooltip"
+              style={{
+                left: `clamp(120px, ${(hoveredCategory.x / 1000) * 100}%, calc(100% - 120px))`,
+                top: `${(hoveredCategory.y / chartHeight) * 100}%`,
+                transform:
+                  hoveredCategory.y < 105
+                    ? "translate(-50%, 12px)"
+                    : "translate(-50%, calc(-100% - 12px))",
+              }}
+            >
+              <strong>{hoveredCategory.label}</strong>
+              <span>
+                {t("transactionCount")}: {hoveredCategory.count}
+              </span>
+              <span>{formatSek(hoveredCategory.amountMinor, locale)}</span>
+            </div>
+          )}
         </div>
       )}
     </div>
