@@ -396,6 +396,7 @@ function BalanceChart({
           role="img"
           aria-label={t("balanceHistory")}
           onPointerDown={(event) => {
+            if (event.pointerType === "touch") return;
             const position = pointerPosition(event);
             if (
               position === null ||
@@ -947,6 +948,13 @@ function ExpenseCategoryChart({
 }) {
   const { t } = useLocale();
   const [includeSalaryRelated, setIncludeSalaryRelated] = useState(false);
+  const [hoveredCategory, setHoveredCategory] = useState<{
+    label: string;
+    count: number;
+    amountMinor: number;
+    x: number;
+    y: number;
+  } | null>(null);
   const allTotals = expenseTotalsByCategory(transactions);
   const totals = includeSalaryRelated
     ? allTotals
@@ -1029,6 +1037,18 @@ function ExpenseCategoryChart({
             {totals.map((item, index) => {
               const center = plot.left + groupWidth * (index + 0.5);
               const label = categoryName(item.categoryId);
+              const count = transactions.filter(
+                (transaction) =>
+                  transaction.direction === "expense" &&
+                  transaction.categoryId === item.categoryId,
+              ).length;
+              const hoverDetails = {
+                label,
+                count,
+                amountMinor: item.amountMinor,
+                x: center,
+                y: y(item.amountMinor),
+              };
               return (
                 <g key={item.categoryId}>
                   <line
@@ -1055,13 +1075,34 @@ function ExpenseCategoryChart({
                     height={Math.max(3, plot.bottom - y(item.amountMinor))}
                     rx="4"
                     tabIndex={0}
-                  >
-                    <title>{`${label}: ${formatSek(item.amountMinor, locale)}`}</title>
-                  </rect>
+                    onMouseEnter={() => setHoveredCategory(hoverDetails)}
+                    onMouseLeave={() => setHoveredCategory(null)}
+                    onFocus={() => setHoveredCategory(hoverDetails)}
+                    onBlur={() => setHoveredCategory(null)}
+                  />
                 </g>
               );
             })}
           </svg>
+          {hoveredCategory && (
+            <div
+              className="finance-chart-tooltip"
+              style={{
+                left: `clamp(120px, ${(hoveredCategory.x / 1000) * 100}%, calc(100% - 120px))`,
+                top: `${(hoveredCategory.y / chartHeight) * 100}%`,
+                transform:
+                  hoveredCategory.y < 105
+                    ? "translate(-50%, 12px)"
+                    : "translate(-50%, calc(-100% - 12px))",
+              }}
+            >
+              <strong>{hoveredCategory.label}</strong>
+              <span>
+                {t("transactionCount")}: {hoveredCategory.count}
+              </span>
+              <span>{formatSek(hoveredCategory.amountMinor, locale)}</span>
+            </div>
+          )}
         </div>
       )}
     </div>
