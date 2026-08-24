@@ -914,6 +914,9 @@ th {
 .modal-small {
   width: min(520px, 100%);
 }
+.daily-transactions-modal {
+  width: min(820px, 100%);
+}
 
 .attachment-fieldset {
   min-width: 0;

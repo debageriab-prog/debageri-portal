@@ -595,7 +595,7 @@ function BalanceChart({
           onMouseDown={() => setSelectedDay(null)}
         >
           <section
-            className="modal"
+            className="modal daily-transactions-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="daily-transactions-title"
