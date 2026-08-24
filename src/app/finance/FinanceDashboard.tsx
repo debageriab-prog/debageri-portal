@@ -528,6 +528,7 @@ function BalanceChart({
                 tabIndex={0}
                 role="button"
                 aria-label={t("viewDayTransactions") + ": " + point.date}
+                onPointerDown={(event) => event.stopPropagation()}
                 onMouseEnter={() => setHoveredPoint(index)}
                 onMouseLeave={() => setHoveredPoint(null)}
                 onFocus={() => setHoveredPoint(index)}
