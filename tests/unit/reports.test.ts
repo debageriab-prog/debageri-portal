@@ -3,6 +3,7 @@ import type { TimeEntry } from "@/domain/types";
 import {
   aggregateReport,
   aggregateReportedBreakdown,
+  aggregateReportedDays,
 } from "@/domain/reports/aggregate";
 
 const base: TimeEntry = {
@@ -28,6 +29,24 @@ const base: TimeEntry = {
   projectId: null,
 };
 describe("reports", () => {
+  it("counts at most one reported day per calendar date", () => {
+    const result = aggregateReportedDays(
+      [
+        {
+          date: "2026-07-27",
+          minutes: 16 * 60,
+          name: "Regular",
+          countsAsWorkedTime: true,
+        },
+      ],
+      2 * 8 * 60,
+    );
+
+    expect(result.reported).toBe(8 * 60);
+    expect(result.worked).toBe(8 * 60);
+    expect(result.unreported).toBe(8 * 60);
+  });
+
   it("aggregates code, category and day", () => {
     const result = aggregateReport([
       base,
