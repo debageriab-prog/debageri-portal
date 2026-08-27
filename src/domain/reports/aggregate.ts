@@ -66,3 +66,46 @@ export function aggregateReportedBreakdown(
           : left.label.localeCompare(right.label),
     );
 }
+
+export function aggregateReportedDays(
+  entries: Array<{
+    date: string;
+    minutes: number;
+    name: string;
+    countsAsWorkedTime: boolean;
+  }>,
+  expectedMinutes: number,
+) {
+  const entriesByDate = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    const dateEntries = entriesByDate.get(entry.date) ?? [];
+    dateEntries.push(entry);
+    entriesByDate.set(entry.date, dateEntries);
+  }
+
+  let worked = 0;
+  let reported = 0;
+  const byCode = new Map<string, number>();
+  for (const dateEntries of entriesByDate.values()) {
+    const dateMinutes = dateEntries.reduce(
+      (total, entry) => total + entry.minutes,
+      0,
+    );
+    const cappedMinutes = Math.min(480, dateMinutes);
+    const scale = dateMinutes > 0 ? cappedMinutes / dateMinutes : 0;
+    reported += cappedMinutes;
+    for (const entry of dateEntries) {
+      const contribution = entry.minutes * scale;
+      if (entry.countsAsWorkedTime) worked += contribution;
+      else byCode.set(entry.name, (byCode.get(entry.name) ?? 0) + contribution);
+    }
+  }
+
+  return {
+    worked,
+    unreported: Math.max(0, expectedMinutes - reported),
+    byCode,
+    total: Math.max(expectedMinutes, reported, 1),
+    reported,
+  };
+}

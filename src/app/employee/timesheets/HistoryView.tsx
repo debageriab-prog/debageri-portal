@@ -8,6 +8,7 @@ import { appCheckFetch } from "@/lib/firebase/client";
 import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { ActionIcon } from "@/components/ui/ActionIcon";
+import { aggregateReportedDays } from "@/domain/reports/aggregate";
 
 type HistorySheet = {
   id: string;
@@ -204,7 +205,7 @@ export function HistoryView({
         ? yearTotals
         : monthTotals;
 
-  const segments = [
+  const hourSegments = [
     { label: t("worked"), value: chartTotals.worked, color: "#35634a" },
     ...[...chartTotals.byCode].map(([label, value], index) => ({
       label,
@@ -217,15 +218,6 @@ export function HistoryView({
       color: "#ddd3ca",
     },
   ].filter((segment) => segment.value > 0);
-  let cursor = 0;
-  const gradient = segments
-    .map((segment) => {
-      const start = (cursor / chartTotals.total) * 360;
-      cursor += segment.value;
-      const end = (cursor / chartTotals.total) * 360;
-      return `${segment.color} ${start}deg ${end}deg`;
-    })
-    .join(", ");
   const selectedEntries =
     mode === "year"
       ? yearEntries
@@ -236,6 +228,23 @@ export function HistoryView({
     (sum, entry) => sum + entry.minutes,
     0,
   );
+  const dayTotals = aggregateReportedDays(
+    selectedEntries,
+    chartTotals.expected,
+  );
+  const daySegments = [
+    { label: t("worked"), value: dayTotals.worked, color: "#35634a" },
+    ...[...dayTotals.byCode].map(([label, value], index) => ({
+      label,
+      value,
+      color: ["#a56f4e", "#b88b5d", "#8a7186", "#668a91"][index % 4]!,
+    })),
+    {
+      label: t("notReported"),
+      value: dayTotals.unreported,
+      color: "#ddd3ca",
+    },
+  ].filter((segment) => segment.value > 0);
   const formatDays = (minutes: number) => {
     const days = minutes / 480;
     return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? t("day") : t("days")}`;
@@ -244,6 +253,17 @@ export function HistoryView({
     `${new Intl.NumberFormat("en-SE", { maximumFractionDigits: 0 }).format(amount)} SEK`;
 
   function summaryChart(unit: "hours" | "days") {
+    const segments = unit === "hours" ? hourSegments : daySegments;
+    const total = unit === "hours" ? chartTotals.total : dayTotals.total;
+    let cursor = 0;
+    const gradient = segments
+      .map((segment) => {
+        const start = (cursor / total) * 360;
+        cursor += segment.value;
+        const end = (cursor / total) * 360;
+        return `${segment.color} ${start}deg ${end}deg`;
+      })
+      .join(", ");
     return (
       <div className="summary-chart">
         <div
@@ -256,7 +276,7 @@ export function HistoryView({
             <strong>
               {unit === "hours"
                 ? formatDuration(reportedForSelection)
-                : formatDays(reportedForSelection)}
+                : formatDays(dayTotals.reported)}
             </strong>
             <span>
               {t("reported")} {unit === "hours" ? t("hours") : t("days")}
