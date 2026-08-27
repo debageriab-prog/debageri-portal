@@ -67,6 +67,141 @@ export function paidFlexibleCompanyResultMinor(
     );
 }
 
+type FlexibleInvoiceHistoryInput = {
+  id: string;
+  invoiceNumber: string;
+  customerName: string;
+  consultantId: string | null;
+  compensationModel: "flexible" | "fixed" | null;
+  status: "issued" | "paid" | "void";
+  paidDate: string | null;
+  netMinor: number;
+  shareBps: number;
+};
+
+type FlexibleExpenseHistoryInput = {
+  id: string;
+  consultantId: string | null;
+  direction: "income" | "expense";
+  funding: "company" | "consultant" | null;
+  date: string;
+  netMinor: number;
+  categoryId: string;
+  visibleDescription: string;
+  internalNote: string;
+};
+
+export type FinanceHistoryEntry = {
+  id: string;
+  date: string;
+  kind: "invoice" | "expense";
+  reference: string;
+  categoryId: string | null;
+  description: string;
+  changeMinor: number;
+  runningTotalMinor: number;
+};
+
+function withRunningTotals(
+  entries: Array<Omit<FinanceHistoryEntry, "runningTotalMinor">>,
+) {
+  let runningTotalMinor = 0;
+  return entries
+    .sort((left, right) =>
+      left.date === right.date
+        ? left.id.localeCompare(right.id)
+        : left.date.localeCompare(right.date),
+    )
+    .map((entry) => {
+      runningTotalMinor += entry.changeMinor;
+      return { ...entry, runningTotalMinor };
+    });
+}
+
+export function flexibleConsultantBalanceHistory(
+  invoices: FlexibleInvoiceHistoryInput[],
+  transactions: FlexibleExpenseHistoryInput[],
+  consultantId: string,
+) {
+  return withRunningTotals([
+    ...invoices
+      .filter(
+        (invoice) =>
+          invoice.consultantId === consultantId &&
+          invoice.compensationModel === "flexible" &&
+          invoice.status === "paid" &&
+          invoice.paidDate,
+      )
+      .map((invoice) => ({
+        id: `invoice:${invoice.id}`,
+        date: invoice.paidDate!,
+        kind: "invoice" as const,
+        reference: invoice.invoiceNumber,
+        categoryId: null,
+        description: invoice.customerName,
+        changeMinor: calculateShareMinor(invoice.netMinor, invoice.shareBps),
+      })),
+    ...transactions
+      .filter(
+        (transaction) =>
+          transaction.consultantId === consultantId &&
+          transaction.direction === "expense" &&
+          transaction.funding === "consultant",
+      )
+      .map((transaction) => ({
+        id: `expense:${transaction.id}`,
+        date: transaction.date,
+        kind: "expense" as const,
+        reference: "",
+        categoryId: transaction.categoryId,
+        description: transaction.visibleDescription || transaction.internalNote,
+        changeMinor: -transaction.netMinor,
+      })),
+  ]);
+}
+
+export function flexibleConsultantRetainedResultHistory(
+  invoices: FlexibleInvoiceHistoryInput[],
+  transactions: FlexibleExpenseHistoryInput[],
+  consultantId: string,
+) {
+  return withRunningTotals([
+    ...invoices
+      .filter(
+        (invoice) =>
+          invoice.consultantId === consultantId &&
+          invoice.compensationModel === "flexible" &&
+          invoice.status === "paid" &&
+          invoice.paidDate,
+      )
+      .map((invoice) => ({
+        id: `invoice:${invoice.id}`,
+        date: invoice.paidDate!,
+        kind: "invoice" as const,
+        reference: invoice.invoiceNumber,
+        categoryId: null,
+        description: invoice.customerName,
+        changeMinor: companyOutstandingInvoiceShareMinor(invoice),
+      })),
+    ...transactions
+      .filter(
+        (transaction) =>
+          transaction.consultantId === consultantId &&
+          transaction.direction === "expense" &&
+          transaction.funding === "company",
+      )
+      .map((transaction) => ({
+        id: `expense:${transaction.id}`,
+        date: transaction.date,
+        kind: "expense" as const,
+        reference: "",
+        categoryId: transaction.categoryId,
+        description: transaction.internalNote,
+        changeMinor: -transaction.netMinor,
+      })),
+  ]);
+}
+
 type TransactionScopeInput = Pick<
   FinancialTransaction,
   | "consultantId"

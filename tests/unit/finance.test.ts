@@ -11,6 +11,8 @@ import {
   companyOutstandingInvoiceShareMinor,
   expenseTotalsByCategory,
   financeTotals,
+  flexibleConsultantBalanceHistory,
+  flexibleConsultantRetainedResultHistory,
   isSalaryRelatedExpenseCode,
   paidFlexibleCompanyResultMinor,
   parseSek,
@@ -25,6 +27,77 @@ import {
 import { financeActionSchema } from "@/server/validators/finance";
 
 describe("finance calculations", () => {
+  it("builds flexible consultant balance and retained-result histories", () => {
+    const invoices = [
+      {
+        id: "paid",
+        invoiceNumber: "INV-1",
+        customerName: "Customer A",
+        consultantId: "consultant-1",
+        compensationModel: "flexible" as const,
+        status: "paid" as const,
+        paidDate: "2026-01-10",
+        netMinor: 100_000,
+        shareBps: 7_000,
+      },
+      {
+        id: "issued",
+        invoiceNumber: "INV-2",
+        customerName: "Customer B",
+        consultantId: "consultant-1",
+        compensationModel: "flexible" as const,
+        status: "issued" as const,
+        paidDate: null,
+        netMinor: 200_000,
+        shareBps: 7_000,
+      },
+    ];
+    const transactions = [
+      {
+        id: "consultant-expense",
+        consultantId: "consultant-1",
+        direction: "expense" as const,
+        funding: "consultant" as const,
+        date: "2026-01-15",
+        netMinor: 20_000,
+        categoryId: "travel",
+        visibleDescription: "Train",
+        internalNote: "",
+      },
+      {
+        id: "company-expense",
+        consultantId: "consultant-1",
+        direction: "expense" as const,
+        funding: "company" as const,
+        date: "2026-01-20",
+        netMinor: 8_000,
+        categoryId: "software",
+        visibleDescription: "",
+        internalNote: "License",
+      },
+    ];
+
+    const balance = flexibleConsultantBalanceHistory(
+      invoices,
+      transactions,
+      "consultant-1",
+    );
+    const retained = flexibleConsultantRetainedResultHistory(
+      invoices,
+      transactions,
+      "consultant-1",
+    );
+
+    expect(balance.map((entry) => entry.changeMinor)).toEqual([
+      70_000, -20_000,
+    ]);
+    expect(balance.at(-1)?.runningTotalMinor).toBe(50_000);
+    expect(retained.map((entry) => entry.changeMinor)).toEqual([
+      30_000, -8_000,
+    ]);
+    expect(retained.at(-1)?.runningTotalMinor).toBe(22_000);
+  });
+
   it("reduces VAT payable only by active settlements", () => {
     expect(
       vatPayableMinor(
