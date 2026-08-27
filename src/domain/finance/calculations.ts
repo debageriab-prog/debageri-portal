@@ -94,7 +94,7 @@ type FlexibleExpenseHistoryInput = {
 export type FinanceHistoryEntry = {
   id: string;
   date: string;
-  kind: "invoice" | "expense";
+  kind: "invoice" | "income" | "expense";
   reference: string;
   categoryId: string | null;
   description: string;
@@ -116,6 +116,41 @@ function withRunningTotals(
       runningTotalMinor += entry.changeMinor;
       return { ...entry, runningTotalMinor };
     });
+}
+
+type TransactionHistoryInput = {
+  id: string;
+  direction: "income" | "expense";
+  date: string;
+  netMinor: number;
+  categoryId: string;
+  visibleDescription: string;
+  internalNote: string;
+};
+
+export function transactionFinanceHistory(
+  transactions: TransactionHistoryInput[],
+  mode: "income" | "result",
+) {
+  return withRunningTotals(
+    transactions
+      .filter(
+        (transaction) =>
+          mode === "result" || transaction.direction === "income",
+      )
+      .map((transaction) => ({
+        id: `transaction:${transaction.id}`,
+        date: transaction.date,
+        kind: transaction.direction,
+        reference: "",
+        categoryId: transaction.categoryId,
+        description: transaction.visibleDescription || transaction.internalNote,
+        changeMinor:
+          transaction.direction === "income"
+            ? transaction.netMinor
+            : -transaction.netMinor,
+      })),
+  );
 }
 
 export function flexibleConsultantBalanceHistory(

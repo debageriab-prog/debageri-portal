@@ -26,6 +26,7 @@ import {
   formatSek,
   isSalaryRelatedExpenseCode,
   transactionTableDescription,
+  transactionFinanceHistory,
   vatPayableMinor,
 } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
@@ -1249,7 +1250,7 @@ export function FinanceDashboard({
   const [expenseFundingFilter, setExpenseFundingFilter] =
     useState<ExpenseFundingFilter>("all");
   const [financeHistory, setFinanceHistory] = useState<
-    "consultantBalance" | "retainedResult" | null
+    "netIncome" | "consultantBalance" | "retainedResult" | null
   >(null);
   const [invoiceConsultantFilter, setInvoiceConsultantFilter] = useState("all");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
@@ -1408,6 +1409,10 @@ export function FinanceDashboard({
         }))
       : summaryTransactions,
   );
+  const netIncomeHistory = transactionFinanceHistory(
+    summaryTransactions,
+    "income",
+  );
   const organizationVatPayable = vatPayableMinor(
     data.transactions,
     data.vatSettlements,
@@ -1451,7 +1456,7 @@ export function FinanceDashboard({
         sum +
         (selectedConsultant === "company"
           ? companyOutstandingInvoiceShareMinor(invoice)
-          : invoice.grossMinor),
+          : invoice.netMinor),
       0,
     );
   const consultantBalanceHistory =
@@ -1465,21 +1470,23 @@ export function FinanceDashboard({
         )
       : [];
   const retainedResultHistory =
-    selectedConsultant !== "all" && selectedConsultant !== "company"
-      ? selectedModel === "flexible"
-        ? flexibleConsultantRetainedResultHistory(
-            data.invoices,
-            data.transactions,
-            selectedConsultant,
-          )
-        : selectedModel === "fixed"
-          ? fixedConsultantRetainedResultHistory(
+    selectedConsultant === "company"
+      ? transactionFinanceHistory(summaryTransactions, "result")
+      : selectedConsultant !== "all"
+        ? selectedModel === "flexible"
+          ? flexibleConsultantRetainedResultHistory(
               data.invoices,
               data.transactions,
               selectedConsultant,
             )
-          : []
-      : [];
+          : selectedModel === "fixed"
+            ? fixedConsultantRetainedResultHistory(
+                data.invoices,
+                data.transactions,
+                selectedConsultant,
+              )
+            : []
+        : [];
   const selectedFlexibleConsultantBalance =
     consultantBalanceHistory.at(-1)?.runningTotalMinor ?? 0;
   const retainedResult =
@@ -1742,17 +1749,27 @@ export function FinanceDashboard({
         <>
           <section className="finance-metrics">
             <div className="metric">
-              <span>
-                {manager
-                  ? selectedConsultant !== "all" &&
+              {manager ? (
+                <button
+                  className="metric-button"
+                  type="button"
+                  onClick={() => setFinanceHistory("netIncome")}
+                >
+                  <span>
+                    {selectedConsultant !== "all" &&
                     selectedConsultant !== "company"
-                    ? t("netIncomeFromConsultant")
-                    : t("netIncome")
-                  : t("earnedShare")}
-              </span>
-              <strong>
-                {formatSek(manager ? totals.incomeMinor : earnedShare, locale)}
-              </strong>
+                      ? t("netIncomeFromConsultant")
+                      : t("netIncome")}
+                  </span>
+                  <strong>{formatSek(totals.incomeMinor, locale)}</strong>
+                  <small>{t("viewHistory")}</small>
+                </button>
+              ) : (
+                <>
+                  <span>{t("earnedShare")}</span>
+                  <strong>{formatSek(earnedShare, locale)}</strong>
+                </>
+              )}
             </div>
             <div className="metric">
               <span>{manager ? t("netExpenses") : t("spentFromBalance")}</span>
@@ -1764,8 +1781,8 @@ export function FinanceDashboard({
               </strong>
             </div>
             {(selectedConsultant === "all" ||
-              selectedConsultant === "company" ||
-              selectedModel !== "fixed") && (
+              (selectedConsultant !== "company" &&
+                selectedModel !== "fixed")) && (
               <div className="metric">
                 {selectedModel === "flexible" &&
                 selectedConsultant !== "all" &&
@@ -1816,10 +1833,11 @@ export function FinanceDashboard({
                   </div>
                 )}
                 <div className="metric">
-                  {(selectedModel === "flexible" ||
+                  {((selectedModel === "flexible" ||
                     selectedModel === "fixed") &&
-                  selectedConsultant !== "all" &&
-                  selectedConsultant !== "company" ? (
+                    selectedConsultant !== "all" &&
+                    selectedConsultant !== "company") ||
+                  selectedConsultant === "company" ? (
                     <button
                       className="metric-button"
                       type="button"
@@ -2878,13 +2896,29 @@ export function FinanceDashboard({
           close={() => setFinanceHistory(null)}
         />
       )}
+      {financeHistory === "netIncome" && (
+        <FinanceHistoryModal
+          title={
+            selectedConsultant !== "all" && selectedConsultant !== "company"
+              ? t("netIncomeFromConsultant")
+              : t("netIncome")
+          }
+          description={t("netIncomeHistoryDescription")}
+          entries={netIncomeHistory}
+          locale={locale}
+          categoryName={categoryName}
+          close={() => setFinanceHistory(null)}
+        />
+      )}
       {financeHistory === "retainedResult" && (
         <FinanceHistoryModal
           title={t("retainedResult")}
           description={t(
-            selectedModel === "fixed"
-              ? "fixedRetainedResultHistoryDescription"
-              : "retainedResultHistoryDescription",
+            selectedConsultant === "company"
+              ? "companyRetainedResultHistoryDescription"
+              : selectedModel === "fixed"
+                ? "fixedRetainedResultHistoryDescription"
+                : "retainedResultHistoryDescription",
           )}
           entries={retainedResultHistory}
           locale={locale}
