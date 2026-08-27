@@ -18,6 +18,7 @@ import {
   paidFlexibleCompanyResultMinor,
   parseSek,
   transactionTableDescription,
+  transactionFinanceHistory,
   vatPayableMinor,
 } from "@/domain/finance/calculations";
 import {
@@ -28,6 +29,39 @@ import {
 import { financeActionSchema } from "@/server/validators/finance";
 
 describe("finance calculations", () => {
+  it("builds income and result histories that reconcile to their totals", () => {
+    const transactions = [
+      {
+        id: "income",
+        direction: "income" as const,
+        date: "2026-03-01",
+        netMinor: 100_000,
+        categoryId: "sales",
+        visibleDescription: "Invoice income",
+        internalNote: "",
+      },
+      {
+        id: "expense",
+        direction: "expense" as const,
+        date: "2026-03-02",
+        netMinor: 25_000,
+        categoryId: "software",
+        visibleDescription: "License",
+        internalNote: "",
+      },
+    ];
+
+    const income = transactionFinanceHistory(transactions, "income");
+    const result = transactionFinanceHistory(transactions, "result");
+
+    expect(income.map((entry) => entry.changeMinor)).toEqual([100_000]);
+    expect(income.at(-1)?.runningTotalMinor).toBe(100_000);
+    expect(result.map((entry) => entry.changeMinor)).toEqual([
+      100_000, -25_000,
+    ]);
+    expect(result.at(-1)?.runningTotalMinor).toBe(75_000);
+  });
+
   it("builds flexible consultant balance and retained-result histories", () => {
     const invoices = [
       {
