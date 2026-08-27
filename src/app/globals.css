@@ -493,6 +493,28 @@ a.card:hover {
   font-size: 21px;
   margin-top: 5px;
 }
+.metric-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.metric-button small {
+  display: block;
+  margin-top: 8px;
+  color: var(--accent-dark);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.metric-button:focus-visible {
+  border-radius: 8px;
+  outline: 3px solid rgb(135 88 56 / 28%);
+  outline-offset: 5px;
+}
 .button {
   border: 0;
   border-radius: 999px;
@@ -916,6 +938,9 @@ th {
 }
 .daily-transactions-modal {
   width: min(820px, 100%);
+}
+.finance-history-modal {
+  width: min(900px, 100%);
 }
 
 .attachment-fieldset {

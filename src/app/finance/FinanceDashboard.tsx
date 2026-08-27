@@ -18,10 +18,12 @@ import {
   companyOutstandingInvoiceShareMinor,
   companyBalanceDeltaMinor,
   expenseTotalsByCategory,
+  FinanceHistoryEntry,
   financeTotals,
+  flexibleConsultantBalanceHistory,
+  flexibleConsultantRetainedResultHistory,
   formatSek,
   isSalaryRelatedExpenseCode,
-  paidFlexibleCompanyResultMinor,
   transactionTableDescription,
   vatPayableMinor,
 } from "@/domain/finance/calculations";
@@ -1109,6 +1111,112 @@ function ExpenseCategoryChart({
   );
 }
 
+function FinanceHistoryModal({
+  title,
+  description,
+  entries,
+  locale,
+  categoryName,
+  close,
+}: {
+  title: string;
+  description: string;
+  entries: FinanceHistoryEntry[];
+  locale: Actor["locale"];
+  categoryName: (id: string) => string;
+  close: () => void;
+}) {
+  const { t } = useLocale();
+  const [page, setPage] = useState(1);
+  const newestFirst = [...entries].reverse();
+  const pageCount = Math.max(1, Math.ceil(newestFirst.length / 10));
+  const visibleEntries = newestFirst.slice((page - 1) * 10, page * 10);
+  return (
+    <div className="modal-backdrop" onMouseDown={close}>
+      <section
+        className="modal finance-history-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="modal-header">
+          <div>
+            <span className="eyebrow">{t("financialHistory")}</span>
+            <h2>{title}</h2>
+            <p>{description}</p>
+          </div>
+          <button
+            className="modal-close"
+            type="button"
+            aria-label={t("close")}
+            onClick={close}
+          >
+            &times;
+          </button>
+        </header>
+        {visibleEntries.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("date")}</th>
+                  <th>{t("source")}</th>
+                  <th>{t("description")}</th>
+                  <th>{t("balanceChange")}</th>
+                  <th>{t("runningTotal")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleEntries.map((entry) => (
+                  <tr key={entry.id}>
+                    <td>{entry.date}</td>
+                    <td>
+                      {entry.kind === "invoice"
+                        ? `${t("invoice")} ${entry.reference}`
+                        : entry.categoryId
+                          ? categoryName(entry.categoryId)
+                          : t("expense")}
+                    </td>
+                    <td>{entry.description || "—"}</td>
+                    <td>{formatSek(entry.changeMinor, locale)}</td>
+                    <td>{formatSek(entry.runningTotalMinor, locale)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="muted">{t("noFinancialHistory")}</p>
+        )}
+        {newestFirst.length > 10 && (
+          <div className="pagination">
+            <button
+              className="button secondary"
+              type="button"
+              disabled={page === 1}
+              onClick={() => setPage((value) => value - 1)}
+            >
+              {t("previous")}
+            </button>
+            <span>
+              {t("page")} {page} {t("of")} {pageCount}
+            </span>
+            <button
+              className="button secondary"
+              type="button"
+              disabled={page === pageCount}
+              onClick={() => setPage((value) => value + 1)}
+            >
+              {t("next")}
+            </button>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export function FinanceDashboard({
   data,
   actor,
@@ -1139,6 +1247,9 @@ export function FinanceDashboard({
   );
   const [expenseFundingFilter, setExpenseFundingFilter] =
     useState<ExpenseFundingFilter>("all");
+  const [financeHistory, setFinanceHistory] = useState<
+    "consultantBalance" | "retainedResult" | null
+  >(null);
   const [invoiceConsultantFilter, setInvoiceConsultantFilter] = useState("all");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const initialTransactionListState = transactionListState(
@@ -1244,6 +1355,17 @@ export function FinanceDashboard({
       selectedModel,
     ],
   );
+  const summaryTransactions = useMemo(
+    () =>
+      selectedConsultant === "all"
+        ? data.transactions
+        : selectedConsultant === "company"
+          ? data.transactions.filter(belongsToCompany)
+          : data.transactions.filter((item) =>
+              belongsToConsultant(item, selectedConsultant, "all"),
+            ),
+    [data.transactions, selectedConsultant],
+  );
   const visibleOverviewTransactions = useMemo(
     () =>
       visibleTransactions.filter((transaction) =>
@@ -1265,21 +1387,21 @@ export function FinanceDashboard({
   );
   const totals = financeTotals(
     selectedConsultant === "company"
-      ? visibleTransactions.map((transaction) => ({
+      ? summaryTransactions.map((transaction) => ({
           ...transaction,
           consultantBalanceDeltaMinor: companyBalanceDeltaMinor(transaction),
         }))
-      : visibleTransactions,
+      : summaryTransactions,
   );
   const organizationVatPayable = vatPayableMinor(
     data.transactions,
     data.vatSettlements,
   );
-  const earnedShare = visibleTransactions.reduce(
+  const earnedShare = summaryTransactions.reduce(
     (sum, item) => sum + Math.max(0, item.consultantBalanceDeltaMinor),
     0,
   );
-  const spentFromBalance = visibleTransactions.reduce(
+  const spentFromBalance = summaryTransactions.reduce(
     (sum, item) => sum + Math.max(0, -item.consultantBalanceDeltaMinor),
     0,
   );
@@ -1317,11 +1439,33 @@ export function FinanceDashboard({
           : invoice.grossMinor),
       0,
     );
+  const consultantBalanceHistory =
+    selectedModel === "flexible" &&
+    selectedConsultant !== "all" &&
+    selectedConsultant !== "company"
+      ? flexibleConsultantBalanceHistory(
+          data.invoices,
+          data.transactions,
+          selectedConsultant,
+        )
+      : [];
+  const retainedResultHistory =
+    selectedModel === "flexible" &&
+    selectedConsultant !== "all" &&
+    selectedConsultant !== "company"
+      ? flexibleConsultantRetainedResultHistory(
+          data.invoices,
+          data.transactions,
+          selectedConsultant,
+        )
+      : [];
+  const selectedFlexibleConsultantBalance =
+    consultantBalanceHistory.at(-1)?.runningTotalMinor ?? 0;
   const retainedResult =
     selectedModel === "flexible" &&
     selectedConsultant !== "all" &&
     selectedConsultant !== "company"
-      ? paidFlexibleCompanyResultMinor(data.invoices, selectedConsultant)
+      ? (retainedResultHistory.at(-1)?.runningTotalMinor ?? 0)
       : totals.netResultMinor -
         (selectedConsultant === "all" ? consultantLiability : 0);
   const filteredInvoices = data.invoices.filter(
@@ -1595,21 +1739,43 @@ export function FinanceDashboard({
               selectedConsultant === "company" ||
               selectedModel !== "fixed") && (
               <div className="metric">
-                <span>
-                  {manager
-                    ? selectedConsultant === "company"
-                      ? t("companyBalance")
-                      : t("consultantLiability")
-                    : t("remainingBalance")}
-                </span>
-                <strong>
-                  {formatSek(
-                    selectedConsultant === "all"
-                      ? consultantLiability
-                      : totals.balanceMinor,
-                    locale,
-                  )}
-                </strong>
+                {selectedModel === "flexible" &&
+                selectedConsultant !== "all" &&
+                selectedConsultant !== "company" ? (
+                  <button
+                    className="metric-button"
+                    type="button"
+                    onClick={() => setFinanceHistory("consultantBalance")}
+                  >
+                    <span>
+                      {manager
+                        ? t("consultantLiability")
+                        : t("remainingBalance")}
+                    </span>
+                    <strong>
+                      {formatSek(selectedFlexibleConsultantBalance, locale)}
+                    </strong>
+                    <small>{t("viewHistory")}</small>
+                  </button>
+                ) : (
+                  <>
+                    <span>
+                      {manager
+                        ? selectedConsultant === "company"
+                          ? t("companyBalance")
+                          : t("consultantLiability")
+                        : t("remainingBalance")}
+                    </span>
+                    <strong>
+                      {formatSek(
+                        selectedConsultant === "all"
+                          ? consultantLiability
+                          : totals.balanceMinor,
+                        locale,
+                      )}
+                    </strong>
+                  </>
+                )}
               </div>
             )}
             {manager && (
@@ -1622,8 +1788,24 @@ export function FinanceDashboard({
                   </div>
                 )}
                 <div className="metric">
-                  <span>{t("retainedResult")}</span>
-                  <strong>{formatSek(retainedResult, locale)}</strong>
+                  {selectedModel === "flexible" &&
+                  selectedConsultant !== "all" &&
+                  selectedConsultant !== "company" ? (
+                    <button
+                      className="metric-button"
+                      type="button"
+                      onClick={() => setFinanceHistory("retainedResult")}
+                    >
+                      <span>{t("retainedResult")}</span>
+                      <strong>{formatSek(retainedResult, locale)}</strong>
+                      <small>{t("viewHistory")}</small>
+                    </button>
+                  ) : (
+                    <>
+                      <span>{t("retainedResult")}</span>
+                      <strong>{formatSek(retainedResult, locale)}</strong>
+                    </>
+                  )}
                 </div>
                 <div className="metric">
                   <span>
@@ -2656,6 +2838,26 @@ export function FinanceDashboard({
             </footer>
           </form>
         </div>
+      )}
+      {financeHistory === "consultantBalance" && (
+        <FinanceHistoryModal
+          title={manager ? t("consultantLiability") : t("remainingBalance")}
+          description={t("consultantBalanceHistoryDescription")}
+          entries={consultantBalanceHistory}
+          locale={locale}
+          categoryName={categoryName}
+          close={() => setFinanceHistory(null)}
+        />
+      )}
+      {financeHistory === "retainedResult" && (
+        <FinanceHistoryModal
+          title={t("retainedResult")}
+          description={t("retainedResultHistoryDescription")}
+          entries={retainedResultHistory}
+          locale={locale}
+          categoryName={categoryName}
+          close={() => setFinanceHistory(null)}
+        />
       )}
       {deletingTransaction && (
         <div className="modal-backdrop" role="presentation">
