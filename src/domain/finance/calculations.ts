@@ -202,6 +202,47 @@ export function flexibleConsultantRetainedResultHistory(
   ]);
 }
 
+export function fixedConsultantRetainedResultHistory(
+  invoices: FlexibleInvoiceHistoryInput[],
+  transactions: FlexibleExpenseHistoryInput[],
+  consultantId: string,
+) {
+  return withRunningTotals([
+    ...invoices
+      .filter(
+        (invoice) =>
+          invoice.consultantId === consultantId &&
+          invoice.compensationModel === "fixed" &&
+          invoice.status === "paid" &&
+          invoice.paidDate,
+      )
+      .map((invoice) => ({
+        id: `invoice:${invoice.id}`,
+        date: invoice.paidDate!,
+        kind: "invoice" as const,
+        reference: invoice.invoiceNumber,
+        categoryId: null,
+        description: invoice.customerName,
+        changeMinor: invoice.netMinor,
+      })),
+    ...transactions
+      .filter(
+        (transaction) =>
+          transaction.consultantId === consultantId &&
+          transaction.direction === "expense",
+      )
+      .map((transaction) => ({
+        id: `expense:${transaction.id}`,
+        date: transaction.date,
+        kind: "expense" as const,
+        reference: "",
+        categoryId: transaction.categoryId,
+        description: transaction.visibleDescription || transaction.internalNote,
+        changeMinor: -transaction.netMinor,
+      })),
+  ]);
+}
+
 type TransactionScopeInput = Pick<
   FinancialTransaction,
   | "consultantId"
