@@ -5,6 +5,7 @@ import { formatDuration } from "@/lib/durations/duration";
 import { getIsoWeekDates } from "@/lib/dates/iso-week";
 import { ConsultantAvatar } from "./ConsultantAvatar";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { aggregateReportedDays } from "@/domain/reports/aggregate";
 
 type Consultant = {
   id: string;
@@ -98,7 +99,7 @@ export function ConsultantDashboard({
     }
     const reported = selected.reduce((sum, entry) => sum + entry.minutes, 0);
     const expected = expectedMinutes(consultant);
-    const segments = [
+    const hourSegments = [
       { label: t("worked"), value: worked, color: colors[0]! },
       ...[...byCode].map(([label, value], index) => ({
         label,
@@ -111,15 +112,20 @@ export function ConsultantDashboard({
         color: "#ddd3ca",
       },
     ].filter((segment) => segment.value > 0);
-    const total = Math.max(expected, reported, 1);
-    let cursor = 0;
-    const gradient = segments
-      .map((segment) => {
-        const segmentStart = (cursor / total) * 360;
-        cursor += segment.value;
-        return `${segment.color} ${segmentStart}deg ${(cursor / total) * 360}deg`;
-      })
-      .join(", ");
+    const dayTotals = aggregateReportedDays(selected, expected);
+    const daySegments = [
+      { label: t("worked"), value: dayTotals.worked, color: colors[0]! },
+      ...[...dayTotals.byCode].map(([label, value], index) => ({
+        label,
+        value,
+        color: colors[(index % (colors.length - 1)) + 1]!,
+      })),
+      {
+        label: t("notReported"),
+        value: dayTotals.unreported,
+        color: "#ddd3ca",
+      },
+    ].filter((segment) => segment.value > 0);
     const formatDays = (minutes: number) => {
       const days = minutes / 480;
       return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? t("day") : t("days")}`;
@@ -139,42 +145,55 @@ export function ConsultantDashboard({
     const totalIncome = Math.max(workedIncome + notReached, 1);
     const reachedDegrees = (workedIncome / totalIncome) * 360;
 
-    const timeCharts = (["hours", "days"] as const).map((unit) => (
-      <div className="consultant-summary-chart" key={unit}>
-        <div
-          className="donut consultant-donut"
-          style={{
-            background: gradient ? `conic-gradient(${gradient})` : "#eee",
-          }}
-        >
-          <div>
-            <strong>
-              {unit === "hours"
-                ? formatDuration(reported)
-                : formatDays(reported)}
-            </strong>
-            <span>
-              {t("reported")} {unit === "hours" ? t("hours") : t("days")}
-            </span>
-          </div>
-        </div>
-        <div className="chart-legend">
-          {segments.map((segment) => (
-            <div key={segment.label}>
-              <i style={{ background: segment.color }} />
+    const timeCharts = (["hours", "days"] as const).map((unit) => {
+      const segments = unit === "hours" ? hourSegments : daySegments;
+      const total =
+        unit === "hours" ? Math.max(expected, reported, 1) : dayTotals.total;
+      let cursor = 0;
+      const gradient = segments
+        .map((segment) => {
+          const segmentStart = (cursor / total) * 360;
+          cursor += segment.value;
+          return `${segment.color} ${segmentStart}deg ${(cursor / total) * 360}deg`;
+        })
+        .join(", ");
+      return (
+        <div className="consultant-summary-chart" key={unit}>
+          <div
+            className="donut consultant-donut"
+            style={{
+              background: gradient ? `conic-gradient(${gradient})` : "#eee",
+            }}
+          >
+            <div>
+              <strong>
+                {unit === "hours"
+                  ? formatDuration(reported)
+                  : formatDays(dayTotals.reported)}
+              </strong>
               <span>
-                {segment.label}{" "}
-                <strong>
-                  {unit === "hours"
-                    ? formatDuration(segment.value)
-                    : formatDays(segment.value)}
-                </strong>
+                {t("reported")} {unit === "hours" ? t("hours") : t("days")}
               </span>
             </div>
-          ))}
+          </div>
+          <div className="chart-legend">
+            {segments.map((segment) => (
+              <div key={segment.label}>
+                <i style={{ background: segment.color }} />
+                <span>
+                  {segment.label}{" "}
+                  <strong>
+                    {unit === "hours"
+                      ? formatDuration(segment.value)
+                      : formatDays(segment.value)}
+                  </strong>
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
-    ));
+      );
+    });
     if (!showEstimatedIncome || consultant.role === "employee")
       return timeCharts;
 
