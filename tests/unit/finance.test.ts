@@ -11,6 +11,7 @@ import {
   companyOutstandingInvoiceShareMinor,
   expenseTotalsByCategory,
   financeTotals,
+  fixedConsultantRetainedResultHistory,
   flexibleConsultantBalanceHistory,
   flexibleConsultantRetainedResultHistory,
   isSalaryRelatedExpenseCode,
@@ -96,6 +97,54 @@ describe("finance calculations", () => {
       30_000, -8_000,
     ]);
     expect(retained.at(-1)?.runningTotalMinor).toBe(22_000);
+  });
+
+  it("builds fixed consultant retained result from paid invoices and expenses", () => {
+    const history = fixedConsultantRetainedResultHistory(
+      [
+        {
+          id: "paid",
+          invoiceNumber: "INV-3",
+          customerName: "Customer C",
+          consultantId: "consultant-1",
+          compensationModel: "fixed",
+          status: "paid",
+          paidDate: "2026-02-01",
+          netMinor: 120_000,
+          shareBps: 0,
+        },
+      ],
+      [
+        {
+          id: "company-expense",
+          consultantId: "consultant-1",
+          direction: "expense",
+          funding: "company",
+          date: "2026-02-10",
+          netMinor: 15_000,
+          categoryId: "equipment",
+          visibleDescription: "Computer",
+          internalNote: "",
+        },
+        {
+          id: "consultant-expense",
+          consultantId: "consultant-1",
+          direction: "expense",
+          funding: "consultant",
+          date: "2026-02-11",
+          netMinor: 5_000,
+          categoryId: "travel",
+          visibleDescription: "Train",
+          internalNote: "",
+        },
+      ],
+      "consultant-1",
+    );
+
+    expect(history.map((entry) => entry.changeMinor)).toEqual([
+      120_000, -15_000, -5_000,
+    ]);
+    expect(history.at(-1)?.runningTotalMinor).toBe(100_000);
   });
 
   it("reduces VAT payable only by active settlements", () => {

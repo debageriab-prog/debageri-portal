@@ -20,6 +20,7 @@ import {
   expenseTotalsByCategory,
   FinanceHistoryEntry,
   financeTotals,
+  fixedConsultantRetainedResultHistory,
   flexibleConsultantBalanceHistory,
   flexibleConsultantRetainedResultHistory,
   formatSek,
@@ -1361,10 +1362,24 @@ export function FinanceDashboard({
         ? data.transactions
         : selectedConsultant === "company"
           ? data.transactions.filter(belongsToCompany)
-          : data.transactions.filter((item) =>
-              belongsToConsultant(item, selectedConsultant, "all"),
+          : data.transactions.filter(
+              (item) =>
+                belongsToConsultant(item, selectedConsultant, "all") ||
+                (selectedModel === "fixed" &&
+                  belongsToFixedConsultantResult(
+                    item,
+                    selectedConsultant,
+                    item.invoiceId
+                      ? (invoiceConsultantIds.get(item.invoiceId) ?? null)
+                      : null,
+                  )),
             ),
-    [data.transactions, selectedConsultant],
+    [
+      data.transactions,
+      invoiceConsultantIds,
+      selectedConsultant,
+      selectedModel,
+    ],
   );
   const visibleOverviewTransactions = useMemo(
     () =>
@@ -1450,19 +1465,25 @@ export function FinanceDashboard({
         )
       : [];
   const retainedResultHistory =
-    selectedModel === "flexible" &&
-    selectedConsultant !== "all" &&
-    selectedConsultant !== "company"
-      ? flexibleConsultantRetainedResultHistory(
-          data.invoices,
-          data.transactions,
-          selectedConsultant,
-        )
+    selectedConsultant !== "all" && selectedConsultant !== "company"
+      ? selectedModel === "flexible"
+        ? flexibleConsultantRetainedResultHistory(
+            data.invoices,
+            data.transactions,
+            selectedConsultant,
+          )
+        : selectedModel === "fixed"
+          ? fixedConsultantRetainedResultHistory(
+              data.invoices,
+              data.transactions,
+              selectedConsultant,
+            )
+          : []
       : [];
   const selectedFlexibleConsultantBalance =
     consultantBalanceHistory.at(-1)?.runningTotalMinor ?? 0;
   const retainedResult =
-    selectedModel === "flexible" &&
+    (selectedModel === "flexible" || selectedModel === "fixed") &&
     selectedConsultant !== "all" &&
     selectedConsultant !== "company"
       ? (retainedResultHistory.at(-1)?.runningTotalMinor ?? 0)
@@ -1721,7 +1742,14 @@ export function FinanceDashboard({
         <>
           <section className="finance-metrics">
             <div className="metric">
-              <span>{manager ? t("netIncome") : t("earnedShare")}</span>
+              <span>
+                {manager
+                  ? selectedConsultant !== "all" &&
+                    selectedConsultant !== "company"
+                    ? t("netIncomeFromConsultant")
+                    : t("netIncome")
+                  : t("earnedShare")}
+              </span>
               <strong>
                 {formatSek(manager ? totals.incomeMinor : earnedShare, locale)}
               </strong>
@@ -1788,7 +1816,8 @@ export function FinanceDashboard({
                   </div>
                 )}
                 <div className="metric">
-                  {selectedModel === "flexible" &&
+                  {(selectedModel === "flexible" ||
+                    selectedModel === "fixed") &&
                   selectedConsultant !== "all" &&
                   selectedConsultant !== "company" ? (
                     <button
@@ -2852,7 +2881,11 @@ export function FinanceDashboard({
       {financeHistory === "retainedResult" && (
         <FinanceHistoryModal
           title={t("retainedResult")}
-          description={t("retainedResultHistoryDescription")}
+          description={t(
+            selectedModel === "fixed"
+              ? "fixedRetainedResultHistoryDescription"
+              : "retainedResultHistoryDescription",
+          )}
           entries={retainedResultHistory}
           locale={locale}
           categoryName={categoryName}
