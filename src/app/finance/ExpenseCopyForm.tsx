@@ -60,7 +60,7 @@ export function ExpenseCopyForm({
   const router = useRouter();
   const [sourceMonth, setSourceMonth] = useState(previousMonth());
   const [targetMonth, setTargetMonth] = useState(currentMonth());
-  const [scope, setScope] = useState("company");
+  const [scope, setScope] = useState("all");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState(() =>
     categories
       .filter((category) => category.active)
@@ -93,9 +93,11 @@ export function ExpenseCopyForm({
       (expense) =>
         expense.date.startsWith(sourceMonth) &&
         selectedCategoryIds.includes(expense.categoryId) &&
-        (scope === "company"
-          ? expense.consultantId === null
-          : expense.consultantId === scope),
+        (scope === "all"
+          ? true
+          : scope === "company"
+            ? expense.consultantId === null
+            : expense.consultantId === scope),
     );
     setRows(
       selected.map((expense) => ({
@@ -120,36 +122,69 @@ export function ExpenseCopyForm({
     setBusy(true);
     setError("");
     try {
-      const payload = rows.map((row) => ({
-        categoryId: row.categoryId,
-        date: row.date,
-        netMinor: parseSek(row.netAmount),
-        vatRateBps: Math.round(Number(row.vatPercent) * 100),
-        funding: row.funding,
-        visibleDescription: row.visibleDescription,
-        internalNote: row.internalNote,
-      }));
-      const response = await appCheckFetch("/api/finance", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          action: "createExpenseCopies",
-          consultantId: scope === "company" ? null : scope,
-          expenses: payload,
-        }),
-      });
-      const result = (await response.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (!response.ok) {
-        setError(
-          t(
-            `financeError_${result.error ?? "financeOperationFailed"}` as Parameters<
-              typeof t
-            >[0],
-          ),
-        );
-        return;
+      const copyGroups = new Map<
+        string,
+        {
+          consultantId: string | null;
+          expenses: Array<{
+            categoryId: string;
+            date: string;
+            netMinor: number;
+            vatRateBps: number;
+            funding: "company" | "consultant";
+            visibleDescription: string;
+            internalNote: string;
+          }>;
+        }
+      >();
+      for (const row of rows) {
+        const consultantId =
+          scope === "all"
+            ? row.consultantId
+            : scope === "company"
+              ? null
+              : scope;
+        const groupKey = consultantId
+          ? `consultant:${consultantId}`
+          : "company";
+        const group = copyGroups.get(groupKey) ?? {
+          consultantId,
+          expenses: [],
+        };
+        group.expenses.push({
+          categoryId: row.categoryId,
+          date: row.date,
+          netMinor: parseSek(row.netAmount),
+          vatRateBps: Math.round(Number(row.vatPercent) * 100),
+          funding: row.funding,
+          visibleDescription: row.visibleDescription,
+          internalNote: row.internalNote,
+        });
+        copyGroups.set(groupKey, group);
+      }
+      for (const group of copyGroups.values()) {
+        const response = await appCheckFetch("/api/finance", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "createExpenseCopies",
+            consultantId: group.consultantId,
+            expenses: group.expenses,
+          }),
+        });
+        const result = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        if (!response.ok) {
+          setError(
+            t(
+              `financeError_${result.error ?? "financeOperationFailed"}` as Parameters<
+                typeof t
+              >[0],
+            ),
+          );
+          return;
+        }
       }
       router.push("/finance?section=transactions");
       router.refresh();
@@ -215,6 +250,7 @@ export function ExpenseCopyForm({
                 setError("");
               }}
             >
+              <option value="all">{t("allOwners")}</option>
               <option value="company">{t("companyOnly")}</option>
               {users.map((user) => (
                 <option key={user.id} value={user.id}>
