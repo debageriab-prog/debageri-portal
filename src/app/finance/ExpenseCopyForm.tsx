@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { parseSek } from "@/domain/finance/calculations";
@@ -60,11 +60,55 @@ export function ExpenseCopyForm({
   const router = useRouter();
   const [sourceMonth, setSourceMonth] = useState(previousMonth());
   const [targetMonth, setTargetMonth] = useState(currentMonth());
-  const [scope, setScope] = useState("company");
+  const [scope, setScope] = useState("all");
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState(() =>
+    categories
+      .filter((category) => category.active)
+      .map((category) => category.id),
+  );
   const [rows, setRows] = useState<EditableExpense[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const categoryMultiselectRef = useRef<HTMLDetailsElement>(null);
+  const activeCategories = categories.filter((category) => category.active);
+  const allCategoriesSelected =
+    activeCategories.length > 0 &&
+    selectedCategoryIds.length === activeCategories.length;
+
+  useEffect(() => {
+    function closeCategoryMenu(event: PointerEvent) {
+      const menu = categoryMultiselectRef.current;
+      if (
+        menu?.open &&
+        event.target instanceof Node &&
+        !menu.contains(event.target)
+      ) {
+        menu.open = false;
+      }
+    }
+
+    function closeCategoryMenuWithEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && categoryMultiselectRef.current?.open) {
+        categoryMultiselectRef.current.open = false;
+        categoryMultiselectRef.current.querySelector("summary")?.focus();
+      }
+    }
+
+    document.addEventListener("pointerdown", closeCategoryMenu);
+    document.addEventListener("keydown", closeCategoryMenuWithEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeCategoryMenu);
+      document.removeEventListener("keydown", closeCategoryMenuWithEscape);
+    };
+  }, []);
+
+  function updateCategorySelection(categoryIds: string[]) {
+    setSelectedCategoryIds(categoryIds);
+    setRows([]);
+    setLoaded(false);
+    setError("");
+  }
 
   function loadExpenses() {
     if (sourceMonth === targetMonth) {
@@ -76,9 +120,12 @@ export function ExpenseCopyForm({
     const selected = expenses.filter(
       (expense) =>
         expense.date.startsWith(sourceMonth) &&
-        (scope === "company"
-          ? expense.consultantId === null
-          : expense.consultantId === scope),
+        selectedCategoryIds.includes(expense.categoryId) &&
+        (scope === "all"
+          ? true
+          : scope === "company"
+            ? expense.consultantId === null
+            : expense.consultantId === scope),
     );
     setRows(
       selected.map((expense) => ({
@@ -103,36 +150,69 @@ export function ExpenseCopyForm({
     setBusy(true);
     setError("");
     try {
-      const payload = rows.map((row) => ({
-        categoryId: row.categoryId,
-        date: row.date,
-        netMinor: parseSek(row.netAmount),
-        vatRateBps: Math.round(Number(row.vatPercent) * 100),
-        funding: row.funding,
-        visibleDescription: row.visibleDescription,
-        internalNote: row.internalNote,
-      }));
-      const response = await appCheckFetch("/api/finance", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          action: "createExpenseCopies",
-          consultantId: scope === "company" ? null : scope,
-          expenses: payload,
-        }),
-      });
-      const result = (await response.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (!response.ok) {
-        setError(
-          t(
-            `financeError_${result.error ?? "financeOperationFailed"}` as Parameters<
-              typeof t
-            >[0],
-          ),
-        );
-        return;
+      const copyGroups = new Map<
+        string,
+        {
+          consultantId: string | null;
+          expenses: Array<{
+            categoryId: string;
+            date: string;
+            netMinor: number;
+            vatRateBps: number;
+            funding: "company" | "consultant";
+            visibleDescription: string;
+            internalNote: string;
+          }>;
+        }
+      >();
+      for (const row of rows) {
+        const consultantId =
+          scope === "all"
+            ? row.consultantId
+            : scope === "company"
+              ? null
+              : scope;
+        const groupKey = consultantId
+          ? `consultant:${consultantId}`
+          : "company";
+        const group = copyGroups.get(groupKey) ?? {
+          consultantId,
+          expenses: [],
+        };
+        group.expenses.push({
+          categoryId: row.categoryId,
+          date: row.date,
+          netMinor: parseSek(row.netAmount),
+          vatRateBps: Math.round(Number(row.vatPercent) * 100),
+          funding: row.funding,
+          visibleDescription: row.visibleDescription,
+          internalNote: row.internalNote,
+        });
+        copyGroups.set(groupKey, group);
+      }
+      for (const group of copyGroups.values()) {
+        const response = await appCheckFetch("/api/finance", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "createExpenseCopies",
+            consultantId: group.consultantId,
+            expenses: group.expenses,
+          }),
+        });
+        const result = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        if (!response.ok) {
+          setError(
+            t(
+              `financeError_${result.error ?? "financeOperationFailed"}` as Parameters<
+                typeof t
+              >[0],
+            ),
+          );
+          return;
+        }
       }
       router.push("/finance?section=transactions");
       router.refresh();
@@ -198,6 +278,7 @@ export function ExpenseCopyForm({
                 setError("");
               }}
             >
+              <option value="all">{t("allOwners")}</option>
               <option value="company">{t("companyOnly")}</option>
               {users.map((user) => (
                 <option key={user.id} value={user.id}>
@@ -206,6 +287,55 @@ export function ExpenseCopyForm({
               ))}
             </select>
           </label>
+          <div className="category-multiselect-field">
+            <span>{t("categoriesToCopy")}</span>
+            <details
+              ref={categoryMultiselectRef}
+              className="category-multiselect"
+            >
+              <summary className="field">
+                {allCategoriesSelected
+                  ? t("allCategories")
+                  : selectedCategoryIds.length === 0
+                    ? t("noCategoriesSelected")
+                    : `${selectedCategoryIds.length} ${t("categoriesSelected")}`}
+              </summary>
+              <div className="category-multiselect-options">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={allCategoriesSelected}
+                    onChange={(event) =>
+                      updateCategorySelection(
+                        event.target.checked
+                          ? activeCategories.map((category) => category.id)
+                          : [],
+                      )
+                    }
+                  />
+                  {t("allCategories")}
+                </label>
+                {activeCategories.map((category) => (
+                  <label key={category.id}>
+                    <input
+                      type="checkbox"
+                      checked={selectedCategoryIds.includes(category.id)}
+                      onChange={(event) =>
+                        updateCategorySelection(
+                          event.target.checked
+                            ? [...selectedCategoryIds, category.id]
+                            : selectedCategoryIds.filter(
+                                (categoryId) => categoryId !== category.id,
+                              ),
+                        )
+                      }
+                    />
+                    {category.name[locale === "sv-SE" ? "sv" : "en"]}
+                  </label>
+                ))}
+              </div>
+            </details>
+          </div>
           <div className="form-wide actions">
             <button
               className="button secondary"
