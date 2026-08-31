@@ -70,6 +70,17 @@ export function ExpenseCopyForm({
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const activeCategories = categories.filter((category) => category.active);
+  const allCategoriesSelected =
+    activeCategories.length > 0 &&
+    selectedCategoryIds.length === activeCategories.length;
+
+  function updateCategorySelection(categoryIds: string[]) {
+    setSelectedCategoryIds(categoryIds);
+    setRows([]);
+    setLoaded(false);
+    setError("");
+  }
 
   function loadExpenses() {
     if (sourceMonth === targetMonth) {
@@ -212,41 +223,52 @@ export function ExpenseCopyForm({
               ))}
             </select>
           </label>
-          <label>
-            {t("categoriesToCopy")}
-            <select
-              className="field"
-              multiple
-              size={Math.min(
-                Math.max(
-                  categories.filter((category) => category.active).length,
-                  2,
-                ),
-                8,
-              )}
-              value={selectedCategoryIds}
-              onChange={(event) => {
-                setSelectedCategoryIds(
-                  Array.from(
-                    event.currentTarget.selectedOptions,
-                    (option) => option.value,
-                  ),
-                );
-                setRows([]);
-                setLoaded(false);
-                setError("");
-              }}
-            >
-              {categories
-                .filter((category) => category.active)
-                .map((category) => (
-                  <option key={category.id} value={category.id}>
+          <div className="category-multiselect-field">
+            <span>{t("categoriesToCopy")}</span>
+            <details className="category-multiselect">
+              <summary className="field">
+                {allCategoriesSelected
+                  ? t("allCategories")
+                  : selectedCategoryIds.length === 0
+                    ? t("noCategoriesSelected")
+                    : `${selectedCategoryIds.length} ${t("categoriesSelected")}`}
+              </summary>
+              <div className="category-multiselect-options">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={allCategoriesSelected}
+                    onChange={(event) =>
+                      updateCategorySelection(
+                        event.target.checked
+                          ? activeCategories.map((category) => category.id)
+                          : [],
+                      )
+                    }
+                  />
+                  {t("allCategories")}
+                </label>
+                {activeCategories.map((category) => (
+                  <label key={category.id}>
+                    <input
+                      type="checkbox"
+                      checked={selectedCategoryIds.includes(category.id)}
+                      onChange={(event) =>
+                        updateCategorySelection(
+                          event.target.checked
+                            ? [...selectedCategoryIds, category.id]
+                            : selectedCategoryIds.filter(
+                                (categoryId) => categoryId !== category.id,
+                              ),
+                        )
+                      }
+                    />
                     {category.name[locale === "sv-SE" ? "sv" : "en"]}
-                  </option>
+                  </label>
                 ))}
-            </select>
-            <small>{t("categoriesToCopyHelp")}</small>
-          </label>
+              </div>
+            </details>
+          </div>
           <div className="form-wide actions">
             <button
               className="button secondary"
