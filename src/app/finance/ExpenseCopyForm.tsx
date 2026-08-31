@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { parseSek } from "@/domain/finance/calculations";
@@ -70,10 +70,38 @@ export function ExpenseCopyForm({
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const categoryMultiselectRef = useRef<HTMLDetailsElement>(null);
   const activeCategories = categories.filter((category) => category.active);
   const allCategoriesSelected =
     activeCategories.length > 0 &&
     selectedCategoryIds.length === activeCategories.length;
+
+  useEffect(() => {
+    function closeCategoryMenu(event: PointerEvent) {
+      const menu = categoryMultiselectRef.current;
+      if (
+        menu?.open &&
+        event.target instanceof Node &&
+        !menu.contains(event.target)
+      ) {
+        menu.open = false;
+      }
+    }
+
+    function closeCategoryMenuWithEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && categoryMultiselectRef.current?.open) {
+        categoryMultiselectRef.current.open = false;
+        categoryMultiselectRef.current.querySelector("summary")?.focus();
+      }
+    }
+
+    document.addEventListener("pointerdown", closeCategoryMenu);
+    document.addEventListener("keydown", closeCategoryMenuWithEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeCategoryMenu);
+      document.removeEventListener("keydown", closeCategoryMenuWithEscape);
+    };
+  }, []);
 
   function updateCategorySelection(categoryIds: string[]) {
     setSelectedCategoryIds(categoryIds);
@@ -261,7 +289,10 @@ export function ExpenseCopyForm({
           </label>
           <div className="category-multiselect-field">
             <span>{t("categoriesToCopy")}</span>
-            <details className="category-multiselect">
+            <details
+              ref={categoryMultiselectRef}
+              className="category-multiselect"
+            >
               <summary className="field">
                 {allCategoriesSelected
                   ? t("allCategories")
