@@ -505,6 +505,8 @@
   "copyFromMonth": "Kopiera från månad",
   "createInMonth": "Skapa i månad",
   "consultantOrCompany": "Konsult eller företag",
+  "categoriesToCopy": "Kategorier att kopiera",
+  "categoriesToCopyHelp": "Alla kategorier är valda som standard. Håll ned Ctrl eller Kommando för att välja flera.",
   "loadExpenses": "Läs in kostnader",
   "createAllExpenses": "Skapa alla kostnader",
   "noExpensesLoaded": "Välj källmånad och ägare och läs sedan in kostnaderna för granskning.",

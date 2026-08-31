@@ -505,6 +505,8 @@
   "copyFromMonth": "Copy from month",
   "createInMonth": "Create in month",
   "consultantOrCompany": "Consultant or company",
+  "categoriesToCopy": "Categories to copy",
+  "categoriesToCopyHelp": "All categories are selected by default. Hold Ctrl or Command to select more than one.",
   "loadExpenses": "Load expenses",
   "createAllExpenses": "Create all expenses",
   "noExpensesLoaded": "Select the source month and owner, then load the expenses to review them.",

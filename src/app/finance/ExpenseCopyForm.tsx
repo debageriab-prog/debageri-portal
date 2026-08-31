@@ -61,6 +61,11 @@ export function ExpenseCopyForm({
   const [sourceMonth, setSourceMonth] = useState(previousMonth());
   const [targetMonth, setTargetMonth] = useState(currentMonth());
   const [scope, setScope] = useState("company");
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState(() =>
+    categories
+      .filter((category) => category.active)
+      .map((category) => category.id),
+  );
   const [rows, setRows] = useState<EditableExpense[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -76,6 +81,7 @@ export function ExpenseCopyForm({
     const selected = expenses.filter(
       (expense) =>
         expense.date.startsWith(sourceMonth) &&
+        selectedCategoryIds.includes(expense.categoryId) &&
         (scope === "company"
           ? expense.consultantId === null
           : expense.consultantId === scope),
@@ -205,6 +211,41 @@ export function ExpenseCopyForm({
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            {t("categoriesToCopy")}
+            <select
+              className="field"
+              multiple
+              size={Math.min(
+                Math.max(
+                  categories.filter((category) => category.active).length,
+                  2,
+                ),
+                8,
+              )}
+              value={selectedCategoryIds}
+              onChange={(event) => {
+                setSelectedCategoryIds(
+                  Array.from(
+                    event.currentTarget.selectedOptions,
+                    (option) => option.value,
+                  ),
+                );
+                setRows([]);
+                setLoaded(false);
+                setError("");
+              }}
+            >
+              {categories
+                .filter((category) => category.active)
+                .map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name[locale === "sv-SE" ? "sv" : "en"]}
+                  </option>
+                ))}
+            </select>
+            <small>{t("categoriesToCopyHelp")}</small>
           </label>
           <div className="form-wide actions">
             <button
