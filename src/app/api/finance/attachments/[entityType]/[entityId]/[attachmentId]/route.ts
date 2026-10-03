@@ -41,8 +41,8 @@ async function authorized(
   const consultantCanRead =
     !write &&
     entityData?.consultantId === actor.id &&
-    ((entityType === "transaction" && actor.financeAccess.myFinance) ||
-      (entityType === "invoice" && actor.financeAccess.myInvoices));
+    entityType === "transaction" &&
+    actor.financeAccess.myFinance;
   if (
     !entity.exists ||
     entityData?.organizationId !== actor.organizationId ||

@@ -50,8 +50,8 @@ async function context(entityType: string, entityId: string, write: boolean) {
   const consultantCanRead =
     !write &&
     data?.consultantId === actor.id &&
-    ((entityType === "transaction" && actor.financeAccess.myFinance) ||
-      (entityType === "invoice" && actor.financeAccess.myInvoices));
+    entityType === "transaction" &&
+    actor.financeAccess.myFinance;
   if (!manager && !consultantCanRead)
     return {
       error: NextResponse.json({ error: "forbidden" }, { status: 403 }),

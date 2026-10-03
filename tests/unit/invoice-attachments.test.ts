@@ -78,19 +78,21 @@ describe("invoice attachment authorization", () => {
   beforeEach(() => {
     state.actor.role = "consultant";
     state.actor.financeAccess.myInvoices = true;
+    state.actor.financeAccess.myFinance = false;
     state.invoice.organizationId = "org-1";
     state.invoice.consultantId = "consultant-1";
     state.file.entityId = "invoice-1";
     vi.clearAllMocks();
   });
-  it("lists and downloads own invoices with invoice access alone", async () => {
-    const response = await list(request, { params: Promise.resolve(params) });
-    expect(response!.status).toBe(200);
-    expect((await response!.json()).attachments[0].name).toBe("invoice.pdf");
-    const file = await download(request, { params: Promise.resolve(params) });
-    expect(file!.status).toBe(200);
-    expect(await file!.text()).toBe("invoice contents");
-    expect(file!.headers.get("Content-Disposition")).toContain("invoice.pdf");
+  it("blocks own invoice files even with invoice and finance access", async () => {
+    state.actor.financeAccess.myFinance = true;
+    expect(
+      (await list(request, { params: Promise.resolve(params) }))!.status,
+    ).toBe(403);
+    expect(
+      (await download(request, { params: Promise.resolve(params) }))!.status,
+    ).toBe(403);
+    expect(state.download).not.toHaveBeenCalled();
   });
   it("blocks consultants without invoice access", async () => {
     state.actor.financeAccess.myInvoices = false;
@@ -134,9 +136,13 @@ describe("invoice attachment authorization", () => {
     async (role) => {
       state.actor.role = role;
       state.invoice.consultantId = "";
-      expect(
-        (await download(request, { params: Promise.resolve(params) }))!.status,
-      ).toBe(200);
+      const response = await list(request, { params: Promise.resolve(params) });
+      expect(response!.status).toBe(200);
+      expect((await response!.json()).attachments[0].name).toBe("invoice.pdf");
+      const file = await download(request, { params: Promise.resolve(params) });
+      expect(file!.status).toBe(200);
+      expect(await file!.text()).toBe("invoice contents");
+      expect(file!.headers.get("Content-Disposition")).toContain("invoice.pdf");
     },
   );
 });

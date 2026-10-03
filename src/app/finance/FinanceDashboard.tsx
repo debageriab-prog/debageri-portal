@@ -2902,10 +2902,12 @@ export function FinanceDashboard({
                 </div>
               )}
             </dl>
-            <AttachmentDownloads
-              entityType="invoice"
-              entityId={viewingInvoice.id}
-            />
+            {manager && (
+              <AttachmentDownloads
+                entityType="invoice"
+                entityId={viewingInvoice.id}
+              />
+            )}
             <footer className="modal-actions">
               <button
                 className="button secondary"
