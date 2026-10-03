@@ -8,7 +8,7 @@ import {
   FileRemoveIcon,
 } from "@/components/ui/FileActionIcons";
 
-export type FinanceEntityType = "transaction" | "vatSettlement";
+export type FinanceEntityType = "transaction" | "vatSettlement" | "invoice";
 type Attachment = {
   id: string;
   name: string;
@@ -315,20 +315,25 @@ export function AttachmentDownloads({
 }) {
   const { t } = useLocale();
   const [items, setItems] = useState<Attachment[] | null>(null);
+  const [error, setError] = useState(false);
   useEffect(() => {
     void appCheckFetch(
       `/api/finance/attachments/${entityType}/${encodeURIComponent(entityId)}`,
     )
-      .then((response) => response.json())
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then((result: { attachments?: Attachment[] }) =>
         setItems(result.attachments ?? []),
       )
-      .catch(() => setItems([]));
+      .catch(() => setError(true));
   }, [entityId, entityType]);
   return (
     <div className="detail-attachments">
       <strong>{t("attachments")}</strong>
-      {items === null ? (
+      {error ? (
+        <p className="notice notice-error" role="alert">
+          {t("financeError_attachmentLoadFailed")}
+        </p>
+      ) : items === null ? (
         <p>{t("loading")}</p>
       ) : items.length ? (
         <ul className="attachment-list">

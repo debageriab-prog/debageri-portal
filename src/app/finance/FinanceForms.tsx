@@ -92,7 +92,7 @@ function useFinanceSubmit(successPath: string) {
   async function submit(
     payload: Record<string, unknown>,
     attachment?: {
-      entityType: "transaction";
+      entityType: "transaction" | "invoice";
       entityId?: string;
       files: File[];
       removedAttachmentIds: string[];
@@ -100,6 +100,7 @@ function useFinanceSubmit(successPath: string) {
   ) {
     setBusy(true);
     setError("");
+    let createdInvoiceId: string | undefined;
     try {
       const response = await appCheckFetch("/api/finance", {
         method: "POST",
@@ -118,6 +119,8 @@ function useFinanceSubmit(successPath: string) {
         setError(t(key));
         return;
       }
+      if (attachment?.entityType === "invoice" && !attachment.entityId)
+        createdInvoiceId = result.id;
       if (
         attachment &&
         (attachment.files.length || attachment.removedAttachmentIds.length)
@@ -129,6 +132,17 @@ function useFinanceSubmit(successPath: string) {
           attachment.removedAttachmentIds,
         );
         if (!upload.ok) {
+          if (
+            attachment.entityType === "invoice" &&
+            !attachment.entityId &&
+            result.id
+          ) {
+            router.push(
+              `/finance/invoices/${encodeURIComponent(result.id)}/attachments?uploadFailed=1`,
+            );
+            router.refresh();
+            return;
+          }
           setError(
             t(
               `financeError_${upload.error ?? "attachmentUploadFailed"}` as Parameters<
@@ -142,6 +156,13 @@ function useFinanceSubmit(successPath: string) {
       router.push(successPath);
       router.refresh();
     } catch {
+      if (createdInvoiceId) {
+        router.push(
+          `/finance/invoices/${encodeURIComponent(createdInvoiceId)}/attachments?uploadFailed=1`,
+        );
+        router.refresh();
+        return;
+      }
       setError(t("serverUnavailable"));
     } finally {
       setBusy(false);
@@ -266,6 +287,10 @@ export function InvoiceForm({
   const { t, locale } = useLocale();
   const [netAmount, setNetAmount] = useState("");
   const [vatPercent, setVatPercent] = useState("25");
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
+    [],
+  );
   const { busy, error, submit } = useFinanceSubmit("/finance?section=invoices");
   const netMinor = parseSek(netAmount);
   const vatMinor = Number.isFinite(Number(vatPercent))
@@ -274,21 +299,24 @@ export function InvoiceForm({
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    void submit({
-      action: "createInvoice",
-      invoiceNumber: form.get("invoiceNumber"),
-      consultantId: form.get("consultantId") || null,
-      customerId: form.get("customerId"),
-      issueDate: form.get("issueDate"),
-      dueDate: form.get("dueDate"),
-      netMinor,
-      vatRateBps: Math.round(Number(vatPercent) * 100),
-      visibleDescription: form.get("visibleDescription"),
-      internalNote: form.get("internalNote"),
-      shareBpsOverride: form.get("sharePercent")
-        ? Math.round(Number(form.get("sharePercent")) * 100)
-        : null,
-    });
+    void submit(
+      {
+        action: "createInvoice",
+        invoiceNumber: form.get("invoiceNumber"),
+        consultantId: form.get("consultantId") || null,
+        customerId: form.get("customerId"),
+        issueDate: form.get("issueDate"),
+        dueDate: form.get("dueDate"),
+        netMinor,
+        vatRateBps: Math.round(Number(vatPercent) * 100),
+        visibleDescription: form.get("visibleDescription"),
+        internalNote: form.get("internalNote"),
+        shareBpsOverride: form.get("sharePercent")
+          ? Math.round(Number(form.get("sharePercent")) * 100)
+          : null,
+      },
+      { entityType: "invoice", files: attachmentFiles, removedAttachmentIds },
+    );
   }
   return (
     <FormPage
@@ -400,6 +428,13 @@ export function InvoiceForm({
             {t("internalNote")}
             <input className="field" name="internalNote" />
           </label>
+          <FinanceAttachments
+            entityType="invoice"
+            files={attachmentFiles}
+            onFilesChange={setAttachmentFiles}
+            removedAttachmentIds={removedAttachmentIds}
+            onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
+          />
           <div className="form-wide actions">
             <button className="button" disabled={busy}>
               {t("createInvoice")}

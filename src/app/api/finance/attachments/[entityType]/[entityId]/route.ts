@@ -8,6 +8,7 @@ const MAX_FILES = 3;
 const MAX_BYTES = 10 * 1024 * 1024;
 const entityCollections = {
   transaction: "financialTransactions",
+  invoice: "invoices",
   vatSettlement: "vatSettlements",
 } as const;
 const allowedTypes = new Set([
@@ -48,9 +49,9 @@ async function context(entityType: string, entityId: string, write: boolean) {
   const manager = ["admin", "accountant"].includes(actor.role);
   const consultantCanRead =
     !write &&
-    entityType === "transaction" &&
     data?.consultantId === actor.id &&
-    actor.financeAccess.myFinance;
+    ((entityType === "transaction" && actor.financeAccess.myFinance) ||
+      (entityType === "invoice" && actor.financeAccess.myInvoices));
   if (!manager && !consultantCanRead)
     return {
       error: NextResponse.json({ error: "forbidden" }, { status: 403 }),

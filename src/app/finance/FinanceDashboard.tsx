@@ -72,6 +72,11 @@ export interface FinancePageData {
     consultantId: string | null;
     compensationModel: "flexible" | "fixed" | null;
     customerName: string;
+    customerContactPerson: string;
+    customerFinanceEmail: string;
+    visibleDescription: string;
+    internalNote: string;
+    vatRateBps: number;
     issueDate: string;
     dueDate: string;
     paidDate: string | null;
@@ -1252,6 +1257,9 @@ export function FinanceDashboard({
   const [financeHistory, setFinanceHistory] = useState<
     "netIncome" | "consultantBalance" | "retainedResult" | null
   >(null);
+  const [viewingInvoice, setViewingInvoice] = useState<
+    FinancePageData["invoices"][number] | null
+  >(null);
   const [invoiceConsultantFilter, setInvoiceConsultantFilter] = useState("all");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const initialTransactionListState = transactionListState(
@@ -2292,11 +2300,9 @@ export function FinanceDashboard({
                     {manager ? t("totalIncludingVat") : t("myInvoiceShare")}
                   </th>
                   <th>{t("status")}</th>
-                  {manager && (
-                    <th>
-                      <span className="sr-only">{t("actions")}</span>
-                    </th>
-                  )}
+                  <th>
+                    <span className="sr-only">{t("actions")}</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -2322,9 +2328,28 @@ export function FinanceDashboard({
                           }).format(invoice.shareBps / 100)}%)`}
                     </td>
                     <td>{t(invoice.status)}</td>
-                    {manager && (
-                      <td>
-                        {invoice.status === "issued" && (
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          className="icon-button"
+                          type="button"
+                          aria-label={t("viewDetails")}
+                          title={t("viewDetails")}
+                          onClick={() => setViewingInvoice(invoice)}
+                        >
+                          i
+                        </button>
+                        {manager && (
+                          <Link
+                            className="table-action icon-action"
+                            href={`/finance/invoices/${encodeURIComponent(invoice.id)}/attachments`}
+                            aria-label={t("editInvoiceAttachments")}
+                            title={t("editInvoiceAttachments")}
+                          >
+                            <ActionIcon type="edit" />
+                          </Link>
+                        )}
+                        {manager && invoice.status === "issued" && (
                           <button
                             className="table-action"
                             type="button"
@@ -2333,8 +2358,8 @@ export function FinanceDashboard({
                             {t("markAsPaid")}
                           </button>
                         )}
-                      </td>
-                    )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -2753,6 +2778,138 @@ export function FinanceDashboard({
                 className="button secondary"
                 type="button"
                 onClick={() => setViewingTransaction(null)}
+              >
+                {t("close")}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {viewingInvoice && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={() => setViewingInvoice(null)}
+        >
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invoice-details-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setViewingInvoice(null);
+            }}
+          >
+            <header className="modal-header">
+              <h2 id="invoice-details-title">{t("invoiceDetails")}</h2>
+              <button
+                className="modal-close"
+                type="button"
+                aria-label={t("close")}
+                autoFocus
+                onClick={() => setViewingInvoice(null)}
+              >
+                {"\u00d7"}
+              </button>
+            </header>
+            <dl className="detail-grid">
+              <div>
+                <dt>{t("invoiceNumber")}</dt>
+                <dd>{viewingInvoice.invoiceNumber || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt>{t("customer")}</dt>
+                <dd>{viewingInvoice.customerName || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt>{t("contactPerson")}</dt>
+                <dd>{viewingInvoice.customerContactPerson || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt>{t("financeDepartmentEmail")}</dt>
+                <dd>{viewingInvoice.customerFinanceEmail || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt>{t("consultant")}</dt>
+                <dd>
+                  {consultantName(viewingInvoice.consultantId) || "\u2014"}
+                </dd>
+              </div>
+              <div>
+                <dt>{t("issueDate")}</dt>
+                <dd>{viewingInvoice.issueDate || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt>{t("dueDate")}</dt>
+                <dd>{viewingInvoice.dueDate || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt>{t("paymentDate")}</dt>
+                <dd>{viewingInvoice.paidDate || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt>{t("status")}</dt>
+                <dd>{t(viewingInvoice.status) || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt>{t("netAmount")}</dt>
+                <dd>
+                  {formatSek(viewingInvoice.netMinor, locale) || "\u2014"}
+                </dd>
+              </div>
+              <div>
+                <dt>{t("vatPercent")}</dt>
+                <dd>{`${viewingInvoice.vatRateBps / 100}%` || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt>{t("vatAmount")}</dt>
+                <dd>
+                  {formatSek(viewingInvoice.vatMinor, locale) || "\u2014"}
+                </dd>
+              </div>
+              <div>
+                <dt>{t("totalIncludingVat")}</dt>
+                <dd>
+                  {formatSek(viewingInvoice.grossMinor, locale) || "\u2014"}
+                </dd>
+              </div>
+              <div>
+                <dt>{t("compensationModel")}</dt>
+                <dd>
+                  {viewingInvoice.compensationModel
+                    ? t(
+                        viewingInvoice.compensationModel === "fixed"
+                          ? "fixedSalary"
+                          : "flexible",
+                      )
+                    : "\u2014"}
+                </dd>
+              </div>
+              <div>
+                <dt>{t("invoiceSharePercent")}</dt>
+                <dd>{`${viewingInvoice.shareBps / 100}%` || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt>{t("description")}</dt>
+                <dd>{viewingInvoice.visibleDescription || "\u2014"}</dd>
+              </div>
+              {manager && (
+                <div>
+                  <dt>{t("internalNote")}</dt>
+                  <dd>{viewingInvoice.internalNote || "\u2014"}</dd>
+                </div>
+              )}
+            </dl>
+            <AttachmentDownloads
+              entityType="invoice"
+              entityId={viewingInvoice.id}
+            />
+            <footer className="modal-actions">
+              <button
+                className="button secondary"
+                onClick={() => setViewingInvoice(null)}
               >
                 {t("close")}
               </button>
