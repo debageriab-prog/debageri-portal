@@ -682,5 +682,9 @@
   "showInvalidDocuments": "Visa ogiltiga dokument",
   "confidentialDocumentNoticeTitle": "Konfidentiellt dokument",
   "confidentialDocumentNotice": "Detta dokument får inte skickas till eller visas för någon utan företagets tillstånd.",
-  "contractFilesAvailable": "{count} fil(er) tillgängliga för nedladdning"
+  "contractFilesAvailable": "{count} fil(er) tillgängliga för nedladdning",
+  "invoiceDetails": "Fakturauppgifter",
+  "editInvoiceAttachments": "Hantera fakturafiler",
+  "editInvoiceAttachmentsDescription": "Lägg till eller ta bort filer för denna faktura.",
+  "invoiceCreatedUploadFailed": "Fakturan skapades, men filerna kunde inte laddas upp. Välj filerna igen och spara."
 }

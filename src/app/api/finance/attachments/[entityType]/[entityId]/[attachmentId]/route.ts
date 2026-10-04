@@ -18,7 +18,9 @@ async function authorized(
       ? "financialTransactions"
       : entityType === "vatSettlement"
         ? "vatSettlements"
-        : null;
+        : entityType === "invoice"
+          ? "invoices"
+          : null;
   if (!collection)
     return {
       error: NextResponse.json({ error: "invalidInput" }, { status: 400 }),
@@ -38,8 +40,8 @@ async function authorized(
   const manager = ["admin", "accountant"].includes(actor.role);
   const consultantCanRead =
     !write &&
-    entityType === "transaction" &&
     entityData?.consultantId === actor.id &&
+    entityType === "transaction" &&
     actor.financeAccess.myFinance;
   if (
     !entity.exists ||

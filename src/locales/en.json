@@ -682,5 +682,9 @@
   "showInvalidDocuments": "Show invalid documents",
   "confidentialDocumentNoticeTitle": "Confidential document",
   "confidentialDocumentNotice": "This document must not be sent to or shown to anyone without permission from the company.",
-  "contractFilesAvailable": "{count} file(s) available to download"
+  "contractFilesAvailable": "{count} file(s) available to download",
+  "invoiceDetails": "Invoice details",
+  "editInvoiceAttachments": "Manage invoice files",
+  "editInvoiceAttachmentsDescription": "Add or remove files for this invoice.",
+  "invoiceCreatedUploadFailed": "The invoice was created, but its files could not be uploaded. Select the files again and save."
 }
