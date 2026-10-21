@@ -8,6 +8,7 @@ export interface PortalEnvironment {
   publicProjectId: string;
   adminProjectId: string;
   useEmulators: boolean;
+  requireMfa: boolean;
 }
 
 export function validatePortalEnvironment(
@@ -32,6 +33,7 @@ export function validatePortalEnvironment(
     NEXT_PUBLIC_USE_FIREBASE_EMULATORS: z
       .enum(["true", "false"])
       .default("false"),
+    AUTH_REQUIRE_MFA: z.enum(["true", "false"]).default("false"),
   });
   const parsed = schema.parse(source);
   const ids = [
@@ -81,5 +83,6 @@ export function validatePortalEnvironment(
     publicProjectId: parsed.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
     adminProjectId: parsed.FIREBASE_ADMIN_PROJECT_ID,
     useEmulators: parsed.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true",
+    requireMfa: parsed.AUTH_REQUIRE_MFA === "true",
   };
 }

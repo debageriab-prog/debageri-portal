@@ -38,6 +38,7 @@ export function UserManagement({
   const [changingPassword, setChangingPassword] = useState<ManagedUser | null>(
     null,
   );
+  const [resettingMfa, setResettingMfa] = useState<ManagedUser | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -196,6 +197,30 @@ export function UserManagement({
     }
   }
 
+  async function resetMfa() {
+    if (!resettingMfa) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await appCheckFetch(
+        `/api/admin/users/${encodeURIComponent(resettingMfa.id)}/mfa`,
+        { method: "DELETE" },
+      );
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) return setError(result.error ?? t("mfaResetFailed"));
+      setResettingMfa(null);
+      showSuccess(
+        t("mfaResetDone").replace("{name}", resettingMfa.displayName),
+      );
+    } catch {
+      setError(t("mfaResetFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <div className="topbar">
@@ -284,6 +309,18 @@ export function UserManagement({
                         }}
                       >
                         <ActionIcon type="password" />
+                      </button>
+                      <button
+                        className="table-action icon-action"
+                        aria-label={t("mfaReset")}
+                        disabled={user.id === currentUserId}
+                        title={t("mfaReset")}
+                        onClick={() => {
+                          setError("");
+                          setResettingMfa(user);
+                        }}
+                      >
+                        <ActionIcon type="mfa" />
                       </button>
                       <button
                         className="table-action table-action-danger icon-action"
@@ -676,6 +713,57 @@ export function UserManagement({
                 </button>
               </footer>
             </form>
+          </section>
+        </div>
+      )}
+
+      {resettingMfa && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="modal modal-small"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="reset-mfa-title"
+          >
+            <header className="modal-header">
+              <div>
+                <span className="eyebrow">{t("accountSecurity")}</span>
+                <h2 id="reset-mfa-title">
+                  {t("mfaResetTitle").replace(
+                    "{name}",
+                    resettingMfa.displayName,
+                  )}
+                </h2>
+                <p>{t("mfaResetDescription")}</p>
+              </div>
+              <button
+                className="modal-close"
+                aria-label={t("close")}
+                onClick={() => setResettingMfa(null)}
+              >
+                ×
+              </button>
+            </header>
+            {error && (
+              <p className="notice notice-error" role="alert">
+                {error}
+              </p>
+            )}
+            <footer className="modal-actions">
+              <button
+                className="button secondary"
+                onClick={() => setResettingMfa(null)}
+              >
+                {t("cancel")}
+              </button>
+              <button
+                className="button danger"
+                disabled={busy}
+                onClick={resetMfa}
+              >
+                {busy ? t("resetting") : t("mfaReset")}
+              </button>
+            </footer>
           </section>
         </div>
       )}

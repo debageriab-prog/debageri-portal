@@ -751,6 +751,30 @@ th {
   padding: clamp(28px, 4vw, 44px);
   justify-self: start;
 }
+.mfa-app-links {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.mfa-app-links a {
+  color: inherit;
+  font-weight: 700;
+}
+.mfa-qr {
+  justify-self: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.mfa-secret {
+  overflow-wrap: anywhere;
+  font-weight: 700;
+  color: var(--foreground);
+}
+.mfa-code-field {
+  font-size: 22px;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
 .login-showcase {
   max-width: 610px;
   justify-self: end;
