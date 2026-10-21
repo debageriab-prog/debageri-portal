@@ -164,6 +164,62 @@ domain-mapping setup documented in
 Firebase Authentication, browser API key, App Check, verification, and
 troubleshooting steps.
 
+## Backups
+
+`scripts/setup-gcp-production.sh` enables production data protection once the
+Firestore database and Firebase Storage bucket exist. It is safe to rerun and
+skips anything that does not exist yet:
+
+- Firestore point-in-time recovery (PITR), which keeps one-minute versions for
+  the last 7 days;
+- a daily Firestore backup kept for 7 days and a weekly backup (Sunday) kept
+  for 14 weeks;
+- Storage soft delete on the production bucket, so deleted or overwritten
+  contract files, invoice attachments, and avatars stay recoverable for 30
+  days.
+
+Override `FIRESTORE_DATABASE`, `STORAGE_BUCKET`, `DAILY_BACKUP_RETENTION`,
+`WEEKLY_BACKUP_RETENTION`, or `STORAGE_SOFT_DELETE_DURATION` in the environment
+when the defaults do not apply. For an existing environment, rerun the script
+from Google Cloud Shell and confirm the result:
+
+```bash
+gcloud firestore databases describe --database="(default)" \
+  --project=debageri-portal --format="value(pointInTimeRecoveryEnablement)"
+gcloud firestore backups schedules list --database="(default)" \
+  --project=debageri-portal
+gcloud storage buckets describe gs://debageri-portal.firebasestorage.app \
+  --format="value(soft_delete_policy)"
+```
+
+Restores always create a new database, so live data is never overwritten.
+Restore a scheduled backup, or clone the database as it was at a point within
+the PITR window:
+
+```bash
+gcloud firestore backups list --project=debageri-portal
+gcloud firestore databases restore --project=debageri-portal \
+  --source-backup=projects/debageri-portal/locations/LOCATION/backups/BACKUP_ID \
+  --destination-database=restore-YYYYMMDD
+gcloud firestore databases clone --project=debageri-portal \
+  --source-database="projects/debageri-portal/databases/(default)" \
+  --snapshot-time=2026-01-31T12:00:00Z \
+  --destination-database=restore-YYYYMMDD
+```
+
+Verify the restored database, then copy back only the affected documents or
+switch over deliberately. Delete temporary restore databases afterwards because
+they are billed. Recover soft-deleted Storage objects with
+`gcloud storage ls --soft-deleted gs://BUCKET/**` and
+`gcloud storage restore gs://BUCKET/OBJECT#GENERATION`.
+
+Firestore backups do not include Firebase Authentication users. Administrators
+can recreate accounts, and `firebase auth:export` may be run occasionally into
+private, retention-controlled storage; the export contains password hashes and
+must never be committed. Test a restore at least once before relying on these
+backups. Backup retention must also be covered by the privacy and deletion
+policies in [Privacy and data handling](privacy-and-data-handling.md).
+
 ## Rollback
 
 For production, route traffic to a known-good immutable Cloud Run revision,
