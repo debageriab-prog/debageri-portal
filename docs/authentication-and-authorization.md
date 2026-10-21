@@ -6,8 +6,8 @@ The portal has its own Firebase Authentication tenant/user base in each portal p
 
 TOTP multi-factor authentication uses Firebase Authentication with Identity
 Platform; secrets live in Firebase, never in Firestore. Enforcement is
-controlled by `AUTH_REQUIRE_MFA` (`true` on the dev Cloud Run service, `false`
-locally because the Auth emulator does not support TOTP).
+controlled by `AUTH_REQUIRE_MFA` (`true` on the dev and production Cloud Run
+services, `false` locally because the Auth emulator does not support TOTP).
 
 - `/api/auth/session` refuses to create a session unless the ID token carries
   `firebase.sign_in_second_factor`. It answers `mfaEnrollmentRequired` for
