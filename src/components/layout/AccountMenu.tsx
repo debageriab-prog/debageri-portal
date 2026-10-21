@@ -3,9 +3,13 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   EmailAuthProvider,
+  getMultiFactorResolver,
+  multiFactor,
   reauthenticateWithCredential,
   signOut,
+  TotpMultiFactorGenerator,
   updatePassword,
+  type MultiFactorError,
 } from "firebase/auth";
 import type { PortalUser } from "@/domain/types";
 import { appCheckFetch, getFirebaseClient } from "@/lib/firebase/client";
@@ -24,6 +28,7 @@ export function AccountMenu({ user }: { user: PortalUser }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [needsMfaCode, setNeedsMfaCode] = useState(false);
 
   useEffect(() => {
     function close(event: MouseEvent) {
@@ -38,6 +43,18 @@ export function AccountMenu({ user }: { user: PortalUser }) {
     setError("");
     setSuccess("");
     setDialog(next);
+    if (next === "password") {
+      const { auth } = getFirebaseClient();
+      void auth
+        .authStateReady()
+        .then(() =>
+          setNeedsMfaCode(
+            auth.currentUser
+              ? multiFactor(auth.currentUser).enrolledFactors.length > 0
+              : false,
+          ),
+        );
+    }
   }
 
   async function logout() {
@@ -88,10 +105,34 @@ export function AccountMenu({ user }: { user: PortalUser }) {
       await auth.authStateReady();
       const currentUser = auth.currentUser;
       if (!currentUser?.email) throw new Error(t("signInAgain"));
-      await reauthenticateWithCredential(
-        currentUser,
-        EmailAuthProvider.credential(currentUser.email, currentPassword),
-      );
+      try {
+        await reauthenticateWithCredential(
+          currentUser,
+          EmailAuthProvider.credential(currentUser.email, currentPassword),
+        );
+      } catch (reason) {
+        if (
+          typeof reason !== "object" ||
+          !reason ||
+          !("code" in reason) ||
+          reason.code !== "auth/multi-factor-auth-required"
+        )
+          throw reason;
+        const resolver = getMultiFactorResolver(
+          auth,
+          reason as MultiFactorError,
+        );
+        const hint = resolver.hints.find(
+          (factor) => factor.factorId === TotpMultiFactorGenerator.FACTOR_ID,
+        );
+        if (!hint) throw reason;
+        await resolver.resolveSignIn(
+          TotpMultiFactorGenerator.assertionForSignIn(
+            hint.uid,
+            String(form.get("mfaCode") ?? "").trim(),
+          ),
+        );
+      }
       await updatePassword(currentUser, newPassword);
       setDialog(null);
       setSuccess(t("passwordChanged"));
@@ -111,11 +152,14 @@ export function AccountMenu({ user }: { user: PortalUser }) {
       setError(
         code === "auth/invalid-credential"
           ? t("currentPasswordIncorrect")
-          : code === "auth/weak-password"
-            ? t("weakPassword")
-            : reason instanceof Error
-              ? reason.message
-              : t("passwordChangeFailed"),
+          : code === "auth/invalid-verification-code" ||
+              code === "auth/missing-code"
+            ? t("mfaInvalidCode")
+            : code === "auth/weak-password"
+              ? t("weakPassword")
+              : reason instanceof Error
+                ? reason.message
+                : t("passwordChangeFailed"),
       );
     } finally {
       setBusy(false);
@@ -237,6 +281,20 @@ export function AccountMenu({ user }: { user: PortalUser }) {
                 name="currentPassword"
                 autoComplete="current-password"
               />
+              {needsMfaCode && (
+                <label>
+                  {t("mfaCode")}
+                  <input
+                    className="field"
+                    name="mfaCode"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    required
+                  />
+                </label>
+              )}
               <PasswordField label={t("newPassword")} name="newPassword" />
               <PasswordField
                 label={t("confirmNewPassword")}

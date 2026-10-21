@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { hasSecondFactor, isMfaRequired } from "@/server/auth/mfa";
 import { SESSION_COOKIE, SESSION_DURATION_MS } from "@/server/auth/session";
 
 export async function POST(request: Request) {
@@ -13,6 +14,14 @@ export async function POST(request: Request) {
     if (!user.exists || user.data()?.status !== "active") {
       return NextResponse.json(
         { error: "Account unavailable" },
+        { status: 403 },
+      );
+    }
+    if (isMfaRequired() && !hasSecondFactor(decoded)) {
+      const record = await auth.getUser(decoded.uid);
+      const enrolled = (record.multiFactor?.enrolledFactors.length ?? 0) > 0;
+      return NextResponse.json(
+        { error: enrolled ? "mfaRequired" : "mfaEnrollmentRequired" },
         { status: 403 },
       );
     }

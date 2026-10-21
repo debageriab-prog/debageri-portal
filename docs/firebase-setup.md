@@ -21,6 +21,11 @@ In the production project:
 
 1. Register a Web App named **Debageri Portal**.
 2. Enable Authentication → Email/Password.
+   Upgrade to **Firebase Authentication with Identity Platform**
+   (Authentication → Settings), then enable TOTP multi-factor sign-in with
+   `scripts/enable-totp-mfa.sh <projectId>` (run with `gcloud` authenticated as
+   a project owner). Only then set `AUTH_REQUIRE_MFA=true` on the Cloud Run
+   service (`deploy.yml` for production, `preview.yml` for dev).
 3. Create the default Firestore database in production mode.
 4. Create the default Cloud Storage bucket.
 5. Configure App Check for the portal domain using the detailed steps in

@@ -16,6 +16,12 @@ Administrators can reset another employee's password without seeing the old
 password. A reset revokes the employee's existing Firebase sessions and creates
 an audit entry; password values are never written to Firestore or logs.
 
+Sign-in requires a TOTP second factor when `AUTH_REQUIRE_MFA=true` (see
+[authentication](authentication-and-authorization.md)). Enrollment is trust on
+first use: whoever first signs in with an account's password enrolls its
+authenticator, so temporary passwords must still be shared securely and used
+promptly. Lost phones are handled by an audited admin reset of the factor.
+
 Enable Firestore PITR where available plus tested scheduled exports to a portal-only, retention-controlled bucket. Define audit/document retention and deletion policies with the organization. Employee records are personal and potentially sensitive; minimize access and collection.
 
 Security documentation is not a legal-compliance claim. Organizational/legal/privacy/payroll review is required for GDPR lawful basis, employee notice, access/erasure handling, retention, processor agreements, international transfers, audit access, payslip/document classification, backup deletion, union/employment rules, and incident response.
