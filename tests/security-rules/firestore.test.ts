@@ -115,6 +115,16 @@ describe("Firestore rules", () => {
       }),
     );
   });
+  it("keeps the notification email log server-only", async () => {
+    const consultant = env.authenticatedContext("u1").firestore();
+    await assertFails(getDoc(doc(consultant, "emailNotifications/n1")));
+    await assertFails(
+      setDoc(doc(consultant, "emailNotifications/n2"), {
+        organizationId: "debageri",
+        recipientUserId: "u1",
+      }),
+    );
+  });
   it("keeps receipts server-only, even for their owner", async () => {
     await env.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "receipts/r1"), {

@@ -816,5 +816,13 @@
   "receiptError_receiptSaveFailed": "Kvittot kunde inte skickas. Försök igen.",
   "receiptError_receiptReviewFailed": "Statusen kunde inte ändras. Försök igen.",
   "receiptError_receiptExpenseLinked": "Kvittot är redan tillagt som utgift, så statusen kan inte längre ändras.",
-  "financeError_receiptNotExpensable": "Kvittot är inte godkänt eller har redan lagts till som utgift."
+  "financeError_receiptNotExpensable": "Kvittot är inte godkänt eller har redan lagts till som utgift.",
+  "notificationEmails": "Aviseringsmejl",
+  "notificationEmailsHelp": "Skickas via anslutningen ovan, på varje persons portalspråk. Inget skickas förrän anslutningen har sparats.",
+  "notificationTopic_receipts": "Kvitton",
+  "notificationTopicHelp_receipts": "Administratörer och ekonomer får veta om nya kvitton; den som skickat kvittot får veta när det godkänns eller avslås.",
+  "notificationTopic_payslips": "Lönebesked",
+  "notificationTopicHelp_payslips": "Personen får veta när lönebeskedet laddas upp eller ersätts, om hen har tillgång till lönebesked.",
+  "notificationTopic_timesheets": "Beslut om tidrapporter",
+  "notificationTopicHelp_timesheets": "Personen får veta när tidrapporten godkänns eller avslås, inklusive orsaken."
 }

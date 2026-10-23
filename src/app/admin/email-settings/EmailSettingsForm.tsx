@@ -3,6 +3,10 @@
 import { FormEvent, useState } from "react";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import {
+  NOTIFICATION_TOPICS,
+  type NotificationSettings,
+} from "@/domain/notifications";
 
 type EmailSettings = {
   smtpHost: string;
@@ -12,6 +16,7 @@ type EmailSettings = {
   passwordConfigured: boolean;
   fromEmail: string;
   senderName: string;
+  notifications: NotificationSettings;
 };
 
 export function EmailSettingsForm({ settings }: { settings: EmailSettings }) {
@@ -37,6 +42,12 @@ export function EmailSettingsForm({ settings }: { settings: EmailSettings }) {
         password: form.get("password") || undefined,
         fromEmail: form.get("fromEmail"),
         senderName: form.get("senderName"),
+        notifications: Object.fromEntries(
+          NOTIFICATION_TOPICS.map((topic) => [
+            topic,
+            form.get(`notify-${topic}`) === "on",
+          ]),
+        ),
       }),
     });
     setBusy(false);
@@ -116,6 +127,23 @@ export function EmailSettingsForm({ settings }: { settings: EmailSettings }) {
           />
           <span>{t("smtpSecure")}</span>
         </label>
+        <fieldset className="access-section form-wide">
+          <legend>{t("notificationEmails")}</legend>
+          <p className="muted">{t("notificationEmailsHelp")}</p>
+          {NOTIFICATION_TOPICS.map((topic) => (
+            <label className="checkbox-row" key={topic}>
+              <input
+                name={`notify-${topic}`}
+                type="checkbox"
+                defaultChecked={settings.notifications[topic]}
+              />
+              <span>
+                <strong>{t(`notificationTopic_${topic}`)}</strong>
+                <small>{t(`notificationTopicHelp_${topic}`)}</small>
+              </span>
+            </label>
+          ))}
+        </fieldset>
       </div>
       {error && <p className="notice notice-error">{error}</p>}
       {message && <p className="notice">{message}</p>}

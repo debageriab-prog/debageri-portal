@@ -816,5 +816,13 @@
   "receiptError_receiptSaveFailed": "The receipt could not be submitted. Please try again.",
   "receiptError_receiptReviewFailed": "The status could not be changed. Please try again.",
   "receiptError_receiptExpenseLinked": "This receipt is already added as an expense, so its status can no longer change.",
-  "financeError_receiptNotExpensable": "This receipt is not approved or has already been added as an expense."
+  "financeError_receiptNotExpensable": "This receipt is not approved or has already been added as an expense.",
+  "notificationEmails": "Notification emails",
+  "notificationEmailsHelp": "Sent with the connection above, in each person's portal language. Nothing is sent until the connection is saved.",
+  "notificationTopic_receipts": "Receipts",
+  "notificationTopicHelp_receipts": "Admins and accountants hear about new receipts; the submitter hears when a receipt is approved or rejected.",
+  "notificationTopic_payslips": "Pay slips",
+  "notificationTopicHelp_payslips": "The person is told when their pay slip is uploaded or replaced, if they have pay slip access.",
+  "notificationTopic_timesheets": "Time report decisions",
+  "notificationTopicHelp_timesheets": "The person is told when their time report is approved or rejected, including the reason."
 }
