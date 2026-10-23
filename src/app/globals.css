@@ -1162,6 +1162,178 @@ th {
   background: white;
 }
 
+.payslip-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.payslip-toolbar .icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.payslip-modal {
+  width: min(960px, 100%);
+}
+
+.payslip-icon-action svg,
+.payslip-download-action svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.payslip-icon-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.payslip-preview {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fbf8f5;
+}
+
+.payslip-preview iframe {
+  display: block;
+  width: 100%;
+  height: min(78vh, 1100px);
+  border: 0;
+}
+
+.payslip-preview img {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.payslip-preview-loading,
+.payslip-preview .notice {
+  margin: 1.5rem;
+}
+
+.payslip-print-frame {
+  position: fixed;
+  width: 0;
+  height: 0;
+  border: 0;
+  visibility: hidden;
+}
+
+th.actions-heading {
+  text-align: right;
+}
+
+.payslip-file-name {
+  overflow-wrap: anywhere;
+}
+
+.payslip-period-filter,
+.payslip-upload-period {
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+}
+
+.payslip-upload-rows {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.payslip-upload-row {
+  display: grid;
+  grid-template-columns:
+    minmax(12rem, 1.2fr) auto minmax(12rem, 1.2fr)
+    auto auto;
+  gap: 0.75rem 1rem;
+  align-items: end;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fbf8f5;
+}
+
+.payslip-upload-row > label:not(.checkbox-row) {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.payslip-upload-row > label:not(.checkbox-row),
+.payslip-upload-period > span,
+.payslip-period-filter > span {
+  color: #4b3b31;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.payslip-upload-replace {
+  align-self: center;
+  margin-top: 1.4rem;
+}
+
+.payslip-upload-remove {
+  align-self: center;
+  margin-top: 1.4rem;
+}
+
+.payslip-upload-remove:disabled,
+.payslip-upload-add:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.payslip-upload-row-notes {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.payslip-upload-row-notes .payslip-row-hint {
+  margin-top: 0;
+}
+
+.payslip-upload-add {
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 1100px) {
+  .payslip-upload-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .payslip-upload-replace,
+  .payslip-upload-remove {
+    margin-top: 0;
+  }
+
+  .payslip-upload-remove {
+    justify-self: end;
+  }
+}
+
+@media (max-width: 640px) {
+  .payslip-upload-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.payslip-row-hint {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--warning);
+}
+
 .attachment-remove {
   display: inline-grid;
   flex: 0 0 auto;

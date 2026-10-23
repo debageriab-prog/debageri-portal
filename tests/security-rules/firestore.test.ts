@@ -115,4 +115,22 @@ describe("Firestore rules", () => {
       }),
     );
   });
+  it("keeps pay slips server-only, even for their owner", async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "payslips/debageri_u1_2026-09"), {
+        organizationId: "debageri",
+        userId: "u1",
+        period: "2026-09",
+      });
+    });
+    const consultant = env.authenticatedContext("u1").firestore();
+    await assertFails(getDoc(doc(consultant, "payslips/debageri_u1_2026-09")));
+    await assertFails(
+      setDoc(doc(consultant, "payslips/debageri_u1_2026-10"), {
+        organizationId: "debageri",
+        userId: "u1",
+        period: "2026-10",
+      }),
+    );
+  });
 });

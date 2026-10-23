@@ -106,6 +106,18 @@ function financeItems(t: Translate): NavItem[] {
   ];
 }
 
+function documentItems(user: PortalUser, t: Translate): NavItem[] {
+  const manages = ["admin", "accountant"].includes(user.role);
+  return [
+    ...(manages || user.role === "manager" || user.documentAccess.contracts
+      ? [{ label: t("contracts"), href: "/documents/contracts" }]
+      : []),
+    ...(manages || user.documentAccess.payslips
+      ? [{ label: t("payslips"), href: "/documents/payslips" }]
+      : []),
+  ];
+}
+
 function navigation(user: PortalUser, t: Translate): NavGroup[] {
   const reporting: NavItem[] = user.reportsTime
     ? [
@@ -141,7 +153,7 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
         id: "documents",
         label: t("documents"),
         icon: "documents",
-        items: [{ label: t("contracts"), href: "/documents/contracts" }],
+        items: documentItems(user, t),
       },
       {
         id: "admin",
@@ -178,7 +190,7 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
         id: "documents",
         label: t("documents"),
         icon: "documents",
-        items: [{ label: t("contracts"), href: "/documents/contracts" }],
+        items: documentItems(user, t),
       },
     ] satisfies NavGroup[];
 
@@ -205,7 +217,7 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
       id: "documents",
       label: t("documents"),
       icon: "documents",
-      items: [{ label: t("contracts"), href: "/documents/contracts" }],
+      items: documentItems(user, t),
     });
     return groups;
   }
@@ -241,12 +253,12 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
           : []),
       ],
     });
-  if (user.documentAccess.contracts)
+  if (user.documentAccess.contracts || user.documentAccess.payslips)
     groups.push({
       id: "documents",
       label: t("documents"),
       icon: "documents",
-      items: [{ label: t("contracts"), href: "/documents/contracts" }],
+      items: documentItems(user, t),
     });
   return groups;
 }
