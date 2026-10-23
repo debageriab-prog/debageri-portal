@@ -4,6 +4,7 @@ import { verifySession } from "@/server/auth/session";
 import { transitionTimesheet } from "@/server/services/timesheet-service";
 import {
   notifyTimesheetDecision,
+  notifyTimesheetSubmitted,
   portalUrlFrom,
 } from "@/server/services/notification-service";
 
@@ -36,6 +37,8 @@ export async function POST(
     const result = await transitionTimesheet(actor, id, target, reason);
     if (target === "approved" || target === "rejected")
       await notifyTimesheetDecision(id, portalUrlFrom(request));
+    if (target === "submitted")
+      await notifyTimesheetSubmitted(id, portalUrlFrom(request));
     return NextResponse.json({ data: result });
   } catch (error) {
     console.error("Timesheet transition failed", error);

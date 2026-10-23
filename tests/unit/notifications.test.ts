@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
+import en from "@/locales/en.json";
+import sv from "@/locales/sv.json";
 import {
   buildNotification,
+  fill,
   formatIsoWeek,
+  IN_APP_NOTIFICATION_KINDS,
+  isEmailKind,
   notificationLocale,
   notificationSettingsFrom,
+  notificationValuesFor,
 } from "@/domain/notifications";
 
 const base = {
@@ -70,5 +76,41 @@ describe("notification emails", () => {
     expect(formatIsoWeek("en-SE", 2026, 43)).toBe("week 43, 2026");
     expect(notificationLocale("sv-SE")).toBe("sv-SE");
     expect(notificationLocale(undefined)).toBe("en-SE");
+  });
+});
+
+describe("in-app notifications", () => {
+  it("has a title for every kind in both languages", () => {
+    for (const kind of IN_APP_NOTIFICATION_KINDS) {
+      const key = `notificationTitle_${kind}` as keyof typeof en;
+      expect(en[key], key).toBeTruthy();
+      expect(sv[key as keyof typeof sv], key).toBeTruthy();
+    }
+  });
+
+  it("renders stored facts in the reader's language", () => {
+    const params = {
+      personName: "Erik",
+      isoYear: 2026,
+      isoWeek: 43,
+      amountMinor: 12_550,
+      year: 2026,
+      month: 9,
+    };
+    const english = notificationValuesFor(params, "en-SE");
+    const swedish = notificationValuesFor(params, "sv-SE");
+    expect(english.week).toBe("week 43, 2026");
+    expect(swedish.week).toBe("vecka 43 2026");
+    expect(english.month).toMatch(/September 2026/);
+    expect(swedish.month).toMatch(/september 2026/);
+    expect(swedish.amount).toMatch(/125,50/);
+    expect(fill(en.notificationTitle_timesheetSubmitted, english)).toBe(
+      "Erik submitted the time report for week 43, 2026",
+    );
+  });
+
+  it("keeps manager approval requests in the app only", () => {
+    expect(isEmailKind("timesheetSubmitted")).toBe(false);
+    expect(isEmailKind("timesheetRejected")).toBe(true);
   });
 });

@@ -1,3 +1,6 @@
+import { formatSek } from "@/domain/finance/calculations";
+import { formatPayslipMonth } from "@/domain/payslips";
+
 export type NotificationKind =
   | "receiptSubmitted"
   | "receiptApproved"
@@ -5,6 +8,38 @@ export type NotificationKind =
   | "payslipPublished"
   | "timesheetApproved"
   | "timesheetRejected";
+
+/** Every kind shown in the portal; only `NotificationKind`s are emailed. */
+export type InAppNotificationKind = NotificationKind | "timesheetSubmitted";
+
+export const IN_APP_NOTIFICATION_KINDS: InAppNotificationKind[] = [
+  "receiptSubmitted",
+  "receiptApproved",
+  "receiptRejected",
+  "payslipPublished",
+  "timesheetSubmitted",
+  "timesheetApproved",
+  "timesheetRejected",
+];
+
+export function isEmailKind(
+  kind: InAppNotificationKind,
+): kind is NotificationKind {
+  return kind !== "timesheetSubmitted";
+}
+
+/** Raw facts stored with a notification and rendered per reader locale. */
+export type NotificationParams = {
+  personName?: string;
+  receiptName?: string;
+  receiptDate?: string;
+  amountMinor?: number;
+  comment?: string;
+  year?: number;
+  month?: number;
+  isoYear?: number;
+  isoWeek?: number;
+};
 
 export type NotificationTopic = "receipts" | "payslips" | "timesheets";
 export type NotificationLocale = "sv-SE" | "en-SE";
@@ -121,7 +156,34 @@ const greetings: Record<NotificationLocale, string> = {
   "sv-SE": "Hej {recipientName},",
 };
 
-function fill(template: string, values: NotificationValues) {
+export function notificationValuesFor(
+  params: NotificationParams,
+  locale: NotificationLocale,
+) {
+  return {
+    personName: params.personName,
+    receiptName: params.receiptName,
+    receiptDate: params.receiptDate,
+    comment: params.comment,
+    amount:
+      params.amountMinor === undefined
+        ? undefined
+        : formatSek(params.amountMinor, locale),
+    month:
+      params.year && params.month
+        ? formatPayslipMonth(locale, params.year, params.month)
+        : undefined,
+    week:
+      params.isoYear && params.isoWeek
+        ? formatIsoWeek(locale, params.isoYear, params.isoWeek)
+        : undefined,
+  };
+}
+
+export function fill(
+  template: string,
+  values: Partial<Record<keyof NotificationValues, string | undefined>>,
+) {
   return template.replace(/\{(\w+)\}/g, (match, key: string) => {
     const value = values[key as keyof NotificationValues];
     return value === undefined ? match : value.replace(/[\r\n]+/g, " ");

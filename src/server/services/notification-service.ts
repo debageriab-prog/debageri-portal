@@ -2,47 +2,61 @@ import "server-only";
 
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import nodemailer from "nodemailer";
-import { formatSek } from "@/domain/finance/calculations";
 import {
   buildNotification,
-  formatIsoWeek,
+  isEmailKind,
   notificationLocale,
   notificationSettingsFrom,
   notificationTopic,
-  type NotificationKind,
-  type NotificationLocale,
-  type NotificationValues,
+  notificationValuesFor,
+  type InAppNotificationKind,
+  type NotificationParams,
 } from "@/domain/notifications";
-import { formatPayslipMonth } from "@/domain/payslips";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { decryptPassword } from "@/server/services/reminder-service";
 
 type Recipient = { id: string; data: FirebaseFirestore.DocumentData };
-type Message = {
-  recipient: Recipient;
-  values: (
-    locale: NotificationLocale,
-  ) => Omit<NotificationValues, "recipientName" | "organizationName" | "link">;
-};
 
 export function portalUrlFrom(request: Request) {
   return process.env.NEXT_PUBLIC_PORTAL_URL ?? new URL(request.url).origin;
 }
 
 /**
- * Sends notification emails with the organization's SMTP settings. Delivery
- * is best effort: missing settings, a switched-off topic or an SMTP error
- * never fails the action that triggered it. Each attempt is recorded in
- * `emailNotifications`.
+ * Stores an in-app notification for every active recipient, then emails
+ * them with the organization's SMTP settings when that is configured and
+ * the topic is switched on. Email delivery is best effort and each attempt
+ * is recorded in `emailNotifications`.
  */
 async function deliver(
   db: Firestore,
   organizationId: string,
-  kind: NotificationKind,
+  kind: InAppNotificationKind,
   entityId: string,
-  link: string,
-  messages: Message[],
+  path: string,
+  portalUrl: string,
+  params: NotificationParams,
+  candidates: Recipient[],
 ) {
+  const recipients = candidates.filter(
+    ({ data }) =>
+      data.status === "active" && data.organizationId === organizationId,
+  );
+  if (!recipients.length) return;
+  const batch = db.batch();
+  for (const recipient of recipients)
+    batch.create(db.collection("notifications").doc(), {
+      organizationId,
+      userId: recipient.id,
+      kind,
+      entityId,
+      params,
+      link: path,
+      read: false,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  await batch.commit();
+
+  if (!isEmailKind(kind)) return;
   const [settingsDoc, organizationDoc] = await Promise.all([
     db.collection("reminderSettings").doc(organizationId).get(),
     db.collection("organizations").doc(organizationId).get(),
@@ -53,14 +67,10 @@ async function deliver(
     !notificationSettingsFrom(settings.notifications)[notificationTopic[kind]]
   )
     return;
-  const recipients = messages.filter(
-    ({ recipient }) =>
-      recipient.data.status === "active" &&
-      recipient.data.organizationId === organizationId &&
-      typeof recipient.data.email === "string" &&
-      recipient.data.email.includes("@"),
+  const emailRecipients = recipients.filter(
+    ({ data }) => typeof data.email === "string" && data.email.includes("@"),
   );
-  if (!recipients.length) return;
+  if (!emailRecipients.length) return;
   const transporter = nodemailer.createTransport({
     host: String(settings.smtpHost),
     port: Number(settings.smtpPort),
@@ -74,13 +84,13 @@ async function deliver(
     socketTimeout: 15_000,
   });
   const organizationName = String(organizationDoc.data()?.name ?? "Debageri");
-  for (const { recipient, values } of recipients) {
+  for (const recipient of emailRecipients) {
     const locale = notificationLocale(recipient.data.locale);
     const email = buildNotification(kind, locale, {
-      ...values(locale),
+      ...notificationValuesFor(params, locale),
       recipientName: String(recipient.data.displayName ?? recipient.data.email),
       organizationName,
-      link,
+      link: `${portalUrl}${path}`,
     });
     let error: string | null = null;
     try {
@@ -131,17 +141,29 @@ async function loadUser(db: Firestore, id: string): Promise<Recipient | null> {
   return snapshot.exists ? { id: snapshot.id, data: snapshot.data()! } : null;
 }
 
-function receiptValues(receipt: FirebaseFirestore.DocumentData) {
-  return (locale: NotificationLocale) => ({
+async function usersWithRoles(
+  db: Firestore,
+  organizationId: string,
+  roles: string[],
+): Promise<Recipient[]> {
+  const snapshot = await db
+    .collection("users")
+    .where("organizationId", "==", organizationId)
+    .where("role", "in", roles)
+    .get();
+  return snapshot.docs.map((doc) => ({ id: doc.id, data: doc.data() }));
+}
+
+function receiptParams(
+  receipt: FirebaseFirestore.DocumentData,
+): NotificationParams {
+  return {
     personName: String(receipt.userName),
     receiptName: String(receipt.name),
     receiptDate: String(receipt.date),
-    amount: formatSek(
-      Number(receipt.netMinor ?? 0) + Number(receipt.vatMinor ?? 0),
-      locale,
-    ),
+    amountMinor: Number(receipt.netMinor ?? 0) + Number(receipt.vatMinor ?? 0),
     comment: String(receipt.reviewNote ?? ""),
-  });
+  };
 }
 
 export function notifyReceiptSubmitted(receiptId: string, portalUrl: string) {
@@ -151,21 +173,16 @@ export function notifyReceiptSubmitted(receiptId: string, portalUrl: string) {
       await db.collection("receipts").doc(receiptId).get()
     ).data();
     if (!receipt) return;
-    const reviewers = await db
-      .collection("users")
-      .where("organizationId", "==", receipt.organizationId)
-      .where("role", "in", ["admin", "accountant"])
-      .get();
+    const organizationId = String(receipt.organizationId);
     await deliver(
       db,
-      String(receipt.organizationId),
+      organizationId,
       "receiptSubmitted",
       receiptId,
-      `${portalUrl}/receipts`,
-      reviewers.docs.map((doc) => ({
-        recipient: { id: doc.id, data: doc.data() },
-        values: receiptValues(receipt),
-      })),
+      "/receipts",
+      portalUrl,
+      receiptParams(receipt),
+      await usersWithRoles(db, organizationId, ["admin", "accountant"]),
     );
   });
 }
@@ -184,8 +201,10 @@ export function notifyReceiptReviewed(receiptId: string, portalUrl: string) {
       String(receipt.organizationId),
       receipt.status === "approved" ? "receiptApproved" : "receiptRejected",
       receiptId,
-      `${portalUrl}/receipts`,
-      [{ recipient: owner, values: receiptValues(receipt) }],
+      "/receipts",
+      portalUrl,
+      receiptParams(receipt),
+      [owner],
     );
   });
 }
@@ -205,19 +224,46 @@ export function notifyPayslipPublished(payslipId: string, portalUrl: string) {
       String(payslip.organizationId),
       "payslipPublished",
       payslipId,
-      `${portalUrl}/documents/payslips`,
-      [
-        {
-          recipient: owner,
-          values: (locale) => ({
-            month: formatPayslipMonth(
-              locale,
-              Number(payslip.year),
-              Number(payslip.month),
-            ),
-          }),
-        },
-      ],
+      "/documents/payslips",
+      portalUrl,
+      { year: Number(payslip.year), month: Number(payslip.month) },
+      [owner],
+    );
+  });
+}
+
+export function notifyTimesheetSubmitted(
+  timesheetId: string,
+  portalUrl: string,
+) {
+  return safely("timesheetSubmitted", async () => {
+    const { db } = getAdminServices();
+    const sheet = (
+      await db.collection("timesheets").doc(timesheetId).get()
+    ).data();
+    if (!sheet || sheet.status !== "submitted") return;
+    const owner = await loadUser(db, sheet.userId);
+    if (!owner) return;
+    const organizationId = String(sheet.organizationId);
+    // Managers review consultants' reports; admins review managers' reports.
+    const reviewers = await usersWithRoles(
+      db,
+      organizationId,
+      owner.data.role === "manager" ? ["admin"] : ["manager"],
+    );
+    await deliver(
+      db,
+      organizationId,
+      "timesheetSubmitted",
+      timesheetId,
+      `/manager/approvals/${encodeURIComponent(timesheetId)}`,
+      portalUrl,
+      {
+        personName: String(owner.data.displayName ?? ""),
+        isoYear: Number(sheet.isoYear),
+        isoWeek: Number(sheet.isoWeek),
+      },
+      reviewers.filter((reviewer) => reviewer.id !== owner.id),
     );
   });
 }
@@ -239,23 +285,79 @@ export function notifyTimesheetDecision(
       String(sheet.organizationId),
       sheet.status === "approved" ? "timesheetApproved" : "timesheetRejected",
       timesheetId,
-      `${portalUrl}/employee/timesheets`,
-      [
-        {
-          recipient: owner,
-          values: (locale) => ({
-            week: formatIsoWeek(
-              locale,
-              Number(sheet.isoYear),
-              Number(sheet.isoWeek),
-            ),
-            comment:
-              sheet.status === "rejected"
-                ? String(sheet.rejectionReason ?? "")
-                : "",
-          }),
-        },
-      ],
+      "/employee/timesheets",
+      portalUrl,
+      {
+        isoYear: Number(sheet.isoYear),
+        isoWeek: Number(sheet.isoWeek),
+        comment:
+          sheet.status === "rejected"
+            ? String(sheet.rejectionReason ?? "")
+            : "",
+      },
+      [owner],
     );
   });
+}
+
+/** Latest notifications for the signed-in user, newest first. */
+export async function listNotifications(
+  db: Firestore,
+  organizationId: string,
+  userId: string,
+) {
+  const snapshot = await db
+    .collection("notifications")
+    .where("organizationId", "==", organizationId)
+    .where("userId", "==", userId)
+    .orderBy("createdAt", "desc")
+    .limit(30)
+    .get();
+  return snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      kind: String(data.kind) as InAppNotificationKind,
+      params: (data.params ?? {}) as NotificationParams,
+      link: String(data.link ?? "/"),
+      read: data.read === true,
+      createdAt: data.createdAt?.toDate?.().toISOString() ?? "",
+    };
+  });
+}
+
+export async function markNotificationsRead(
+  db: Firestore,
+  organizationId: string,
+  userId: string,
+  ids: string[] | "all",
+) {
+  const refs =
+    ids === "all"
+      ? (
+          await db
+            .collection("notifications")
+            .where("organizationId", "==", organizationId)
+            .where("userId", "==", userId)
+            .where("read", "==", false)
+            .limit(400)
+            .get()
+        ).docs.map((doc) => doc.ref)
+      : (
+          await Promise.all(
+            ids.map((id) => db.collection("notifications").doc(id).get()),
+          )
+        )
+          .filter(
+            (doc) =>
+              doc.exists &&
+              doc.data()?.organizationId === organizationId &&
+              doc.data()?.userId === userId,
+          )
+          .map((doc) => doc.ref);
+  if (!refs.length) return;
+  const batch = db.batch();
+  for (const ref of refs)
+    batch.update(ref, { read: true, readAt: FieldValue.serverTimestamp() });
+  await batch.commit();
 }

@@ -824,5 +824,18 @@
   "notificationTopic_payslips": "Pay slips",
   "notificationTopicHelp_payslips": "The person is told when their pay slip is uploaded or replaced, if they have pay slip access.",
   "notificationTopic_timesheets": "Time report decisions",
-  "notificationTopicHelp_timesheets": "The person is told when their time report is approved or rejected, including the reason."
+  "notificationTopicHelp_timesheets": "The person is told when their time report is approved or rejected, including the reason.",
+  "notifications": "Notifications",
+  "notificationsUnread": "Notifications, {count} unread",
+  "markAllAsRead": "Mark all as read",
+  "noNotifications": "You have no notifications yet.",
+  "notificationsLoadFailed": "Notifications could not be loaded.",
+  "notificationComment": "Comment: {comment}",
+  "notificationTitle_receiptSubmitted": "{personName} submitted the receipt \"{receiptName}\" ({amount}) for approval",
+  "notificationTitle_receiptApproved": "Your receipt \"{receiptName}\" ({amount}) was approved",
+  "notificationTitle_receiptRejected": "Your receipt \"{receiptName}\" ({amount}) was rejected",
+  "notificationTitle_payslipPublished": "Your pay slip for {month} is available",
+  "notificationTitle_timesheetSubmitted": "{personName} submitted the time report for {week}",
+  "notificationTitle_timesheetApproved": "Your time report for {week} was approved",
+  "notificationTitle_timesheetRejected": "Your time report for {week} was rejected"
 }
