@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { parsePayslipPeriod } from "@/domain/payslips";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
@@ -8,7 +9,7 @@ import { PayslipUploadForm } from "./PayslipUploadForm";
 export default async function UploadPayslipsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string }>;
+  searchParams: Promise<{ period?: string }>;
 }) {
   const actor = (await verifySession())!;
   if (!canManagePayslips(actor)) redirect("/unauthorized");
@@ -29,12 +30,14 @@ export default async function UploadPayslipsPage({
       hasAccess: doc.data().documentAccess?.payslips === true,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
-  const now = new Date();
-  const requested = Number((await searchParams).year);
-  const defaultYear =
-    Number.isInteger(requested) && requested >= 2000 && requested <= 2100
-      ? requested
-      : now.getFullYear();
+  const requested = (await searchParams).period ?? "";
+  const defaultPeriod = parsePayslipPeriod(requested)
+    ? requested
+    : new Intl.DateTimeFormat("sv-SE", {
+        timeZone: "Europe/Stockholm",
+        year: "numeric",
+        month: "2-digit",
+      }).format(new Date());
   return (
     <>
       <div className="topbar">
@@ -48,8 +51,7 @@ export default async function UploadPayslipsPage({
       </div>
       <PayslipUploadForm
         recipients={recipients}
-        defaultYear={defaultYear}
-        defaultMonth={now.getMonth() + 1}
+        defaultPeriod={defaultPeriod}
       />
     </>
   );

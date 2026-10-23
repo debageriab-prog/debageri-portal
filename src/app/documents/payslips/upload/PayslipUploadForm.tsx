@@ -3,15 +3,16 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
-import { FileRemoveIcon } from "@/components/ui/FileActionIcons";
+import { FileAddIcon, FileRemoveIcon } from "@/components/ui/FileActionIcons";
 import {
-  formatPayslipMonth,
   isPayslipContentType,
   matchPayslipRecipient,
+  parsePayslipPeriod,
   PAYSLIP_MAX_BYTES,
 } from "@/domain/payslips";
 import { appCheckFetch } from "@/lib/firebase/client";
 import type { MessageKey } from "@/lib/localization/messages";
+import { MonthStepper } from "../MonthStepper";
 
 export type PayslipRecipient = {
   id: string;
@@ -23,8 +24,10 @@ export type PayslipRecipient = {
 
 type Row = {
   key: string;
-  file: File;
   userId: string;
+  period: string;
+  file: File | null;
+  replaceExisting: boolean;
   state: "pending" | "uploading" | "done" | "error";
   error?: string;
 };
@@ -38,82 +41,95 @@ const uploadErrors: Record<string, MessageKey> = {
   payslipFileType: "payslipError_payslipFileType",
 };
 
+let rowCounter = 0;
+const newRow = (period: string): Row => ({
+  key: `row-${++rowCounter}`,
+  userId: "",
+  period,
+  file: null,
+  replaceExisting: false,
+  state: "pending",
+});
+
 export function PayslipUploadForm({
   recipients,
-  defaultYear,
-  defaultMonth,
+  defaultPeriod,
 }: {
   recipients: PayslipRecipient[];
-  defaultYear: number;
-  defaultMonth: number;
+  defaultPeriod: string;
 }) {
-  const { t, locale } = useLocale();
+  const { t } = useLocale();
   const router = useRouter();
-  const [year, setYear] = useState(defaultYear);
-  const [month, setMonth] = useState(defaultMonth);
-  const [replaceExisting, setReplaceExisting] = useState(false);
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<Row[]>(() => [newRow(defaultPeriod)]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const recipientById = new Map(recipients.map((item) => [item.id, item]));
   const pending = rows.filter((row) => row.state !== "done");
+  const slotKey = (row: Row) => `${row.userId}|${row.period}`;
+  const slots = pending.filter((row) => row.userId).map(slotKey);
   const duplicates = new Set(
-    pending
-      .map((row) => row.userId)
-      .filter(
-        (id, index, ids) => id && ids.indexOf(id) !== ids.lastIndexOf(id),
-      ),
+    slots.filter((slot, index) => slots.indexOf(slot) !== index),
   );
-
-  function addFiles(files: File[]) {
-    setError("");
-    const invalid = files.filter(
-      (file) =>
-        !isPayslipContentType(file.type) || file.size > PAYSLIP_MAX_BYTES,
-    );
-    if (invalid.length)
-      setError(
-        t("payslipFilesSkipped").replace(
-          "{names}",
-          invalid.map((file) => file.name).join(", "),
-        ),
-      );
-    setRows((current) => [
-      ...current,
-      ...files
-        .filter((file) => !invalid.includes(file))
-        .map((file) => ({
-          key: `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`,
-          file,
-          userId: matchPayslipRecipient(file.name, recipients) ?? "",
-          state: "pending" as const,
-        })),
-    ]);
-  }
 
   function updateRow(key: string, patch: Partial<Row>) {
     setRows((current) =>
-      current.map((row) => (row.key === key ? { ...row, ...patch } : row)),
+      current.map((row) =>
+        row.key === key
+          ? {
+              ...row,
+              ...patch,
+              ...(patch.state ? {} : { state: "pending", error: undefined }),
+            }
+          : row,
+      ),
     );
+  }
+
+  function selectFile(row: Row, file: File | null) {
+    if (!file) {
+      updateRow(row.key, { file: null });
+      return true;
+    }
+    if (!isPayslipContentType(file.type) || file.size > PAYSLIP_MAX_BYTES) {
+      updateRow(row.key, {
+        file: null,
+        state: "error",
+        error: t(
+          file.size > PAYSLIP_MAX_BYTES
+            ? "payslipError_payslipFileTooLarge"
+            : "payslipError_payslipFileType",
+        ),
+      });
+      return false;
+    }
+    updateRow(row.key, {
+      file,
+      userId:
+        row.userId || (matchPayslipRecipient(file.name, recipients) ?? ""),
+    });
+    return true;
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    if (!pending.length) return setError(t("payslipError_payslipFileRequired"));
-    if (pending.some((row) => !row.userId))
-      return setError(t("payslipSelectAllRecipients"));
+    if (!pending.length) return;
+    if (pending.some((row) => !row.userId || !row.file))
+      return setError(t("payslipCompleteAllRows"));
+    if (pending.some((row) => !parsePayslipPeriod(row.period)))
+      return setError(t("payslipError_invalidInput"));
     if (duplicates.size) return setError(t("payslipDuplicateRecipients"));
     setBusy(true);
     let failures = 0;
     for (const row of pending) {
+      const period = parsePayslipPeriod(row.period)!;
       updateRow(row.key, { state: "uploading", error: undefined });
       const body = new FormData();
       body.set("userId", row.userId);
-      body.set("year", String(year));
-      body.set("month", String(month));
-      body.set("replaceExisting", String(replaceExisting));
-      body.set("file", row.file);
+      body.set("year", String(period.year));
+      body.set("month", String(period.month));
+      body.set("replaceExisting", String(row.replaceExisting));
+      body.set("file", row.file!);
       try {
         const response = await appCheckFetch("/api/documents/payslips", {
           method: "POST",
@@ -138,7 +154,7 @@ export function PayslipUploadForm({
       return setError(
         t("payslipUploadPartiallyFailed").replace("{count}", String(failures)),
       );
-    router.push(`/documents/payslips?year=${year}`);
+    router.push(`/documents/payslips?period=${pending[0]!.period}`);
     router.refresh();
   }
 
@@ -147,155 +163,134 @@ export function PayslipUploadForm({
       ? t("payslipUploaded")
       : row.state === "uploading"
         ? t("uploading")
-        : row.state === "error"
-          ? row.error
-          : t("payslipReady");
+        : row.error;
 
   return (
     <form className="card form-card" onSubmit={submit}>
-      <div className="form-grid">
-        <label>
-          {t("year")}
-          <input
-            className="field"
-            type="number"
-            min={2000}
-            max={2100}
-            value={year}
-            disabled={busy}
-            onChange={(event) => setYear(Number(event.target.value))}
-            required
-          />
-        </label>
-        <label>
-          {t("month")}
-          <select
-            className="field"
-            value={month}
-            disabled={busy}
-            onChange={(event) => setMonth(Number(event.target.value))}
-          >
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((item) => (
-              <option key={item} value={item}>
-                {formatPayslipMonth(locale, year || defaultYear, item)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="checkbox-row form-wide">
-          <input
-            type="checkbox"
-            checked={replaceExisting}
-            disabled={busy}
-            onChange={(event) => setReplaceExisting(event.target.checked)}
-          />
-          <span>
-            <strong>{t("replaceExistingPayslips")}</strong>
-            <small>{t("replaceExistingPayslipsHelp")}</small>
-          </span>
-        </label>
-        <fieldset className="attachment-fieldset form-wide">
-          <legend>{t("files")}</legend>
-          <p className="muted">{t("payslipFilesHelp")}</p>
-          <input
-            className="field"
-            type="file"
-            multiple
-            disabled={busy}
-            accept=".pdf,.jpg,.jpeg,.png,.webp"
-            onChange={(event) => {
-              addFiles(Array.from(event.currentTarget.files ?? []));
-              event.currentTarget.value = "";
-            }}
-          />
-          {rows.length > 0 && (
-            <div className="table-wrap payslip-upload-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t("file")}</th>
-                    <th>{t("employee")}</th>
-                    <th>{t("status")}</th>
-                    <th>{t("actions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => {
-                    const recipient = recipientById.get(row.userId);
-                    return (
-                      <tr key={row.key}>
-                        <td className="payslip-file-name">{row.file.name}</td>
-                        <td>
-                          <select
-                            className="field"
-                            aria-label={t("employee")}
-                            value={row.userId}
-                            disabled={busy || row.state === "done"}
-                            onChange={(event) =>
-                              updateRow(row.key, {
-                                userId: event.target.value,
-                                state: "pending",
-                                error: undefined,
-                              })
-                            }
-                          >
-                            <option value="">{t("selectEmployee")}</option>
-                            {recipients.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name} ({item.employeeNumber})
-                              </option>
-                            ))}
-                          </select>
-                          {recipient && !recipient.hasAccess && (
-                            <small className="payslip-row-hint">
-                              {t("payslipRecipientNoAccess")}
-                            </small>
-                          )}
-                          {row.state !== "done" &&
-                            duplicates.has(row.userId) && (
-                              <small className="payslip-row-hint">
-                                {t("payslipDuplicateRecipients")}
-                              </small>
-                            )}
-                        </td>
-                        <td>
-                          <span
-                            className={`status${row.state === "done" ? " status-approved" : row.state === "error" ? " status-rejected" : ""}`}
-                          >
-                            {statusLabel(row)}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="attachment-remove"
-                            disabled={busy || row.state === "done"}
-                            aria-label={t("removeAttachment").replace(
-                              "{name}",
-                              row.file.name,
-                            )}
-                            title={t("removeAttachment").replace(
-                              "{name}",
-                              row.file.name,
-                            )}
-                            onClick={() =>
-                              setRows((current) =>
-                                current.filter((item) => item.key !== row.key),
-                              )
-                            }
-                          >
-                            <FileRemoveIcon />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </fieldset>
-      </div>
+      <p className="muted">{t("payslipFilesHelp")}</p>
+      <ul className="payslip-upload-rows">
+        {rows.map((row) => {
+          const recipient = recipientById.get(row.userId);
+          const locked = busy || row.state === "done";
+          return (
+            <li className="payslip-upload-row" key={row.key}>
+              <label>
+                {t("employee")}
+                <select
+                  className="field"
+                  value={row.userId}
+                  disabled={locked}
+                  required
+                  onChange={(event) =>
+                    updateRow(row.key, { userId: event.target.value })
+                  }
+                >
+                  <option value="">{t("selectEmployee")}</option>
+                  {recipients.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} ({item.employeeNumber})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="payslip-upload-period">
+                <span>{t("payslipPeriod")}</span>
+                <MonthStepper
+                  value={row.period}
+                  label={t("payslipPeriod")}
+                  disabled={locked}
+                  onChange={(period) => updateRow(row.key, { period })}
+                />
+              </div>
+              <label>
+                {t("file")}
+                <input
+                  className="field"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  disabled={locked}
+                  required={!row.file}
+                  onChange={(event) => {
+                    if (
+                      !selectFile(row, event.currentTarget.files?.[0] ?? null)
+                    )
+                      event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              <label className="checkbox-row payslip-upload-replace">
+                <input
+                  type="checkbox"
+                  checked={row.replaceExisting}
+                  disabled={locked}
+                  onChange={(event) =>
+                    updateRow(row.key, {
+                      replaceExisting: event.target.checked,
+                    })
+                  }
+                />
+                <span>
+                  <strong>{t("replaceExistingPayslip")}</strong>
+                </span>
+              </label>
+              <button
+                type="button"
+                className="attachment-remove payslip-upload-remove"
+                disabled={locked || rows.length === 1}
+                aria-label={t("removePayslipRow")}
+                title={t("removePayslipRow")}
+                onClick={() =>
+                  setRows((current) =>
+                    current.filter((item) => item.key !== row.key),
+                  )
+                }
+              >
+                <FileRemoveIcon />
+              </button>
+              {(row.state !== "pending" ||
+                (recipient && !recipient.hasAccess) ||
+                duplicates.has(slotKey(row))) && (
+                <div className="payslip-upload-row-notes">
+                  {(row.state === "done" ||
+                    row.state === "uploading" ||
+                    row.error) && (
+                    <span
+                      className={`status${row.state === "done" ? " status-approved" : row.state === "error" ? " status-rejected" : ""}`}
+                    >
+                      {statusLabel(row)}
+                    </span>
+                  )}
+                  {row.state !== "done" && duplicates.has(slotKey(row)) && (
+                    <small className="payslip-row-hint">
+                      {t("payslipDuplicateRecipients")}
+                    </small>
+                  )}
+                  {recipient && !recipient.hasAccess && (
+                    <small className="payslip-row-hint">
+                      {t("payslipRecipientNoAccess")}
+                    </small>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <button
+        type="button"
+        className="attachment-download payslip-upload-add"
+        disabled={busy}
+        aria-label={t("addPayslipRow")}
+        title={t("addPayslipRow")}
+        onClick={() =>
+          setRows((current) => [
+            ...current,
+            newRow(current.at(-1)?.period || defaultPeriod),
+          ])
+        }
+      >
+        <FileAddIcon />
+      </button>
       {error && (
         <p className="notice notice-error" role="alert">
           {error}
@@ -305,7 +300,9 @@ export function PayslipUploadForm({
         <button
           type="button"
           className="button secondary"
-          onClick={() => router.push(`/documents/payslips?year=${year}`)}
+          onClick={() =>
+            router.push(`/documents/payslips?period=${defaultPeriod}`)
+          }
         >
           {rows.some((row) => row.state === "done") ? t("close") : t("cancel")}
         </button>

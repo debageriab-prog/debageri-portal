@@ -13,19 +13,17 @@ import {
   PayslipPreview,
   type PayslipItem,
 } from "./PayslipPreview";
+import { MonthStepper } from "./MonthStepper";
 
 export function PayslipManagement({
   payslips,
-  year,
-  years,
+  period,
 }: {
   payslips: PayslipItem[];
-  year: number;
-  years: number[];
+  period: string;
 }) {
   const { t, locale } = useLocale();
   const router = useRouter();
-  const [monthFilter, setMonthFilter] = useState("");
   const [personFilter, setPersonFilter] = useState("");
   const [viewing, setViewing] = useState<PayslipItem | null>(null);
   const [deleting, setDeleting] = useState<PayslipItem | null>(null);
@@ -36,9 +34,7 @@ export function PayslipManagement({
     new Map(payslips.map((item) => [item.userId, item.userName])),
   ).sort((left, right) => left[1].localeCompare(right[1]));
   const filtered = payslips.filter(
-    (item) =>
-      (!monthFilter || item.month === Number(monthFilter)) &&
-      (!personFilter || item.userId === personFilter),
+    (item) => !personFilter || item.userId === personFilter,
   );
 
   async function download(item: PayslipItem) {
@@ -83,7 +79,7 @@ export function PayslipManagement({
         </div>
         <Link
           className="button"
-          href={`/documents/payslips/upload?year=${year}`}
+          href={`/documents/payslips/upload?period=${period}`}
         >
           {t("uploadPayslips")}
         </Link>
@@ -95,37 +91,16 @@ export function PayslipManagement({
       )}
       <section className="card filters-card">
         <div className="form-grid">
-          <label>
-            {t("year")}
-            <select
-              className="field"
-              value={year}
-              onChange={(event) =>
-                router.push(`/documents/payslips?year=${event.target.value}`)
-              }
-            >
-              {years.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("month")}
-            <select
-              className="field"
-              value={monthFilter}
-              onChange={(event) => setMonthFilter(event.target.value)}
-            >
-              <option value="">{t("allMonths")}</option>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                <option key={month} value={month}>
-                  {formatPayslipMonth(locale, year, month)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="payslip-period-filter">
+            <span>{t("payslipPeriod")}</span>
+            <MonthStepper
+              value={period}
+              label={t("payslipPeriod")}
+              onChange={(value) => {
+                if (value) router.push(`/documents/payslips?period=${value}`);
+              }}
+            />
+          </div>
           <label>
             {t("employee")}
             <select

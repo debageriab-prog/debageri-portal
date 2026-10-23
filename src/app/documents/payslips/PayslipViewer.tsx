@@ -2,13 +2,22 @@
 
 import { useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
-import { formatPayslipMonth } from "@/domain/payslips";
+import { formatPayslipMonth, parsePayslipPeriod } from "@/domain/payslips";
+import { MonthStepper } from "./MonthStepper";
 import { PayslipPreview, type PayslipItem } from "./PayslipPreview";
 
-export function PayslipViewer({ payslips }: { payslips: PayslipItem[] }) {
+export function PayslipViewer({
+  payslips,
+  currentPeriod,
+}: {
+  payslips: PayslipItem[];
+  currentPeriod: string;
+}) {
   const { t, locale } = useLocale();
-  const [index, setIndex] = useState(0);
-  const current = payslips[index];
+  const latest = payslips[0];
+  const [period, setPeriod] = useState(latest?.period ?? currentPeriod);
+  const selected = payslips.find((item) => item.period === period);
+  const parsed = parsePayslipPeriod(period);
   return (
     <>
       <div className="topbar">
@@ -18,7 +27,7 @@ export function PayslipViewer({ payslips }: { payslips: PayslipItem[] }) {
           <p className="muted page-description">{t("myPayslipsDescription")}</p>
         </div>
       </div>
-      {!current ? (
+      {!latest ? (
         <section className="card">
           <div className="empty-state">
             <h2>{t("noPayslips")}</h2>
@@ -28,53 +37,32 @@ export function PayslipViewer({ payslips }: { payslips: PayslipItem[] }) {
       ) : (
         <section className="card payslip-viewer">
           <header className="payslip-viewer-header">
-            <nav className="week-nav" aria-label={t("payslipMonthNavigation")}>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={t("olderPayslip")}
-                title={t("olderPayslip")}
-                disabled={index >= payslips.length - 1}
-                onClick={() => setIndex(index + 1)}
-              >
-                ‹
-              </button>
-              <select
-                className="field"
-                aria-label={t("payslipMonth")}
-                value={current.id}
-                onChange={(event) =>
-                  setIndex(
-                    payslips.findIndex(
-                      (item) => item.id === event.target.value,
-                    ),
-                  )
-                }
-              >
-                {payslips.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {formatPayslipMonth(locale, item.year, item.month)}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={t("newerPayslip")}
-                title={t("newerPayslip")}
-                disabled={index === 0}
-                onClick={() => setIndex(index - 1)}
-              >
-                ›
-              </button>
-            </nav>
-            {index === 0 && (
+            <MonthStepper
+              value={period}
+              onChange={setPeriod}
+              label={t("payslipPeriod")}
+            />
+            {selected?.id === latest.id && (
               <span className="status status-approved">
                 {t("latestPayslip")}
               </span>
             )}
           </header>
-          <PayslipPreview payslip={current} />
+          {selected ? (
+            <PayslipPreview payslip={selected} />
+          ) : (
+            <div className="empty-state">
+              <h2>
+                {t("noPayslipForMonth").replace(
+                  "{month}",
+                  parsed
+                    ? formatPayslipMonth(locale, parsed.year, parsed.month)
+                    : period,
+                )}
+              </h2>
+              <p>{t("noPayslipForMonthDescription")}</p>
+            </div>
+          )}
         </section>
       )}
     </>

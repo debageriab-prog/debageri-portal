@@ -4,7 +4,9 @@ import {
   isPayslipContentType,
   matchPayslipRecipient,
   payslipId,
+  parsePayslipPeriod,
   payslipPeriod,
+  shiftPayslipPeriod,
 } from "@/domain/payslips";
 import { payslipUploadSchema } from "@/server/validators/payslips";
 
@@ -18,6 +20,17 @@ describe("pay slip periods", () => {
   it("builds zero-padded periods and one id per person and month", () => {
     expect(payslipPeriod(2026, 3)).toBe("2026-03");
     expect(payslipId("debageri", "u1", "2026-03")).toBe("debageri_u1_2026-03");
+  });
+
+  it("steps across year boundaries", () => {
+    expect(shiftPayslipPeriod("2026-01", -1)).toBe("2025-12");
+    expect(shiftPayslipPeriod("2026-12", 1)).toBe("2027-01");
+  });
+
+  it("parses month input values and rejects invalid ones", () => {
+    expect(parsePayslipPeriod("2026-09")).toEqual({ year: 2026, month: 9 });
+    expect(parsePayslipPeriod("2026-13")).toBeNull();
+    expect(parsePayslipPeriod("")).toBeNull();
   });
 
   it("formats month labels in both locales", () => {

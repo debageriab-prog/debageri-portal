@@ -1,3 +1,4 @@
+import { parsePayslipPeriod } from "@/domain/payslips";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import {
@@ -26,10 +27,15 @@ function toItem(doc: FirebaseFirestore.QueryDocumentSnapshot): PayslipItem {
 export default async function PayslipsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string }>;
+  searchParams: Promise<{ period?: string }>;
 }) {
   const actor = (await verifySession())!;
   const { db } = getAdminServices();
+  const currentPeriod = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Stockholm",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date());
   if (!canManagePayslips(actor)) {
     const snapshot = await db
       .collection("payslips")
@@ -40,34 +46,17 @@ export default async function PayslipsPage({
       .filter((doc) => payslipVisible(actor, doc.data()))
       .map(toItem)
       .sort((a, b) => b.period.localeCompare(a.period));
-    return <PayslipViewer payslips={payslips} />;
+    return <PayslipViewer payslips={payslips} currentPeriod={currentPeriod} />;
   }
-  const currentYear = new Date().getFullYear();
-  const requested = Number((await searchParams).year);
-  const year =
-    Number.isInteger(requested) && requested >= 2000 && requested <= 2100
-      ? requested
-      : currentYear;
+  const requested = (await searchParams).period ?? "";
+  const period = parsePayslipPeriod(requested) ? requested : currentPeriod;
   const snapshot = await db
     .collection("payslips")
     .where("organizationId", "==", actor.organizationId)
-    .where("year", "==", year)
+    .where("period", "==", period)
     .get();
   const payslips = snapshot.docs
     .map(toItem)
-    .sort(
-      (a, b) =>
-        b.period.localeCompare(a.period) ||
-        a.userName.localeCompare(b.userName),
-    );
-  const years = Array.from(
-    new Set([
-      currentYear + 1,
-      currentYear,
-      year,
-      currentYear - 1,
-      currentYear - 2,
-    ]),
-  ).sort((a, b) => b - a);
-  return <PayslipManagement payslips={payslips} year={year} years={years} />;
+    .sort((a, b) => a.userName.localeCompare(b.userName));
+  return <PayslipManagement payslips={payslips} period={period} />;
 }

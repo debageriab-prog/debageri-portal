@@ -61,3 +61,14 @@ export function formatPayslipMonth(
     timeZone: "UTC",
   }).format(Date.UTC(year, month - 1, 1));
 }
+
+export function shiftPayslipPeriod(period: string, offset: number) {
+  const value = new Date(`${period}-01T12:00:00Z`);
+  value.setUTCMonth(value.getUTCMonth() + offset);
+  return value.toISOString().slice(0, 7);
+}
+
+export function parsePayslipPeriod(period: string) {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(period);
+  return match ? { year: Number(match[1]), month: Number(match[2]) } : null;
+}
