@@ -81,18 +81,25 @@ export default async function PayslipsPage({
         a.userName.localeCompare(b.userName),
     );
   const people = new Map(
-    users.docs.map((doc) => [doc.id, String(doc.data().displayName)]),
+    users.docs.map((doc) => [
+      doc.id,
+      {
+        name: String(doc.data().displayName),
+        employeeNumber: String(doc.data().employeeNumber ?? ""),
+      },
+    ]),
   );
   for (const item of payslips)
-    if (!people.has(item.userId)) people.set(item.userId, item.userName);
+    if (!people.has(item.userId))
+      people.set(item.userId, { name: item.userName, employeeNumber: "" });
   return (
     <PayslipManagement
       payslips={payslips}
       view={view}
       period={period}
       year={year}
-      people={Array.from(people, ([id, name]) => ({ id, name })).sort((a, b) =>
-        a.name.localeCompare(b.name),
+      people={Array.from(people, ([id, person]) => ({ id, ...person })).sort(
+        (a, b) => a.name.localeCompare(b.name),
       )}
     />
   );

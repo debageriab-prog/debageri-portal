@@ -26,7 +26,7 @@ export function PayslipManagement({
   view: "month" | "year";
   period: string;
   year: number;
-  people: { id: string; name: string }[];
+  people: { id: string; name: string; employeeNumber: string }[];
 }) {
   const { t, locale } = useLocale();
   const router = useRouter();
@@ -155,9 +155,9 @@ export function PayslipManagement({
               onChange={(event) => setPersonFilter(event.target.value)}
             >
               <option value="">{t("allEmployees")}</option>
-              {people.map(({ id, name }) => (
+              {people.map(({ id, name, employeeNumber }) => (
                 <option key={id} value={id}>
-                  {name}
+                  {employeeNumber ? `${name} (${employeeNumber})` : name}
                 </option>
               ))}
             </select>
