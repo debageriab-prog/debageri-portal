@@ -24,6 +24,7 @@ export function EmployeeForm({
   });
   const [documentAccess, setDocumentAccess] = useState<DocumentAccess>({
     contracts: false,
+    payslips: false,
   });
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,8 +49,12 @@ export function EmployeeForm({
             role === "consultant"
               ? financeAccess
               : { enabled: false, myFinance: false, myInvoices: false },
-          documentAccess:
-            role === "consultant" ? documentAccess : { contracts: false },
+          documentAccess: {
+            contracts: role === "consultant" && documentAccess.contracts,
+            payslips:
+              ["consultant", "manager"].includes(role) &&
+              documentAccess.payslips,
+          },
         }),
       });
       const result = (await response.json().catch(() => ({}))) as {
@@ -68,7 +73,7 @@ export function EmployeeForm({
         myFinance: false,
         myInvoices: false,
       });
-      setDocumentAccess({ contracts: false });
+      setDocumentAccess({ contracts: false, payslips: false });
       setOpen(false);
       onCreated(t("employeeCreated"));
       router.refresh();
@@ -147,8 +152,14 @@ export function EmployeeForm({
                     onChange={(event) => {
                       setRole(event.target.value);
                       setManagerReportsTime(false);
-                      if (event.target.value !== "consultant")
-                        setDocumentAccess({ contracts: false });
+                      const nextRole = event.target.value;
+                      setDocumentAccess((current) => ({
+                        contracts:
+                          nextRole === "consultant" && current.contracts,
+                        payslips:
+                          ["consultant", "manager"].includes(nextRole) &&
+                          current.payslips,
+                      }));
                       if (event.target.value !== "consultant")
                         setFinanceAccess({
                           enabled: false,
@@ -237,19 +248,39 @@ export function EmployeeForm({
                     </div>
                   </fieldset>
                 )}
-                {role === "consultant" && (
+                {(role === "consultant" || role === "manager") && (
                   <fieldset className="access-section form-wide">
                     <legend>{t("documents")}</legend>
+                    {role === "consultant" && (
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={documentAccess.contracts}
+                          onChange={(event) =>
+                            setDocumentAccess((current) => ({
+                              ...current,
+                              contracts: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>
+                          <strong>{t("contractsAccess")}</strong>
+                        </span>
+                      </label>
+                    )}
                     <label className="checkbox-row">
                       <input
                         type="checkbox"
-                        checked={documentAccess.contracts}
+                        checked={documentAccess.payslips}
                         onChange={(event) =>
-                          setDocumentAccess({ contracts: event.target.checked })
+                          setDocumentAccess((current) => ({
+                            ...current,
+                            payslips: event.target.checked,
+                          }))
                         }
                       />
                       <span>
-                        <strong>{t("contractsAccess")}</strong>
+                        <strong>{t("payslipsAccess")}</strong>
                       </span>
                     </label>
                   </fieldset>

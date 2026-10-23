@@ -33,7 +33,7 @@ const updateSchema = z
     if (!documentAccessMatchesRole(value.role, value.documentAccess))
       context.addIssue({
         code: "custom",
-        message: "Document access is only available to consultants",
+        message: "Document access does not match the role",
       });
   });
 

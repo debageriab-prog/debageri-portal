@@ -1162,6 +1162,102 @@ th {
   background: white;
 }
 
+.payslip-viewer-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.payslip-viewer-header .field {
+  min-width: 12rem;
+}
+
+.payslip-viewer-header .icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.payslip-modal {
+  width: min(960px, 100%);
+}
+
+.payslip-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.payslip-action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.payslip-action-button svg,
+.payslip-download-action svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.payslip-preview {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fbf8f5;
+}
+
+.payslip-preview iframe {
+  display: block;
+  width: 100%;
+  height: min(78vh, 1100px);
+  border: 0;
+}
+
+.payslip-preview img {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.payslip-preview-loading,
+.payslip-preview .notice {
+  margin: 1.5rem;
+}
+
+.payslip-print-frame {
+  position: fixed;
+  width: 0;
+  height: 0;
+  border: 0;
+  visibility: hidden;
+}
+
+.payslip-file-name {
+  overflow-wrap: anywhere;
+}
+
+.payslip-upload-table {
+  margin-top: 1rem;
+}
+
+.payslip-upload-table td {
+  vertical-align: top;
+}
+
+.payslip-row-hint {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--warning);
+}
+
 .attachment-remove {
   display: inline-grid;
   flex: 0 0 auto;

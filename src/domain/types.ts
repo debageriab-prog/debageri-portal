@@ -11,6 +11,7 @@ export interface FinanceAccess {
 }
 export interface DocumentAccess {
   contracts: boolean;
+  payslips: boolean;
 }
 export type TimesheetStatus =
   "draft" | "submitted" | "approved" | "rejected" | "reopened";
@@ -57,6 +58,21 @@ export interface ContractDocument {
   consultantName: string | null;
   visibleToConsultant: boolean;
   confidential: boolean;
+  createdBy: string;
+}
+
+export interface Payslip {
+  id: string;
+  organizationId: string;
+  userId: string;
+  userName: string;
+  period: string;
+  year: number;
+  month: number;
+  fileName: string;
+  contentType: string;
+  size: number;
+  storagePath: string;
   createdBy: string;
 }
 

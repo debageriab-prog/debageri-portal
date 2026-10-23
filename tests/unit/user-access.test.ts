@@ -40,14 +40,41 @@ describe("finance access", () => {
 
 describe("document access", () => {
   it("allows contract access only on consultant profiles", () => {
-    expect(documentAccessMatchesRole("consultant", { contracts: true })).toBe(
-      true,
-    );
-    expect(documentAccessMatchesRole("manager", { contracts: true })).toBe(
-      false,
-    );
-    expect(documentAccessMatchesRole("accountant", { contracts: false })).toBe(
-      true,
-    );
+    expect(
+      documentAccessMatchesRole("consultant", {
+        contracts: true,
+        payslips: true,
+      }),
+    ).toBe(true);
+    expect(
+      documentAccessMatchesRole("manager", {
+        contracts: true,
+        payslips: false,
+      }),
+    ).toBe(false);
+    expect(
+      documentAccessMatchesRole("accountant", {
+        contracts: false,
+        payslips: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("allows pay slip access only on consultant and manager profiles", () => {
+    expect(
+      documentAccessMatchesRole("manager", {
+        contracts: false,
+        payslips: true,
+      }),
+    ).toBe(true);
+    expect(
+      documentAccessMatchesRole("accountant", {
+        contracts: false,
+        payslips: true,
+      }),
+    ).toBe(false);
+    expect(
+      documentAccessMatchesRole("admin", { contracts: false, payslips: true }),
+    ).toBe(false);
   });
 });

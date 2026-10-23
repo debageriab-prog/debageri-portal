@@ -51,6 +51,7 @@ export function UserManagement({
   });
   const [editDocumentAccess, setEditDocumentAccess] = useState<DocumentAccess>({
     contracts: false,
+    payslips: false,
   });
 
   function showSuccess(value: string) {
@@ -95,10 +96,13 @@ export function UserManagement({
               editRole === "consultant"
                 ? editFinanceAccess
                 : { enabled: false, myFinance: false, myInvoices: false },
-            documentAccess:
-              editRole === "consultant"
-                ? editDocumentAccess
-                : { contracts: false },
+            documentAccess: {
+              contracts:
+                editRole === "consultant" && editDocumentAccess.contracts,
+              payslips:
+                ["consultant", "manager"].includes(editRole) &&
+                editDocumentAccess.payslips,
+            },
           }),
         },
       );
@@ -407,8 +411,13 @@ export function UserManagement({
                     onChange={(event) => {
                       const nextRole = event.target.value;
                       setEditRole(nextRole);
-                      if (nextRole !== "consultant")
-                        setEditDocumentAccess({ contracts: false });
+                      setEditDocumentAccess((current) => ({
+                        contracts:
+                          nextRole === "consultant" && current.contracts,
+                        payslips:
+                          ["consultant", "manager"].includes(nextRole) &&
+                          current.payslips,
+                      }));
                       if (nextRole !== "consultant")
                         setEditFinanceAccess({
                           enabled: false,
@@ -497,21 +506,39 @@ export function UserManagement({
                     </div>
                   </fieldset>
                 )}
-                {editRole === "consultant" && (
+                {(editRole === "consultant" || editRole === "manager") && (
                   <fieldset className="access-section form-wide">
                     <legend>{t("documents")}</legend>
+                    {editRole === "consultant" && (
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={editDocumentAccess.contracts}
+                          onChange={(event) =>
+                            setEditDocumentAccess((current) => ({
+                              ...current,
+                              contracts: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>
+                          <strong>{t("contractsAccess")}</strong>
+                        </span>
+                      </label>
+                    )}
                     <label className="checkbox-row">
                       <input
                         type="checkbox"
-                        checked={editDocumentAccess.contracts}
+                        checked={editDocumentAccess.payslips}
                         onChange={(event) =>
-                          setEditDocumentAccess({
-                            contracts: event.target.checked,
-                          })
+                          setEditDocumentAccess((current) => ({
+                            ...current,
+                            payslips: event.target.checked,
+                          }))
                         }
                       />
                       <span>
-                        <strong>{t("contractsAccess")}</strong>
+                        <strong>{t("payslipsAccess")}</strong>
                       </span>
                     </label>
                   </fieldset>

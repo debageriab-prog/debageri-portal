@@ -29,11 +29,17 @@ export function financeAccessMatchesRole(
   );
 }
 
-export const documentAccessSchema = z.object({ contracts: z.boolean() });
+export const documentAccessSchema = z.object({
+  contracts: z.boolean(),
+  payslips: z.boolean().default(false),
+});
 
 export function documentAccessMatchesRole(
   role: string,
   access: z.infer<typeof documentAccessSchema>,
 ) {
-  return role === "consultant" || !access.contracts;
+  return (
+    (role === "consultant" || !access.contracts) &&
+    (["consultant", "manager"].includes(role) || !access.payslips)
+  );
 }
