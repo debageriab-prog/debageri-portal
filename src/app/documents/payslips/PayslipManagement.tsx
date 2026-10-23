@@ -13,7 +13,7 @@ import {
   PayslipPreview,
   type PayslipItem,
 } from "./PayslipPreview";
-import { MonthStepper } from "./MonthStepper";
+import { MonthStepper } from "@/components/ui/MonthStepper";
 
 export function PayslipManagement({
   payslips,

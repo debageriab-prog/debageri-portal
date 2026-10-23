@@ -12,7 +12,7 @@ import {
 } from "@/domain/payslips";
 import { appCheckFetch } from "@/lib/firebase/client";
 import type { MessageKey } from "@/lib/localization/messages";
-import { MonthStepper } from "../MonthStepper";
+import { MonthStepper } from "@/components/ui/MonthStepper";
 
 export type PayslipRecipient = {
   id: string;

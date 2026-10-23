@@ -1162,7 +1162,7 @@ th {
   background: white;
 }
 
-.payslip-toolbar {
+.document-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1170,7 +1170,7 @@ th {
   margin-bottom: 1rem;
 }
 
-.payslip-toolbar .icon-button:disabled {
+.document-toolbar .icon-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
@@ -1179,7 +1179,8 @@ th {
   width: min(960px, 100%);
 }
 
-.payslip-icon-action svg,
+.document-icon-action svg,
+.receipt-expense-action svg,
 .payslip-download-action svg {
   fill: none;
   stroke: currentColor;
@@ -1188,37 +1189,37 @@ th {
   stroke-linejoin: round;
 }
 
-.payslip-icon-action:disabled {
+.document-icon-action:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
 
-.payslip-preview {
+.document-preview {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   background: #fbf8f5;
 }
 
-.payslip-preview iframe {
+.document-preview iframe {
   display: block;
   width: 100%;
   height: min(78vh, 1100px);
   border: 0;
 }
 
-.payslip-preview img {
+.document-preview img {
   display: block;
   max-width: 100%;
   margin: 0 auto;
 }
 
-.payslip-preview-loading,
-.payslip-preview .notice {
+.document-preview-loading,
+.document-preview .notice {
   margin: 1.5rem;
 }
 
-.payslip-print-frame {
+.document-print-frame {
   position: fixed;
   width: 0;
   height: 0;
@@ -1235,6 +1236,7 @@ th.actions-heading {
 }
 
 .payslip-period-filter,
+.receipt-period-filter,
 .payslip-upload-period {
   display: grid;
   gap: 0.4rem;
@@ -1269,7 +1271,8 @@ th.actions-heading {
 
 .payslip-upload-row > label:not(.checkbox-row),
 .payslip-upload-period > span,
-.payslip-period-filter > span {
+.payslip-period-filter > span,
+.receipt-period-filter > span {
   color: #4b3b31;
   font-size: 13px;
   font-weight: 700;
@@ -2834,4 +2837,63 @@ th.actions-heading {
   .modal-actions .button {
     width: 100%;
   }
+}
+
+.receipt-detail-grid {
+  margin-bottom: 1.25rem;
+}
+
+.receipt-detail-grid > div {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fbf8f5;
+}
+
+.receipt-detail-wide {
+  grid-column: 1 / -1;
+}
+
+.receipt-detail-wide dd {
+  white-space: pre-line;
+}
+
+.receipt-note-cell {
+  max-width: 20rem;
+  overflow-wrap: anywhere;
+}
+
+.receipt-review-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.receipt-review-form > label {
+  display: grid;
+  gap: 0.4rem;
+  color: #4b3b31;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.receipt-decision {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.receipt-decision legend {
+  margin-bottom: 0.4rem;
+  color: #4b3b31;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.receipt-expense-notice {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
 }

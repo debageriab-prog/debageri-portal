@@ -34,6 +34,7 @@ export default async function UsersPage() {
         documentAccess: {
           contracts: data.documentAccess?.contracts === true,
           payslips: data.documentAccess?.payslips === true,
+          receipts: data.documentAccess?.receipts === true,
         },
       };
     })

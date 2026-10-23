@@ -44,18 +44,21 @@ describe("document access", () => {
       documentAccessMatchesRole("consultant", {
         contracts: true,
         payslips: true,
+        receipts: false,
       }),
     ).toBe(true);
     expect(
       documentAccessMatchesRole("manager", {
         contracts: true,
         payslips: false,
+        receipts: false,
       }),
     ).toBe(false);
     expect(
       documentAccessMatchesRole("accountant", {
         contracts: false,
         payslips: false,
+        receipts: false,
       }),
     ).toBe(true);
   });
@@ -65,16 +68,29 @@ describe("document access", () => {
       documentAccessMatchesRole("manager", {
         contracts: false,
         payslips: true,
+        receipts: false,
       }),
     ).toBe(true);
     expect(
       documentAccessMatchesRole("accountant", {
         contracts: false,
         payslips: true,
+        receipts: false,
       }),
     ).toBe(false);
     expect(
-      documentAccessMatchesRole("admin", { contracts: false, payslips: true }),
+      documentAccessMatchesRole("admin", {
+        contracts: false,
+        payslips: true,
+        receipts: false,
+      }),
     ).toBe(false);
+  });
+
+  it("allows receipt access only on consultant and manager profiles", () => {
+    const access = { contracts: false, payslips: false, receipts: true };
+    expect(documentAccessMatchesRole("consultant", access)).toBe(true);
+    expect(documentAccessMatchesRole("manager", access)).toBe(true);
+    expect(documentAccessMatchesRole("accountant", access)).toBe(false);
   });
 });

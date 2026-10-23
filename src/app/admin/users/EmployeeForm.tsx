@@ -25,6 +25,7 @@ export function EmployeeForm({
   const [documentAccess, setDocumentAccess] = useState<DocumentAccess>({
     contracts: false,
     payslips: false,
+    receipts: false,
   });
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,6 +55,9 @@ export function EmployeeForm({
             payslips:
               ["consultant", "manager"].includes(role) &&
               documentAccess.payslips,
+            receipts:
+              ["consultant", "manager"].includes(role) &&
+              documentAccess.receipts,
           },
         }),
       });
@@ -73,7 +77,7 @@ export function EmployeeForm({
         myFinance: false,
         myInvoices: false,
       });
-      setDocumentAccess({ contracts: false, payslips: false });
+      setDocumentAccess({ contracts: false, payslips: false, receipts: false });
       setOpen(false);
       onCreated(t("employeeCreated"));
       router.refresh();
@@ -159,6 +163,9 @@ export function EmployeeForm({
                         payslips:
                           ["consultant", "manager"].includes(nextRole) &&
                           current.payslips,
+                        receipts:
+                          ["consultant", "manager"].includes(nextRole) &&
+                          current.receipts,
                       }));
                       if (event.target.value !== "consultant")
                         setFinanceAccess({
@@ -281,6 +288,21 @@ export function EmployeeForm({
                       />
                       <span>
                         <strong>{t("payslipsAccess")}</strong>
+                      </span>
+                    </label>
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={documentAccess.receipts}
+                        onChange={(event) =>
+                          setDocumentAccess((current) => ({
+                            ...current,
+                            receipts: event.target.checked,
+                          }))
+                        }
+                      />
+                      <span>
+                        <strong>{t("receiptsAccess")}</strong>
                       </span>
                     </label>
                   </fieldset>

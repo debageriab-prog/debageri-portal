@@ -52,6 +52,7 @@ export function UserManagement({
   const [editDocumentAccess, setEditDocumentAccess] = useState<DocumentAccess>({
     contracts: false,
     payslips: false,
+    receipts: false,
   });
 
   function showSuccess(value: string) {
@@ -102,6 +103,9 @@ export function UserManagement({
               payslips:
                 ["consultant", "manager"].includes(editRole) &&
                 editDocumentAccess.payslips,
+              receipts:
+                ["consultant", "manager"].includes(editRole) &&
+                editDocumentAccess.receipts,
             },
           }),
         },
@@ -417,6 +421,9 @@ export function UserManagement({
                         payslips:
                           ["consultant", "manager"].includes(nextRole) &&
                           current.payslips,
+                        receipts:
+                          ["consultant", "manager"].includes(nextRole) &&
+                          current.receipts,
                       }));
                       if (nextRole !== "consultant")
                         setEditFinanceAccess({
@@ -539,6 +546,21 @@ export function UserManagement({
                       />
                       <span>
                         <strong>{t("payslipsAccess")}</strong>
+                      </span>
+                    </label>
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={editDocumentAccess.receipts}
+                        onChange={(event) =>
+                          setEditDocumentAccess((current) => ({
+                            ...current,
+                            receipts: event.target.checked,
+                          }))
+                        }
+                      />
+                      <span>
+                        <strong>{t("receiptsAccess")}</strong>
                       </span>
                     </label>
                   </fieldset>
