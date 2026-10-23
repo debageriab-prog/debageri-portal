@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
+import {
+  notifyReceiptReviewed,
+  portalUrlFrom,
+} from "@/server/services/notification-service";
 import { verifySession } from "@/server/auth/session";
 import { receiptReviewSchema } from "@/server/validators/receipts";
 import {
@@ -24,6 +28,7 @@ export async function PATCH(
   const { db } = getAdminServices();
   try {
     await reviewReceipt(db, actor, id, parsed.data);
+    await notifyReceiptReviewed(id, portalUrlFrom(request));
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof ReceiptError)

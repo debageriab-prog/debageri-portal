@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import type { TimesheetStatus } from "@/domain/types";
 import { verifySession } from "@/server/auth/session";
 import { transitionTimesheet } from "@/server/services/timesheet-service";
+import {
+  notifyTimesheetDecision,
+  notifyTimesheetSubmitted,
+  portalUrlFrom,
+} from "@/server/services/notification-service";
 
 const actions: Record<string, TimesheetStatus> = {
   submit: "submitted",
@@ -30,6 +35,10 @@ export async function POST(
     };
     const reason = typeof body.reason === "string" ? body.reason : null;
     const result = await transitionTimesheet(actor, id, target, reason);
+    if (target === "approved" || target === "rejected")
+      await notifyTimesheetDecision(id, portalUrlFrom(request));
+    if (target === "submitted")
+      await notifyTimesheetSubmitted(id, portalUrlFrom(request));
     return NextResponse.json({ data: result });
   } catch (error) {
     console.error("Timesheet transition failed", error);

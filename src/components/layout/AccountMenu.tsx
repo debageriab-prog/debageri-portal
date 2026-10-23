@@ -14,6 +14,7 @@ import {
 import type { PortalUser } from "@/domain/types";
 import { appCheckFetch, getFirebaseClient } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 import type { Locale } from "@/lib/localization/locale";
 
 type Dialog = "avatar" | "password" | null;
@@ -183,47 +184,54 @@ export function AccountMenu({ user }: { user: PortalUser }) {
 
   return (
     <>
-      <div className="account-control" ref={menuRef}>
-        <button
-          aria-expanded={open}
-          aria-haspopup="menu"
-          aria-label={t("openAccountMenu")}
-          className="account-trigger"
-          onClick={() => setOpen((value) => !value)}
-        >
-          {avatar}
-        </button>
-        {open && (
-          <div className="account-menu" role="menu">
-            <div className="account-menu-header">
-              {avatar}
-              <span>
-                <strong>{user.displayName}</strong>
-                <small>{user.email}</small>
-              </span>
-            </div>
-            <button role="menuitem" onClick={() => showDialog("avatar")}>
-              {t("updateAvatar")}
-            </button>
-            <button role="menuitem" onClick={() => showDialog("password")}>
-              {t("changePassword")}
-            </button>
-            <label className="account-language">
-              <span>{t("language")}</span>
-              <select
-                aria-label={t("language")}
-                value={locale}
-                onChange={(event) => setLocale(event.target.value as Locale)}
+      <div className="account-control">
+        <NotificationBell />
+        <div className="account-anchor" ref={menuRef}>
+          <button
+            aria-expanded={open}
+            aria-haspopup="menu"
+            aria-label={t("openAccountMenu")}
+            className="account-trigger"
+            onClick={() => setOpen((value) => !value)}
+          >
+            {avatar}
+          </button>
+          {open && (
+            <div className="account-menu" role="menu">
+              <div className="account-menu-header">
+                {avatar}
+                <span>
+                  <strong>{user.displayName}</strong>
+                  <small>{user.email}</small>
+                </span>
+              </div>
+              <button role="menuitem" onClick={() => showDialog("avatar")}>
+                {t("updateAvatar")}
+              </button>
+              <button role="menuitem" onClick={() => showDialog("password")}>
+                {t("changePassword")}
+              </button>
+              <label className="account-language">
+                <span>{t("language")}</span>
+                <select
+                  aria-label={t("language")}
+                  value={locale}
+                  onChange={(event) => setLocale(event.target.value as Locale)}
+                >
+                  <option value="en-SE">English</option>
+                  <option value="sv-SE">Svenska</option>
+                </select>
+              </label>
+              <button
+                className="account-logout"
+                role="menuitem"
+                onClick={logout}
               >
-                <option value="en-SE">English</option>
-                <option value="sv-SE">Svenska</option>
-              </select>
-            </label>
-            <button className="account-logout" role="menuitem" onClick={logout}>
-              {t("logOut")}
-            </button>
-          </div>
-        )}
+                {t("logOut")}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       {success && (
         <div className="account-toast" role="status">

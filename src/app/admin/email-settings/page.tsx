@@ -1,6 +1,7 @@
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { getTranslator } from "@/lib/localization/server";
+import { notificationSettingsFrom } from "@/domain/notifications";
 import { EmailSettingsForm } from "./EmailSettingsForm";
 
 export default async function EmailSettingsPage() {
@@ -30,6 +31,7 @@ export default async function EmailSettingsPage() {
           passwordConfigured: Boolean(data?.encryptedPassword),
           fromEmail: String(data?.fromEmail ?? ""),
           senderName: String(data?.senderName ?? "Debageri"),
+          notifications: notificationSettingsFrom(data?.notifications),
         }}
       />
     </>
