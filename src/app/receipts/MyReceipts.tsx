@@ -22,7 +22,7 @@ export function MyReceipts({
   submitted: boolean;
 }) {
   const { t, locale } = useLocale();
-  const [period, setPeriod] = useState<string | null>(null);
+  const [period, setPeriod] = useState<string | null>(currentPeriod);
   const [status, setStatus] = useState<ReceiptStatus | "all">("all");
   const [viewing, setViewing] = useState<ReceiptItem | null>(null);
   const filtered = filterReceipts(receipts, { period, status });

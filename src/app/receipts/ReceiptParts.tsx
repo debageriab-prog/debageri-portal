@@ -59,6 +59,7 @@ export function ReceiptFilters({
   children?: React.ReactNode;
 }) {
   const { t } = useLocale();
+  const view = period === null ? "all" : period.length === 4 ? "year" : "month";
   return (
     <section className="card filters-card">
       <div className="form-grid">
@@ -68,22 +69,45 @@ export function ReceiptFilters({
             <select
               className="field finance-period"
               aria-label={t("periodType")}
-              value={period ? "month" : "all"}
-              onChange={(event) =>
-                onPeriodChange(
-                  event.target.value === "month" ? defaultPeriod : null,
-                )
-              }
+              value={view}
+              onChange={(event) => {
+                const year = (period ?? defaultPeriod).slice(0, 4);
+                if (event.target.value === "all") onPeriodChange(null);
+                else if (event.target.value === "year") onPeriodChange(year);
+                else
+                  onPeriodChange(
+                    year === defaultPeriod.slice(0, 4)
+                      ? defaultPeriod
+                      : `${year}-01`,
+                  );
+              }}
             >
-              <option value="all">{t("allTime")}</option>
               <option value="month">{t("month")}</option>
+              <option value="year">{t("year")}</option>
+              <option value="all">{t("allTime")}</option>
             </select>
-            {period && (
+            {view === "month" && period && (
               <MonthStepper
                 value={period}
                 label={t("payslipPeriod")}
                 onChange={(value) => {
                   if (value) onPeriodChange(value);
+                }}
+              />
+            )}
+            {view === "year" && (
+              <input
+                className="field finance-period"
+                type="number"
+                min="2000"
+                max="2100"
+                aria-label={t("year")}
+                key={period}
+                defaultValue={period ?? ""}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (/^\d{4}$/.test(value) && +value >= 2000 && +value <= 2100)
+                    onPeriodChange(value);
                 }}
               />
             )}

@@ -25,6 +25,8 @@ describe("receipt filters", () => {
     expect(ids({ period: null, status: "all" })).toEqual(["r1", "r2", "r3"]);
     expect(ids({ period: "2026-09", status: "all" })).toEqual(["r1", "r2"]);
     expect(ids({ period: null, status: "pending" })).toEqual(["r1"]);
+    expect(ids({ period: "2026", status: "all" })).toEqual(["r1", "r2", "r3"]);
+    expect(ids({ period: "2025", status: "all" })).toEqual([]);
     expect(ids({ period: null, status: "all", userId: "u1" })).toEqual([
       "r1",
       "r3",

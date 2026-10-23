@@ -34,7 +34,7 @@ export function ReceiptReview({
 }) {
   const { t, locale } = useLocale();
   const router = useRouter();
-  const [period, setPeriod] = useState<string | null>(null);
+  const [period, setPeriod] = useState<string | null>(currentPeriod);
   const [status, setStatus] = useState<ReceiptStatus | "all">("pending");
   const [personFilter, setPersonFilter] = useState("");
   const [viewing, setViewing] = useState<ReceiptItem | null>(null);
