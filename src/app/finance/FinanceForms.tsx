@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
@@ -10,6 +10,7 @@ import {
   formatSek,
   parseSek,
 } from "@/domain/finance/calculations";
+import { receiptVatRateBps } from "@/domain/receipts";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { FinanceCsvImport } from "./FinanceCsvImport";
 import { transactionMonthMismatch } from "./transaction-navigation";
@@ -43,6 +44,19 @@ export type EditableTransaction = {
   internalNote: string;
 };
 
+export type ExpenseReceipt = {
+  id: string;
+  userId: string;
+  userName: string;
+  date: string;
+  name: string;
+  description: string;
+  netMinor: number;
+  vatMinor: number;
+  fileName: string;
+  contentType: string;
+};
+
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -60,12 +74,14 @@ function FormPage({
   description,
   backHref,
   backLabel,
+  notice,
   children,
 }: {
   title: string;
   description: string;
   backHref: string;
   backLabel: string;
+  notice?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -79,6 +95,7 @@ function FormPage({
           <p className="muted page-description">{description}</p>
         </div>
       </div>
+      {notice}
       <section className="card">{children}</section>
     </>
   );
@@ -550,29 +567,44 @@ export function TransactionForm({
   returnHref = "/finance?section=transactions",
   defaultDate,
   transaction,
+  receipt,
 }: {
   users: User[];
   categories: Category[];
   returnHref?: string;
   defaultDate?: string;
   transaction?: EditableTransaction;
+  receipt?: ExpenseReceipt;
 }) {
   const { t, locale } = useLocale();
+  const receiptConsultant = receipt
+    ? users.find((user) => user.id === receipt.userId)
+    : undefined;
   const [direction, setDirection] = useState<"income" | "expense">(
-    transaction?.direction ?? "income",
+    transaction?.direction ?? (receipt ? "expense" : "income"),
   );
   const [consultantId, setConsultantId] = useState(
-    transaction?.consultantId ?? "",
+    transaction?.consultantId ?? receiptConsultant?.id ?? "",
   );
-  const [amountMode, setAmountMode] = useState<"net" | "gross">("gross");
+  const [amountMode, setAmountMode] = useState<"net" | "gross">(
+    receipt && !transaction ? "net" : "gross",
+  );
   const [amount, setAmount] = useState(
-    transaction ? (transaction.grossMinor / 100).toFixed(2) : "",
+    transaction
+      ? (transaction.grossMinor / 100).toFixed(2)
+      : receipt?.netMinor
+        ? (receipt.netMinor / 100).toFixed(2)
+        : "",
   );
   const [funding, setFunding] = useState<"company" | "consultant">(
     transaction?.funding ?? "company",
   );
   const [vatPercent, setVatPercent] = useState(
-    String((transaction?.vatRateBps ?? 0) / 100),
+    String(
+      (transaction?.vatRateBps ??
+        (receipt ? receiptVatRateBps(receipt.netMinor, receipt.vatMinor) : 0)) /
+        100,
+    ),
   );
   const [pendingMonthMismatch, setPendingMonthMismatch] = useState<{
     payload: Record<string, unknown>;
@@ -584,6 +616,29 @@ export function TransactionForm({
     [],
   );
   const { busy, error, submit } = useFinanceSubmit(returnHref);
+  const [receiptFileError, setReceiptFileError] = useState(false);
+  useEffect(() => {
+    if (!receipt) return;
+    let active = true;
+    void appCheckFetch(`/api/receipts/${encodeURIComponent(receipt.id)}/file`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error("receiptFileUnavailable");
+        const blob = await response.blob();
+        if (active)
+          setAttachmentFiles([
+            new File([blob], receipt.fileName, { type: receipt.contentType }),
+          ]);
+      })
+      .catch(() => {
+        if (active) setReceiptFileError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [receipt]);
+  const receiptText = receipt
+    ? [receipt.name, receipt.description].filter(Boolean).join(" – ")
+    : "";
   const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
   const amountSummary = useMemo(() => {
     try {
@@ -636,6 +691,7 @@ export function TransactionForm({
         ? String(form.get("visibleDescription") ?? "")
         : "",
       internalNote: form.get("internalNote"),
+      ...(receipt && !transaction ? { receiptId: receipt.id } : {}),
     };
     const mismatch = transaction
       ? null
@@ -660,7 +716,38 @@ export function TransactionForm({
           : t("newTransactionDescription")
       }
       backHref={returnHref}
-      backLabel={t("backToTransactions")}
+      backLabel={receipt ? t("backToReceipts") : t("backToTransactions")}
+      notice={
+        receipt && (
+          <div className="notice notice-success receipt-expense-notice">
+            <strong>
+              {t("expenseFromReceipt")
+                .replace("{name}", receipt.name)
+                .replace("{person}", receipt.userName)}
+            </strong>
+            {receipt.netMinor > 0 && (
+              <span>
+                {t("expenseFromReceiptAmounts")
+                  .replace("{net}", formatSek(receipt.netMinor, locale))
+                  .replace("{vat}", formatSek(receipt.vatMinor, locale))
+                  .replace(
+                    "{total}",
+                    formatSek(receipt.netMinor + receipt.vatMinor, locale),
+                  )}
+              </span>
+            )}
+            <span>
+              {receiptConsultant
+                ? t("expenseFromReceiptFundingHelp")
+                : t("expenseFromReceiptCompanyOnly").replace(
+                    "{person}",
+                    receipt.userName,
+                  )}
+            </span>
+            {receiptFileError && <span>{t("expenseReceiptFileMissing")}</span>}
+          </div>
+        )
+      }
     >
       <form className="form-grid" onSubmit={onSubmit}>
         <label>
@@ -719,7 +806,9 @@ export function TransactionForm({
             className="field"
             type="date"
             name="date"
-            defaultValue={transaction?.date ?? defaultDate ?? today()}
+            defaultValue={
+              transaction?.date ?? receipt?.date ?? defaultDate ?? today()
+            }
             required
           />
         </label>
@@ -799,7 +888,7 @@ export function TransactionForm({
             <input
               className="field"
               name="visibleDescription"
-              defaultValue={transaction?.visibleDescription}
+              defaultValue={transaction?.visibleDescription ?? receiptText}
             />
           </label>
         )}
@@ -808,7 +897,12 @@ export function TransactionForm({
           <input
             className="field"
             name="internalNote"
-            defaultValue={transaction?.internalNote}
+            defaultValue={
+              transaction?.internalNote ??
+              (receipt
+                ? `${t("receipt")}: ${receiptText} (${receipt.userName})`
+                : undefined)
+            }
           />
         </label>
         <div

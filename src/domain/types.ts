@@ -12,6 +12,7 @@ export interface FinanceAccess {
 export interface DocumentAccess {
   contracts: boolean;
   payslips: boolean;
+  receipts: boolean;
 }
 export type TimesheetStatus =
   "draft" | "submitted" | "approved" | "rejected" | "reopened";

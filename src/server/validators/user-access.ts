@@ -32,6 +32,7 @@ export function financeAccessMatchesRole(
 export const documentAccessSchema = z.object({
   contracts: z.boolean(),
   payslips: z.boolean().default(false),
+  receipts: z.boolean().default(false),
 });
 
 export function documentAccessMatchesRole(
@@ -40,6 +41,7 @@ export function documentAccessMatchesRole(
 ) {
   return (
     (role === "consultant" || !access.contracts) &&
-    (["consultant", "manager"].includes(role) || !access.payslips)
+    (["consultant", "manager"].includes(role) ||
+      (!access.payslips && !access.receipts))
   );
 }

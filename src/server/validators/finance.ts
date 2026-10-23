@@ -100,6 +100,7 @@ const transactionFields = {
 export const transactionSchema = z.object({
   action: z.literal("createTransaction"),
   ...transactionFields,
+  receiptId: z.string().min(1).max(128).nullable().default(null),
 });
 
 export const updateTransactionSchema = z.object({

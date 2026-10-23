@@ -24,6 +24,11 @@ import {
   voidFinancialTransaction,
   voidInvoice,
 } from "@/server/services/finance-service";
+import {
+  expensableReceipt,
+  linkReceiptExpense,
+  ReceiptError,
+} from "@/server/services/receipt-service";
 
 export async function POST(request: Request) {
   const actor = await verifySession();
@@ -73,7 +78,13 @@ export async function POST(request: Request) {
       case "markInvoicePaid":
         id = await markInvoicePaid(db, actor, parsed.data);
         break;
-      case "createTransaction":
+      case "createTransaction": {
+        const receiptId = parsed.data.receiptId;
+        if (receiptId) {
+          if (parsed.data.direction !== "expense")
+            throw new FinanceError("invalidInput");
+          await expensableReceipt(db, actor, receiptId);
+        }
         id = await createFinancialTransaction(db, actor, {
           direction: parsed.data.direction,
           categoryId: parsed.data.categoryId,
@@ -91,7 +102,19 @@ export async function POST(request: Request) {
           internalNote: parsed.data.internalNote,
           importKey: null,
         });
+        if (receiptId) {
+          const transactionId = id;
+          await linkReceiptExpense(db, actor, receiptId, transactionId).catch(
+            (error: unknown) =>
+              console.error("Receipt expense link failed", {
+                receiptId,
+                transactionId,
+                errorClass: error instanceof Error ? error.name : "unknown",
+              }),
+          );
+        }
         break;
+      }
       case "updateTransaction":
         id = await updateFinancialTransaction(db, actor, {
           transactionId: parsed.data.transactionId,
@@ -138,6 +161,11 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof FinanceError)
       return NextResponse.json({ error: error.code }, { status: error.status });
+    if (error instanceof ReceiptError)
+      return NextResponse.json(
+        { error: "receiptNotExpensable" },
+        { status: error.status === 403 ? 403 : 409 },
+      );
     console.error("Finance operation failed", {
       actorId: actor.id,
       organizationId: actor.organizationId,

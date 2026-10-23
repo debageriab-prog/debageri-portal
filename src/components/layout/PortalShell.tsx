@@ -10,7 +10,14 @@ import { AccountMenu } from "@/components/layout/AccountMenu";
 
 type NavItem = { label: string; href: string };
 type NavIconName =
-  "clock" | "reports" | "finance" | "documents" | "bell" | "settings" | "admin";
+  | "clock"
+  | "reports"
+  | "finance"
+  | "documents"
+  | "receipts"
+  | "bell"
+  | "settings"
+  | "admin";
 type NavGroup = {
   id: string;
   label: string;
@@ -44,6 +51,12 @@ function NavIcon({ name }: { name: NavIconName }) {
       <>
         <path d="M6 3.5h9l3 3V20H6z" />
         <path d="M15 3.5V7h3M9 11h6M9 15h6" />
+      </>
+    ),
+    receipts: (
+      <>
+        <path d="M6 3.5h12v17l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z" />
+        <path d="M9 8h6M9 11.5h6M9 15h3.5" />
       </>
     ),
     bell: (
@@ -118,6 +131,30 @@ function documentItems(user: PortalUser, t: Translate): NavItem[] {
   ];
 }
 
+function receiptGroup(user: PortalUser, t: Translate): NavGroup[] {
+  if (["admin", "accountant"].includes(user.role))
+    return [
+      {
+        id: "receipts",
+        label: t("receipts"),
+        icon: "receipts",
+        items: [{ label: t("reviewReceipts"), href: "/receipts" }],
+      },
+    ];
+  if (!user.documentAccess.receipts) return [];
+  return [
+    {
+      id: "receipts",
+      label: t("receipts"),
+      icon: "receipts",
+      items: [
+        { label: t("myReceipts"), href: "/receipts" },
+        { label: t("uploadReceipt"), href: "/receipts/new" },
+      ],
+    },
+  ];
+}
+
 function navigation(user: PortalUser, t: Translate): NavGroup[] {
   const reporting: NavItem[] = user.reportsTime
     ? [
@@ -155,6 +192,7 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
         icon: "documents",
         items: documentItems(user, t),
       },
+      ...receiptGroup(user, t),
       {
         id: "admin",
         label: t("admin"),
@@ -192,6 +230,7 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
         icon: "documents",
         items: documentItems(user, t),
       },
+      ...receiptGroup(user, t),
     ] satisfies NavGroup[];
 
   if (user.role === "manager") {
@@ -219,6 +258,7 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
       icon: "documents",
       items: documentItems(user, t),
     });
+    groups.push(...receiptGroup(user, t));
     return groups;
   }
 
@@ -260,6 +300,7 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
       icon: "documents",
       items: documentItems(user, t),
     });
+  groups.push(...receiptGroup(user, t));
   return groups;
 }
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { formatPayslipMonth, parsePayslipPeriod } from "@/domain/payslips";
-import { MonthStepper } from "./MonthStepper";
+import { MonthStepper } from "@/components/ui/MonthStepper";
 import { PayslipPreview, type PayslipItem } from "./PayslipPreview";
 
 export function PayslipViewer({
@@ -57,7 +57,7 @@ export function PayslipViewer({
             />
           ) : (
             <>
-              <div className="payslip-toolbar">{stepper}</div>
+              <div className="document-toolbar">{stepper}</div>
               <div className="empty-state">
                 <h2>
                   {t("noPayslipForMonth").replace(
