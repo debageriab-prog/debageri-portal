@@ -1226,6 +1226,10 @@ th {
   visibility: hidden;
 }
 
+th.actions-heading {
+  text-align: right;
+}
+
 .payslip-file-name {
   overflow-wrap: anywhere;
 }

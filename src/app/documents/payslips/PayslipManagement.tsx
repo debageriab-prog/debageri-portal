@@ -38,6 +38,9 @@ export function PayslipManagement({
   const [busy, setBusy] = useState(false);
   const show = (params: Record<string, string>) =>
     router.push(`/documents/payslips?${new URLSearchParams(params)}`);
+  const employeeNumbers = new Map(
+    people.map((person) => [person.id, person.employeeNumber]),
+  );
   const filtered = payslips.filter(
     (item) => !personFilter || item.userId === personFilter,
   );
@@ -178,7 +181,7 @@ export function PayslipManagement({
                 <th>{t("employee")}</th>
                 <th>{t("file")}</th>
                 <th>{t("uploaded")}</th>
-                <th>{t("actions")}</th>
+                <th className="actions-heading">{t("actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -187,6 +190,8 @@ export function PayslipManagement({
                   <td>{formatPayslipMonth(locale, item.year, item.month)}</td>
                   <td>
                     <strong>{item.userName}</strong>
+                    {employeeNumbers.get(item.userId) &&
+                      ` (${employeeNumbers.get(item.userId)})`}
                   </td>
                   <td className="payslip-file-name">{item.fileName}</td>
                   <td>{item.uploadedAt}</td>
