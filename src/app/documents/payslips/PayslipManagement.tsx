@@ -17,10 +17,16 @@ import { MonthStepper } from "./MonthStepper";
 
 export function PayslipManagement({
   payslips,
+  view,
   period,
+  year,
+  people,
 }: {
   payslips: PayslipItem[];
+  view: "month" | "year";
   period: string;
+  year: number;
+  people: { id: string; name: string }[];
 }) {
   const { t, locale } = useLocale();
   const router = useRouter();
@@ -30,9 +36,8 @@ export function PayslipManagement({
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const people = Array.from(
-    new Map(payslips.map((item) => [item.userId, item.userName])),
-  ).sort((left, right) => left[1].localeCompare(right[1]));
+  const show = (params: Record<string, string>) =>
+    router.push(`/documents/payslips?${new URLSearchParams(params)}`);
   const filtered = payslips.filter(
     (item) => !personFilter || item.userId === personFilter,
   );
@@ -92,14 +97,55 @@ export function PayslipManagement({
       <section className="card filters-card">
         <div className="form-grid">
           <div className="payslip-period-filter">
-            <span>{t("payslipPeriod")}</span>
-            <MonthStepper
-              value={period}
-              label={t("payslipPeriod")}
-              onChange={(value) => {
-                if (value) router.push(`/documents/payslips?period=${value}`);
-              }}
-            />
+            <span>{t("period")}</span>
+            <div className="actions">
+              <select
+                className="field finance-period"
+                aria-label={t("periodType")}
+                value={view}
+                onChange={(event) =>
+                  event.target.value === "year"
+                    ? show({ view: "year", year: period.slice(0, 4) })
+                    : show({
+                        period:
+                          String(year) === period.slice(0, 4)
+                            ? period
+                            : `${year}-01`,
+                      })
+                }
+              >
+                <option value="month">{t("month")}</option>
+                <option value="year">{t("year")}</option>
+              </select>
+              {view === "month" ? (
+                <MonthStepper
+                  value={period}
+                  label={t("payslipPeriod")}
+                  onChange={(value) => {
+                    if (value) show({ period: value });
+                  }}
+                />
+              ) : (
+                <input
+                  className="field finance-period"
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  aria-label={t("year")}
+                  key={year}
+                  defaultValue={year}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (
+                      /^\d{4}$/.test(value) &&
+                      +value >= 2000 &&
+                      +value <= 2100
+                    )
+                      show({ view: "year", year: value });
+                  }}
+                />
+              )}
+            </div>
           </div>
           <label>
             {t("employee")}
@@ -109,7 +155,7 @@ export function PayslipManagement({
               onChange={(event) => setPersonFilter(event.target.value)}
             >
               <option value="">{t("allEmployees")}</option>
-              {people.map(([id, name]) => (
+              {people.map(({ id, name }) => (
                 <option key={id} value={id}>
                   {name}
                 </option>

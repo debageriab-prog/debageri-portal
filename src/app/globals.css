@@ -1162,20 +1162,15 @@ th {
   background: white;
 }
 
-.payslip-viewer-header {
+.payslip-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
 
-.payslip-viewer-header .field {
-  min-width: 12rem;
-}
-
-.payslip-viewer-header .icon-button:disabled {
+.payslip-toolbar .icon-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
@@ -1184,27 +1179,18 @@ th {
   width: min(960px, 100%);
 }
 
-.payslip-preview-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.payslip-action-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.payslip-action-button svg,
+.payslip-icon-action svg,
 .payslip-download-action svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.payslip-icon-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .payslip-preview {

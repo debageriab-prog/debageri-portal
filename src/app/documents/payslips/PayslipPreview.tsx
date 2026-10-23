@@ -40,7 +40,15 @@ export function PrintIcon() {
   );
 }
 
-export function PayslipPreview({ payslip }: { payslip: PayslipItem }) {
+export function PayslipPreview({
+  payslip,
+  toolbar,
+  toolbarEnd,
+}: {
+  payslip: PayslipItem;
+  toolbar?: React.ReactNode;
+  toolbarEnd?: React.ReactNode;
+}) {
   const { t } = useLocale();
   const [loaded, setLoaded] = useState<{ id: string; url: string } | null>(
     null,
@@ -109,24 +117,30 @@ export function PayslipPreview({ payslip }: { payslip: PayslipItem }) {
 
   return (
     <div className="payslip-preview-wrap">
-      <div className="payslip-preview-actions">
-        <button
-          type="button"
-          className="button secondary payslip-action-button"
-          onClick={() => void download()}
-        >
-          <FileDownloadIcon />
-          {t("download")}
-        </button>
-        <button
-          type="button"
-          className="button secondary payslip-action-button"
-          disabled={!url}
-          onClick={print}
-        >
-          <PrintIcon />
-          {t("print")}
-        </button>
+      <div className="payslip-toolbar">
+        {toolbar}
+        <div className="row-actions payslip-toolbar-actions">
+          <button
+            type="button"
+            className="table-action icon-action payslip-icon-action"
+            aria-label={t("download")}
+            title={t("download")}
+            onClick={() => void download()}
+          >
+            <FileDownloadIcon />
+          </button>
+          <button
+            type="button"
+            className="table-action icon-action payslip-icon-action"
+            aria-label={t("print")}
+            title={t("print")}
+            disabled={!url}
+            onClick={print}
+          >
+            <PrintIcon />
+          </button>
+        </div>
+        {toolbarEnd}
       </div>
       {actionError && (
         <p className="notice notice-error" role="alert">

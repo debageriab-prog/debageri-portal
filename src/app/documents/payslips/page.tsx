@@ -27,7 +27,7 @@ function toItem(doc: FirebaseFirestore.QueryDocumentSnapshot): PayslipItem {
 export default async function PayslipsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{ view?: string; period?: string; year?: string }>;
 }) {
   const actor = (await verifySession())!;
   const { db } = getAdminServices();
@@ -48,15 +48,52 @@ export default async function PayslipsPage({
       .sort((a, b) => b.period.localeCompare(a.period));
     return <PayslipViewer payslips={payslips} currentPeriod={currentPeriod} />;
   }
-  const requested = (await searchParams).period ?? "";
-  const period = parsePayslipPeriod(requested) ? requested : currentPeriod;
-  const snapshot = await db
+  const params = await searchParams;
+  const view = params.view === "year" ? "year" : "month";
+  const period = parsePayslipPeriod(params.period ?? "")
+    ? params.period!
+    : currentPeriod;
+  const requestedYear = Number(params.year);
+  const year =
+    Number.isInteger(requestedYear) &&
+    requestedYear >= 2000 &&
+    requestedYear <= 2100
+      ? requestedYear
+      : Number(period.slice(0, 4));
+  const scoped = db
     .collection("payslips")
-    .where("organizationId", "==", actor.organizationId)
-    .where("period", "==", period)
-    .get();
+    .where("organizationId", "==", actor.organizationId);
+  const [snapshot, users] = await Promise.all([
+    view === "year"
+      ? scoped.where("year", "==", year).get()
+      : scoped.where("period", "==", period).get(),
+    db
+      .collection("users")
+      .where("organizationId", "==", actor.organizationId)
+      .where("role", "in", ["employee", "consultant", "manager"])
+      .get(),
+  ]);
   const payslips = snapshot.docs
     .map(toItem)
-    .sort((a, b) => a.userName.localeCompare(b.userName));
-  return <PayslipManagement payslips={payslips} period={period} />;
+    .sort(
+      (a, b) =>
+        b.period.localeCompare(a.period) ||
+        a.userName.localeCompare(b.userName),
+    );
+  const people = new Map(
+    users.docs.map((doc) => [doc.id, String(doc.data().displayName)]),
+  );
+  for (const item of payslips)
+    if (!people.has(item.userId)) people.set(item.userId, item.userName);
+  return (
+    <PayslipManagement
+      payslips={payslips}
+      view={view}
+      period={period}
+      year={year}
+      people={Array.from(people, ([id, name]) => ({ id, name })).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      )}
+    />
+  );
 }

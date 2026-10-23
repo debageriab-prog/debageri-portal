@@ -18,6 +18,13 @@ export function PayslipViewer({
   const [period, setPeriod] = useState(latest?.period ?? currentPeriod);
   const selected = payslips.find((item) => item.period === period);
   const parsed = parsePayslipPeriod(period);
+  const stepper = (
+    <MonthStepper
+      value={period}
+      onChange={setPeriod}
+      label={t("payslipPeriod")}
+    />
+  );
   return (
     <>
       <div className="topbar">
@@ -36,32 +43,33 @@ export function PayslipViewer({
         </section>
       ) : (
         <section className="card payslip-viewer">
-          <header className="payslip-viewer-header">
-            <MonthStepper
-              value={period}
-              onChange={setPeriod}
-              label={t("payslipPeriod")}
-            />
-            {selected?.id === latest.id && (
-              <span className="status status-approved">
-                {t("latestPayslip")}
-              </span>
-            )}
-          </header>
           {selected ? (
-            <PayslipPreview payslip={selected} />
+            <PayslipPreview
+              payslip={selected}
+              toolbar={stepper}
+              toolbarEnd={
+                selected.id === latest.id && (
+                  <span className="status status-approved">
+                    {t("latestPayslip")}
+                  </span>
+                )
+              }
+            />
           ) : (
-            <div className="empty-state">
-              <h2>
-                {t("noPayslipForMonth").replace(
-                  "{month}",
-                  parsed
-                    ? formatPayslipMonth(locale, parsed.year, parsed.month)
-                    : period,
-                )}
-              </h2>
-              <p>{t("noPayslipForMonthDescription")}</p>
-            </div>
+            <>
+              <div className="payslip-toolbar">{stepper}</div>
+              <div className="empty-state">
+                <h2>
+                  {t("noPayslipForMonth").replace(
+                    "{month}",
+                    parsed
+                      ? formatPayslipMonth(locale, parsed.year, parsed.month)
+                      : period,
+                  )}
+                </h2>
+                <p>{t("noPayslipForMonthDescription")}</p>
+              </div>
+            </>
           )}
         </section>
       )}
