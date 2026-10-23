@@ -3,6 +3,7 @@
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { DocumentPreview } from "@/components/ui/DocumentPreview";
 import { MonthStepper } from "@/components/ui/MonthStepper";
+import { formatSek } from "@/domain/finance/calculations";
 import { RECEIPT_STATUSES, type ReceiptStatus } from "@/domain/receipts";
 
 export type ReceiptItem = {
@@ -13,6 +14,8 @@ export type ReceiptItem = {
   date: string;
   name: string;
   description: string;
+  netMinor: number;
+  vatMinor: number;
   fileName: string;
   contentType: string;
   status: ReceiptStatus;
@@ -118,7 +121,7 @@ export function ReceiptDetailModal({
   showPerson: boolean;
   onClose: () => void;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
@@ -154,6 +157,22 @@ export function ReceiptDetailModal({
             <dt>{t("status")}</dt>
             <dd>
               <ReceiptStatusBadge status={receipt.status} />
+            </dd>
+          </div>
+          <div>
+            <dt>{t("totalExcludingVat")}</dt>
+            <dd>{formatSek(receipt.netMinor, locale)}</dd>
+          </div>
+          <div>
+            <dt>{t("vatAmount")}</dt>
+            <dd>{formatSek(receipt.vatMinor, locale)}</dd>
+          </div>
+          <div className="receipt-detail-wide">
+            <dt>{t("totalIncludingVat")}</dt>
+            <dd>
+              <strong>
+                {formatSek(receipt.netMinor + receipt.vatMinor, locale)}
+              </strong>
             </dd>
           </div>
           {receipt.description && (

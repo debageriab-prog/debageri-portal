@@ -2858,6 +2858,12 @@ th.actions-heading {
   white-space: pre-line;
 }
 
+th.amount-heading,
+td.amount-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
 .receipt-note-cell {
   max-width: 20rem;
   overflow-wrap: anywhere;

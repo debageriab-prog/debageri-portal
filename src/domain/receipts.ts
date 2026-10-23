@@ -40,3 +40,13 @@ export function canBecomeExpense(receipt: {
 }) {
   return receipt.status === "approved" && !receipt.expenseTransactionId;
 }
+
+/**
+ * VAT rate in basis points implied by a receipt's amounts, used to prefill
+ * an expense. Rounded to whole basis points, so the expense VAT can differ
+ * from the receipt by a few öre for unusual rates.
+ */
+export function receiptVatRateBps(netMinor: number, vatMinor: number) {
+  if (netMinor <= 0 || vatMinor <= 0) return 0;
+  return Math.min(10_000, Math.round((vatMinor * 10_000) / netMinor));
+}

@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { formatSek } from "@/domain/finance/calculations";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { FileAddIcon } from "@/components/ui/FileActionIcons";
 import {
@@ -31,7 +32,7 @@ export function ReceiptReview({
   people: { id: string; name: string; employeeNumber: string }[];
   currentPeriod: string;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const router = useRouter();
   const [period, setPeriod] = useState<string | null>(null);
   const [status, setStatus] = useState<ReceiptStatus | "all">("pending");
@@ -135,6 +136,7 @@ export function ReceiptReview({
                 <th>{t("receiptDate")}</th>
                 <th>{t("employee")}</th>
                 <th>{t("receiptName")}</th>
+                <th className="amount-heading">{t("totalIncludingVat")}</th>
                 <th>{t("status")}</th>
                 <th>{t("expense")}</th>
                 <th className="actions-heading">{t("actions")}</th>
@@ -149,6 +151,9 @@ export function ReceiptReview({
                   </td>
                   <td>
                     <strong>{receipt.name}</strong>
+                  </td>
+                  <td className="amount-cell">
+                    {formatSek(receipt.netMinor + receipt.vatMinor, locale)}
                   </td>
                   <td>
                     <ReceiptStatusBadge status={receipt.status} />

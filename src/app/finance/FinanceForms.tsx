@@ -10,6 +10,7 @@ import {
   formatSek,
   parseSek,
 } from "@/domain/finance/calculations";
+import { receiptVatRateBps } from "@/domain/receipts";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { FinanceCsvImport } from "./FinanceCsvImport";
 import { transactionMonthMismatch } from "./transaction-navigation";
@@ -50,6 +51,8 @@ export type ExpenseReceipt = {
   date: string;
   name: string;
   description: string;
+  netMinor: number;
+  vatMinor: number;
   fileName: string;
   contentType: string;
 };
@@ -583,15 +586,25 @@ export function TransactionForm({
   const [consultantId, setConsultantId] = useState(
     transaction?.consultantId ?? receiptConsultant?.id ?? "",
   );
-  const [amountMode, setAmountMode] = useState<"net" | "gross">("gross");
+  const [amountMode, setAmountMode] = useState<"net" | "gross">(
+    receipt && !transaction ? "net" : "gross",
+  );
   const [amount, setAmount] = useState(
-    transaction ? (transaction.grossMinor / 100).toFixed(2) : "",
+    transaction
+      ? (transaction.grossMinor / 100).toFixed(2)
+      : receipt?.netMinor
+        ? (receipt.netMinor / 100).toFixed(2)
+        : "",
   );
   const [funding, setFunding] = useState<"company" | "consultant">(
     transaction?.funding ?? "company",
   );
   const [vatPercent, setVatPercent] = useState(
-    String((transaction?.vatRateBps ?? 0) / 100),
+    String(
+      (transaction?.vatRateBps ??
+        (receipt ? receiptVatRateBps(receipt.netMinor, receipt.vatMinor) : 0)) /
+        100,
+    ),
   );
   const [pendingMonthMismatch, setPendingMonthMismatch] = useState<{
     payload: Record<string, unknown>;
@@ -712,6 +725,17 @@ export function TransactionForm({
                 .replace("{name}", receipt.name)
                 .replace("{person}", receipt.userName)}
             </strong>
+            {receipt.netMinor > 0 && (
+              <span>
+                {t("expenseFromReceiptAmounts")
+                  .replace("{net}", formatSek(receipt.netMinor, locale))
+                  .replace("{vat}", formatSek(receipt.vatMinor, locale))
+                  .replace(
+                    "{total}",
+                    formatSek(receipt.netMinor + receipt.vatMinor, locale),
+                  )}
+              </span>
+            )}
             <span>
               {receiptConsultant
                 ? t("expenseFromReceiptFundingHelp")

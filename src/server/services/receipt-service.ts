@@ -60,7 +60,13 @@ export async function createReceipt(
   db: Firestore,
   storage: Storage,
   actor: PortalUser,
-  input: { date: string; name: string; description: string },
+  input: {
+    date: string;
+    name: string;
+    description: string;
+    netMinor: number;
+    vatMinor: number;
+  },
   file: File,
 ) {
   if (!canSubmitReceipts(actor)) throw new ReceiptError("forbidden", 403);
@@ -85,6 +91,9 @@ export async function createReceipt(
       date: input.date,
       name: input.name,
       description: input.description,
+      netMinor: input.netMinor,
+      vatMinor: input.vatMinor,
+      grossMinor: input.netMinor + input.vatMinor,
       fileName: file.name.replace(/[\r\n]/g, "").slice(0, 180) || "receipt",
       contentType: file.type,
       size: file.size,

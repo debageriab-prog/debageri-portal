@@ -27,6 +27,8 @@ export default async function NewTransactionPage({
       date: String(data.date),
       name: String(data.name),
       description: String(data.description ?? ""),
+      netMinor: Number(data.netMinor ?? 0),
+      vatMinor: Number(data.vatMinor ?? 0),
       fileName: String(data.fileName),
       contentType: String(data.contentType),
     };

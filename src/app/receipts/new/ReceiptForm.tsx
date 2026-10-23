@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { FileRemoveIcon } from "@/components/ui/FileActionIcons";
+import { formatSek, parseSek } from "@/domain/finance/calculations";
 import { isReceiptContentType, RECEIPT_MAX_BYTES } from "@/domain/receipts";
 import { appCheckFetch } from "@/lib/firebase/client";
 import type { MessageKey } from "@/lib/localization/messages";
@@ -16,9 +17,20 @@ const errors: Record<string, MessageKey> = {
 };
 
 export function ReceiptForm({ today }: { today: string }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
+  const [net, setNet] = useState("");
+  const [vat, setVat] = useState("");
+  const toMinor = (value: string) => {
+    try {
+      return value.trim() ? parseSek(value) : null;
+    } catch {
+      return null;
+    }
+  };
+  const netMinor = toMinor(net);
+  const vatMinor = toMinor(vat);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -40,11 +52,16 @@ export function ReceiptForm({ today }: { today: string }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!file) return setError(t("receiptError_receiptFileRequired"));
+    if (!netMinor || vatMinor === null)
+      return setError(t("receiptError_invalidAmount"));
+    if (vatMinor > netMinor) return setError(t("receiptError_vatTooHigh"));
     const form = new FormData(event.currentTarget);
     const body = new FormData();
     body.set("date", String(form.get("date") ?? ""));
     body.set("name", String(form.get("name") ?? ""));
     body.set("description", String(form.get("description") ?? ""));
+    body.set("netMinor", String(netMinor));
+    body.set("vatMinor", String(vatMinor));
     body.set("file", file);
     setBusy(true);
     setError("");
@@ -94,6 +111,43 @@ export function ReceiptForm({ today }: { today: string }) {
             required
           />
         </label>
+        <label>
+          {t("totalExcludingVatSek")}
+          <input
+            className="field"
+            type="number"
+            inputMode="decimal"
+            min="0.01"
+            step="0.01"
+            value={net}
+            onChange={(event) => setNet(event.target.value)}
+            required
+          />
+        </label>
+        <label>
+          {t("vatAmountSek")}
+          <input
+            className="field"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            value={vat}
+            onChange={(event) => setVat(event.target.value)}
+            required
+          />
+        </label>
+        <div
+          className="transaction-amount-summary form-wide"
+          aria-live="polite"
+        >
+          <div>
+            <span>{t("totalIncludingVat")}</span>
+            <strong>
+              {formatSek((netMinor ?? 0) + (vatMinor ?? 0), locale)}
+            </strong>
+          </div>
+        </div>
         <label className="form-wide">
           {t("descriptionOptional")}
           <textarea

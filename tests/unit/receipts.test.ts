@@ -4,6 +4,7 @@ import {
   filterReceipts,
   isReceiptContentType,
   isReceiptStatus,
+  receiptVatRateBps,
 } from "@/domain/receipts";
 import {
   receiptReviewSchema,
@@ -53,18 +54,69 @@ describe("receipt rules", () => {
   });
 });
 
+const amounts = { netMinor: "10000", vatMinor: "2500" };
+
+describe("receipt VAT rate", () => {
+  it("derives the VAT rate used to prefill an expense", () => {
+    expect(receiptVatRateBps(10_000, 2_500)).toBe(2_500);
+    expect(receiptVatRateBps(10_000, 1_200)).toBe(1_200);
+    expect(receiptVatRateBps(10_000, 600)).toBe(600);
+    expect(receiptVatRateBps(10_000, 0)).toBe(0);
+    expect(receiptVatRateBps(0, 0)).toBe(0);
+  });
+});
+
 describe("receipt input", () => {
   it("requires a date and name, with an optional description", () => {
     expect(
-      receiptUploadSchema.safeParse({ date: "2026-10-01", name: "Taxi" })
-        .success,
+      receiptUploadSchema.safeParse({
+        ...amounts,
+        date: "2026-10-01",
+        name: "Taxi",
+      }).success,
     ).toBe(true);
     expect(
-      receiptUploadSchema.safeParse({ date: "2026-10-01", name: " " }).success,
+      receiptUploadSchema.safeParse({
+        ...amounts,
+        date: "2026-10-01",
+        name: " ",
+      }).success,
     ).toBe(false);
     expect(
-      receiptUploadSchema.safeParse({ date: "01/10/2026", name: "Taxi" })
+      receiptUploadSchema.safeParse({
+        ...amounts,
+        date: "01/10/2026",
+        name: "Taxi",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires a positive amount and VAT no higher than it", () => {
+    const base = { date: "2026-10-01", name: "Taxi" };
+    expect(
+      receiptUploadSchema.safeParse({ ...base, netMinor: "0", vatMinor: "0" })
         .success,
+    ).toBe(false);
+    expect(
+      receiptUploadSchema.safeParse({
+        ...base,
+        netMinor: "100",
+        vatMinor: "101",
+      }).success,
+    ).toBe(false);
+    expect(
+      receiptUploadSchema.safeParse({
+        ...base,
+        netMinor: "10000",
+        vatMinor: "0",
+      }).success,
+    ).toBe(true);
+    expect(
+      receiptUploadSchema.safeParse({
+        ...base,
+        netMinor: "12.5",
+        vatMinor: "0",
+      }).success,
     ).toBe(false);
   });
 

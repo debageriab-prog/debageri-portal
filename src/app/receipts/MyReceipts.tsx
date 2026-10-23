@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { formatSek } from "@/domain/finance/calculations";
 import { filterReceipts, type ReceiptStatus } from "@/domain/receipts";
 import {
   ReceiptDetailModal,
@@ -20,7 +21,7 @@ export function MyReceipts({
   currentPeriod: string;
   submitted: boolean;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [period, setPeriod] = useState<string | null>(null);
   const [status, setStatus] = useState<ReceiptStatus | "all">("all");
   const [viewing, setViewing] = useState<ReceiptItem | null>(null);
@@ -61,6 +62,7 @@ export function MyReceipts({
               <tr>
                 <th>{t("receiptDate")}</th>
                 <th>{t("receiptName")}</th>
+                <th className="amount-heading">{t("totalIncludingVat")}</th>
                 <th>{t("status")}</th>
                 <th>{t("receiptReviewNote")}</th>
                 <th className="actions-heading">{t("actions")}</th>
@@ -72,6 +74,9 @@ export function MyReceipts({
                   <td>{receipt.date}</td>
                   <td>
                     <strong>{receipt.name}</strong>
+                  </td>
+                  <td className="amount-cell">
+                    {formatSek(receipt.netMinor + receipt.vatMinor, locale)}
                   </td>
                   <td>
                     <ReceiptStatusBadge status={receipt.status} />
