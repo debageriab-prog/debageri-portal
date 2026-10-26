@@ -4,6 +4,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import nodemailer from "nodemailer";
 import {
   buildNotification,
+  customEmailTemplate,
   isEmailKind,
   notificationLocale,
   notificationSettingsFrom,
@@ -12,13 +13,14 @@ import {
   type InAppNotificationKind,
   type NotificationParams,
 } from "@/domain/notifications";
+import { resolvePortalUrl } from "@/lib/config/portal-url";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { decryptPassword } from "@/server/services/reminder-service";
 
 type Recipient = { id: string; data: FirebaseFirestore.DocumentData };
 
 export function portalUrlFrom(request: Request) {
-  return process.env.NEXT_PUBLIC_PORTAL_URL ?? new URL(request.url).origin;
+  return resolvePortalUrl(request.headers);
 }
 
 /**
@@ -57,10 +59,12 @@ async function deliver(
   await batch.commit();
 
   if (!isEmailKind(kind)) return;
-  const [settingsDoc, organizationDoc] = await Promise.all([
+  const [settingsDoc, organizationDoc, templatesDoc] = await Promise.all([
     db.collection("reminderSettings").doc(organizationId).get(),
     db.collection("organizations").doc(organizationId).get(),
+    db.collection("emailTemplates").doc(organizationId).get(),
   ]);
+  const customTemplates = templatesDoc.data()?.notifications;
   const settings = settingsDoc.data();
   if (!settings?.encryptedPassword) return;
   if (
@@ -86,12 +90,19 @@ async function deliver(
   const organizationName = String(organizationDoc.data()?.name ?? "Debageri");
   for (const recipient of emailRecipients) {
     const locale = notificationLocale(recipient.data.locale);
-    const email = buildNotification(kind, locale, {
-      ...notificationValuesFor(params, locale),
-      recipientName: String(recipient.data.displayName ?? recipient.data.email),
-      organizationName,
-      link: `${portalUrl}${path}`,
-    });
+    const email = buildNotification(
+      kind,
+      locale,
+      {
+        ...notificationValuesFor(params, locale),
+        recipientName: String(
+          recipient.data.displayName ?? recipient.data.email,
+        ),
+        organizationName,
+        link: `${portalUrl}${path}`,
+      },
+      customEmailTemplate(customTemplates, kind, locale),
+    );
     let error: string | null = null;
     try {
       await transporter.sendMail({

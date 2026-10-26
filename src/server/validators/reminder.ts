@@ -17,11 +17,32 @@ export const emailSettingsSchema = z.object({
     .optional(),
 });
 
-export const emailTemplateSchema = z.object({
-  templateId: z.literal("time-report-reminder"),
+const notificationKind = z.enum([
+  "receiptSubmitted",
+  "receiptApproved",
+  "receiptRejected",
+  "payslipPublished",
+  "timesheetApproved",
+  "timesheetRejected",
+]);
+const templateText = {
   subject: z.string().trim().min(1).max(200),
   template: z.string().trim().min(1).max(10000),
-});
+};
+
+export const emailTemplateSchema = z.union([
+  z.object({ templateId: z.literal("time-report-reminder"), ...templateText }),
+  z.object({
+    templateId: notificationKind,
+    locale: z.enum(["en-SE", "sv-SE"]),
+    ...templateText,
+  }),
+  z.object({
+    templateId: notificationKind,
+    locale: z.enum(["en-SE", "sv-SE"]),
+    reset: z.literal(true),
+  }),
+]);
 
 export const sendReminderSchema = z.object({
   userId: z.string().min(1).max(128),

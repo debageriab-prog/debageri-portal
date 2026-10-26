@@ -837,5 +837,18 @@
   "notificationTitle_payslipPublished": "Your pay slip for {month} is available",
   "notificationTitle_timesheetSubmitted": "{personName} submitted the time report for {week}",
   "notificationTitle_timesheetApproved": "Your time report for {week} was approved",
-  "notificationTitle_timesheetRejected": "Your time report for {week} was rejected"
+  "notificationTitle_timesheetRejected": "Your time report for {week} was rejected",
+  "emailTemplate_receiptSubmitted": "Receipt waiting for approval (to admins and accountants)",
+  "emailTemplate_receiptApproved": "Receipt approved (to the submitter)",
+  "emailTemplate_receiptRejected": "Receipt rejected (to the submitter)",
+  "emailTemplate_payslipPublished": "Pay slip available",
+  "emailTemplate_timesheetApproved": "Time report approved",
+  "emailTemplate_timesheetRejected": "Time report rejected",
+  "emailTemplateLanguage": "Language",
+  "emailTemplateLanguageHelp": "Each person gets the email in their portal language, so edit both versions.",
+  "notificationTemplatePlaceholders": "Placeholders: {placeholders}. {{commentLine}} adds \"Comment: …\" only when there is a comment.",
+  "emailTemplateCustomized": "This is your own version of the email.",
+  "emailTemplateUsingDefault": "This is the built-in text. Save to use your own version.",
+  "resetToDefault": "Reset to built-in text",
+  "emailTemplateResetDone": "The built-in text is used again."
 }

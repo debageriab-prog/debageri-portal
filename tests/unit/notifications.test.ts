@@ -3,6 +3,10 @@ import en from "@/locales/en.json";
 import sv from "@/locales/sv.json";
 import {
   buildNotification,
+  customEmailTemplate,
+  defaultEmailTemplates,
+  EMAIL_NOTIFICATION_KINDS,
+  emailPlaceholders,
   fill,
   formatIsoWeek,
   IN_APP_NOTIFICATION_KINDS,
@@ -10,7 +14,9 @@ import {
   notificationLocale,
   notificationSettingsFrom,
   notificationValuesFor,
+  NOTIFICATION_LOCALES,
 } from "@/domain/notifications";
+import { emailTemplateSchema } from "@/server/validators/reminder";
 
 const base = {
   recipientName: "Anna",
@@ -112,5 +118,65 @@ describe("in-app notifications", () => {
   it("keeps manager approval requests in the app only", () => {
     expect(isEmailKind("timesheetSubmitted")).toBe(false);
     expect(isEmailKind("timesheetRejected")).toBe(true);
+  });
+});
+
+describe("editable email templates", () => {
+  it("only uses placeholders that are listed for admins", () => {
+    for (const locale of NOTIFICATION_LOCALES)
+      for (const kind of EMAIL_NOTIFICATION_KINDS) {
+        const { subject, body } = defaultEmailTemplates[locale][kind];
+        const used = [...`${subject} ${body}`.matchAll(/\{\{(\w+)\}\}/g)].map(
+          (match) => match[1],
+        );
+        for (const name of used)
+          expect(emailPlaceholders[kind], `${locale} ${kind}`).toContain(name);
+      }
+  });
+
+  it("uses the admin's saved text and drops an empty comment line", () => {
+    const stored = {
+      receiptApproved: {
+        "en-SE": {
+          subject: "Approved: {{receiptName}}",
+          body: "Hello {{recipientName}}\n\n{{commentLine}}\n\nSee {{link}}",
+        },
+      },
+    };
+    const custom = customEmailTemplate(stored, "receiptApproved", "en-SE");
+    const email = buildNotification(
+      "receiptApproved",
+      "en-SE",
+      { ...base, receiptName: "Taxi" },
+      custom,
+    );
+    expect(email.subject).toBe("Approved: Taxi");
+    expect(email.text).toBe(`Hello Anna\n\nSee ${base.link}`);
+    expect(customEmailTemplate(stored, "receiptApproved", "sv-SE")).toBeNull();
+  });
+
+  it("accepts notification templates per language and resets", () => {
+    expect(
+      emailTemplateSchema.safeParse({
+        templateId: "payslipPublished",
+        locale: "sv-SE",
+        subject: "Lönebesked",
+        template: "Hej {{recipientName}}",
+      }).success,
+    ).toBe(true);
+    expect(
+      emailTemplateSchema.safeParse({
+        templateId: "payslipPublished",
+        locale: "sv-SE",
+        reset: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      emailTemplateSchema.safeParse({
+        templateId: "payslipPublished",
+        subject: "x",
+        template: "y",
+      }).success,
+    ).toBe(false);
   });
 });

@@ -837,5 +837,18 @@
   "notificationTitle_payslipPublished": "Ditt lönebesked för {month} finns nu",
   "notificationTitle_timesheetSubmitted": "{personName} skickade in tidrapporten för {week}",
   "notificationTitle_timesheetApproved": "Din tidrapport för {week} har godkänts",
-  "notificationTitle_timesheetRejected": "Din tidrapport för {week} har avslagits"
+  "notificationTitle_timesheetRejected": "Din tidrapport för {week} har avslagits",
+  "emailTemplate_receiptSubmitted": "Kvitto väntar på godkännande (till administratörer och ekonomer)",
+  "emailTemplate_receiptApproved": "Kvitto godkänt (till den som skickade det)",
+  "emailTemplate_receiptRejected": "Kvitto avslaget (till den som skickade det)",
+  "emailTemplate_payslipPublished": "Lönebesked finns",
+  "emailTemplate_timesheetApproved": "Tidrapport godkänd",
+  "emailTemplate_timesheetRejected": "Tidrapport avslagen",
+  "emailTemplateLanguage": "Språk",
+  "emailTemplateLanguageHelp": "Varje person får mejlet på sitt portalspråk, så redigera båda versionerna.",
+  "notificationTemplatePlaceholders": "Platshållare: {placeholders}. {{commentLine}} lägger till \"Kommentar: …\" bara när det finns en kommentar.",
+  "emailTemplateCustomized": "Detta är er egen version av mejlet.",
+  "emailTemplateUsingDefault": "Detta är den inbyggda texten. Spara för att använda en egen version.",
+  "resetToDefault": "Återställ inbyggd text",
+  "emailTemplateResetDone": "Den inbyggda texten används igen."
 }
