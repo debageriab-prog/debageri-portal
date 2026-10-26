@@ -84,6 +84,30 @@ export function notificationSettingsFrom(value: unknown): NotificationSettings {
   };
 }
 
+/**
+ * A person's own choice per email type. Missing values mean "send". The
+ * time-report reminder is not a notification topic and is always sent.
+ */
+export type EmailPreferences = Record<NotificationTopic, boolean>;
+export const emailPreferencesFrom = (value: unknown): EmailPreferences =>
+  notificationSettingsFrom(value);
+
+/** Email types that can actually reach this person, for the settings UI. */
+export function relevantEmailTopics(user: {
+  role: string;
+  reportsTime: boolean;
+  documentAccess: { payslips: boolean; receipts: boolean };
+}): NotificationTopic[] {
+  return NOTIFICATION_TOPICS.filter((topic) =>
+    topic === "receipts"
+      ? ["admin", "accountant"].includes(user.role) ||
+        user.documentAccess.receipts
+      : topic === "payslips"
+        ? user.documentAccess.payslips
+        : user.reportsTime,
+  );
+}
+
 export type NotificationValues = {
   recipientName: string;
   organizationName: string;

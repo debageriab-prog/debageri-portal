@@ -29,6 +29,12 @@ export function financeAccessMatchesRole(
   );
 }
 
+export const emailPreferencesSchema = z.object({
+  receipts: z.boolean(),
+  payslips: z.boolean(),
+  timesheets: z.boolean(),
+});
+
 export const documentAccessSchema = z.object({
   contracts: z.boolean(),
   payslips: z.boolean().default(false),

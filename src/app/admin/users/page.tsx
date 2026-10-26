@@ -1,3 +1,4 @@
+import { emailPreferencesFrom } from "@/domain/notifications";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { UserManagement } from "./UserManagement";
@@ -36,6 +37,7 @@ export default async function UsersPage() {
           payslips: data.documentAccess?.payslips === true,
           receipts: data.documentAccess?.receipts === true,
         },
+        emailPreferences: emailPreferencesFrom(data.emailPreferences),
       };
     })
     .sort((a, b) => b.createdAt - a.createdAt);

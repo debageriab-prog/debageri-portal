@@ -6,6 +6,10 @@ import { EmployeeForm } from "./EmployeeForm";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import type { DocumentAccess, FinanceAccess } from "@/domain/types";
+import {
+  NOTIFICATION_TOPICS,
+  type EmailPreferences,
+} from "@/domain/notifications";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 
 export interface ManagedUser {
@@ -22,6 +26,7 @@ export interface ManagedUser {
   reportingStartDate: string;
   financeAccess: FinanceAccess;
   documentAccess: DocumentAccess;
+  emailPreferences: EmailPreferences;
 }
 
 export function UserManagement({
@@ -49,6 +54,12 @@ export function UserManagement({
     myFinance: false,
     myInvoices: false,
   });
+  const [editEmailPreferences, setEditEmailPreferences] =
+    useState<EmailPreferences>({
+      receipts: true,
+      payslips: true,
+      timesheets: true,
+    });
   const [editDocumentAccess, setEditDocumentAccess] = useState<DocumentAccess>({
     contracts: false,
     payslips: false,
@@ -107,6 +118,7 @@ export function UserManagement({
                 ["consultant", "manager"].includes(editRole) &&
                 editDocumentAccess.receipts,
             },
+            emailPreferences: editEmailPreferences,
           }),
         },
       );
@@ -302,6 +314,7 @@ export function UserManagement({
                           setEditRole(user.role);
                           setEditFinanceAccess(user.financeAccess);
                           setEditDocumentAccess(user.documentAccess);
+                          setEditEmailPreferences(user.emailPreferences);
                         }}
                       >
                         <ActionIcon type="edit" />
@@ -565,6 +578,30 @@ export function UserManagement({
                     </label>
                   </fieldset>
                 )}
+                <fieldset className="access-section form-wide">
+                  <legend>{t("emailNotificationSettings")}</legend>
+                  {NOTIFICATION_TOPICS.map((topic) => (
+                    <label className="checkbox-row" key={topic}>
+                      <input
+                        type="checkbox"
+                        checked={editEmailPreferences[topic]}
+                        onChange={(event) =>
+                          setEditEmailPreferences((current) => ({
+                            ...current,
+                            [topic]: event.target.checked,
+                          }))
+                        }
+                      />
+                      <span>
+                        <strong>{t(`notificationTopic_${topic}`)}</strong>
+                        <small>{t(`emailPreferenceHelp_${topic}`)}</small>
+                      </span>
+                    </label>
+                  ))}
+                  <small className="muted">
+                    {t("emailPreferencesReminderAlways")}
+                  </small>
+                </fieldset>
                 <label className="form-wide">
                   {t("accountStatus")}
                   <select

@@ -58,6 +58,11 @@ export async function verifySession(): Promise<PortalUser | null> {
         myFinance: data.financeAccess?.myFinance === true,
         myInvoices: data.financeAccess?.myInvoices === true,
       },
+      emailPreferences: {
+        receipts: data.emailPreferences?.receipts !== false,
+        payslips: data.emailPreferences?.payslips !== false,
+        timesheets: data.emailPreferences?.timesheets !== false,
+      },
       documentAccess: {
         contracts: data.documentAccess?.contracts === true,
         payslips: data.documentAccess?.payslips === true,

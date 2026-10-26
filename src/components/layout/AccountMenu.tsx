@@ -12,12 +12,17 @@ import {
   type MultiFactorError,
 } from "firebase/auth";
 import type { PortalUser } from "@/domain/types";
+import { useRouter } from "next/navigation";
+import {
+  relevantEmailTopics,
+  type EmailPreferences,
+} from "@/domain/notifications";
 import { appCheckFetch, getFirebaseClient } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import type { Locale } from "@/lib/localization/locale";
 
-type Dialog = "avatar" | "password" | null;
+type Dialog = "avatar" | "password" | "email" | null;
 
 export function AccountMenu({ user }: { user: PortalUser }) {
   const { locale, setLocale, t } = useLocale();
@@ -30,6 +35,11 @@ export function AccountMenu({ user }: { user: PortalUser }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [needsMfaCode, setNeedsMfaCode] = useState(false);
+  const router = useRouter();
+  const [emailPreferences, setEmailPreferences] = useState<EmailPreferences>(
+    user.emailPreferences,
+  );
+  const emailTopics = relevantEmailTopics(user);
 
   useEffect(() => {
     function close(event: MouseEvent) {
@@ -84,6 +94,27 @@ export function AccountMenu({ user }: { user: PortalUser }) {
       setError(
         reason instanceof Error ? reason.message : t("avatarUpdateFailed"),
       );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveEmailPreferences(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const response = await appCheckFetch("/api/account/email-preferences", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(emailPreferences),
+      });
+      if (!response.ok) throw new Error("emailPreferencesSaveFailed");
+      setDialog(null);
+      setSuccess(t("emailPreferencesSaved"));
+      router.refresh();
+    } catch {
+      setError(t("emailPreferencesSaveFailed"));
     } finally {
       setBusy(false);
     }
@@ -211,6 +242,15 @@ export function AccountMenu({ user }: { user: PortalUser }) {
               <button role="menuitem" onClick={() => showDialog("password")}>
                 {t("changePassword")}
               </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setEmailPreferences(user.emailPreferences);
+                  showDialog("email");
+                }}
+              >
+                {t("emailNotificationSettings")}
+              </button>
               <label className="account-language">
                 <span>{t("language")}</span>
                 <select
@@ -268,6 +308,51 @@ export function AccountMenu({ user }: { user: PortalUser }) {
               error={error}
               action={t("updateAvatar")}
               busyAction={t("uploading")}
+              cancel={t("cancel")}
+              close={() => setDialog(null)}
+            />
+          </form>
+        </div>
+      )}
+      {dialog === "email" && (
+        <div className="modal-backdrop">
+          <form className="modal modal-small" onSubmit={saveEmailPreferences}>
+            <DialogHeader
+              eyebrow={t("accountSettings")}
+              title={t("emailNotificationSettings")}
+              description={t("emailPreferencesDescription")}
+              close={() => setDialog(null)}
+            />
+            <div className="account-form">
+              {emailTopics.length === 0 ? (
+                <p className="muted">{t("emailPreferencesNoneAvailable")}</p>
+              ) : (
+                emailTopics.map((topic) => (
+                  <label className="checkbox-row" key={topic}>
+                    <input
+                      type="checkbox"
+                      checked={emailPreferences[topic]}
+                      onChange={(event) =>
+                        setEmailPreferences((current) => ({
+                          ...current,
+                          [topic]: event.target.checked,
+                        }))
+                      }
+                    />
+                    <span>
+                      <strong>{t(`notificationTopic_${topic}`)}</strong>
+                      <small>{t(`emailPreferenceHelp_${topic}`)}</small>
+                    </span>
+                  </label>
+                ))
+              )}
+              <p className="notice">{t("emailPreferencesReminderAlways")}</p>
+            </div>
+            <DialogFooter
+              busy={busy}
+              error={error}
+              action={t("save")}
+              busyAction={t("saving")}
               cancel={t("cancel")}
               close={() => setDialog(null)}
             />

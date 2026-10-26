@@ -5,6 +5,7 @@ import nodemailer from "nodemailer";
 import {
   buildNotification,
   customEmailTemplate,
+  emailPreferencesFrom,
   isEmailKind,
   notificationLocale,
   notificationSettingsFrom,
@@ -71,8 +72,12 @@ async function deliver(
     !notificationSettingsFrom(settings.notifications)[notificationTopic[kind]]
   )
     return;
+  const topic = notificationTopic[kind];
   const emailRecipients = recipients.filter(
-    ({ data }) => typeof data.email === "string" && data.email.includes("@"),
+    ({ data }) =>
+      typeof data.email === "string" &&
+      data.email.includes("@") &&
+      emailPreferencesFrom(data.emailPreferences)[topic],
   );
   if (!emailRecipients.length) return;
   const transporter = nodemailer.createTransport({

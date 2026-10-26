@@ -850,5 +850,14 @@
   "emailTemplateCustomized": "This is your own version of the email.",
   "emailTemplateUsingDefault": "This is the built-in text. Save to use your own version.",
   "resetToDefault": "Reset to built-in text",
-  "emailTemplateResetDone": "The built-in text is used again."
+  "emailTemplateResetDone": "The built-in text is used again.",
+  "emailNotificationSettings": "Email notifications",
+  "emailPreferencesDescription": "Choose which emails you get. You still see everything under the bell in the portal.",
+  "emailPreferencesNoneAvailable": "There are no optional emails for your account.",
+  "emailPreferenceHelp_receipts": "New receipts to review, and decisions on your own receipts.",
+  "emailPreferenceHelp_payslips": "When a new pay slip is available.",
+  "emailPreferenceHelp_timesheets": "When your time report is approved or rejected.",
+  "emailPreferencesReminderAlways": "Reminders about missing time reports are always sent and cannot be turned off.",
+  "emailPreferencesSaved": "Your email settings were saved.",
+  "emailPreferencesSaveFailed": "Your email settings could not be saved. Please try again."
 }

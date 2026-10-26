@@ -8,6 +8,7 @@ import {
   financeAccessSchema,
   documentAccessMatchesRole,
   documentAccessSchema,
+  emailPreferencesSchema,
 } from "@/server/validators/user-access";
 
 const updateSchema = z
@@ -23,6 +24,7 @@ const updateSchema = z
     reportingStartDate: z.iso.date().nullable(),
     financeAccess: financeAccessSchema,
     documentAccess: documentAccessSchema,
+    emailPreferences: emailPreferencesSchema.optional(),
   })
   .superRefine((value, context) => {
     if (!financeAccessMatchesRole(value.role, value.financeAccess))
@@ -113,6 +115,9 @@ export async function PATCH(
       reportingStartDate: parsed.data.reportingStartDate,
       financeAccess: parsed.data.financeAccess,
       documentAccess: parsed.data.documentAccess,
+      ...(parsed.data.emailPreferences
+        ? { emailPreferences: parsed.data.emailPreferences }
+        : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     batch.create(loaded.db.collection("auditLogs").doc(), {
@@ -127,6 +132,9 @@ export async function PATCH(
         status: parsed.data.status,
         financeAccess: parsed.data.financeAccess,
         documentAccess: parsed.data.documentAccess,
+        ...(parsed.data.emailPreferences
+          ? { emailPreferences: parsed.data.emailPreferences }
+          : {}),
       },
     });
     await batch.commit();

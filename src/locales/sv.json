@@ -850,5 +850,14 @@
   "emailTemplateCustomized": "Detta är er egen version av mejlet.",
   "emailTemplateUsingDefault": "Detta är den inbyggda texten. Spara för att använda en egen version.",
   "resetToDefault": "Återställ inbyggd text",
-  "emailTemplateResetDone": "Den inbyggda texten används igen."
+  "emailTemplateResetDone": "Den inbyggda texten används igen.",
+  "emailNotificationSettings": "E-postaviseringar",
+  "emailPreferencesDescription": "Välj vilka mejl du vill få. Allt syns fortfarande under klockan i portalen.",
+  "emailPreferencesNoneAvailable": "Det finns inga valfria mejl för ditt konto.",
+  "emailPreferenceHelp_receipts": "Nya kvitton att granska och beslut om dina egna kvitton.",
+  "emailPreferenceHelp_payslips": "När ett nytt lönebesked finns.",
+  "emailPreferenceHelp_timesheets": "När din tidrapport godkänns eller avslås.",
+  "emailPreferencesReminderAlways": "Påminnelser om saknade tidrapporter skickas alltid och kan inte stängas av.",
+  "emailPreferencesSaved": "Dina e-postinställningar sparades.",
+  "emailPreferencesSaveFailed": "Dina e-postinställningar kunde inte sparas. Försök igen."
 }
