@@ -2,10 +2,19 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { getTranslator } from "@/lib/localization/server";
 import {
+  customEmailTemplate,
+  defaultEmailTemplates,
+  EMAIL_NOTIFICATION_KINDS,
+  NOTIFICATION_LOCALES,
+} from "@/domain/notifications";
+import {
   defaultReminderSubject,
   defaultReminderTemplate,
 } from "@/server/services/reminder-service";
-import { EmailTemplateForm } from "./EmailTemplateForm";
+import {
+  EmailTemplateForm,
+  type NotificationTemplateState,
+} from "./EmailTemplateForm";
 
 export default async function EmailTemplatesPage() {
   const actor = (await verifySession())!;
@@ -17,6 +26,26 @@ export default async function EmailTemplatesPage() {
   ]);
   const templateData = templatesDoc.data()?.timeReportReminder;
   const legacyData = legacyDoc.data();
+  const stored = templatesDoc.data()?.notifications;
+  const notifications = Object.fromEntries(
+    EMAIL_NOTIFICATION_KINDS.map((kind) => [
+      kind,
+      Object.fromEntries(
+        NOTIFICATION_LOCALES.map((locale) => {
+          const custom = customEmailTemplate(stored, kind, locale);
+          const fallback = defaultEmailTemplates[locale][kind];
+          return [
+            locale,
+            {
+              subject: custom?.subject ?? fallback.subject,
+              body: custom?.body ?? fallback.body,
+              custom: Boolean(custom),
+            },
+          ];
+        }),
+      ),
+    ]),
+  ) as NotificationTemplateState;
   return (
     <>
       <div className="topbar">
@@ -39,6 +68,7 @@ export default async function EmailTemplatesPage() {
             legacyData?.template ??
             defaultReminderTemplate,
         )}
+        notifications={notifications}
       />
     </>
   );

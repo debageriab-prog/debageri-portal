@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
+import {
+  notifyPayslipPublished,
+  portalUrlFrom,
+} from "@/server/services/notification-service";
 import { verifySession } from "@/server/auth/session";
 import { parsePayslipForm } from "@/server/validators/payslips";
 import {
@@ -22,6 +26,7 @@ export async function POST(request: Request) {
   const { db, storage } = getAdminServices();
   try {
     const id = await uploadPayslip(db, storage, actor, parsed.data, file);
+    await notifyPayslipPublished(id, portalUrlFrom(request));
     return NextResponse.json({ ok: true, id }, { status: 201 });
   } catch (error) {
     if (error instanceof PayslipError)

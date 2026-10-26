@@ -8,6 +8,7 @@ import {
   financeAccessSchema,
   documentAccessMatchesRole,
   documentAccessSchema,
+  emailPreferencesSchema,
 } from "@/server/validators/user-access";
 
 const inputSchema = z
@@ -22,6 +23,7 @@ const inputSchema = z
     reportingStartDate: z.iso.date().nullable(),
     financeAccess: financeAccessSchema,
     documentAccess: documentAccessSchema,
+    emailPreferences: emailPreferencesSchema.optional(),
   })
   .superRefine((value, context) => {
     const expectedReportsTime =
@@ -86,6 +88,9 @@ export async function POST(request: Request) {
       reportingStartDate: parsed.data.reportingStartDate,
       financeAccess: parsed.data.financeAccess,
       documentAccess: parsed.data.documentAccess,
+      ...(parsed.data.emailPreferences
+        ? { emailPreferences: parsed.data.emailPreferences }
+        : {}),
       status: "active",
       managerId: null,
       timezone: actor.timezone,

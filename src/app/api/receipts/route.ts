@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
+import {
+  notifyReceiptSubmitted,
+  portalUrlFrom,
+} from "@/server/services/notification-service";
 import { verifySession } from "@/server/auth/session";
 import { parseReceiptForm } from "@/server/validators/receipts";
 import {
@@ -22,6 +26,7 @@ export async function POST(request: Request) {
   const { db, storage } = getAdminServices();
   try {
     const id = await createReceipt(db, storage, actor, parsed.data, file);
+    await notifyReceiptSubmitted(id, portalUrlFrom(request));
     return NextResponse.json({ ok: true, id }, { status: 201 });
   } catch (error) {
     if (error instanceof ReceiptError)

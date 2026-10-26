@@ -1,5 +1,6 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
+import { resolvePortalUrl } from "@/lib/config/portal-url";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { sendReminderSchema } from "@/server/validators/reminder";
@@ -116,8 +117,7 @@ export async function POST(request: Request) {
           )
           .join("\n"),
         organizationName: String(organizationDoc.data()?.name ?? "Debageri"),
-        portalUrl:
-          process.env.NEXT_PUBLIC_PORTAL_URL ?? new URL(request.url).origin,
+        portalUrl: resolvePortalUrl(request.headers),
       },
     });
     await reminderRef.update({

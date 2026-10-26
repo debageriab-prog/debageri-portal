@@ -46,6 +46,7 @@ export interface PortalUser {
   compensationModel?: CompensationModel | null;
   financeAccess: FinanceAccess;
   documentAccess: DocumentAccess;
+  emailPreferences: Record<"receipts" | "payslips" | "timesheets", boolean>;
 }
 
 export interface ContractDocument {
