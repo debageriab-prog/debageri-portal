@@ -3037,3 +3037,84 @@ td.amount-cell {
   gap: 0.25rem;
   margin-bottom: 1rem;
 }
+
+.employee-editor {
+  padding: 0;
+  overflow: hidden;
+}
+
+.editor-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--border);
+  background: #fbf8f5;
+}
+
+.editor-tab {
+  flex: 0 0 auto;
+  padding: 15px 14px 13px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.editor-tab:hover {
+  color: var(--foreground);
+}
+
+.editor-tab.active {
+  border-bottom-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.editor-panel {
+  padding: 22px 24px 8px;
+}
+
+.editor-panel[hidden] {
+  display: none;
+}
+
+.editor-panel-intro {
+  margin: 0 0 18px;
+}
+
+.editor-access-groups {
+  display: grid;
+  gap: 16px;
+}
+
+.employee-editor > .notice {
+  margin: 0 24px 12px;
+}
+
+.employee-editor .editor-actions {
+  margin: 0;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  background: #fbf8f5;
+}
+
+@media (max-width: 640px) {
+  .editor-tabs {
+    padding: 0 8px;
+  }
+
+  .editor-panel {
+    padding: 18px 16px 4px;
+  }
+
+  .employee-editor > .notice {
+    margin: 0 16px 12px;
+  }
+
+  .employee-editor .editor-actions {
+    padding: 14px 16px;
+  }
+}

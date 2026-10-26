@@ -1,9 +1,13 @@
-import { emailPreferencesFrom } from "@/domain/notifications";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { UserManagement } from "./UserManagement";
+import { toManagedUser } from "./user-data";
 
-export default async function UsersPage() {
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ saved?: string }>;
+}) {
   const actor = (await verifySession())!;
   const { db } = getAdminServices();
   const snapshot = await db
@@ -11,36 +15,15 @@ export default async function UsersPage() {
     .where("organizationId", "==", actor.organizationId)
     .get();
   const users = snapshot.docs
-    .map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        displayName: String(data.displayName),
-        email: String(data.email),
-        employeeNumber: String(data.employeeNumber),
-        role: String(data.role),
-        reportsTime:
-          data.reportsTime ??
-          ["employee", "consultant"].includes(String(data.role)),
-        status: String(data.status),
-        createdAt: data.createdAt?.toMillis?.() ?? 0,
-        employmentStartDate: String(data.employmentStartDate ?? ""),
-        employmentEndDate: String(data.employmentEndDate ?? ""),
-        reportingStartDate: String(data.reportingStartDate ?? ""),
-        financeAccess: {
-          enabled: data.financeAccess?.enabled === true,
-          myFinance: data.financeAccess?.myFinance === true,
-          myInvoices: data.financeAccess?.myInvoices === true,
-        },
-        documentAccess: {
-          contracts: data.documentAccess?.contracts === true,
-          payslips: data.documentAccess?.payslips === true,
-          receipts: data.documentAccess?.receipts === true,
-        },
-        emailPreferences: emailPreferencesFrom(data.emailPreferences),
-      };
-    })
+    .map(toManagedUser)
     .sort((a, b) => b.createdAt - a.createdAt);
+  const saved = (await searchParams).saved;
 
-  return <UserManagement users={users} currentUserId={actor.id} />;
+  return (
+    <UserManagement
+      users={users}
+      currentUserId={actor.id}
+      saved={saved === "created" || saved === "updated" ? saved : null}
+    />
+  );
 }

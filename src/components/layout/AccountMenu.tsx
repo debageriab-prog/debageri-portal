@@ -346,7 +346,6 @@ export function AccountMenu({ user }: { user: PortalUser }) {
                   </label>
                 ))
               )}
-              <p className="notice">{t("emailPreferencesReminderAlways")}</p>
             </div>
             <DialogFooter
               busy={busy}
