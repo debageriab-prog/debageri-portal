@@ -11,6 +11,7 @@ import {
   aiFeatureEnabled,
   aiSettingsFrom,
   convertExtractionToSek,
+  FINANCE_DOCUMENT_TYPES,
   FINANCE_EXTRACTION_JSON_SCHEMA,
   matchConsultantByName,
   normalizeFinanceExtraction,
@@ -130,7 +131,7 @@ type ExtractionContext = {
 };
 
 const rawExtractionSchema = z.object({
-  documentType: z.enum(["receipt", "invoice", "other"]),
+  documentType: z.enum(FINANCE_DOCUMENT_TYPES),
   direction: z.enum(["income", "expense"]).nullable(),
   date: z.string().nullable(),
   currency: z.string().nullable(),
@@ -181,6 +182,7 @@ function instructions(context: ExtractionContext) {
       ? "- customerId: the id of the customer from the customer list below that the invoice is addressed to, or null if none matches."
       : "- customerId: always null.",
     "- paymentReference: the OCR or payment reference number (Referensnummer, OCR) exactly as printed, or null.",
+    '- documentType: "vatDocument" for a VAT return (momsdeklaration), Skatteverket\'s receipt for one, or a VAT payment to the tax account; "invoice" for an invoice; "receipt" for a purchase receipt; otherwise "other". Still extract what you can when the document is not the kind expected.',
     ...(context.purpose === "vatSettlement"
       ? [
           'For this VAT document: totalAmount is the VAT to pay ("Moms att betala", box 49) as a positive number, or null when VAT is refunded ("Moms att få tillbaka"). netAmount, vatAmount, roundingAmount and vatRatePercent are null. periodFrom and periodTo are the first and last day of the reporting period ("Redovisningsperiod"), so "April - Juni 2026" is 2026-04-01 to 2026-06-30. date is the date the VAT was paid when the document shows a payment, otherwise null. dueDate is the due date ("Ordinarie förfallodatum", "Förfallodag"). description is the document title with the receipt number ("Kvittensnummer"), for example "Momsdeklaration april - juni 2026, kvittens 20260812 190812 165595558429". direction, categoryId, consultantId, customerId and invoiceNumber are null.',

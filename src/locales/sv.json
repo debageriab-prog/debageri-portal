@@ -958,6 +958,7 @@
   "selectConsultantError": "Välj en konsult eller Endast företaget.",
   "selectFundingError": "Välj vem som betalade.",
   "aiChooseRemaining": "Fält som fortfarande visar ”Välj” kunde inte läsas från filen. Välj dem själv.",
+  "aiNotVatDocument": "{name} ser inte ut som en kvittens för momsdeklaration eller en momsbetalning. De värden som kunde läsas har fyllts i; kontrollera dem noga.",
   "aiConversionCheck": "Beloppen var i {currency} och har räknats om till SEK. Dubbelkolla dem mot dokumentet innan du bokför.",
   "aiConvertedCurrency": "Original: {amount} {currency}, kurs {rate} SEK ({source}, {date})",
   "exchangeRateSource_riksbank": "Riksbanken",

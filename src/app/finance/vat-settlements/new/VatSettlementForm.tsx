@@ -131,13 +131,23 @@ export function VatSettlementForm({
     if (!filled) {
       setAiNotice({
         tone: "warning",
-        messages: [t("aiNothingFound").replace("{name}", name)],
+        messages: [
+          t("aiNothingFound").replace("{name}", name),
+          ...(extraction.documentType === "vatDocument"
+            ? []
+            : [t("aiNotVatDocument").replace("{name}", name)]),
+        ],
       });
       return;
     }
     setAiNotice({
       tone: "success",
-      messages: [t("aiFilledFromFile").replace("{name}", name)],
+      messages: [
+        t("aiFilledFromFile").replace("{name}", name),
+        ...(extraction.documentType === "vatDocument"
+          ? []
+          : [t("aiNotVatDocument").replace("{name}", name)]),
+      ],
     });
   }
 
@@ -287,6 +297,18 @@ export function VatSettlementForm({
           onChange={(event) => setReference(event.target.value)}
         />
       </label>
+      <label className="form-wide">
+        {t("internalNote")}
+        <InfoTip text={t("vatNoteTip")} />
+        <textarea
+          className="field"
+          name="note"
+          rows={4}
+          maxLength={500}
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+        />
+      </label>
       <FinanceAttachments
         entityType="vatSettlement"
         entityId={settlement?.id}
@@ -305,18 +327,6 @@ export function VatSettlementForm({
         }
       />
       <AiNotices notice={aiNotice} currencyWarning={aiCurrencyWarning} />
-      <label className="form-wide">
-        {t("internalNote")}
-        <InfoTip text={t("vatNoteTip")} />
-        <textarea
-          className="field"
-          name="note"
-          rows={4}
-          maxLength={500}
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-        />
-      </label>
       {error && <p className="notice notice-error form-wide">{error}</p>}
       <div className="actions form-wide">
         <button

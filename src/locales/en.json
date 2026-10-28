@@ -958,6 +958,7 @@
   "selectConsultantError": "Please select a consultant, or Company only.",
   "selectFundingError": "Please select who paid.",
   "aiChooseRemaining": "Fields still showing “Select” could not be read from the file. Choose them yourself.",
+  "aiNotVatDocument": "{name} does not look like a VAT return receipt or VAT payment. The values that could be read were filled in; check them carefully.",
   "aiConversionCheck": "The amounts were in {currency} and have been converted to SEK. Double-check them against the document before posting.",
   "aiConvertedCurrency": "Original: {amount} {currency}, rate {rate} SEK ({source}, {date})",
   "exchangeRateSource_riksbank": "Riksbank",

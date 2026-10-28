@@ -66,9 +66,18 @@ export function aiFeatureEnabled(settings: AiSettings, feature: AiFeature) {
   return settings.enabled && settings.features[feature];
 }
 
+/** What kind of document the model thinks the file is. */
+export const FINANCE_DOCUMENT_TYPES = [
+  "receipt",
+  "invoice",
+  "vatDocument",
+  "other",
+] as const;
+export type FinanceDocumentType = (typeof FINANCE_DOCUMENT_TYPES)[number];
+
 /** What the model is asked to return, amounts in major currency units. */
 export type RawFinanceExtraction = {
-  documentType: "receipt" | "invoice" | "other";
+  documentType: FinanceDocumentType;
   direction: "income" | "expense" | null;
   date: string | null;
   currency: string | null;
@@ -128,7 +137,7 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     "paymentReference",
   ],
   properties: {
-    documentType: { type: "string", enum: ["receipt", "invoice", "other"] },
+    documentType: { type: "string", enum: FINANCE_DOCUMENT_TYPES },
     direction: nullable({ type: "string", enum: ["income", "expense"] }),
     date: plainText,
     currency: plainText,
@@ -158,6 +167,7 @@ export type SekExchangeRate = {
 };
 
 export type FinanceExtraction = {
+  documentType: FinanceDocumentType;
   direction: "income" | "expense" | null;
   date: string | null;
   /** Currency of the amounts below; SEK once converted. */
@@ -272,6 +282,9 @@ export function normalizeFinanceExtraction(
   const period =
     periodFrom && periodTo && validInvoicePeriod(periodFrom, periodTo);
   return {
+    documentType: FINANCE_DOCUMENT_TYPES.includes(raw.documentType)
+      ? raw.documentType
+      : "other",
     direction:
       raw.direction === "income" || raw.direction === "expense"
         ? raw.direction

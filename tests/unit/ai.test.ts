@@ -144,6 +144,7 @@ describe("normalizeFinanceExtraction", () => {
         ["office"],
       ),
     ).toEqual({
+      documentType: "receipt",
       direction: "expense",
       date: "2026-10-12",
       currency: "SEK",
@@ -525,5 +526,23 @@ describe("VAT settlement fields in AI output", () => {
       normalizeFinanceExtraction({ ...empty, paymentReference: "" }, [])
         .paymentReference,
     ).toBeNull();
+  });
+});
+
+describe("document type", () => {
+  it("passes through VAT documents and falls back to other", () => {
+    expect(
+      normalizeFinanceExtraction({ ...empty, documentType: "vatDocument" }, [])
+        .documentType,
+    ).toBe("vatDocument");
+    expect(
+      normalizeFinanceExtraction(
+        {
+          ...empty,
+          documentType: "letter" as RawFinanceExtraction["documentType"],
+        },
+        [],
+      ).documentType,
+    ).toBe("other");
   });
 });
