@@ -9,6 +9,7 @@ import {
   calculateTransactionAmounts,
   formatSek,
   parseSek,
+  type TransactionAmountMode,
 } from "@/domain/finance/calculations";
 import { receiptVatRateBps } from "@/domain/receipts";
 import { appCheckFetch } from "@/lib/firebase/client";
@@ -630,31 +631,51 @@ export function TransactionForm({
       delete next[field];
       return next;
     });
-  const [amountMode, setAmountMode] = useState<"net" | "gross">(
-    receipt && !transaction ? "net" : "gross",
+  // Amounts whose VAT does not follow from the rate (rounded receipt lines)
+  // open in net-and-VAT mode so the exact VAT is kept.
+  const initialVatRateBps =
+    transaction?.vatRateBps ??
+    (receipt ? receiptVatRateBps(receipt.netMinor, receipt.vatMinor) : 0);
+  const initialAmounts = transaction
+    ? {
+        netMinor: transaction.netMinor,
+        vatMinor: transaction.grossMinor - transaction.netMinor,
+      }
+    : receipt?.netMinor
+      ? { netMinor: receipt.netMinor, vatMinor: receipt.vatMinor }
+      : null;
+  const initialExactVat =
+    initialAmounts !== null &&
+    calculateVatMinor(initialAmounts.netMinor, initialVatRateBps) !==
+      initialAmounts.vatMinor;
+  const [amountMode, setAmountMode] = useState<TransactionAmountMode>(
+    initialExactVat ? "netVat" : receipt && !transaction ? "net" : "gross",
   );
   const [amount, setAmount] = useState(
-    transaction
-      ? (transaction.grossMinor / 100).toFixed(2)
-      : receipt?.netMinor
-        ? (receipt.netMinor / 100).toFixed(2)
-        : "",
+    initialExactVat
+      ? (initialAmounts.netMinor / 100).toFixed(2)
+      : transaction
+        ? (transaction.grossMinor / 100).toFixed(2)
+        : receipt?.netMinor
+          ? (receipt.netMinor / 100).toFixed(2)
+          : "",
+  );
+  const [vatAmount, setVatAmount] = useState(
+    initialAmounts ? (initialAmounts.vatMinor / 100).toFixed(2) : "",
   );
   const [funding, setFunding] = useState<"" | "company" | "consultant">(
     transaction?.funding ?? "",
   );
-  const [vatPercent, setVatPercent] = useState(
-    String(
-      (transaction?.vatRateBps ??
-        (receipt ? receiptVatRateBps(receipt.netMinor, receipt.vatMinor) : 0)) /
-        100,
-    ),
-  );
+  const [vatPercent, setVatPercent] = useState(String(initialVatRateBps / 100));
   const [pendingMonthMismatch, setPendingMonthMismatch] = useState<{
     payload: Record<string, unknown>;
     viewMonth: string;
     transactionMonth: string;
   } | null>(null);
+  const [pendingVatMismatch, setPendingVatMismatch] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
     [],
@@ -718,8 +739,18 @@ export function TransactionForm({
       setDate(extraction.date);
       filled++;
     }
+    const exactVat =
+      !foreignAmounts &&
+      extraction.netMinor !== null &&
+      extraction.netMinor > 0 &&
+      extraction.vatMinor !== null;
     if (foreignAmounts) {
       // No exchange rate was found, so leave the SEK amount for the user.
+    } else if (exactVat) {
+      setAmountMode("netVat");
+      setAmount((extraction.netMinor! / 100).toFixed(2));
+      setVatAmount((extraction.vatMinor! / 100).toFixed(2));
+      filled++;
     } else if (extraction.grossMinor !== null && extraction.grossMinor > 0) {
       setAmountMode("gross");
       setAmount((extraction.grossMinor / 100).toFixed(2));
@@ -793,6 +824,7 @@ export function TransactionForm({
     const messages = [t("aiFilledFromFile").replace("{name}", name)];
     if (
       !foreignAmounts &&
+      !exactVat &&
       extraction.netMinor !== null &&
       extraction.vatMinor !== null &&
       extraction.vatRateBps !== null &&
@@ -838,11 +870,16 @@ export function TransactionForm({
         amountMode,
         parseSek(amount || 0),
         vatRateBps,
+        amountMode === "netVat" ? parseSek(vatAmount || 0) : null,
       );
     } catch {
       return { netMinor: 0, vatMinor: 0, grossMinor: 0 };
     }
-  }, [amount, amountMode, vatRateBps]);
+  }, [amount, amountMode, vatAmount, vatRateBps]);
+  const expectedVatMinor = calculateVatMinor(
+    amountSummary.netMinor,
+    vatRateBps,
+  );
   const availableCategories = categories
     .filter(
       (item) =>
@@ -887,6 +924,7 @@ export function TransactionForm({
       date,
       amountMode,
       amountMinor: parseSek(amount),
+      vatMinor: amountMode === "netVat" ? parseSek(vatAmount) : null,
       vatRateBps,
       funding:
         direction === "expense" ? (hasConsultant ? funding : "company") : null,
@@ -898,6 +936,19 @@ export function TransactionForm({
       internalNote: form.get("internalNote"),
       ...(receipt && !transaction ? { receiptId: receipt.id } : {}),
     };
+    post(payload, true);
+  }
+
+  /** Asks about VAT and month mismatches in turn, then posts. */
+  function post(payload: Record<string, unknown>, checkVat: boolean) {
+    if (
+      checkVat &&
+      amountMode === "netVat" &&
+      amountSummary.vatMinor !== expectedVatMinor
+    ) {
+      setPendingVatMismatch(payload);
+      return;
+    }
     const mismatch = transaction
       ? null
       : transactionMonthMismatch(returnHref, date);
@@ -1038,17 +1089,21 @@ export function TransactionForm({
             className="field"
             value={amountMode}
             onChange={(event) => {
-              const nextMode = event.target.value as "net" | "gross";
+              const nextMode = event.target.value as TransactionAmountMode;
               const nextAmount =
                 nextMode === "gross"
                   ? amountSummary.grossMinor
                   : amountSummary.netMinor;
               setAmountMode(nextMode);
-              if (amount) setAmount((nextAmount / 100).toFixed(2));
+              if (amount) {
+                setAmount((nextAmount / 100).toFixed(2));
+                setVatAmount((amountSummary.vatMinor / 100).toFixed(2));
+              }
             }}
           >
             <option value="gross">{t("enterTotalIncludingVat")}</option>
             <option value="net">{t("enterNetAmount")}</option>
+            <option value="netVat">{t("enterNetAndVat")}</option>
           </select>
         </label>
         <label>
@@ -1063,6 +1118,20 @@ export function TransactionForm({
             required
           />
         </label>
+        {amountMode === "netVat" && (
+          <label>
+            {t("vatAmountSek")}
+            <input
+              className="field"
+              type="number"
+              min="0"
+              step="0.01"
+              value={vatAmount}
+              onChange={(event) => setVatAmount(event.target.value)}
+              required
+            />
+          </label>
+        )}
         <label>
           {t("vatPercent")}
           <input
@@ -1191,6 +1260,65 @@ export function TransactionForm({
           </button>
         </div>
         {error && <p className="form-wide notice notice-error">{error}</p>}
+        {pendingVatMismatch && (
+          <div className="modal-backdrop" role="presentation">
+            <section
+              className="modal modal-small"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="transaction-vat-warning-title"
+              aria-describedby="transaction-vat-warning-description"
+            >
+              <header className="modal-header">
+                <div>
+                  <h2 id="transaction-vat-warning-title">
+                    {t("vatMismatchTitle")}
+                  </h2>
+                  <p id="transaction-vat-warning-description">
+                    {t("vatMismatchWarning")
+                      .replace(
+                        "{net}",
+                        formatSek(amountSummary.netMinor, locale),
+                      )
+                      .replace(
+                        "{rate}",
+                        (vatRateBps / 100).toLocaleString(locale),
+                      )
+                      .replace(
+                        "{expected}",
+                        formatSek(expectedVatMinor, locale),
+                      )
+                      .replace(
+                        "{vat}",
+                        formatSek(amountSummary.vatMinor, locale),
+                      )}
+                  </p>
+                </div>
+              </header>
+              <footer className="modal-actions">
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => setPendingVatMismatch(null)}
+                >
+                  {t("backAndCheck")}
+                </button>
+                <button
+                  className="button"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    const payload = pendingVatMismatch;
+                    setPendingVatMismatch(null);
+                    post(payload, false);
+                  }}
+                >
+                  {t("continuePosting")}
+                </button>
+              </footer>
+            </section>
+          </div>
+        )}
         {pendingMonthMismatch && (
           <div className="modal-backdrop" role="presentation">
             <section

@@ -10,11 +10,26 @@ export function calculateVatMinor(netMinor: number, vatRateBps: number) {
   return Math.round((netMinor * vatRateBps) / 10_000);
 }
 
+export type TransactionAmountMode = "net" | "gross" | "netVat";
+
+/**
+ * Net, VAT and total from the entry mode. `netVat` keeps the VAT amount as
+ * entered (for example from a receipt) instead of deriving it from the rate.
+ */
 export function calculateTransactionAmounts(
-  amountMode: "net" | "gross",
+  amountMode: TransactionAmountMode,
   amountMinor: number,
   vatRateBps: number,
+  enteredVatMinor: number | null = null,
 ) {
+  if (amountMode === "netVat") {
+    if (enteredVatMinor === null) throw new Error("vatAmountRequired");
+    return {
+      netMinor: amountMinor,
+      vatMinor: enteredVatMinor,
+      grossMinor: amountMinor + enteredVatMinor,
+    };
+  }
   if (amountMode === "gross") {
     const netMinor = Math.round((amountMinor * 10_000) / (10_000 + vatRateBps));
     return {

@@ -318,6 +318,38 @@ describe("finance calculations", () => {
     });
   });
 
+  it("keeps an entered VAT amount that differs from the rate", () => {
+    expect(calculateTransactionAmounts("netVat", 104_50, 1_000, 10_60)).toEqual(
+      {
+        netMinor: 104_50,
+        vatMinor: 10_60,
+        grossMinor: 115_10,
+      },
+    );
+    expect(() =>
+      calculateTransactionAmounts("netVat", 104_50, 1_000),
+    ).toThrow();
+    const transaction = {
+      action: "createTransaction",
+      direction: "expense",
+      categoryId: "office",
+      consultantId: null,
+      date: "2026-10-01",
+      amountMode: "netVat",
+      amountMinor: 104_50,
+      vatMinor: 10_60,
+      vatRateBps: 1_000,
+      funding: "company",
+    };
+    const parsed = financeActionSchema.safeParse(transaction);
+    expect(
+      parsed.success && "vatMinor" in parsed.data && parsed.data.vatMinor,
+    ).toBe(10_60);
+    expect(
+      financeActionSchema.safeParse({ ...transaction, vatMinor: -1 }).success,
+    ).toBe(false);
+  });
+
   it("splits flexible invoice income while keeping fixed invoice income in the company", () => {
     expect(allocateInvoiceIncome(100_000, "flexible", 9_000)).toEqual({
       consultantMinor: 90_000,

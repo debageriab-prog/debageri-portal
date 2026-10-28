@@ -88,8 +88,10 @@ const transactionFields = {
   categoryId: z.string().min(1).max(128),
   consultantId: z.string().min(1).max(128).nullable(),
   date,
-  amountMode: z.enum(["net", "gross"]),
+  amountMode: z.enum(["net", "gross", "netVat"]),
   amountMinor: minor,
+  /** The entered VAT amount; required when `amountMode` is `netVat`. */
+  vatMinor: minor.nullable().default(null),
   vatRateBps,
   funding: z.enum(["company", "consultant"]).nullable(),
   applyConsultantShare: z.boolean().default(false),
