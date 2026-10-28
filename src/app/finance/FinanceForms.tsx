@@ -51,6 +51,10 @@ const AI_ERROR_CODES = [
 
 type Translate = ReturnType<typeof useLocale>["t"];
 
+/**
+ * A success notice's first message is the success itself; any further
+ * messages are follow-ups shown in a separate warning banner.
+ */
 type AiNotice = {
   tone: "success" | "warning" | "error";
   messages: string[];
@@ -127,6 +131,9 @@ function AiNotices({
   notice: AiNotice | null;
   currencyWarning: string[] | null;
 }) {
+  const success = notice?.tone === "success";
+  const main = success ? notice.messages.slice(0, 1) : (notice?.messages ?? []);
+  const followUps = success ? notice.messages.slice(1) : [];
   return (
     <>
       {notice && (
@@ -134,13 +141,22 @@ function AiNotices({
           className={`form-wide notice notice-${notice.tone} notice-with-icon ai-notice`}
           role={notice.tone === "error" ? "alert" : "status"}
         >
-          {notice.tone === "success" ? (
-            <SuccessCheckIcon />
-          ) : (
-            <WarningTriangleIcon />
-          )}
+          {success ? <SuccessCheckIcon /> : <WarningTriangleIcon />}
           <div>
-            {notice.messages.map((message) => (
+            {main.map((message) => (
+              <span key={message}>{message}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {followUps.length > 0 && (
+        <div
+          className="form-wide notice notice-warning notice-with-icon ai-notice"
+          role="status"
+        >
+          <WarningTriangleIcon />
+          <div>
+            {followUps.map((message) => (
               <span key={message}>{message}</span>
             ))}
           </div>
@@ -646,7 +662,7 @@ export function InvoiceForm({
       );
     if (!customerFound && !customerId) messages.push(t("aiChooseRemaining"));
     setAiNotice({
-      tone: messages.length > 1 ? "warning" : "success",
+      tone: "success",
       messages,
     });
   }
@@ -1266,7 +1282,7 @@ export function TransactionForm({
     )
       messages.push(t("aiChooseRemaining"));
     setAiNotice({
-      tone: messages.length > 1 ? "warning" : "success",
+      tone: "success",
       messages,
     });
   }
