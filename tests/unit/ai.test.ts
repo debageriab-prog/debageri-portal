@@ -7,6 +7,7 @@ import {
   aiFeatureEnabled,
   aiSettingsFrom,
   DEFAULT_AI_MODEL,
+  convertExtractionToSek,
   normalizeFinanceExtraction,
   type RawFinanceExtraction,
 } from "@/domain/ai";
@@ -120,6 +121,7 @@ describe("normalizeFinanceExtraction", () => {
       counterpartyName: "Kontorsbolaget AB",
       description: "Printer paper",
       categoryId: "office",
+      conversion: null,
     });
   });
 
@@ -173,9 +175,40 @@ describe("normalizeFinanceExtraction", () => {
       ),
     ).toMatchObject({
       date: null,
-      currency: null,
+      currency: "SEK",
       netMinor: null,
       categoryId: null,
+    });
+  });
+
+  it("treats a missing currency as SEK", () => {
+    expect(normalizeFinanceExtraction(empty, []).currency).toBe("SEK");
+  });
+});
+
+describe("convertExtractionToSek", () => {
+  it("converts net and total and keeps VAT their difference", () => {
+    const euro = normalizeFinanceExtraction(
+      { ...empty, currency: "EUR", netAmount: 89.6, totalAmount: 112 },
+      [],
+    );
+    const rate = {
+      rate: 11.0795,
+      date: "2026-10-27",
+      source: "riksbank",
+    } as const;
+    expect(convertExtractionToSek(euro, rate)).toMatchObject({
+      currency: "SEK",
+      netMinor: 99_272,
+      grossMinor: 124_090,
+      vatMinor: 24_818,
+      vatRateBps: 2500,
+      conversion: {
+        currency: "EUR",
+        grossMinor: 11_200,
+        netMinor: 8_960,
+        rate,
+      },
     });
   });
 });

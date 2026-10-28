@@ -7,7 +7,9 @@ import {
   FileAiIcon,
   FileDownloadIcon,
   FileRemoveIcon,
+  FileViewIcon,
 } from "@/components/ui/FileActionIcons";
+import { DocumentPreview } from "@/components/ui/DocumentPreview";
 import type { FinanceExtraction } from "@/domain/ai";
 
 export type FinanceEntityType = "transaction" | "vatSettlement" | "invoice";
@@ -114,6 +116,91 @@ export async function saveFinanceAttachmentChanges(
   return uploadFinanceAttachments(entityType, entityId, files);
 }
 
+type PreviewTarget = {
+  name: string;
+  contentType: string;
+  fileUrl?: string;
+  blob?: Blob;
+};
+
+function canPreview(contentType: string) {
+  return contentType === "application/pdf" || contentType.startsWith("image/");
+}
+
+function attachmentUrl(
+  entityType: FinanceEntityType,
+  entityId: string,
+  attachmentId: string,
+) {
+  return `/api/finance/attachments/${entityType}/${encodeURIComponent(entityId)}/${encodeURIComponent(attachmentId)}`;
+}
+
+function PreviewButton({ name, onClick }: { name: string; onClick(): void }) {
+  const { t } = useLocale();
+  const label = t("previewAttachment").replace("{name}", name);
+  return (
+    <button
+      className="attachment-view"
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      <FileViewIcon />
+    </button>
+  );
+}
+
+function AttachmentPreviewModal({
+  target,
+  onClose,
+}: {
+  target: PreviewTarget;
+  onClose(): void;
+}) {
+  const { t } = useLocale();
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="modal payslip-modal attachment-preview-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="attachment-preview-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="modal-header">
+          <div>
+            <span className="eyebrow">{t("attachments")}</span>
+            <h2 id="attachment-preview-title">{target.name}</h2>
+          </div>
+          <button
+            className="modal-close"
+            type="button"
+            aria-label={t("close")}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </header>
+        <DocumentPreview
+          fileUrl={target.fileUrl}
+          blob={target.blob}
+          fileName={target.name}
+          contentType={target.contentType}
+          title={target.name}
+        />
+      </section>
+    </div>
+  );
+}
+
 export type AiAttachmentSource =
   | { kind: "file"; file: File }
   | { kind: "stored"; entityId: string; attachmentId: string };
@@ -212,6 +299,7 @@ export function FinanceAttachments({
     null,
   );
   const [confirmation, setConfirmation] = useState("");
+  const [previewing, setPreviewing] = useState<PreviewTarget | null>(null);
 
   useEffect(() => {
     if (!entityId) return;
@@ -255,6 +343,22 @@ export function FinanceAttachments({
                       attachment.id,
                       attachment.name,
                     )
+                  }
+                />
+              )}
+              {canPreview(attachment.contentType) && (
+                <PreviewButton
+                  name={attachment.name}
+                  onClick={() =>
+                    setPreviewing({
+                      name: attachment.name,
+                      contentType: attachment.contentType,
+                      fileUrl: attachmentUrl(
+                        entityType,
+                        entityId!,
+                        attachment.id,
+                      ),
+                    })
                   }
                 />
               )}
@@ -322,6 +426,18 @@ export function FinanceAttachments({
                       }
                     />
                   )}
+                  {canPreview(file.type) && (
+                    <PreviewButton
+                      name={file.name}
+                      onClick={() =>
+                        setPreviewing({
+                          name: file.name,
+                          contentType: file.type,
+                          blob: file,
+                        })
+                      }
+                    />
+                  )}
                   <button
                     className="attachment-remove"
                     type="button"
@@ -345,6 +461,12 @@ export function FinanceAttachments({
         </>
       )}
       {error && <p className="notice notice-error">{error}</p>}
+      {previewing && (
+        <AttachmentPreviewModal
+          target={previewing}
+          onClose={() => setPreviewing(null)}
+        />
+      )}
       {confirmingRemoval && (
         <div className="modal-backdrop" role="presentation">
           <section

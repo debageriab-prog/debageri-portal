@@ -102,10 +102,18 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
   },
 };
 
+export type SekExchangeRate = {
+  /** SEK per one unit of the foreign currency. */
+  rate: number;
+  date: string;
+  source: "riksbank" | "ecb";
+};
+
 export type FinanceExtraction = {
   direction: "income" | "expense" | null;
   date: string | null;
-  currency: string | null;
+  /** Currency of the amounts below; SEK once converted. */
+  currency: string;
   netMinor: number | null;
   vatMinor: number | null;
   grossMinor: number | null;
@@ -113,6 +121,13 @@ export type FinanceExtraction = {
   counterpartyName: string | null;
   description: string | null;
   categoryId: string | null;
+  /** Set when foreign amounts were converted to SEK. */
+  conversion: {
+    currency: string;
+    grossMinor: number | null;
+    netMinor: number | null;
+    rate: SekExchangeRate;
+  } | null;
 };
 
 const SWEDISH_VAT_RATES_BPS = [0, 600, 1200, 2500];
@@ -181,7 +196,7 @@ export function normalizeFinanceExtraction(
         ? raw.direction
         : null,
     date: validDate(raw.date),
-    currency: currency && /^[A-Z]{3}$/.test(currency) ? currency : null,
+    currency: currency && /^[A-Z]{3}$/.test(currency) ? currency : "SEK",
     netMinor,
     vatMinor,
     grossMinor,
@@ -192,5 +207,36 @@ export function normalizeFinanceExtraction(
       raw.categoryId && categoryIds.includes(raw.categoryId)
         ? raw.categoryId
         : null,
+    conversion: null,
+  };
+}
+
+/**
+ * Converts foreign-currency amounts to SEK. Net and total are converted and
+ * VAT is their difference, so the three always add up.
+ */
+export function convertExtractionToSek(
+  extraction: FinanceExtraction,
+  rate: SekExchangeRate,
+): FinanceExtraction {
+  const convert = (minor: number | null) =>
+    minor === null ? null : Math.round(minor * rate.rate);
+  const netMinor = convert(extraction.netMinor);
+  const grossMinor = convert(extraction.grossMinor);
+  return {
+    ...extraction,
+    currency: "SEK",
+    netMinor,
+    grossMinor,
+    vatMinor:
+      netMinor !== null && grossMinor !== null
+        ? grossMinor - netMinor
+        : convert(extraction.vatMinor),
+    conversion: {
+      currency: extraction.currency,
+      grossMinor: extraction.grossMinor,
+      netMinor: extraction.netMinor,
+      rate,
+    },
   };
 }

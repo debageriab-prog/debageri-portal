@@ -893,7 +893,7 @@
   "aiProcessing": "Läser…",
   "aiFilledFromFile": "Ifyllt från {name}. Kontrollera värdena innan du bokför.",
   "aiNothingFound": "Inga transaktionsvärden kunde läsas från {name}.",
-  "aiForeignCurrency": "Dokumentet är i {currency}. Räkna om beloppen till SEK innan du bokför.",
+  "aiForeignCurrency": "Dokumentet är i {currency} och ingen växelkurs hittades, så beloppet lämnades tomt. Ange beloppet i SEK själv.",
   "aiVatDiffers": "Dokumentet anger moms {vat}, vilket skiljer sig något från beräknad moms. Justera vid behov.",
   "aiError_aiDisabled": "AI är inte aktiverat för den här delen.",
   "aiError_aiNotConfigured": "AI är inte färdigkonfigurerat. Be en administratör lägga till en API-nyckel.",
@@ -902,5 +902,17 @@
   "aiError_aiProviderFailed": "AI-leverantören kunde inte nås. Försök igen om en stund.",
   "aiError_aiNoResult": "AI kunde inte läsa den här filen.",
   "aiError_attachmentTooLarge": "Filen är för stor för att läsas.",
-  "aiProviderSaid": "Svar från leverantören: {detail}"
+  "aiProviderSaid": "Svar från leverantören: {detail}",
+  "select": "Välj",
+  "selectTypeError": "Välj en typ.",
+  "selectCategoryError": "Välj en kategori.",
+  "selectConsultantError": "Välj en konsult eller Endast företaget.",
+  "selectFundingError": "Välj vem som betalade.",
+  "aiChooseRemaining": "Fält som fortfarande visar ”Välj” kunde inte läsas från filen. Välj dem själv.",
+  "aiConversionCheck": "Beloppen var i {currency} och har räknats om till SEK. Dubbelkolla dem mot dokumentet innan du bokför.",
+  "aiConvertedCurrency": "Original: {amount} {currency}, kurs {rate} SEK ({source}, {date})",
+  "exchangeRateSource_riksbank": "Riksbanken",
+  "exchangeRateSource_ecb": "ECB",
+  "previewAttachment": "Förhandsgranska {name}",
+  "openInNewTab": "Öppna i ny flik"
 }

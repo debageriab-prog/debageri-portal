@@ -21,6 +21,11 @@ import {
   type AiAttachmentSource,
 } from "./FinanceAttachments";
 
+/** Consultant select value meaning the transaction is the company's own. */
+const COMPANY_ONLY = "company";
+
+type TransactionField = "direction" | "categoryId" | "consultantId" | "funding";
+
 const AI_ERROR_CODES = [
   "aiDisabled",
   "aiNotConfigured",
@@ -110,6 +115,14 @@ function FormPage({
       <section className="card">{children}</section>
     </>
   );
+}
+
+function FieldError({ message }: { message?: string }) {
+  return message ? (
+    <span className="field-error" role="alert">
+      {message}
+    </span>
+  ) : null;
 }
 
 function useFinanceSubmit(successPath: string) {
@@ -593,12 +606,26 @@ export function TransactionForm({
   const receiptConsultant = receipt
     ? users.find((user) => user.id === receipt.userId)
     : undefined;
-  const [direction, setDirection] = useState<"income" | "expense">(
-    transaction?.direction ?? (receipt ? "expense" : "income"),
+  const [direction, setDirection] = useState<"" | "income" | "expense">(
+    transaction?.direction ?? (receipt ? "expense" : ""),
   );
   const [consultantId, setConsultantId] = useState(
-    transaction?.consultantId ?? receiptConsultant?.id ?? "",
+    transaction
+      ? (transaction.consultantId ?? COMPANY_ONLY)
+      : receipt
+        ? (receiptConsultant?.id ?? COMPANY_ONLY)
+        : "",
   );
+  const hasConsultant = consultantId !== "" && consultantId !== COMPANY_ONLY;
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<TransactionField, string>>
+  >({});
+  const clearFieldError = (field: TransactionField) =>
+    setFieldErrors((errors) => {
+      const next = { ...errors };
+      delete next[field];
+      return next;
+    });
   const [amountMode, setAmountMode] = useState<"net" | "gross">(
     receipt && !transaction ? "net" : "gross",
   );
@@ -609,8 +636,8 @@ export function TransactionForm({
         ? (receipt.netMinor / 100).toFixed(2)
         : "",
   );
-  const [funding, setFunding] = useState<"company" | "consultant">(
-    transaction?.funding ?? "company",
+  const [funding, setFunding] = useState<"" | "company" | "consultant">(
+    transaction?.funding ?? "",
   );
   const [vatPercent, setVatPercent] = useState(
     String(
@@ -673,15 +700,19 @@ export function TransactionForm({
       return;
     }
     let filled = 0;
+    const foreignAmounts = extraction.currency !== "SEK";
     if (extraction.direction) {
       setDirection(extraction.direction);
+      clearFieldError("direction");
       filled++;
     }
     if (extraction.date) {
       setDate(extraction.date);
       filled++;
     }
-    if (extraction.grossMinor !== null && extraction.grossMinor > 0) {
+    if (foreignAmounts) {
+      // No exchange rate was found, so leave the SEK amount for the user.
+    } else if (extraction.grossMinor !== null && extraction.grossMinor > 0) {
       setAmountMode("gross");
       setAmount((extraction.grossMinor / 100).toFixed(2));
       filled++;
@@ -696,9 +727,39 @@ export function TransactionForm({
     }
     if (extraction.categoryId) {
       setCategoryId(extraction.categoryId);
+      clearFieldError("categoryId");
       filled++;
     }
-    const summary = [extraction.counterpartyName, extraction.description]
+    const conversion = extraction.conversion;
+    const conversionText = conversion
+      ? t("aiConvertedCurrency")
+          .replace(
+            "{amount}",
+            (
+              (conversion.grossMinor ?? conversion.netMinor ?? 0) / 100
+            ).toLocaleString(locale, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }),
+          )
+          .replace("{currency}", conversion.currency)
+          .replace(
+            "{rate}",
+            conversion.rate.rate.toLocaleString(locale, {
+              maximumFractionDigits: 4,
+            }),
+          )
+          .replace(
+            "{source}",
+            t(`exchangeRateSource_${conversion.rate.source}`),
+          )
+          .replace("{date}", conversion.rate.date)
+      : "";
+    const summary = [
+      extraction.counterpartyName,
+      extraction.description,
+      conversionText,
+    ]
       .filter(Boolean)
       .join(" – ");
     if (summary && !internalNote.trim()) {
@@ -713,11 +774,17 @@ export function TransactionForm({
       return;
     }
     const messages = [t("aiFilledFromFile").replace("{name}", name)];
-    if (extraction.currency && extraction.currency !== "SEK")
+    if (conversion)
+      messages.push(
+        t("aiConversionCheck").replace("{currency}", conversion.currency),
+        conversionText,
+      );
+    if (foreignAmounts)
       messages.push(
         t("aiForeignCurrency").replace("{currency}", extraction.currency),
       );
     if (
+      !foreignAmounts &&
       extraction.netMinor !== null &&
       extraction.vatMinor !== null &&
       extraction.vatRateBps !== null &&
@@ -730,8 +797,10 @@ export function TransactionForm({
           formatSek(extraction.vatMinor, locale),
         ),
       );
+    if (!extraction.direction || !extraction.categoryId)
+      messages.push(t("aiChooseRemaining"));
     setAiNotice({
-      tone: messages.length > 1 ? "warning" : "success",
+      tone: messages.length > 1 || conversion ? "warning" : "success",
       messages,
     });
   }
@@ -786,22 +855,36 @@ export function TransactionForm({
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const errors: Partial<Record<TransactionField, string>> = {};
+    if (!direction) errors.direction = t("selectTypeError");
+    if (!availableCategories.some((item) => item.id === categoryId))
+      errors.categoryId = t("selectCategoryError");
+    if (!consultantId) errors.consultantId = t("selectConsultantError");
+    if (direction === "expense" && hasConsultant && !funding)
+      errors.funding = t("selectFundingError");
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
+      event.currentTarget
+        .querySelector<HTMLElement>("[aria-invalid='true']")
+        ?.focus();
+      return;
+    }
     const form = new FormData(event.currentTarget);
     const payload = {
       action: transaction ? "updateTransaction" : "createTransaction",
       ...(transaction ? { transactionId: transaction.id } : {}),
       direction,
-      categoryId: form.get("categoryId"),
-      consultantId: consultantId || null,
+      categoryId,
+      consultantId: hasConsultant ? consultantId : null,
       date,
       amountMode,
       amountMinor: parseSek(amount),
       vatRateBps,
       funding:
-        direction === "expense" ? (consultantId ? funding : "company") : null,
+        direction === "expense" ? (hasConsultant ? funding : "company") : null,
       applyConsultantShare:
-        Boolean(consultantId) && form.get("applyConsultantShare") === "on",
-      visibleDescription: consultantId
+        hasConsultant && form.get("applyConsultantShare") === "on",
+      visibleDescription: hasConsultant
         ? String(form.get("visibleDescription") ?? "")
         : "",
       internalNote: form.get("internalNote"),
@@ -870,13 +953,17 @@ export function TransactionForm({
             className="field"
             name="direction"
             value={direction}
-            onChange={(event) =>
-              setDirection(event.target.value as typeof direction)
-            }
+            aria-invalid={Boolean(fieldErrors.direction)}
+            onChange={(event) => {
+              setDirection(event.target.value as typeof direction);
+              clearFieldError("direction");
+            }}
           >
+            <option value="">{t("select")}</option>
             <option value="income">{t("income")}</option>
             <option value="expense">{t("expense")}</option>
           </select>
+          <FieldError message={fieldErrors.direction} />
         </label>
         <label>
           {t("category")}
@@ -888,16 +975,20 @@ export function TransactionForm({
                 ? categoryId
                 : ""
             }
-            onChange={(event) => setCategoryId(event.target.value)}
-            required
+            aria-invalid={Boolean(fieldErrors.categoryId)}
+            onChange={(event) => {
+              setCategoryId(event.target.value);
+              clearFieldError("categoryId");
+            }}
           >
-            <option value="">{t("selectCategory")}</option>
+            <option value="">{t("select")}</option>
             {availableCategories.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name[locale === "sv-SE" ? "sv" : "en"]}
               </option>
             ))}
           </select>
+          <FieldError message={fieldErrors.categoryId} />
         </label>
         <label>
           {t("consultant")}
@@ -905,19 +996,22 @@ export function TransactionForm({
             className="field"
             name="consultantId"
             value={consultantId}
+            aria-invalid={Boolean(fieldErrors.consultantId)}
             onChange={(event) => {
-              const nextConsultantId = event.target.value;
-              setConsultantId(nextConsultantId);
-              if (!nextConsultantId) setFunding("company");
+              setConsultantId(event.target.value);
+              clearFieldError("consultantId");
+              clearFieldError("funding");
             }}
           >
-            <option value="">{t("companyOnly")}</option>
+            <option value="">{t("select")}</option>
+            <option value={COMPANY_ONLY}>{t("companyOnly")}</option>
             {users.map((user) => (
               <option key={user.id} value={user.id}>
                 {user.displayName}
               </option>
             ))}
           </select>
+          <FieldError message={fieldErrors.consultantId} />
         </label>
         <label>
           {t("date")}
@@ -980,17 +1074,21 @@ export function TransactionForm({
             <select
               className="field"
               name="funding"
-              value={consultantId ? funding : "company"}
-              onChange={(event) =>
-                setFunding(event.target.value as typeof funding)
-              }
-              disabled={!consultantId}
+              value={hasConsultant ? funding : "company"}
+              aria-invalid={Boolean(fieldErrors.funding)}
+              onChange={(event) => {
+                setFunding(event.target.value as typeof funding);
+                clearFieldError("funding");
+              }}
+              disabled={!hasConsultant}
             >
+              <option value="">{t("select")}</option>
               <option value="company">{t("companyFunded")}</option>
               <option value="consultant">{t("consultantFunded")}</option>
             </select>
+            <FieldError message={fieldErrors.funding} />
           </label>
-        ) : consultantId ? (
+        ) : hasConsultant ? (
           <label className="checkbox">
             <input
               type="checkbox"
@@ -1000,7 +1098,7 @@ export function TransactionForm({
             {t("applyConsultantShare")}
           </label>
         ) : null}
-        {consultantId && (
+        {hasConsultant && (
           <label>
             {t("consultantDescription")}
             <input
@@ -1087,7 +1185,7 @@ export function TransactionForm({
                       )
                       .replace(
                         "{transactionType}",
-                        t(direction).toLocaleLowerCase(locale),
+                        t(direction || "income").toLocaleLowerCase(locale),
                       )
                       .replace(
                         "{transactionMonth}",

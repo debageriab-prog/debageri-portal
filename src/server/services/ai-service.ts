@@ -9,6 +9,7 @@ import type { PortalUser } from "@/domain/types";
 import {
   aiFeatureEnabled,
   aiSettingsFrom,
+  convertExtractionToSek,
   FINANCE_EXTRACTION_JSON_SCHEMA,
   normalizeFinanceExtraction,
   type AiFeature,
@@ -21,6 +22,7 @@ import {
   encryptPassword,
 } from "@/server/services/reminder-service";
 import type { aiSettingsSchema } from "@/server/validators/ai";
+import { sekExchangeRate } from "@/server/services/exchange-rate-service";
 
 export class AiError extends Error {
   constructor(
@@ -145,7 +147,7 @@ function instructions(context: ExtractionContext) {
     "Rules:",
     '- direction: "expense" when the company is the buyer or payer, "income" when the company issued the invoice or receives the money, null if unclear.',
     "- date: the invoice or purchase date (not the due date) as YYYY-MM-DD.",
-    "- currency: ISO 4217 code such as SEK or EUR.",
+    "- currency: ISO 4217 code of the amounts, such as SEK or EUR. Use SEK when the document does not state or clearly imply another currency. Do not convert amounts yourself; report them in the document's currency.",
     "- netAmount, vatAmount, totalAmount: the document's totals in major units (kronor, not öre) as plain numbers. netAmount excludes VAT (moms), totalAmount includes it. If the document has several VAT rates, return the summed totals and the dominant rate in vatRatePercent.",
     "- vatRatePercent: e.g. 25, 12, 6 or 0.",
     "- counterpartyName: the other party (the supplier for expenses, the customer for income).",
@@ -371,8 +373,14 @@ export async function extractFinanceDocument(
   } catch {
     throw new AiError("aiNoResult", 422);
   }
-  return normalizeFinanceExtraction(
+  const extraction = normalizeFinanceExtraction(
     parsed,
     categories.map((category) => category.id),
   );
+  if (extraction.currency === "SEK") return extraction;
+  const rate = await sekExchangeRate(
+    extraction.currency,
+    extraction.date ?? new Date().toISOString().slice(0, 10),
+  );
+  return rate ? convertExtractionToSek(extraction, rate) : extraction;
 }

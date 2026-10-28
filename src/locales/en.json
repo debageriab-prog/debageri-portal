@@ -893,7 +893,7 @@
   "aiProcessing": "Reading…",
   "aiFilledFromFile": "Filled in from {name}. Review the values before posting.",
   "aiNothingFound": "No transaction values could be read from {name}.",
-  "aiForeignCurrency": "The document is in {currency}. Convert the amounts to SEK before posting.",
+  "aiForeignCurrency": "The document is in {currency} and no exchange rate was found, so the amount was left empty. Enter the SEK amount yourself.",
   "aiVatDiffers": "The document states VAT {vat}, which differs slightly from the calculated VAT. Adjust if needed.",
   "aiError_aiDisabled": "AI is not enabled for this section.",
   "aiError_aiNotConfigured": "AI is not fully configured. Ask an administrator to add an API key.",
@@ -902,5 +902,17 @@
   "aiError_aiProviderFailed": "The AI provider could not be reached. Try again shortly.",
   "aiError_aiNoResult": "The AI could not read this file.",
   "aiError_attachmentTooLarge": "The file is too large to process.",
-  "aiProviderSaid": "Provider response: {detail}"
+  "aiProviderSaid": "Provider response: {detail}",
+  "select": "Select",
+  "selectTypeError": "Please select a type.",
+  "selectCategoryError": "Please select a category.",
+  "selectConsultantError": "Please select a consultant, or Company only.",
+  "selectFundingError": "Please select who paid.",
+  "aiChooseRemaining": "Fields still showing “Select” could not be read from the file. Choose them yourself.",
+  "aiConversionCheck": "The amounts were in {currency} and have been converted to SEK. Double-check them against the document before posting.",
+  "aiConvertedCurrency": "Original: {amount} {currency}, rate {rate} SEK ({source}, {date})",
+  "exchangeRateSource_riksbank": "Riksbank",
+  "exchangeRateSource_ecb": "ECB",
+  "previewAttachment": "Preview {name}",
+  "openInNewTab": "Open in new tab"
 }
