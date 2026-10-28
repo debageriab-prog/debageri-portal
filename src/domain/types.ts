@@ -117,6 +117,9 @@ export interface Invoice {
   customerFinanceEmail: string;
   issueDate: string;
   dueDate: string;
+  /** Optional service period; missing on older invoices. */
+  periodFrom?: string | null;
+  periodTo?: string | null;
   paidDate: string | null;
   status: "issued" | "paid" | "void";
   currency: "SEK";

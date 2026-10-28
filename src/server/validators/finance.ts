@@ -71,6 +71,9 @@ export const invoiceSchema = z.object({
   customerId: z.string().min(1).max(128),
   issueDate: date,
   dueDate: date,
+  /** Optional service period the invoice covers; both or neither. */
+  periodFrom: date.nullable().default(null),
+  periodTo: date.nullable().default(null),
   netMinor: minor,
   vatRateBps,
   roundingMinor: rounding,

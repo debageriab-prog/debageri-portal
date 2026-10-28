@@ -145,6 +145,8 @@ const rawExtractionSchema = z.object({
   consultantId: z.string().nullable().default(null),
   invoiceNumber: z.string().nullable().default(null),
   dueDate: z.string().nullable().default(null),
+  periodFrom: z.string().nullable().default(null),
+  periodTo: z.string().nullable().default(null),
   customerId: z.string().nullable().default(null),
 }) satisfies z.ZodType<RawFinanceExtraction>;
 
@@ -171,6 +173,7 @@ function instructions(context: ExtractionContext) {
       : "- categoryId: the id of the best matching category from the list below for the chosen direction, or null if none fits.",
     "- invoiceNumber: the invoice number (fakturanummer) exactly as printed, or null.",
     "- dueDate: the due date (förfallodatum) as YYYY-MM-DD, or null.",
+    '- periodFrom, periodTo: the service period the invoice covers (for example "Period", "Avser", "Avser period", "Tidsperiod") as YYYY-MM-DD. When only a month is stated, such as "januari 2026", use its first and last day. null for both when no period is stated.',
     context.customers.length
       ? "- customerId: the id of the customer from the customer list below that the invoice is addressed to, or null if none matches."
       : "- customerId: always null.",

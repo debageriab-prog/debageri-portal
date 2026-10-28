@@ -14,6 +14,7 @@ import {
   type TransactionAmountMode,
 } from "@/domain/finance/calculations";
 import { InfoTip } from "@/components/ui/InfoTip";
+import { consultantServicesDescription } from "@/domain/finance/invoice-period";
 import type { FinanceExtraction } from "@/domain/ai";
 import { receiptVatRateBps } from "@/domain/receipts";
 import { appCheckFetch } from "@/lib/firebase/client";
@@ -457,6 +458,11 @@ export function InvoiceForm({
   const [consultantId, setConsultantId] = useState("");
   const [issueDate, setIssueDate] = useState(today());
   const [dueDate, setDueDate] = useState(today());
+  const [periodFrom, setPeriodFrom] = useState("");
+  const [periodTo, setPeriodTo] = useState("");
+  // The last description generated from consultant and period; replaced on
+  // change until the user types their own.
+  const [autoDescription, setAutoDescription] = useState("");
   const [netAmount, setNetAmount] = useState("");
   const [vatPercent, setVatPercent] = useState("25");
   const [rounding, setRounding] = useState("");
@@ -487,6 +493,30 @@ export function InvoiceForm({
     ? calculateVatMinor(netMinor, vatRateBps)
     : 0;
 
+  /** Refreshes the generated consultant description after a change. */
+  function updateDescription(next: {
+    consultantId?: string;
+    periodFrom?: string;
+    periodTo?: string;
+    fallback?: string | null;
+  }) {
+    const name =
+      users.find((user) => user.id === (next.consultantId ?? consultantId))
+        ?.displayName ?? "";
+    const generated =
+      consultantServicesDescription(
+        name,
+        (next.periodFrom ?? periodFrom) || null,
+        (next.periodTo ?? periodTo) || null,
+      ) ?? "";
+    const untouched =
+      !visibleDescription.trim() || visibleDescription === autoDescription;
+    if (!untouched) return;
+    const value = generated || next.fallback || visibleDescription;
+    setVisibleDescription(value);
+    setAutoDescription(value);
+  }
+
   async function processWithAi(
     source: AiAttachmentSource,
     key: string,
@@ -516,10 +546,24 @@ export function InvoiceForm({
       setCustomerId(extraction.customerId!);
       filled++;
     }
-    if (users.some((user) => user.id === extraction.consultantId)) {
+    const consultantFound = users.some(
+      (user) => user.id === extraction.consultantId,
+    );
+    if (consultantFound) {
       setConsultantId(extraction.consultantId!);
       filled++;
     }
+    if (extraction.periodFrom && extraction.periodTo) {
+      setPeriodFrom(extraction.periodFrom);
+      setPeriodTo(extraction.periodTo);
+      filled++;
+    }
+    updateDescription({
+      consultantId: consultantFound ? extraction.consultantId! : undefined,
+      periodFrom: extraction.periodFrom ?? undefined,
+      periodTo: extraction.periodTo ?? undefined,
+      fallback: extraction.description,
+    });
     if (extraction.date) {
       setIssueDate(extraction.date);
       filled++;
@@ -544,10 +588,6 @@ export function InvoiceForm({
       );
     if (extraction.vatRateBps !== null) {
       setVatPercent(String(extraction.vatRateBps / 100));
-      filled++;
-    }
-    if (extraction.description && !visibleDescription.trim()) {
-      setVisibleDescription(extraction.description);
       filled++;
     }
     const conversionText = aiConversionText(extraction, t, locale);
@@ -593,6 +633,8 @@ export function InvoiceForm({
         customerId,
         issueDate,
         dueDate,
+        periodFrom: periodFrom || null,
+        periodTo: periodTo || null,
         netMinor: parseSek(netAmount),
         vatRateBps,
         roundingMinor,
@@ -655,7 +697,10 @@ export function InvoiceForm({
               className="field"
               name="consultantId"
               value={consultantId}
-              onChange={(event) => setConsultantId(event.target.value)}
+              onChange={(event) => {
+                setConsultantId(event.target.value);
+                updateDescription({ consultantId: event.target.value });
+              }}
             >
               <option value="">{t("companyOnly")}</option>
               {users.map((user) => (
@@ -664,6 +709,38 @@ export function InvoiceForm({
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            {t("periodFrom")}
+            <InfoTip text={t("periodFromTip")} />
+            <input
+              className="field"
+              type="date"
+              name="periodFrom"
+              value={periodFrom}
+              max={periodTo || undefined}
+              required={Boolean(periodTo)}
+              onChange={(event) => {
+                setPeriodFrom(event.target.value);
+                updateDescription({ periodFrom: event.target.value });
+              }}
+            />
+          </label>
+          <label>
+            {t("periodTo")}
+            <InfoTip text={t("periodToTip")} />
+            <input
+              className="field"
+              type="date"
+              name="periodTo"
+              value={periodTo}
+              min={periodFrom || undefined}
+              required={Boolean(periodFrom)}
+              onChange={(event) => {
+                setPeriodTo(event.target.value);
+                updateDescription({ periodTo: event.target.value });
+              }}
+            />
           </label>
           <label>
             {t("issueDate")}

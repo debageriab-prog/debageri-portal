@@ -79,6 +79,8 @@ export interface FinancePageData {
     vatRateBps: number;
     issueDate: string;
     dueDate: string;
+    periodFrom: string | null;
+    periodTo: string | null;
     paidDate: string | null;
     status: "issued" | "paid" | "void";
     netMinor: number;
@@ -2843,6 +2845,14 @@ export function FinanceDashboard({
                 <dt>{t("consultant")}</dt>
                 <dd>
                   {consultantName(viewingInvoice.consultantId) || "\u2014"}
+                </dd>
+              </div>
+              <div>
+                <dt>{t("invoicePeriod")}</dt>
+                <dd>
+                  {viewingInvoice.periodFrom && viewingInvoice.periodTo
+                    ? `${viewingInvoice.periodFrom} – ${viewingInvoice.periodTo}`
+                    : "\u2014"}
                 </dd>
               </div>
               <div>

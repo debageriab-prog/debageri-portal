@@ -8,6 +8,7 @@ import {
   calculateVatMinor,
   vatPayableMinor,
 } from "@/domain/finance/calculations";
+import { validInvoicePeriod } from "@/domain/finance/invoice-period";
 
 export class FinanceError extends Error {
   constructor(
@@ -422,6 +423,8 @@ export async function createInvoice(
     customerId: string;
     issueDate: string;
     dueDate: string;
+    periodFrom?: string | null;
+    periodTo?: string | null;
     netMinor: number;
     vatRateBps: number;
     /** Öresavrundning, included in the invoice total. */
@@ -435,6 +438,10 @@ export async function createInvoice(
   requireFinanceManager(actor);
   if (input.dueDate < input.issueDate)
     throw new FinanceError("invoiceDateInvalid");
+  const periodFrom = input.periodFrom ?? null;
+  const periodTo = input.periodTo ?? null;
+  if (!validInvoicePeriod(periodFrom, periodTo))
+    throw new FinanceError("invoicePeriodInvalid");
   const duplicate = await db
     .collection("invoices")
     .where("organizationId", "==", actor.organizationId)
@@ -482,6 +489,8 @@ export async function createInvoice(
     customerContactPerson: customerData.contactPerson,
     customerFinanceEmail: customerData.financeEmail,
     currency: "SEK",
+    periodFrom,
+    periodTo,
     vatMinor,
     roundingMinor,
     grossMinor: input.netMinor + vatMinor + roundingMinor,

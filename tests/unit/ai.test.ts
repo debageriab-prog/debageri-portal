@@ -14,6 +14,10 @@ import {
   type RawFinanceExtraction,
 } from "@/domain/ai";
 import { aiSettingsSchema } from "@/server/validators/ai";
+import {
+  consultantServicesDescription,
+  validInvoicePeriod,
+} from "@/domain/finance/invoice-period";
 
 const empty: RawFinanceExtraction = {
   documentType: "receipt",
@@ -31,6 +35,8 @@ const empty: RawFinanceExtraction = {
   consultantId: null,
   invoiceNumber: null,
   dueDate: null,
+  periodFrom: null,
+  periodTo: null,
   customerId: null,
 };
 
@@ -140,6 +146,8 @@ describe("normalizeFinanceExtraction", () => {
       funding: null,
       invoiceNumber: null,
       dueDate: null,
+      periodFrom: null,
+      periodTo: null,
       customerId: null,
       conversion: null,
     });
@@ -364,5 +372,48 @@ describe("invoice fields in AI output", () => {
       transaction: "financeAttachments",
       invoice: "financeInvoices",
     });
+  });
+});
+
+describe("invoice period", () => {
+  it("keeps a valid period from AI output and drops a reversed one", () => {
+    expect(
+      normalizeFinanceExtraction(
+        { ...empty, periodFrom: "2026-01-01", periodTo: "2026-01-31" },
+        [],
+      ),
+    ).toMatchObject({ periodFrom: "2026-01-01", periodTo: "2026-01-31" });
+    expect(
+      normalizeFinanceExtraction(
+        { ...empty, periodFrom: "2026-02-01", periodTo: "2026-01-31" },
+        [],
+      ),
+    ).toMatchObject({ periodFrom: null, periodTo: null });
+    expect(
+      normalizeFinanceExtraction({ ...empty, periodFrom: "2026-01-01" }, []),
+    ).toMatchObject({ periodFrom: null, periodTo: null });
+  });
+
+  it("accepts both dates or neither", () => {
+    expect(validInvoicePeriod(null, null)).toBe(true);
+    expect(validInvoicePeriod("2026-01-01", "2026-01-31")).toBe(true);
+    expect(validInvoicePeriod("2026-01-01", null)).toBe(false);
+    expect(validInvoicePeriod("2026-02-01", "2026-01-31")).toBe(false);
+  });
+
+  it("names the months in the consultant description", () => {
+    expect(
+      consultantServicesDescription("Anna Berg", "2026-01-01", "2026-01-31"),
+    ).toBe("Consultant services - Anna Berg - Jan-2026");
+    expect(
+      consultantServicesDescription("Anna Berg", "2026-01-15", "2026-02-14"),
+    ).toBe("Consultant services - Anna Berg - Jan-Feb-2026");
+    expect(
+      consultantServicesDescription("Anna Berg", "2025-12-01", "2026-01-31"),
+    ).toBe("Consultant services - Anna Berg - Dec-2025-Jan-2026");
+    expect(consultantServicesDescription("Anna Berg", null, null)).toBeNull();
+    expect(
+      consultantServicesDescription("", "2026-01-01", "2026-01-31"),
+    ).toBeNull();
   });
 });

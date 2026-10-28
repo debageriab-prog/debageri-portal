@@ -151,6 +151,8 @@ export default async function FinancePage({
         vatRateBps: Number(data.vatRateBps ?? 0),
         issueDate: String(data.issueDate),
         dueDate: String(data.dueDate),
+        periodFrom: data.periodFrom ?? null,
+        periodTo: data.periodTo ?? null,
         paidDate: data.paidDate ?? null,
         status: data.status as "issued" | "paid" | "void",
         netMinor: Number(data.netMinor),

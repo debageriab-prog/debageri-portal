@@ -1,5 +1,6 @@
 import { receiptVatRateBps } from "@/domain/receipts";
 import { MAX_ROUNDING_MINOR } from "@/domain/finance/calculations";
+import { validInvoicePeriod } from "@/domain/finance/invoice-period";
 
 export type AiProvider = "anthropic" | "openai";
 export const AI_PROVIDERS: AiProvider[] = ["anthropic", "openai"];
@@ -79,6 +80,8 @@ export type RawFinanceExtraction = {
   consultantId: string | null;
   invoiceNumber: string | null;
   dueDate: string | null;
+  periodFrom: string | null;
+  periodTo: string | null;
   customerId: string | null;
 };
 
@@ -106,6 +109,8 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     "consultantId",
     "invoiceNumber",
     "dueDate",
+    "periodFrom",
+    "periodTo",
     "customerId",
   ],
   properties: {
@@ -124,6 +129,8 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     consultantId: nullable({ type: "string" }),
     invoiceNumber: nullable({ type: "string" }),
     dueDate: nullable({ type: "string" }),
+    periodFrom: nullable({ type: "string" }),
+    periodTo: nullable({ type: "string" }),
     customerId: nullable({ type: "string" }),
   },
 };
@@ -156,6 +163,9 @@ export type FinanceExtraction = {
   invoiceNumber: string | null;
   /** Never before `date`. */
   dueDate: string | null;
+  /** Service period the invoice covers; both set or both null. */
+  periodFrom: string | null;
+  periodTo: string | null;
   customerId: string | null;
   /** Set when foreign amounts were converted to SEK. */
   conversion: {
@@ -240,6 +250,10 @@ export function normalizeFinanceExtraction(
   const currency = text(raw.currency, 10)?.toUpperCase() ?? null;
   const date = validDate(raw.date);
   const dueDate = validDate(raw.dueDate);
+  const periodFrom = validDate(raw.periodFrom);
+  const periodTo = validDate(raw.periodTo);
+  const period =
+    periodFrom && periodTo && validInvoicePeriod(periodFrom, periodTo);
   return {
     direction:
       raw.direction === "income" || raw.direction === "expense"
@@ -265,6 +279,8 @@ export function normalizeFinanceExtraction(
     funding: null,
     invoiceNumber: text(raw.invoiceNumber, 60),
     dueDate: dueDate && (!date || dueDate >= date) ? dueDate : null,
+    periodFrom: period ? periodFrom : null,
+    periodTo: period ? periodTo : null,
     customerId:
       raw.customerId && customerIds.includes(raw.customerId)
         ? raw.customerId
