@@ -17,6 +17,7 @@ import {
   buildAccountingEmail,
   customEmailTemplate,
   type AccountingEmailKind,
+  type NotificationLocale,
 } from "@/domain/notifications";
 import type { getAdminServices } from "@/lib/firebase/admin";
 import { translate, type MessageKey } from "@/lib/localization/messages";
@@ -235,6 +236,51 @@ async function entityDetails(
   };
 }
 
+type EmailContent = {
+  kind: AccountingEmailKind;
+  values: Record<string, string>;
+  custom: ReturnType<typeof customEmailTemplate>;
+};
+
+/** The record's details and file list in one language. */
+function emailContent(
+  details: Details,
+  locale: NotificationLocale,
+  attached: string[],
+  skipped: string[],
+  storedTemplates: unknown,
+): EmailContent {
+  const t = (key: string) => translate(locale, key as MessageKey) ?? key;
+  const width = Math.max(...details.rows.map(([label]) => label.length));
+  const files = [
+    attached.length
+      ? t("accountingEmailFiles").replace("{files}", attached.join(", "))
+      : t("accountingEmailNoFiles"),
+    ...(skipped.length
+      ? [
+          t("accountingEmailSkippedFiles").replace(
+            "{files}",
+            skipped.join(", "),
+          ),
+        ]
+      : []),
+  ].join("\n");
+  return {
+    kind: details.kind,
+    values: {
+      ...details.values,
+      details: details.rows
+        .map(
+          ([label, value]) =>
+            `${`${label}:`.padEnd(width + 2)}${value.replace(/[\r\n]+/g, " ")}`,
+        )
+        .join("\n"),
+      files,
+    },
+    custom: customEmailTemplate(storedTemplates, details.kind, locale),
+  };
+}
+
 const COLLECTIONS: Record<AccountingEntityType, string> = {
   transaction: "financialTransactions",
   invoice: "invoices",
@@ -277,16 +323,7 @@ export async function sendAccountingEmail(
   if (!recipients.length) throw new AccountingEmailError("noRecipients", 409);
   if (!smtp) throw new AccountingEmailError("emailNotConfigured", 409);
 
-  const locale = actor.locale;
-  const t = (key: string) => translate(locale, key as MessageKey) ?? key;
   const organizationName = String(organization.data()?.name ?? "Debageri");
-  const details = await entityDetails(
-    db,
-    actor.organizationId,
-    entityType,
-    data,
-    locale,
-  );
 
   const attachments: Array<{
     filename: string;
@@ -314,47 +351,32 @@ export async function sendAccountingEmail(
     });
   }
 
-  const width = Math.max(...details.rows.map(([label]) => label.length));
-  const files = [
-    attachments.length
-      ? t("accountingEmailFiles").replace(
-          "{files}",
-          attachments.map((file) => file.filename).join(", "),
-        )
-      : t("accountingEmailNoFiles"),
-    ...(skipped.length
-      ? [
-          t("accountingEmailSkippedFiles").replace(
-            "{files}",
-            skipped.join(", "),
-          ),
-        ]
-      : []),
-  ].join("\n");
-  const custom = customEmailTemplate(
-    templates.data()?.notifications,
-    details.kind,
-    locale,
-  );
-  const email = (recipient: AccountingContact) =>
-    buildAccountingEmail(
-      details.kind,
+  // Each contact gets the email in their own language.
+  const byLocale = new Map<NotificationLocale, EmailContent>();
+  for (const locale of new Set(recipients.map((item) => item.locale)))
+    byLocale.set(
       locale,
+      emailContent(
+        await entityDetails(db, actor.organizationId, entityType, data, locale),
+        locale,
+        attachments.map((file) => file.filename),
+        skipped,
+        templates.data()?.notifications,
+      ),
+    );
+  const email = (recipient: AccountingContact) => {
+    const content = byLocale.get(recipient.locale)!;
+    return buildAccountingEmail(
+      content.kind,
+      recipient.locale,
       {
-        ...details.values,
+        ...content.values,
         recipientName: recipient.name,
         organizationName,
-        senderName: actor.displayName || actor.email,
-        details: details.rows
-          .map(
-            ([label, value]) =>
-              `${`${label}:`.padEnd(width + 2)}${value.replace(/[\r\n]+/g, " ")}`,
-          )
-          .join("\n"),
-        files,
       },
-      custom,
+      content.custom,
     );
+  };
 
   const transporter = nodemailer.createTransport({
     host: String(smtp.smtpHost),

@@ -22,5 +22,5 @@ Admins can list accounting email addresses under Administration → Organization
 → Accounting. After an income or expense, invoice or VAT payment is saved, the
 person saving it is asked whether to email it; only on yes are the record's
 details, including the internal note, and its attachments sent to the chosen
-addresses with the organization's SMTP settings. Each send is recorded in the
-audit log.
+addresses with the organization's SMTP settings, in each address's chosen
+language (English or Swedish). Each send is recorded in the audit log.

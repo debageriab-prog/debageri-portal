@@ -57,7 +57,6 @@ export function PlaceholderTable({
               <tr key={name}>
                 <td>
                   <span className="placeholder-name">
-                    <code>{`{{${name}}}`}</code>
                     <button
                       type="button"
                       className="table-action icon-action"
@@ -67,6 +66,7 @@ export function PlaceholderTable({
                     >
                       <ActionIcon type={copied === name ? "copied" : "copy"} />
                     </button>
+                    <code>{`{{${name}}}`}</code>
                   </span>
                 </td>
                 <td>{t(key)}</td>

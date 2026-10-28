@@ -154,7 +154,6 @@ describe("editable email templates", () => {
     const email = buildAccountingEmail("accountingInvoice", "en-SE", {
       recipientName: "Byrån",
       organizationName: "Debageri AB",
-      senderName: "Shahab",
       invoiceNumber: "SB-1",
       customer: "Ework\nGroup AB",
       details: "Invoice number:  SB-1\nCustomer:        Ework Group AB",

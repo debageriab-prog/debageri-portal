@@ -1,3 +1,8 @@
+import {
+  notificationLocale,
+  type NotificationLocale,
+} from "@/domain/notifications";
+
 /** What an accounting contact can receive by email. */
 export type AccountingEmailPurpose =
   "transactions" | "invoices" | "vatSettlements";
@@ -22,6 +27,8 @@ export type AccountingContact = {
   id: string;
   name: string;
   email: string;
+  /** Language of the emails this contact receives. */
+  locale: NotificationLocale;
 } & Record<AccountingEmailPurpose, boolean>;
 
 /** Contacts as stored; anything malformed is dropped. */
@@ -41,6 +48,7 @@ export function accountingContactsFrom(value: unknown): AccountingContact[] {
         id: data.id,
         name: data.name,
         email: data.email,
+        locale: notificationLocale(data.locale),
         transactions: data.transactions === true,
         invoices: data.invoices === true,
         vatSettlements: data.vatSettlements === true,

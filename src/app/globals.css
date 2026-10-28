@@ -1773,7 +1773,7 @@ label:has(> .info-tip) {
 
 .accounting-contact-fields {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 9rem) auto;
   gap: 12px;
   align-items: end;
 }

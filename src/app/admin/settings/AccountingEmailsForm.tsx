@@ -9,13 +9,18 @@ import {
   ACCOUNTING_EMAIL_PURPOSES,
   type AccountingContact,
 } from "@/domain/accounting-email";
+import {
+  NOTIFICATION_LOCALES,
+  type NotificationLocale,
+} from "@/domain/notifications";
 import { appCheckFetch } from "@/lib/firebase/client";
 
-function newContact(): AccountingContact {
+function newContact(locale: NotificationLocale): AccountingContact {
   return {
     id: crypto.randomUUID(),
     name: "",
     email: "",
+    locale,
     transactions: true,
     invoices: true,
     vatSettlements: true,
@@ -30,7 +35,7 @@ export function AccountingEmailsForm({
   contacts: AccountingContact[];
   emailConfigured: boolean;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [contacts, setContacts] = useState(initialContacts);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -129,6 +134,25 @@ export function AccountingEmailsForm({
                 required
               />
             </label>
+            <label>
+              {t("language")}
+              <InfoTip text={t("accountingContactLanguageTip")} />
+              <select
+                className="field"
+                value={contact.locale}
+                onChange={(event) =>
+                  update(contact.id, {
+                    locale: event.target.value as NotificationLocale,
+                  })
+                }
+              >
+                {NOTIFICATION_LOCALES.map((item) => (
+                  <option key={item} value={item}>
+                    {item === "sv-SE" ? "Svenska" : "English"}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               className="table-action table-action-danger icon-action accounting-contact-remove"
               type="button"
@@ -174,7 +198,10 @@ export function AccountingEmailsForm({
           disabled={contacts.length >= 20}
           onClick={() => {
             setMessage("");
-            setContacts((current) => [...current, newContact()]);
+            setContacts((current) => [
+              ...current,
+              newContact(locale === "sv-SE" ? "sv-SE" : "en-SE"),
+            ]);
           }}
         >
           {t("addAccountingEmail")}

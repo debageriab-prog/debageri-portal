@@ -13,6 +13,7 @@ const contact = {
   id: "c1",
   name: "Redovisningsbyrån",
   email: "ekonomi@byran.se",
+  locale: "sv-SE" as const,
   transactions: true,
   invoices: false,
   vatSettlements: true,
@@ -29,6 +30,12 @@ describe("accounting contacts", () => {
       ]),
     ).toEqual([contact]);
     expect(accountingContactsFrom(undefined)).toEqual([]);
+  });
+
+  it("emails contacts saved without a language in English", () => {
+    expect(
+      accountingContactsFrom([{ ...contact, locale: undefined }])[0]?.locale,
+    ).toBe("en-SE");
   });
 
   it("picks recipients by purpose", () => {
@@ -64,6 +71,11 @@ describe("accounting email validation", () => {
     expect(
       accountingContactsSchema.safeParse({
         contacts: [{ ...contact, name: " " }],
+      }).success,
+    ).toBe(false);
+    expect(
+      accountingContactsSchema.safeParse({
+        contacts: [{ ...contact, locale: "de-DE" }],
       }).success,
     ).toBe(false);
   });

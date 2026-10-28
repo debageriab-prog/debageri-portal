@@ -166,8 +166,8 @@ function emailBody(locale: NotificationLocale, ...paragraphs: string[]) {
 
 /** Accounting contacts cannot open the portal, so there is no link. */
 const accountingSignOff: Record<NotificationLocale, string> = {
-  "en-SE": "Best regards,\n{{senderName}}\n{{organizationName}}",
-  "sv-SE": "Vänliga hälsningar,\n{{senderName}}\n{{organizationName}}",
+  "en-SE": "Best regards,\n{{organizationName}}",
+  "sv-SE": "Vänliga hälsningar,\n{{organizationName}}",
 };
 
 function accountingBody(locale: NotificationLocale, intro: string) {
@@ -327,7 +327,6 @@ const commentPlaceholders = ["comment", "commentLine"];
 const accountingPlaceholders = [
   "recipientName",
   "organizationName",
-  "senderName",
   "details",
   "files",
 ];
