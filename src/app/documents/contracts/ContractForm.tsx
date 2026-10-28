@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
@@ -99,10 +100,9 @@ export function ContractForm({
         </label>
         <label>
           {t("documentDate")}
-          <input
+          <DateInput
             className="field"
             name="documentDate"
-            type="date"
             defaultValue={
               contract?.documentDate ?? new Date().toISOString().slice(0, 10)
             }
@@ -111,10 +111,9 @@ export function ContractForm({
         </label>
         <label>
           {t("validTo")}
-          <input
+          <DateInput
             className="field"
             name="validTo"
-            type="date"
             defaultValue={contract?.validTo ?? ""}
           />
           <small>{t("contractValidToHelp")}</small>

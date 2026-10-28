@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -370,9 +371,8 @@ export function ExpenseCopyForm({
                 {rows.map((row) => (
                   <tr key={row.id}>
                     <td>
-                      <input
+                      <DateInput
                         className="field"
-                        type="date"
                         value={row.date}
                         onChange={(event) =>
                           updateRow(row.id, "date", event.target.value)

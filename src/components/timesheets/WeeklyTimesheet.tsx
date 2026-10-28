@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
@@ -589,9 +590,8 @@ export function WeeklyTimesheet() {
             <div className="selection-panel">
               <label>
                 Choose any date in the week
-                <input
+                <DateInput
                   className="field"
-                  type="date"
                   onChange={(event) => selectCalendarDate(event.target.value)}
                 />
               </label>

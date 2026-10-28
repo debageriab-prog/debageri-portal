@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
@@ -102,10 +103,9 @@ export function ReceiptForm({ today }: { today: string }) {
         </label>
         <label>
           {t("receiptDate")}
-          <input
+          <DateInput
             className="field"
             name="date"
-            type="date"
             defaultValue={today}
             max={today}
             required

@@ -161,7 +161,7 @@ function instructions(context: ExtractionContext) {
       : `You read bookkeeping documents (receipts, supplier invoices, customer invoices, order confirmations) for the Swedish company "${context.organizationName}" and extract the values needed to post one ledger transaction.`,
     "Rules:",
     '- direction: "expense" when the company is the buyer or payer, "income" when the company issued the invoice or receives the money, null if unclear.',
-    "- date: the invoice or purchase date (not the due date) as YYYY-MM-DD.",
+    "- date: the invoice or purchase date (not the due date) as YYYY-MM-DD, whatever format the document prints dates in.",
     "- currency: ISO 4217 code of the amounts, such as SEK or EUR. Use SEK when the document does not state or clearly imply another currency. Do not convert amounts yourself; report them in the document's currency.",
     "- netAmount, vatAmount, totalAmount: the document's totals in major units (kronor, not öre) as plain numbers. netAmount excludes VAT (moms), totalAmount is the final amount to pay including VAT and any rounding. If the document has several VAT rates, return the summed totals and the dominant rate in vatRatePercent.",
     '- roundingAmount: a separate rounding line such as "Öresavrundning", "Avrundning" or "Rounding", signed as printed (for example -0.25 or 0.40), in major units. Do not fold it into netAmount or vatAmount. null when the document has no rounding line.',
@@ -172,7 +172,7 @@ function instructions(context: ExtractionContext) {
       ? "- categoryId: always null."
       : "- categoryId: the id of the best matching category from the list below for the chosen direction, or null if none fits.",
     "- invoiceNumber: the invoice number (fakturanummer) exactly as printed, or null.",
-    "- dueDate: the due date (förfallodatum) as YYYY-MM-DD, or null.",
+    '- dueDate: as YYYY-MM-DD, whatever format the document prints dates in. First look for a date labelled as the due or payment date, such as "Due date", "Förfallodatum", "Förfallodag", "Betalas senast", "Expected payment date" or "Payment date", and use it. Only when no such date is printed, calculate it from the payment terms, for example "30 days" or "30 dagar netto" means 30 days after the invoice date. null when there is neither.',
     '- periodFrom, periodTo: the service period the invoice covers (for example "Period", "Avser", "Avser period", "Tidsperiod") as YYYY-MM-DD. When only a month is stated, such as "januari 2026", use its first and last day. null for both when no period is stated.',
     context.customers.length
       ? "- customerId: the id of the customer from the customer list below that the invoice is addressed to, or null if none matches."

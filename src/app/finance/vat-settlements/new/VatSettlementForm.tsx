@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
@@ -106,10 +107,9 @@ export function VatSettlementForm({
       </p>
       <label>
         {t("paymentDate")}
-        <input
+        <DateInput
           className="field"
           name="paymentDate"
-          type="date"
           defaultValue={settlement?.paymentDate ?? today()}
           required
         />
@@ -129,20 +129,18 @@ export function VatSettlementForm({
       </label>
       <label>
         {t("vatPeriodFrom")}
-        <input
+        <DateInput
           className="field"
           name="periodFrom"
-          type="date"
           defaultValue={settlement?.periodFrom}
           required
         />
       </label>
       <label>
         {t("vatPeriodTo")}
-        <input
+        <DateInput
           className="field"
           name="periodTo"
-          type="date"
           defaultValue={settlement?.periodTo}
           required
         />

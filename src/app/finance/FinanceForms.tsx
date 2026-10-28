@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -396,9 +397,8 @@ export function CompensationForm({ users }: { users: User[] }) {
         </label>
         <label>
           {t("validFrom")}
-          <input
+          <DateInput
             className="field"
-            type="date"
             name="validFrom"
             defaultValue={today()}
             required
@@ -406,7 +406,7 @@ export function CompensationForm({ users }: { users: User[] }) {
         </label>
         <label>
           {t("validTo")}
-          <input className="field" type="date" name="validTo" />
+          <DateInput className="field" name="validTo" />
         </label>
         {model === "flexible" ? (
           <label>
@@ -745,9 +745,8 @@ export function InvoiceForm({
           <label>
             {t("periodFrom")}
             <InfoTip text={t("periodFromTip")} />
-            <input
+            <DateInput
               className="field"
-              type="date"
               name="periodFrom"
               value={periodFrom}
               max={periodTo || undefined}
@@ -761,9 +760,8 @@ export function InvoiceForm({
           <label>
             {t("periodTo")}
             <InfoTip text={t("periodToTip")} />
-            <input
+            <DateInput
               className="field"
-              type="date"
               name="periodTo"
               value={periodTo}
               min={periodFrom || undefined}
@@ -777,9 +775,8 @@ export function InvoiceForm({
           <label>
             {t("issueDate")}
             <InfoTip text={t("issueDateTip")} />
-            <input
+            <DateInput
               className="field"
-              type="date"
               name="issueDate"
               value={issueDate}
               onChange={(event) => setIssueDate(event.target.value)}
@@ -789,9 +786,8 @@ export function InvoiceForm({
           <label>
             {t("dueDate")}
             <InfoTip text={t("dueDateTip")} />
-            <input
+            <DateInput
               className="field"
-              type="date"
               name="dueDate"
               value={dueDate}
               min={issueDate}
@@ -1515,9 +1511,8 @@ export function TransactionForm({
         <label>
           {t("date")}
           <InfoTip text={t("dateTip")} />
-          <input
+          <DateInput
             className="field"
-            type="date"
             name="date"
             value={date}
             onChange={(event) => setDate(event.target.value)}

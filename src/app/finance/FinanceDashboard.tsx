@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import Link from "next/link";
 import {
   FormEvent,
@@ -1947,9 +1948,8 @@ export function FinanceDashboard({
                     <>
                       <label className="compact-date-field">
                         {t("fromDateInclusive")}
-                        <input
+                        <DateInput
                           className="field finance-period"
-                          type="date"
                           value={chartRangeFrom}
                           onChange={(event) =>
                             changeChartRangeFrom(event.target.value)
@@ -1958,9 +1958,8 @@ export function FinanceDashboard({
                       </label>
                       <label className="compact-date-field">
                         {t("toDateInclusive")}
-                        <input
+                        <DateInput
                           className="field finance-period"
-                          type="date"
                           value={chartRangeTo}
                           onChange={(event) =>
                             changeChartRangeTo(event.target.value)
@@ -2502,9 +2501,8 @@ export function FinanceDashboard({
               <>
                 <label>
                   {t("fromDateInclusive")}
-                  <input
+                  <DateInput
                     className="field"
-                    type="date"
                     value={transactionRangeFrom}
                     onChange={(event) =>
                       changeTransactionRangeFrom(event.target.value)
@@ -2513,9 +2511,8 @@ export function FinanceDashboard({
                 </label>
                 <label>
                   {t("toDateInclusive")}
-                  <input
+                  <DateInput
                     className="field"
-                    type="date"
                     value={transactionRangeTo}
                     onChange={(event) =>
                       changeTransactionRangeTo(event.target.value)
@@ -2975,9 +2972,8 @@ export function FinanceDashboard({
             <div className="form-grid">
               <label>
                 {t("paymentDate")}
-                <input
+                <DateInput
                   className="field"
-                  type="date"
                   name="paidDate"
                   defaultValue={today()}
                   required
@@ -3045,9 +3041,8 @@ export function FinanceDashboard({
             </header>
             <label>
               {t("validTo")}
-              <input
+              <DateInput
                 className="field"
-                type="date"
                 name="validTo"
                 min={endingAgreement.validFrom}
                 defaultValue={today()}
