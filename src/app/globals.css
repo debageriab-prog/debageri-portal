@@ -830,6 +830,31 @@ th {
   min-height: 260px;
   resize: vertical;
 }
+
+.placeholder-table table {
+  min-width: 480px;
+}
+.placeholder-table th,
+.placeholder-table td {
+  padding: 8px 12px;
+  vertical-align: middle;
+}
+.placeholder-table th:first-child {
+  width: 1%;
+}
+.placeholder-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.placeholder-name code {
+  font-size: 13px;
+}
+.placeholder-name .table-action.icon-action {
+  width: 1.75rem;
+  height: 1.75rem;
+}
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));

@@ -135,6 +135,21 @@ describe("editable email templates", () => {
       }
   });
 
+  it("describes every placeholder in both languages", () => {
+    const names = new Set(
+      EMAIL_TEMPLATE_KINDS.flatMap((kind) => emailPlaceholders[kind]),
+    );
+    const keys = [
+      ...[...names].map((name) => `placeholderHelp_${name}`),
+      "placeholderHelp_vat_amount",
+      "placeholderHelp_vat_period",
+    ];
+    for (const key of keys) {
+      expect(en[key as keyof typeof en], key).toBeTruthy();
+      expect(sv[key as keyof typeof sv], key).toBeTruthy();
+    }
+  });
+
   it("keeps accounting details on separate lines and other values on one", () => {
     const email = buildAccountingEmail("accountingInvoice", "en-SE", {
       recipientName: "Byrån",

@@ -9,10 +9,18 @@ import {
   EMAIL_NOTIFICATION_KINDS,
   emailPlaceholders,
   NOTIFICATION_LOCALES,
-  type AccountingEmailKind,
   type EmailTemplateKind,
   type NotificationLocale,
 } from "@/domain/notifications";
+import { PlaceholderTable } from "./PlaceholderTable";
+
+/** Placeholders in the missing time report reminder. */
+const reminderPlaceholders = [
+  "employeeName",
+  "missingWeeks",
+  "organizationName",
+  "portalUrl",
+];
 
 type TemplateText = { subject: string; body: string; custom: boolean };
 export type NotificationTemplateState = Record<
@@ -181,22 +189,6 @@ export function EmailTemplateForm({
             maxLength={10000}
             required
           />
-          <small>
-            {isReminder
-              ? t("templatePlaceholders")
-              : t(
-                  ACCOUNTING_EMAIL_KINDS.includes(
-                    templateId as AccountingEmailKind,
-                  )
-                    ? "accountingTemplatePlaceholders"
-                    : "notificationTemplatePlaceholders",
-                ).replace(
-                  "{placeholders}",
-                  emailPlaceholders[templateId]
-                    .map((name) => `{{${name}}}`)
-                    .join(", "),
-                )}
-          </small>
           {!isReminder && (
             <small>
               {current.custom
@@ -205,6 +197,12 @@ export function EmailTemplateForm({
             </small>
           )}
         </label>
+        <PlaceholderTable
+          names={
+            isReminder ? reminderPlaceholders : emailPlaceholders[templateId]
+          }
+          vat={templateId === "accountingVatSettlement"}
+        />
       </div>
       {error && <p className="notice notice-error">{error}</p>}
       {message && <p className="notice">{message}</p>}
