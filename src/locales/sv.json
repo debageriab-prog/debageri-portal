@@ -884,6 +884,11 @@
   "emailTemplate_payslipPublished": "Lönebesked finns",
   "emailTemplate_timesheetApproved": "Tidrapport godkänd",
   "emailTemplate_timesheetRejected": "Tidrapport avslagen",
+  "accountingEmailTemplates": "E-post till redovisning",
+  "emailTemplate_accountingTransaction": "Intäkt eller kostnad till redovisning",
+  "emailTemplate_accountingInvoice": "Faktura till redovisning",
+  "emailTemplate_accountingVatSettlement": "Momsbetalning till redovisning",
+  "accountingTemplatePlaceholders": "Platshållare: {placeholders}. {{details}} är hela listan med postens uppgifter och {{files}} anger de bifogade filerna.",
   "emailTemplateLanguage": "Språk",
   "emailTemplateLanguageHelp": "Varje person får mejlet på sitt portalspråk, så redigera båda versionerna.",
   "notificationTemplatePlaceholders": "Platshållare: {placeholders}. {{commentLine}} lägger till \"Kommentar: …\" bara när det finns en kommentar.",
@@ -997,12 +1002,7 @@
   "accountingSendError_emailNotConfigured": "E-postinställningarna är inte konfigurerade, så inget kunde skickas.",
   "accountingSendError_sendFailed": "E-postmeddelandet kunde inte skickas. Kontrollera e-postinställningarna och försök igen.",
   "accountingSendError_failed": "E-postmeddelandet kunde inte skickas.",
-  "accountingEmailSubject_transaction": "{organization}: {type} {date}, {total}",
-  "accountingEmailSubject_invoice": "{organization}: faktura {number}, {customer}",
-  "accountingEmailSubject_vatSettlement": "{organization}: momsbetalning {period}",
-  "accountingEmailIntro": "Hej {name},\n\n{sender} på {organization} har delat följande {entity} med dig.",
   "accountingEmailFiles": "Bifogade filer: {files}",
   "accountingEmailNoFiles": "Inga filer bifogas.",
-  "accountingEmailSkippedFiles": "För stora för att bifogas: {files}",
-  "accountingEmailFooter": "Det här mejlet skickades från medarbetarportalen för {organization}."
+  "accountingEmailSkippedFiles": "För stora för att bifogas: {files}"
 }

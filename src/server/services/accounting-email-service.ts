@@ -13,6 +13,11 @@ import {
 } from "@/domain/accounting-email";
 import type { PortalUser } from "@/domain/types";
 import { formatSek } from "@/domain/finance/calculations";
+import {
+  buildAccountingEmail,
+  customEmailTemplate,
+  type AccountingEmailKind,
+} from "@/domain/notifications";
 import type { getAdminServices } from "@/lib/firebase/admin";
 import { translate, type MessageKey } from "@/lib/localization/messages";
 import { decryptPassword } from "@/server/services/reminder-service";
@@ -101,16 +106,15 @@ export async function isAccountingEmailConfigured(
 }
 
 type Details = {
-  /** Entity name for the intro, such as "expense" or "invoice". */
-  entity: string;
-  subject: string;
+  kind: AccountingEmailKind;
+  /** Values for the template's own placeholders, such as `{{total}}`. */
+  values: Record<string, string>;
   rows: Array<[string, string]>;
 };
 
 async function entityDetails(
   db: Firestore,
   organizationId: string,
-  organizationName: string,
   entityType: AccountingEntityType,
   data: FirebaseFirestore.DocumentData,
   locale: PortalUser["locale"],
@@ -131,28 +135,32 @@ async function entityDetails(
   const rounding = Number(data.roundingMinor ?? 0);
 
   if (entityType === "transaction") {
-    const category = await db
+    const categoryDoc = await db
       .collection("financeCategories")
       .doc(String(data.categoryId))
       .get();
-    const names = category.data()?.name as
+    const names = categoryDoc.data()?.name as
       { en?: string; sv?: string } | undefined;
     const type = t(String(data.direction));
+    const category = String((locale === "sv-SE" ? names?.sv : names?.en) ?? "");
+    const consultant = await consultantName(data.consultantId);
     return {
-      entity: type.toLocaleLowerCase(locale),
-      subject: t("accountingEmailSubject_transaction")
-        .replace("{organization}", organizationName)
-        .replace("{type}", type)
-        .replace("{date}", String(data.date))
-        .replace("{total}", sek(data.grossMinor)),
+      kind: "accountingTransaction",
+      values: {
+        type,
+        entity: type.toLocaleLowerCase(locale),
+        date: String(data.date ?? ""),
+        category,
+        consultant,
+        netAmount: sek(data.netMinor),
+        vatAmount: sek(data.vatMinor),
+        total: sek(data.grossMinor),
+      },
       rows: optional([
         [t("type"), type],
         [t("date"), String(data.date ?? "")],
-        [
-          t("category"),
-          String((locale === "sv-SE" ? names?.sv : names?.en) ?? ""),
-        ],
-        [t("consultant"), await consultantName(data.consultantId)],
+        [t("category"), category],
+        [t("consultant"), consultant],
         [t("netAmount"), sek(data.netMinor)],
         [t("vatPercent"), percent(data.vatRateBps)],
         [t("vatAmount"), sek(data.vatMinor)],
@@ -176,16 +184,22 @@ async function entityDetails(
       data.periodFrom && data.periodTo
         ? `${data.periodFrom} – ${data.periodTo}`
         : "";
+    const consultant = await consultantName(data.consultantId);
     return {
-      entity: t("invoice").toLocaleLowerCase(locale),
-      subject: t("accountingEmailSubject_invoice")
-        .replace("{organization}", organizationName)
-        .replace("{number}", String(data.invoiceNumber))
-        .replace("{customer}", String(data.customerName ?? "")),
+      kind: "accountingInvoice",
+      values: {
+        invoiceNumber: String(data.invoiceNumber ?? ""),
+        customer: String(data.customerName ?? ""),
+        consultant,
+        period,
+        issueDate: String(data.issueDate ?? ""),
+        dueDate: String(data.dueDate ?? ""),
+        total: sek(data.grossMinor),
+      },
       rows: optional([
         [t("invoiceNumber"), String(data.invoiceNumber ?? "")],
         [t("customer"), String(data.customerName ?? "")],
-        [t("consultant"), await consultantName(data.consultantId)],
+        [t("consultant"), consultant],
         [t("invoicePeriod"), period],
         [t("issueDate"), String(data.issueDate ?? "")],
         [t("dueDate"), String(data.dueDate ?? "")],
@@ -202,10 +216,13 @@ async function entityDetails(
   }
   const period = `${data.periodFrom} – ${data.periodTo}`;
   return {
-    entity: t("accountingEntity_vatSettlement"),
-    subject: t("accountingEmailSubject_vatSettlement")
-      .replace("{organization}", organizationName)
-      .replace("{period}", period),
+    kind: "accountingVatSettlement",
+    values: {
+      period,
+      paymentDate: String(data.paymentDate ?? ""),
+      amount: sek(data.amountMinor),
+      reference: String(data.reference ?? ""),
+    },
     rows: optional([
       [t("vatPeriod"), period],
       [t("paymentDate"), String(data.paymentDate ?? "")],
@@ -236,12 +253,13 @@ export async function sendAccountingEmail(
   entityType: AccountingEntityType,
   entityId: string,
 ) {
-  const [contacts, smtp, entity, organization, attachmentSnapshot] =
+  const [contacts, smtp, entity, organization, templates, attachmentSnapshot] =
     await Promise.all([
       readAccountingContacts(db, actor.organizationId),
       smtpSettings(db, actor.organizationId),
       db.collection(COLLECTIONS[entityType]).doc(entityId).get(),
       db.collection("organizations").doc(actor.organizationId).get(),
+      db.collection("emailTemplates").doc(actor.organizationId).get(),
       db
         .collection("financeAttachments")
         .where("organizationId", "==", actor.organizationId)
@@ -265,7 +283,6 @@ export async function sendAccountingEmail(
   const details = await entityDetails(
     db,
     actor.organizationId,
-    organizationName,
     entityType,
     data,
     locale,
@@ -298,35 +315,46 @@ export async function sendAccountingEmail(
   }
 
   const width = Math.max(...details.rows.map(([label]) => label.length));
-  const body = (recipient: AccountingContact) =>
-    [
-      t("accountingEmailIntro")
-        .replace("{name}", recipient.name)
-        .replace("{sender}", actor.displayName || actor.email)
-        .replace("{organization}", organizationName)
-        .replace("{entity}", details.entity),
-      "",
-      ...details.rows.map(
-        ([label, value]) => `${`${label}:`.padEnd(width + 2)}${value}`,
-      ),
-      "",
-      attachments.length
-        ? t("accountingEmailFiles").replace(
+  const files = [
+    attachments.length
+      ? t("accountingEmailFiles").replace(
+          "{files}",
+          attachments.map((file) => file.filename).join(", "),
+        )
+      : t("accountingEmailNoFiles"),
+    ...(skipped.length
+      ? [
+          t("accountingEmailSkippedFiles").replace(
             "{files}",
-            attachments.map((file) => file.filename).join(", "),
+            skipped.join(", "),
+          ),
+        ]
+      : []),
+  ].join("\n");
+  const custom = customEmailTemplate(
+    templates.data()?.notifications,
+    details.kind,
+    locale,
+  );
+  const email = (recipient: AccountingContact) =>
+    buildAccountingEmail(
+      details.kind,
+      locale,
+      {
+        ...details.values,
+        recipientName: recipient.name,
+        organizationName,
+        senderName: actor.displayName || actor.email,
+        details: details.rows
+          .map(
+            ([label, value]) =>
+              `${`${label}:`.padEnd(width + 2)}${value.replace(/[\r\n]+/g, " ")}`,
           )
-        : t("accountingEmailNoFiles"),
-      ...(skipped.length
-        ? [
-            t("accountingEmailSkippedFiles").replace(
-              "{files}",
-              skipped.join(", "),
-            ),
-          ]
-        : []),
-      "",
-      t("accountingEmailFooter").replace("{organization}", organizationName),
-    ].join("\n");
+          .join("\n"),
+        files,
+      },
+      custom,
+    );
 
   const transporter = nodemailer.createTransport({
     host: String(smtp.smtpHost),
@@ -351,8 +379,7 @@ export async function sendAccountingEmail(
         },
         to: { name: recipient.name, address: recipient.email },
         replyTo: actor.email || undefined,
-        subject: details.subject,
-        text: body(recipient),
+        ...email(recipient),
         attachments,
       });
       sent++;

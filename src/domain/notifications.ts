@@ -18,6 +18,23 @@ export const EMAIL_NOTIFICATION_KINDS: NotificationKind[] = [
   "timesheetRejected",
 ];
 
+/** Emails to the organization's accounting contacts about finance records. */
+export type AccountingEmailKind =
+  "accountingTransaction" | "accountingInvoice" | "accountingVatSettlement";
+
+export const ACCOUNTING_EMAIL_KINDS: AccountingEmailKind[] = [
+  "accountingTransaction",
+  "accountingInvoice",
+  "accountingVatSettlement",
+];
+
+/** Every email an admin can edit under Email templates. */
+export type EmailTemplateKind = NotificationKind | AccountingEmailKind;
+export const EMAIL_TEMPLATE_KINDS: EmailTemplateKind[] = [
+  ...EMAIL_NOTIFICATION_KINDS,
+  ...ACCOUNTING_EMAIL_KINDS,
+];
+
 /** Every kind shown in the portal; only `NotificationKind`s are emailed. */
 export type InAppNotificationKind = NotificationKind | "timesheetSubmitted";
 
@@ -147,10 +164,26 @@ function emailBody(locale: NotificationLocale, ...paragraphs: string[]) {
   return [greeting[locale], ...paragraphs, signOff[locale]].join("\n\n");
 }
 
+/** Accounting contacts cannot open the portal, so there is no link. */
+const accountingSignOff: Record<NotificationLocale, string> = {
+  "en-SE": "Best regards,\n{{senderName}}\n{{organizationName}}",
+  "sv-SE": "Vänliga hälsningar,\n{{senderName}}\n{{organizationName}}",
+};
+
+function accountingBody(locale: NotificationLocale, intro: string) {
+  return [
+    greeting[locale],
+    intro,
+    "{{details}}",
+    "{{files}}",
+    accountingSignOff[locale],
+  ].join("\n\n");
+}
+
 /** Built-in email texts, used until an admin saves their own version. */
 export const defaultEmailTemplates: Record<
   NotificationLocale,
-  Record<NotificationKind, EmailTemplate>
+  Record<EmailTemplateKind, EmailTemplate>
 > = {
   "en-SE": {
     receiptSubmitted: {
@@ -198,6 +231,27 @@ export const defaultEmailTemplates: Record<
         "{{commentLine}}",
       ),
     },
+    accountingTransaction: {
+      subject: "{{organizationName}}: {{type}} {{date}}, {{total}}",
+      body: accountingBody(
+        "en-SE",
+        "Here are the details of an {{entity}} from {{date}} in {{organizationName}}'s books.",
+      ),
+    },
+    accountingInvoice: {
+      subject: "{{organizationName}}: invoice {{invoiceNumber}}, {{customer}}",
+      body: accountingBody(
+        "en-SE",
+        "Here are the details of invoice {{invoiceNumber}} to {{customer}}.",
+      ),
+    },
+    accountingVatSettlement: {
+      subject: "{{organizationName}}: VAT payment {{period}}",
+      body: accountingBody(
+        "en-SE",
+        "Here are the details of the VAT payment for {{period}}.",
+      ),
+    },
   },
   "sv-SE": {
     receiptSubmitted: {
@@ -242,6 +296,27 @@ export const defaultEmailTemplates: Record<
         "{{commentLine}}",
       ),
     },
+    accountingTransaction: {
+      subject: "{{organizationName}}: {{type}} {{date}}, {{total}}",
+      body: accountingBody(
+        "sv-SE",
+        "Här är uppgifterna om en {{entity}} från {{date}} i {{organizationName}}s bokföring.",
+      ),
+    },
+    accountingInvoice: {
+      subject: "{{organizationName}}: faktura {{invoiceNumber}}, {{customer}}",
+      body: accountingBody(
+        "sv-SE",
+        "Här är uppgifterna om faktura {{invoiceNumber}} till {{customer}}.",
+      ),
+    },
+    accountingVatSettlement: {
+      subject: "{{organizationName}}: momsbetalning {{period}}",
+      body: accountingBody(
+        "sv-SE",
+        "Här är uppgifterna om momsbetalningen för {{period}}.",
+      ),
+    },
   },
 };
 
@@ -249,8 +324,16 @@ const commonPlaceholders = ["recipientName", "organizationName", "link"];
 const receiptPlaceholders = ["receiptName", "receiptDate", "amount"];
 const commentPlaceholders = ["comment", "commentLine"];
 
+const accountingPlaceholders = [
+  "recipientName",
+  "organizationName",
+  "senderName",
+  "details",
+  "files",
+];
+
 /** Placeholders an admin can use in each email template. */
-export const emailPlaceholders: Record<NotificationKind, string[]> = {
+export const emailPlaceholders: Record<EmailTemplateKind, string[]> = {
   receiptSubmitted: [
     ...commonPlaceholders,
     "personName",
@@ -269,6 +352,34 @@ export const emailPlaceholders: Record<NotificationKind, string[]> = {
   payslipPublished: [...commonPlaceholders, "month"],
   timesheetApproved: [...commonPlaceholders, "week"],
   timesheetRejected: [...commonPlaceholders, "week", ...commentPlaceholders],
+  accountingTransaction: [
+    ...accountingPlaceholders,
+    "type",
+    "entity",
+    "date",
+    "category",
+    "consultant",
+    "netAmount",
+    "vatAmount",
+    "total",
+  ],
+  accountingInvoice: [
+    ...accountingPlaceholders,
+    "invoiceNumber",
+    "customer",
+    "consultant",
+    "period",
+    "issueDate",
+    "dueDate",
+    "total",
+  ],
+  accountingVatSettlement: [
+    ...accountingPlaceholders,
+    "period",
+    "paymentDate",
+    "amount",
+    "reference",
+  ],
 };
 
 const commentLabel: Record<NotificationLocale, string> = {
@@ -278,17 +389,20 @@ const commentLabel: Record<NotificationLocale, string> = {
 
 /**
  * Replaces `{{placeholder}}`s. Values are flattened to one line so user
- * text cannot add lines or headers, and blank lines left by a missing
- * comment are collapsed.
+ * text cannot add lines or headers, except the `multiline` keys, whose
+ * values the portal builds itself line by line. Blank lines left by a
+ * missing comment are collapsed.
  */
 export function renderEmailTemplate(
   template: string,
   values: Record<string, string | undefined>,
+  multiline: string[] = [],
 ) {
   return template
     .replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
       const value = values[key];
-      return value === undefined ? match : value.replace(/[\r\n]+/g, " ");
+      if (value === undefined) return match;
+      return multiline.includes(key) ? value : value.replace(/[\r\n]+/g, " ");
     })
     .replace(/\r\n/g, "\n")
     .replace(/[ \t]+\n/g, "\n")
@@ -372,7 +486,7 @@ export function buildNotification(
 /** Reads an admin's saved template for one kind and language, if any. */
 export function customEmailTemplate(
   stored: unknown,
-  kind: NotificationKind,
+  kind: EmailTemplateKind,
   locale: NotificationLocale,
 ): EmailTemplate | null {
   const value = (
@@ -381,4 +495,25 @@ export function customEmailTemplate(
   return value?.subject && value?.body
     ? { subject: String(value.subject), body: String(value.body) }
     : null;
+}
+
+/**
+ * An accounting email in the sender's language, using an admin's saved
+ * template when there is one. `details` and `files` keep their line breaks;
+ * every other value is one line.
+ */
+export function buildAccountingEmail(
+  kind: AccountingEmailKind,
+  locale: NotificationLocale,
+  values: Record<string, string | undefined>,
+  custom?: Partial<EmailTemplate> | null,
+) {
+  const fallback = defaultEmailTemplates[locale][kind];
+  return {
+    subject: renderEmailTemplate(custom?.subject || fallback.subject, values),
+    text: renderEmailTemplate(custom?.body || fallback.body, values, [
+      "details",
+      "files",
+    ]),
+  };
 }

@@ -884,6 +884,11 @@
   "emailTemplate_payslipPublished": "Pay slip available",
   "emailTemplate_timesheetApproved": "Time report approved",
   "emailTemplate_timesheetRejected": "Time report rejected",
+  "accountingEmailTemplates": "Accounting emails",
+  "emailTemplate_accountingTransaction": "Income or expense to accounting",
+  "emailTemplate_accountingInvoice": "Invoice to accounting",
+  "emailTemplate_accountingVatSettlement": "VAT payment to accounting",
+  "accountingTemplatePlaceholders": "Placeholders: {placeholders}. {{details}} is the full list of the entry's details and {{files}} names the attached files.",
   "emailTemplateLanguage": "Language",
   "emailTemplateLanguageHelp": "Each person gets the email in their portal language, so edit both versions.",
   "notificationTemplatePlaceholders": "Placeholders: {placeholders}. {{commentLine}} adds \"Comment: …\" only when there is a comment.",
@@ -997,12 +1002,7 @@
   "accountingSendError_emailNotConfigured": "Email settings are not set up, so nothing could be sent.",
   "accountingSendError_sendFailed": "The email could not be sent. Check the email settings and try again.",
   "accountingSendError_failed": "The email could not be sent.",
-  "accountingEmailSubject_transaction": "{organization}: {type} {date}, {total}",
-  "accountingEmailSubject_invoice": "{organization}: invoice {number}, {customer}",
-  "accountingEmailSubject_vatSettlement": "{organization}: VAT payment {period}",
-  "accountingEmailIntro": "Hello {name},\n\n{sender} at {organization} has shared the following {entity} with you.",
   "accountingEmailFiles": "Attached files: {files}",
   "accountingEmailNoFiles": "No files are attached.",
-  "accountingEmailSkippedFiles": "Too large to attach: {files}",
-  "accountingEmailFooter": "This email was sent from the {organization} employee portal."
+  "accountingEmailSkippedFiles": "Too large to attach: {files}"
 }

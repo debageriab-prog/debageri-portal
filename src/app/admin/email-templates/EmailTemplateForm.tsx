@@ -4,20 +4,22 @@ import { FormEvent, useState } from "react";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
+  ACCOUNTING_EMAIL_KINDS,
   defaultEmailTemplates,
   EMAIL_NOTIFICATION_KINDS,
   emailPlaceholders,
   NOTIFICATION_LOCALES,
-  type NotificationKind,
+  type AccountingEmailKind,
+  type EmailTemplateKind,
   type NotificationLocale,
 } from "@/domain/notifications";
 
 type TemplateText = { subject: string; body: string; custom: boolean };
 export type NotificationTemplateState = Record<
-  NotificationKind,
+  EmailTemplateKind,
   Record<NotificationLocale, TemplateText>
 >;
-type TemplateId = "time-report-reminder" | NotificationKind;
+type TemplateId = "time-report-reminder" | EmailTemplateKind;
 
 export function EmailTemplateForm({
   subject,
@@ -129,6 +131,13 @@ export function EmailTemplateForm({
                 {t(`emailTemplate_${kind}`)}
               </option>
             ))}
+            <optgroup label={t("accountingEmailTemplates")}>
+              {ACCOUNTING_EMAIL_KINDS.map((kind) => (
+                <option key={kind} value={kind}>
+                  {t(`emailTemplate_${kind}`)}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </label>
         {!isReminder && (
@@ -175,7 +184,13 @@ export function EmailTemplateForm({
           <small>
             {isReminder
               ? t("templatePlaceholders")
-              : t("notificationTemplatePlaceholders").replace(
+              : t(
+                  ACCOUNTING_EMAIL_KINDS.includes(
+                    templateId as AccountingEmailKind,
+                  )
+                    ? "accountingTemplatePlaceholders"
+                    : "notificationTemplatePlaceholders",
+                ).replace(
                   "{placeholders}",
                   emailPlaceholders[templateId]
                     .map((name) => `{{${name}}}`)
