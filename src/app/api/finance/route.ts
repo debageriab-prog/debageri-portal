@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { financeActionSchema } from "@/server/validators/finance";
-import { calculateTransactionAmounts } from "@/domain/finance/calculations";
+import {
+  calculateTransactionAmounts,
+  type TransactionAmountMode,
+} from "@/domain/finance/calculations";
 import {
   createCategory,
   createCustomer,
@@ -29,6 +32,24 @@ import {
   linkReceiptExpense,
   ReceiptError,
 } from "@/server/services/receipt-service";
+
+function transactionAmounts(data: {
+  amountMode: TransactionAmountMode;
+  amountMinor: number;
+  vatMinor: number | null;
+  roundingMinor: number;
+  vatRateBps: number;
+}) {
+  if (data.amountMode === "netVat" && data.vatMinor === null)
+    throw new FinanceError("invalidInput");
+  return calculateTransactionAmounts(
+    data.amountMode,
+    data.amountMinor,
+    data.vatRateBps,
+    data.vatMinor,
+    data.roundingMinor,
+  );
+}
 
 export async function POST(request: Request) {
   const actor = await verifySession();
@@ -90,11 +111,7 @@ export async function POST(request: Request) {
           categoryId: parsed.data.categoryId,
           consultantId: parsed.data.consultantId,
           date: parsed.data.date,
-          ...calculateTransactionAmounts(
-            parsed.data.amountMode,
-            parsed.data.amountMinor,
-            parsed.data.vatRateBps,
-          ),
+          ...transactionAmounts(parsed.data),
           vatRateBps: parsed.data.vatRateBps,
           funding: parsed.data.funding,
           applyConsultantShare: parsed.data.applyConsultantShare,
@@ -122,11 +139,7 @@ export async function POST(request: Request) {
           categoryId: parsed.data.categoryId,
           consultantId: parsed.data.consultantId,
           date: parsed.data.date,
-          ...calculateTransactionAmounts(
-            parsed.data.amountMode,
-            parsed.data.amountMinor,
-            parsed.data.vatRateBps,
-          ),
+          ...transactionAmounts(parsed.data),
           vatRateBps: parsed.data.vatRateBps,
           funding: parsed.data.funding,
           applyConsultantShare: parsed.data.applyConsultantShare,

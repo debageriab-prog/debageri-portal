@@ -10,16 +10,42 @@ export function calculateVatMinor(netMinor: number, vatRateBps: number) {
   return Math.round((netMinor * vatRateBps) / 10_000);
 }
 
+export type TransactionAmountMode = "net" | "gross" | "netVat";
+
+/** Largest rounding (öresavrundning) accepted on a transaction, in öre. */
+export const MAX_ROUNDING_MINOR = 100_00;
+
+/**
+ * Net, VAT and total from the entry mode. `netVat` keeps the VAT amount as
+ * entered (for example from a receipt) instead of deriving it from the rate.
+ * `roundingMinor` (öresavrundning, plus or minus) is part of the total only,
+ * so in `gross` mode the entered total already includes it.
+ */
 export function calculateTransactionAmounts(
-  amountMode: "net" | "gross",
+  amountMode: TransactionAmountMode,
   amountMinor: number,
   vatRateBps: number,
+  enteredVatMinor: number | null = null,
+  roundingMinor = 0,
 ) {
+  if (amountMode === "netVat") {
+    if (enteredVatMinor === null) throw new Error("vatAmountRequired");
+    return {
+      netMinor: amountMinor,
+      vatMinor: enteredVatMinor,
+      roundingMinor,
+      grossMinor: amountMinor + enteredVatMinor + roundingMinor,
+    };
+  }
   if (amountMode === "gross") {
-    const netMinor = Math.round((amountMinor * 10_000) / (10_000 + vatRateBps));
+    const beforeRounding = amountMinor - roundingMinor;
+    const netMinor = Math.round(
+      (beforeRounding * 10_000) / (10_000 + vatRateBps),
+    );
     return {
       netMinor,
-      vatMinor: amountMinor - netMinor,
+      vatMinor: beforeRounding - netMinor,
+      roundingMinor,
       grossMinor: amountMinor,
     };
   }
@@ -27,7 +53,8 @@ export function calculateTransactionAmounts(
   return {
     netMinor: amountMinor,
     vatMinor,
-    grossMinor: amountMinor + vatMinor,
+    roundingMinor,
+    grossMinor: amountMinor + vatMinor + roundingMinor,
   };
 }
 
@@ -451,6 +478,13 @@ export function formatSek(minor: number, locale: "sv-SE" | "en-SE") {
     currency: "SEK",
     minimumFractionDigits: 2,
   }).format(minor / 100);
+}
+
+/** Like `parseSek` but accepts a leading minus; blank is zero. */
+export function parseSignedSek(value: string | number) {
+  const text = String(value).trim();
+  if (!text) return 0;
+  return text.startsWith("-") ? -parseSek(text.slice(1)) : parseSek(text);
 }
 
 export function parseSek(value: string | number) {

@@ -1487,6 +1487,256 @@ th.actions-heading {
   stroke-width: 1.8;
 }
 
+.ai-enable-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.ai-enable-row input {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+  accent-color: var(--accent-dark);
+}
+
+.ai-enable-row span {
+  display: grid;
+  gap: 2px;
+}
+
+.ai-settings-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ai-settings-fields:disabled {
+  opacity: 0.62;
+}
+
+.ai-settings-fields:disabled .checkbox-row {
+  cursor: not-allowed;
+}
+
+.attachment-view {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--accent-dark);
+  cursor: pointer;
+}
+
+.attachment-view:hover,
+.attachment-view:focus-visible {
+  background: var(--accent-soft);
+}
+
+.attachment-view svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.attachment-preview-modal .document-preview img {
+  max-height: 75vh;
+  object-fit: contain;
+}
+
+@media (max-width: 640px) {
+  .modal-backdrop:has(.attachment-preview-modal) {
+    padding: 0;
+  }
+
+  .attachment-preview-modal {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    padding: 16px;
+    border-radius: 0;
+  }
+
+  .attachment-preview-modal .modal-header {
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+  }
+
+  .attachment-preview-modal .modal-header h2 {
+    font-size: 18px;
+    overflow-wrap: anywhere;
+  }
+
+  .attachment-preview-modal .document-preview iframe {
+    height: calc(100dvh - 190px);
+  }
+
+  .attachment-preview-modal .document-preview img {
+    max-height: calc(100dvh - 190px);
+  }
+}
+
+.notice-success {
+  border: 1px solid var(--success);
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.notice-with-icon {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.ai-currency-warning {
+  border: 1px solid var(--danger);
+  font-weight: 600;
+}
+
+.notice-with-icon svg {
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.notice-with-icon > div {
+  display: grid;
+  gap: 4px;
+}
+
+.ai-currency-warning span + span {
+  font-weight: 400;
+}
+
+/* The tooltip is positioned against the label so it never leaves the form. */
+label:has(> .info-tip) {
+  position: relative;
+}
+
+.info-tip {
+  display: inline-flex;
+  margin-left: 5px;
+  color: var(--muted);
+  vertical-align: -2px;
+  cursor: help;
+}
+
+.info-tip:hover,
+.info-tip:focus-visible {
+  color: var(--accent-dark);
+  outline: none;
+}
+
+.info-tip svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+}
+
+.info-tip-text {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: none;
+  width: max-content;
+  max-width: min(280px, 100%);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: white;
+  box-shadow: 0 10px 24px rgb(58 41 29 / 18%);
+  color: #4b3b31;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.info-tip:hover .info-tip-text,
+.info-tip:focus .info-tip-text {
+  display: block;
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.field[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.attachment-ai {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.attachment-ai:hover:not(:disabled),
+.attachment-ai:focus-visible {
+  background: var(--accent);
+  color: white;
+}
+
+.attachment-ai:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.attachment-ai svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.attachment-ai-done {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--success);
+  border-radius: 999px;
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.attachment-ai-done svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
 .attachment-download {
   display: inline-grid;
   flex: 0 0 auto;
@@ -2293,7 +2543,8 @@ th.actions-heading {
 }
 .transaction-amount-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   gap: 10px;
 }
 .transaction-amount-summary > div {
@@ -2875,6 +3126,7 @@ th.actions-heading {
     grid-template-columns: 1fr;
   }
   .transaction-amount-summary {
+    grid-auto-flow: row;
     grid-template-columns: 1fr;
   }
   .transaction-period-summary {

@@ -5,6 +5,7 @@ import {
 } from "../../../FinanceForms";
 import { financeFormContext, financeUsers } from "../../../form-data";
 import { safeTransactionReturnHref } from "../../../transaction-navigation";
+import { isAiFeatureEnabled } from "@/server/services/ai-service";
 
 export default async function EditTransactionPage({
   params,
@@ -44,6 +45,7 @@ export default async function EditTransactionPage({
       data.grossMinor ?? Number(data.netMinor) + Number(data.vatMinor ?? 0),
     ),
     vatRateBps: Number(data.vatRateBps),
+    roundingMinor: Number(data.roundingMinor ?? 0),
     funding: data.funding ?? null,
     applyConsultantShare: data.applyConsultantShare === true,
     visibleDescription: String(data.visibleDescription ?? ""),
@@ -62,6 +64,11 @@ export default async function EditTransactionPage({
       users={users}
       categories={categories}
       transaction={transaction}
+      aiEnabled={await isAiFeatureEnabled(
+        db,
+        actor.organizationId,
+        "financeAttachments",
+      )}
       returnHref={safeTransactionReturnHref((await searchParams).returnTo)}
     />
   );

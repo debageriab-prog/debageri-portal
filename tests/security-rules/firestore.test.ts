@@ -143,6 +143,29 @@ describe("Firestore rules", () => {
       }),
     );
   });
+  it("keeps AI settings and their API keys server-only, even for admins", async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, "users/a1"), {
+        organizationId: "debageri",
+        status: "active",
+        role: "admin",
+      });
+      await setDoc(doc(db, "aiSettings/debageri"), {
+        organizationId: "debageri",
+        enabled: true,
+        encryptedApiKeys: { anthropic: "secret" },
+      });
+    });
+    const admin = env.authenticatedContext("a1").firestore();
+    await assertFails(getDoc(doc(admin, "aiSettings/debageri")));
+    await assertFails(
+      setDoc(doc(admin, "aiSettings/debageri"), {
+        organizationId: "debageri",
+        enabled: false,
+      }),
+    );
+  });
   it("keeps receipts server-only, even for their owner", async () => {
     await env.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "receipts/r1"), {

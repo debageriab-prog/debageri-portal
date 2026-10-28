@@ -186,6 +186,7 @@ export default async function FinancePage({
         netMinor: Number(data.netMinor),
         vatRateBps: Number(data.vatRateBps ?? 0),
         vatMinor: Number(data.vatMinor),
+        roundingMinor: Number(data.roundingMinor ?? 0),
         grossMinor: Number(data.grossMinor),
         consultantBalanceDeltaMinor: balanceDelta,
         visibleDescription: String(data.visibleDescription ?? ""),

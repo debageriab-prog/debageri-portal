@@ -4,9 +4,14 @@ import { ReactNode, useEffect, useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { appCheckFetch } from "@/lib/firebase/client";
 import {
+  FileAiIcon,
   FileDownloadIcon,
   FileRemoveIcon,
+  FileViewIcon,
+  SuccessCheckIcon,
 } from "@/components/ui/FileActionIcons";
+import { DocumentPreview } from "@/components/ui/DocumentPreview";
+import type { FinanceExtraction } from "@/domain/ai";
 
 export type FinanceEntityType = "transaction" | "vatSettlement" | "invoice";
 type Attachment = {
@@ -112,6 +117,170 @@ export async function saveFinanceAttachmentChanges(
   return uploadFinanceAttachments(entityType, entityId, files);
 }
 
+type PreviewTarget = {
+  name: string;
+  contentType: string;
+  fileUrl?: string;
+  blob?: Blob;
+};
+
+function canPreview(contentType: string) {
+  return contentType === "application/pdf" || contentType.startsWith("image/");
+}
+
+function attachmentUrl(
+  entityType: FinanceEntityType,
+  entityId: string,
+  attachmentId: string,
+) {
+  return `/api/finance/attachments/${entityType}/${encodeURIComponent(entityId)}/${encodeURIComponent(attachmentId)}`;
+}
+
+function PreviewButton({ name, onClick }: { name: string; onClick(): void }) {
+  const { t } = useLocale();
+  const label = t("previewAttachment").replace("{name}", name);
+  return (
+    <button
+      className="attachment-view"
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      <FileViewIcon />
+    </button>
+  );
+}
+
+function AttachmentPreviewModal({
+  target,
+  onClose,
+}: {
+  target: PreviewTarget;
+  onClose(): void;
+}) {
+  const { t } = useLocale();
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="modal payslip-modal attachment-preview-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="attachment-preview-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="modal-header">
+          <div>
+            <span className="eyebrow">{t("attachments")}</span>
+            <h2 id="attachment-preview-title">{target.name}</h2>
+          </div>
+          <button
+            className="modal-close"
+            type="button"
+            aria-label={t("close")}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </header>
+        <DocumentPreview
+          fileUrl={target.fileUrl}
+          blob={target.blob}
+          fileName={target.name}
+          contentType={target.contentType}
+          title={target.name}
+        />
+      </section>
+    </div>
+  );
+}
+
+export type AiAttachmentSource =
+  | { kind: "file"; file: File }
+  | { kind: "stored"; entityId: string; attachmentId: string };
+
+/** Asks the server to read one attachment with the configured AI provider. */
+export async function processAttachmentWithAi(
+  source: AiAttachmentSource,
+): Promise<{
+  extraction?: FinanceExtraction;
+  error?: string;
+  detail?: string;
+}> {
+  let init: RequestInit;
+  if (source.kind === "file") {
+    const body = new FormData();
+    body.append("file", source.file);
+    init = { method: "POST", body };
+  } else {
+    init = {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        entityId: source.entityId,
+        attachmentId: source.attachmentId,
+      }),
+    };
+  }
+  try {
+    const response = await appCheckFetch("/api/ai/finance-attachment", init);
+    const result = (await response.json().catch(() => ({}))) as {
+      extraction?: FinanceExtraction;
+      error?: string;
+      detail?: string;
+    };
+    return response.ok && result.extraction
+      ? { extraction: result.extraction }
+      : { error: result.error ?? "aiProviderFailed", detail: result.detail };
+  } catch {
+    return { error: "aiProviderFailed" };
+  }
+}
+
+function AiProcessButton({
+  name,
+  busy,
+  disabled,
+  processed,
+  onClick,
+}: {
+  name: string;
+  busy: boolean;
+  disabled: boolean;
+  processed: boolean;
+  onClick(): void;
+}) {
+  const { t } = useLocale();
+  if (processed)
+    return (
+      <span className="attachment-ai-done" role="status">
+        <SuccessCheckIcon size={16} />
+        <span>{t("aiProcessed")}</span>
+      </span>
+    );
+  return (
+    <button
+      className="attachment-ai"
+      type="button"
+      aria-label={t("aiProcessAttachmentNamed").replace("{name}", name)}
+      title={t("aiProcessAttachmentNamed").replace("{name}", name)}
+      disabled={disabled}
+      aria-busy={busy}
+      onClick={onClick}
+    >
+      <FileAiIcon />
+      <span>{busy ? t("aiProcessing") : t("aiProcessAttachment")}</span>
+    </button>
+  );
+}
+
 export function FinanceAttachments({
   entityType,
   entityId,
@@ -119,6 +288,7 @@ export function FinanceAttachments({
   onFilesChange,
   removedAttachmentIds,
   onRemovedAttachmentIdsChange,
+  ai,
 }: {
   entityType: FinanceEntityType;
   entityId?: string;
@@ -126,6 +296,13 @@ export function FinanceAttachments({
   onFilesChange(files: File[]): void;
   removedAttachmentIds: string[];
   onRemovedAttachmentIdsChange(ids: string[]): void;
+  /** Shows "Process attachment with AI" next to each file when set. */
+  ai?: {
+    busyKey: string | null;
+    /** Keys of attachments already read with AI. */
+    processedKeys: string[];
+    onProcess(source: AiAttachmentSource, key: string, name: string): void;
+  };
 }) {
   const { t } = useLocale();
   const [existing, setExisting] = useState<Attachment[]>([]);
@@ -134,6 +311,7 @@ export function FinanceAttachments({
     null,
   );
   const [confirmation, setConfirmation] = useState("");
+  const [previewing, setPreviewing] = useState<PreviewTarget | null>(null);
 
   useEffect(() => {
     if (!entityId) return;
@@ -162,6 +340,41 @@ export function FinanceAttachments({
                 attachmentId={attachment.id}
                 name={attachment.name}
               />
+              {ai && (
+                <AiProcessButton
+                  name={attachment.name}
+                  busy={ai.busyKey === attachment.id}
+                  disabled={ai.busyKey !== null}
+                  processed={ai.processedKeys.includes(attachment.id)}
+                  onClick={() =>
+                    ai.onProcess(
+                      {
+                        kind: "stored",
+                        entityId: entityId!,
+                        attachmentId: attachment.id,
+                      },
+                      attachment.id,
+                      attachment.name,
+                    )
+                  }
+                />
+              )}
+              {canPreview(attachment.contentType) && (
+                <PreviewButton
+                  name={attachment.name}
+                  onClick={() =>
+                    setPreviewing({
+                      name: attachment.name,
+                      contentType: attachment.contentType,
+                      fileUrl: attachmentUrl(
+                        entityType,
+                        entityId!,
+                        attachment.id,
+                      ),
+                    })
+                  }
+                />
+              )}
               <button
                 className="attachment-remove"
                 type="button"
@@ -211,31 +424,63 @@ export function FinanceAttachments({
             {t("filesSelected").replace("{count}", String(files.length))}
           </p>
           <ul className="attachment-list pending-attachment-list">
-            {files.map((file, index) => (
-              <li key={`${file.name}-${file.size}-${file.lastModified}`}>
-                <span>{file.name}</span>
-                <button
-                  className="attachment-remove"
-                  type="button"
-                  aria-label={t("removeAttachment").replace(
-                    "{name}",
-                    file.name,
+            {files.map((file, index) => {
+              const key = `${file.name}-${file.size}-${file.lastModified}`;
+              return (
+                <li key={key}>
+                  <span>{file.name}</span>
+                  {ai && (
+                    <AiProcessButton
+                      name={file.name}
+                      busy={ai.busyKey === key}
+                      disabled={ai.busyKey !== null}
+                      processed={ai.processedKeys.includes(key)}
+                      onClick={() =>
+                        ai.onProcess({ kind: "file", file }, key, file.name)
+                      }
+                    />
                   )}
-                  title={t("removeAttachment").replace("{name}", file.name)}
-                  onClick={() =>
-                    onFilesChange(
-                      files.filter((_, itemIndex) => itemIndex !== index),
-                    )
-                  }
-                >
-                  <FileRemoveIcon />
-                </button>
-              </li>
-            ))}
+                  {canPreview(file.type) && (
+                    <PreviewButton
+                      name={file.name}
+                      onClick={() =>
+                        setPreviewing({
+                          name: file.name,
+                          contentType: file.type,
+                          blob: file,
+                        })
+                      }
+                    />
+                  )}
+                  <button
+                    className="attachment-remove"
+                    type="button"
+                    aria-label={t("removeAttachment").replace(
+                      "{name}",
+                      file.name,
+                    )}
+                    title={t("removeAttachment").replace("{name}", file.name)}
+                    onClick={() =>
+                      onFilesChange(
+                        files.filter((_, itemIndex) => itemIndex !== index),
+                      )
+                    }
+                  >
+                    <FileRemoveIcon />
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
       {error && <p className="notice notice-error">{error}</p>}
+      {previewing && (
+        <AttachmentPreviewModal
+          target={previewing}
+          onClose={() => setPreviewing(null)}
+        />
+      )}
       {confirmingRemoval && (
         <div className="modal-backdrop" role="presentation">
           <section

@@ -9,15 +9,39 @@ import {
   calculateTransactionAmounts,
   formatSek,
   parseSek,
+  parseSignedSek,
+  MAX_ROUNDING_MINOR,
+  type TransactionAmountMode,
 } from "@/domain/finance/calculations";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { receiptVatRateBps } from "@/domain/receipts";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { FinanceCsvImport } from "./FinanceCsvImport";
 import { transactionMonthMismatch } from "./transaction-navigation";
 import {
+  SuccessCheckIcon,
+  WarningTriangleIcon,
+} from "@/components/ui/FileActionIcons";
+import {
   FinanceAttachments,
+  processAttachmentWithAi,
   saveFinanceAttachmentChanges,
+  type AiAttachmentSource,
 } from "./FinanceAttachments";
+
+/** Consultant select value meaning the transaction is the company's own. */
+const COMPANY_ONLY = "company";
+
+type TransactionField = "direction" | "categoryId" | "consultantId" | "funding";
+
+const AI_ERROR_CODES = [
+  "aiDisabled",
+  "aiNotConfigured",
+  "aiUnsupportedFile",
+  "aiProviderRejected",
+  "aiNoResult",
+  "attachmentTooLarge",
+];
 
 type User = { id: string; displayName: string };
 type Customer = { id: string; name: string };
@@ -38,6 +62,7 @@ export type EditableTransaction = {
   netMinor: number;
   grossMinor: number;
   vatRateBps: number;
+  roundingMinor: number;
   funding: "company" | "consultant" | null;
   applyConsultantShare: boolean;
   visibleDescription: string;
@@ -99,6 +124,14 @@ function FormPage({
       <section className="card">{children}</section>
     </>
   );
+}
+
+function FieldError({ message }: { message?: string }) {
+  return message ? (
+    <span className="field-error" role="alert">
+      {message}
+    </span>
+  ) : null;
 }
 
 function useFinanceSubmit(successPath: string) {
@@ -568,6 +601,7 @@ export function TransactionForm({
   defaultDate,
   transaction,
   receipt,
+  aiEnabled = false,
 }: {
   users: User[];
   categories: Category[];
@@ -575,48 +609,286 @@ export function TransactionForm({
   defaultDate?: string;
   transaction?: EditableTransaction;
   receipt?: ExpenseReceipt;
+  aiEnabled?: boolean;
 }) {
   const { t, locale } = useLocale();
   const receiptConsultant = receipt
     ? users.find((user) => user.id === receipt.userId)
     : undefined;
-  const [direction, setDirection] = useState<"income" | "expense">(
-    transaction?.direction ?? (receipt ? "expense" : "income"),
+  const [direction, setDirection] = useState<"" | "income" | "expense">(
+    transaction?.direction ?? (receipt ? "expense" : ""),
   );
   const [consultantId, setConsultantId] = useState(
-    transaction?.consultantId ?? receiptConsultant?.id ?? "",
-  );
-  const [amountMode, setAmountMode] = useState<"net" | "gross">(
-    receipt && !transaction ? "net" : "gross",
-  );
-  const [amount, setAmount] = useState(
     transaction
-      ? (transaction.grossMinor / 100).toFixed(2)
-      : receipt?.netMinor
-        ? (receipt.netMinor / 100).toFixed(2)
+      ? (transaction.consultantId ?? COMPANY_ONLY)
+      : receipt
+        ? (receiptConsultant?.id ?? COMPANY_ONLY)
         : "",
   );
-  const [funding, setFunding] = useState<"company" | "consultant">(
-    transaction?.funding ?? "company",
+  const hasConsultant = consultantId !== "" && consultantId !== COMPANY_ONLY;
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<TransactionField, string>>
+  >({});
+  const clearFieldError = (field: TransactionField) =>
+    setFieldErrors((errors) => {
+      const next = { ...errors };
+      delete next[field];
+      return next;
+    });
+  // Amounts whose VAT does not follow from the rate (rounded receipt lines)
+  // open in net-and-VAT mode so the exact VAT is kept.
+  const initialVatRateBps =
+    transaction?.vatRateBps ??
+    (receipt ? receiptVatRateBps(receipt.netMinor, receipt.vatMinor) : 0);
+  const initialAmounts = transaction
+    ? {
+        netMinor: transaction.netMinor,
+        vatMinor:
+          transaction.grossMinor -
+          transaction.netMinor -
+          transaction.roundingMinor,
+      }
+    : receipt?.netMinor
+      ? { netMinor: receipt.netMinor, vatMinor: receipt.vatMinor }
+      : null;
+  const initialExactVat =
+    initialAmounts !== null &&
+    calculateVatMinor(initialAmounts.netMinor, initialVatRateBps) !==
+      initialAmounts.vatMinor;
+  const [amountMode, setAmountMode] = useState<TransactionAmountMode>(
+    initialExactVat ? "netVat" : receipt && !transaction ? "net" : "gross",
   );
-  const [vatPercent, setVatPercent] = useState(
-    String(
-      (transaction?.vatRateBps ??
-        (receipt ? receiptVatRateBps(receipt.netMinor, receipt.vatMinor) : 0)) /
-        100,
-    ),
+  const [amount, setAmount] = useState(
+    initialExactVat
+      ? (initialAmounts.netMinor / 100).toFixed(2)
+      : transaction
+        ? (transaction.grossMinor / 100).toFixed(2)
+        : receipt?.netMinor
+          ? (receipt.netMinor / 100).toFixed(2)
+          : "",
   );
+  const [vatAmount, setVatAmount] = useState(
+    initialAmounts ? (initialAmounts.vatMinor / 100).toFixed(2) : "",
+  );
+  const [rounding, setRounding] = useState(
+    transaction?.roundingMinor
+      ? (transaction.roundingMinor / 100).toFixed(2)
+      : "",
+  );
+  const [funding, setFunding] = useState<"" | "company" | "consultant">(
+    transaction?.funding ?? "",
+  );
+  const [vatPercent, setVatPercent] = useState(String(initialVatRateBps / 100));
   const [pendingMonthMismatch, setPendingMonthMismatch] = useState<{
     payload: Record<string, unknown>;
     viewMonth: string;
     transactionMonth: string;
   } | null>(null);
+  const [pendingVatMismatch, setPendingVatMismatch] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
     [],
   );
   const { busy, error, submit } = useFinanceSubmit(returnHref);
   const [receiptFileError, setReceiptFileError] = useState(false);
+  const [categoryId, setCategoryId] = useState(transaction?.categoryId ?? "");
+  const [date, setDate] = useState(
+    transaction?.date ?? receipt?.date ?? defaultDate ?? today(),
+  );
+  const receiptText = receipt
+    ? [receipt.name, receipt.description].filter(Boolean).join(" – ")
+    : "";
+  const [internalNote, setInternalNote] = useState(
+    transaction?.internalNote ??
+      (receipt ? `${t("receipt")}: ${receiptText} (${receipt.userName})` : ""),
+  );
+  const [visibleDescription, setVisibleDescription] = useState(
+    transaction?.visibleDescription ?? receiptText,
+  );
+  const [aiBusyKey, setAiBusyKey] = useState<string | null>(null);
+  const [aiProcessedKeys, setAiProcessedKeys] = useState<string[]>([]);
+  const [aiCurrencyWarning, setAiCurrencyWarning] = useState<string[] | null>(
+    null,
+  );
+  const [aiNotice, setAiNotice] = useState<{
+    tone: "success" | "warning" | "error";
+    messages: string[];
+  } | null>(null);
+
+  async function processWithAi(
+    source: AiAttachmentSource,
+    key: string,
+    name: string,
+  ) {
+    setAiBusyKey(key);
+    setAiNotice(null);
+    setAiCurrencyWarning(null);
+    const result = await processAttachmentWithAi(source);
+    setAiBusyKey(null);
+    const extraction = result.extraction;
+    if (!extraction) {
+      const code = AI_ERROR_CODES.includes(result.error ?? "")
+        ? result.error
+        : "aiProviderFailed";
+      setAiNotice({
+        tone: "error",
+        messages: [
+          t(`aiError_${code}` as Parameters<typeof t>[0]),
+          ...(result.detail
+            ? [t("aiProviderSaid").replace("{detail}", result.detail)]
+            : []),
+        ],
+      });
+      return;
+    }
+    setAiProcessedKeys((keys) => [...keys, key]);
+    let filled = 0;
+    const foreignAmounts = extraction.currency !== "SEK";
+    if (extraction.direction) {
+      setDirection(extraction.direction);
+      clearFieldError("direction");
+      filled++;
+    }
+    if (extraction.date) {
+      setDate(extraction.date);
+      filled++;
+    }
+    const exactVat =
+      !foreignAmounts &&
+      extraction.netMinor !== null &&
+      extraction.netMinor > 0 &&
+      extraction.vatMinor !== null;
+    if (foreignAmounts) {
+      // No exchange rate was found, so leave the SEK amount for the user.
+    } else if (exactVat) {
+      setAmountMode("netVat");
+      setAmount((extraction.netMinor! / 100).toFixed(2));
+      setVatAmount((extraction.vatMinor! / 100).toFixed(2));
+      filled++;
+    } else if (extraction.grossMinor !== null && extraction.grossMinor > 0) {
+      setAmountMode("gross");
+      setAmount((extraction.grossMinor / 100).toFixed(2));
+      filled++;
+    } else if (extraction.netMinor !== null && extraction.netMinor > 0) {
+      setAmountMode("net");
+      setAmount((extraction.netMinor / 100).toFixed(2));
+      filled++;
+    }
+    if (!foreignAmounts)
+      setRounding(
+        extraction.roundingMinor
+          ? (extraction.roundingMinor / 100).toFixed(2)
+          : "",
+      );
+    if (extraction.vatRateBps !== null) {
+      setVatPercent(String(extraction.vatRateBps / 100));
+      filled++;
+    }
+    if (extraction.categoryId) {
+      setCategoryId(extraction.categoryId);
+      clearFieldError("categoryId");
+      filled++;
+    }
+    const consultantFound = users.some(
+      (user) => user.id === extraction.consultantId,
+    );
+    if (consultantFound) {
+      setConsultantId(extraction.consultantId!);
+      clearFieldError("consultantId");
+      filled++;
+    }
+    if (extraction.funding && extraction.direction !== "income") {
+      setFunding(extraction.funding);
+      clearFieldError("funding");
+      filled++;
+    }
+    const consultantText = [extraction.counterpartyName, extraction.description]
+      .filter(Boolean)
+      .join(" – ");
+    if (consultantText && !visibleDescription.trim())
+      setVisibleDescription(consultantText);
+    const conversion = extraction.conversion;
+    const conversionText = conversion
+      ? t("aiConvertedCurrency")
+          .replace(
+            "{amount}",
+            (
+              (conversion.grossMinor ?? conversion.netMinor ?? 0) / 100
+            ).toLocaleString(locale, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }),
+          )
+          .replace("{currency}", conversion.currency)
+          .replace(
+            "{rate}",
+            conversion.rate.rate.toLocaleString(locale, {
+              maximumFractionDigits: 4,
+            }),
+          )
+          .replace(
+            "{source}",
+            t(`exchangeRateSource_${conversion.rate.source}`),
+          )
+          .replace("{date}", conversion.rate.date)
+      : "";
+    const summary = [
+      extraction.counterpartyName,
+      extraction.description,
+      conversionText,
+    ]
+      .filter(Boolean)
+      .join(" – ");
+    if (summary && !internalNote.trim()) {
+      setInternalNote(summary);
+      filled++;
+    }
+    if (conversion)
+      setAiCurrencyWarning([
+        t("aiConversionCheck").replace("{currency}", conversion.currency),
+        conversionText,
+      ]);
+    else if (foreignAmounts)
+      setAiCurrencyWarning([
+        t("aiForeignCurrency").replace("{currency}", extraction.currency),
+      ]);
+    if (!filled) {
+      setAiNotice({
+        tone: "warning",
+        messages: [t("aiNothingFound").replace("{name}", name)],
+      });
+      return;
+    }
+    const messages = [t("aiFilledFromFile").replace("{name}", name)];
+    if (
+      !foreignAmounts &&
+      !exactVat &&
+      extraction.netMinor !== null &&
+      extraction.vatMinor !== null &&
+      extraction.vatRateBps !== null &&
+      calculateVatMinor(extraction.netMinor, extraction.vatRateBps) !==
+        extraction.vatMinor
+    )
+      messages.push(
+        t("aiVatDiffers").replace(
+          "{vat}",
+          formatSek(extraction.vatMinor, locale),
+        ),
+      );
+    if (
+      !extraction.direction ||
+      !extraction.categoryId ||
+      (!consultantFound && !consultantId)
+    )
+      messages.push(t("aiChooseRemaining"));
+    setAiNotice({
+      tone: messages.length > 1 ? "warning" : "success",
+      messages,
+    });
+  }
   useEffect(() => {
     if (!receipt) return;
     let active = true;
@@ -636,21 +908,31 @@ export function TransactionForm({
       active = false;
     };
   }, [receipt]);
-  const receiptText = receipt
-    ? [receipt.name, receipt.description].filter(Boolean).join(" – ")
-    : "";
   const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
+  const roundingMinor = (() => {
+    try {
+      return parseSignedSek(rounding);
+    } catch {
+      return 0;
+    }
+  })();
   const amountSummary = useMemo(() => {
     try {
       return calculateTransactionAmounts(
         amountMode,
         parseSek(amount || 0),
         vatRateBps,
+        amountMode === "netVat" ? parseSek(vatAmount || 0) : null,
+        roundingMinor,
       );
     } catch {
-      return { netMinor: 0, vatMinor: 0, grossMinor: 0 };
+      return { netMinor: 0, vatMinor: 0, roundingMinor: 0, grossMinor: 0 };
     }
-  }, [amount, amountMode, vatRateBps]);
+  }, [amount, amountMode, vatAmount, vatRateBps, roundingMinor]);
+  const expectedVatMinor = calculateVatMinor(
+    amountSummary.netMinor,
+    vatRateBps,
+  );
   const availableCategories = categories
     .filter(
       (item) =>
@@ -671,28 +953,54 @@ export function TransactionForm({
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const errors: Partial<Record<TransactionField, string>> = {};
+    if (!direction) errors.direction = t("selectTypeError");
+    if (!availableCategories.some((item) => item.id === categoryId))
+      errors.categoryId = t("selectCategoryError");
+    if (!consultantId) errors.consultantId = t("selectConsultantError");
+    if (direction === "expense" && hasConsultant && !funding)
+      errors.funding = t("selectFundingError");
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
+      event.currentTarget
+        .querySelector<HTMLElement>("[aria-invalid='true']")
+        ?.focus();
+      return;
+    }
     const form = new FormData(event.currentTarget);
-    const date = String(form.get("date") ?? "");
     const payload = {
       action: transaction ? "updateTransaction" : "createTransaction",
       ...(transaction ? { transactionId: transaction.id } : {}),
       direction,
-      categoryId: form.get("categoryId"),
-      consultantId: consultantId || null,
+      categoryId,
+      consultantId: hasConsultant ? consultantId : null,
       date,
       amountMode,
       amountMinor: parseSek(amount),
+      vatMinor: amountMode === "netVat" ? parseSek(vatAmount) : null,
+      roundingMinor,
       vatRateBps,
       funding:
-        direction === "expense" ? (consultantId ? funding : "company") : null,
+        direction === "expense" ? (hasConsultant ? funding : "company") : null,
       applyConsultantShare:
-        Boolean(consultantId) && form.get("applyConsultantShare") === "on",
-      visibleDescription: consultantId
-        ? String(form.get("visibleDescription") ?? "")
-        : "",
+        hasConsultant && form.get("applyConsultantShare") === "on",
+      visibleDescription: hasConsultant ? visibleDescription : "",
       internalNote: form.get("internalNote"),
       ...(receipt && !transaction ? { receiptId: receipt.id } : {}),
     };
+    post(payload, true);
+  }
+
+  /** Asks about VAT and month mismatches in turn, then posts. */
+  function post(payload: Record<string, unknown>, checkVat: boolean) {
+    if (
+      checkVat &&
+      amountMode === "netVat" &&
+      amountSummary.vatMinor !== expectedVatMinor
+    ) {
+      setPendingVatMismatch(payload);
+      return;
+    }
     const mismatch = transaction
       ? null
       : transactionMonthMismatch(returnHref, date);
@@ -752,87 +1060,118 @@ export function TransactionForm({
       <form className="form-grid" onSubmit={onSubmit}>
         <label>
           {t("type")}
+          <InfoTip text={t("typeTip")} />
           <select
             className="field"
             name="direction"
             value={direction}
-            onChange={(event) =>
-              setDirection(event.target.value as typeof direction)
-            }
+            aria-invalid={Boolean(fieldErrors.direction)}
+            onChange={(event) => {
+              setDirection(event.target.value as typeof direction);
+              clearFieldError("direction");
+            }}
           >
+            <option value="">{t("select")}</option>
             <option value="income">{t("income")}</option>
             <option value="expense">{t("expense")}</option>
           </select>
+          <FieldError message={fieldErrors.direction} />
         </label>
         <label>
           {t("category")}
+          <InfoTip text={t("categoryTip")} />
           <select
             className="field"
             name="categoryId"
-            defaultValue={transaction?.categoryId ?? ""}
-            required
+            value={
+              availableCategories.some((item) => item.id === categoryId)
+                ? categoryId
+                : ""
+            }
+            aria-invalid={Boolean(fieldErrors.categoryId)}
+            onChange={(event) => {
+              setCategoryId(event.target.value);
+              clearFieldError("categoryId");
+            }}
           >
-            <option value="">{t("selectCategory")}</option>
+            <option value="">{t("select")}</option>
             {availableCategories.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name[locale === "sv-SE" ? "sv" : "en"]}
               </option>
             ))}
           </select>
+          <FieldError message={fieldErrors.categoryId} />
         </label>
         <label>
           {t("consultant")}
+          <InfoTip text={t("consultantTip")} />
           <select
             className="field"
             name="consultantId"
             value={consultantId}
+            aria-invalid={Boolean(fieldErrors.consultantId)}
             onChange={(event) => {
-              const nextConsultantId = event.target.value;
-              setConsultantId(nextConsultantId);
-              if (!nextConsultantId) setFunding("company");
+              setConsultantId(event.target.value);
+              clearFieldError("consultantId");
+              clearFieldError("funding");
             }}
           >
-            <option value="">{t("companyOnly")}</option>
+            <option value="">{t("select")}</option>
+            <option value={COMPANY_ONLY}>{t("companyOnly")}</option>
             {users.map((user) => (
               <option key={user.id} value={user.id}>
                 {user.displayName}
               </option>
             ))}
           </select>
+          <FieldError message={fieldErrors.consultantId} />
         </label>
         <label>
           {t("date")}
+          <InfoTip text={t("dateTip")} />
           <input
             className="field"
             type="date"
             name="date"
-            defaultValue={
-              transaction?.date ?? receipt?.date ?? defaultDate ?? today()
-            }
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
             required
           />
         </label>
         <label>
           {t("amountEntryMode")}
+          <InfoTip text={t("amountEntryModeTip")} />
           <select
             className="field"
             value={amountMode}
             onChange={(event) => {
-              const nextMode = event.target.value as "net" | "gross";
+              const nextMode = event.target.value as TransactionAmountMode;
               const nextAmount =
                 nextMode === "gross"
                   ? amountSummary.grossMinor
                   : amountSummary.netMinor;
               setAmountMode(nextMode);
-              if (amount) setAmount((nextAmount / 100).toFixed(2));
+              if (amount) {
+                setAmount((nextAmount / 100).toFixed(2));
+                setVatAmount((amountSummary.vatMinor / 100).toFixed(2));
+              }
             }}
           >
             <option value="gross">{t("enterTotalIncludingVat")}</option>
             <option value="net">{t("enterNetAmount")}</option>
+            <option value="netVat">{t("enterNetAndVat")}</option>
           </select>
         </label>
         <label>
           {amountMode === "gross" ? t("totalAmountSek") : t("netAmountSek")}
+          <InfoTip
+            text={
+              amountMode === "gross"
+                ? t("totalAmountSekTip")
+                : t("netAmountSekTip")
+            }
+          />
           <input
             className="field"
             type="number"
@@ -843,8 +1182,24 @@ export function TransactionForm({
             required
           />
         </label>
+        {amountMode === "netVat" && (
+          <label>
+            {t("vatAmountSek")}
+            <InfoTip text={t("vatAmountSekTip")} />
+            <input
+              className="field"
+              type="number"
+              min="0"
+              step="0.01"
+              value={vatAmount}
+              onChange={(event) => setVatAmount(event.target.value)}
+              required
+            />
+          </label>
+        )}
         <label>
           {t("vatPercent")}
+          <InfoTip text={t("vatPercentTip")} />
           <input
             className="field"
             type="number"
@@ -856,23 +1211,42 @@ export function TransactionForm({
             required
           />
         </label>
+        <label>
+          {t("roundingSek")}
+          <InfoTip text={t("roundingSekTip")} />
+          <input
+            className="field"
+            type="number"
+            min={-MAX_ROUNDING_MINOR / 100}
+            max={MAX_ROUNDING_MINOR / 100}
+            step="0.01"
+            value={rounding}
+            placeholder="0.00"
+            onChange={(event) => setRounding(event.target.value)}
+          />
+        </label>
         {direction === "expense" ? (
           <label>
             {t("funding")}
+            <InfoTip text={t("fundingTip")} />
             <select
               className="field"
               name="funding"
-              value={consultantId ? funding : "company"}
-              onChange={(event) =>
-                setFunding(event.target.value as typeof funding)
-              }
-              disabled={!consultantId}
+              value={hasConsultant ? funding : "company"}
+              aria-invalid={Boolean(fieldErrors.funding)}
+              onChange={(event) => {
+                setFunding(event.target.value as typeof funding);
+                clearFieldError("funding");
+              }}
+              disabled={!hasConsultant}
             >
+              <option value="">{t("select")}</option>
               <option value="company">{t("companyFunded")}</option>
               <option value="consultant">{t("consultantFunded")}</option>
             </select>
+            <FieldError message={fieldErrors.funding} />
           </label>
-        ) : consultantId ? (
+        ) : hasConsultant ? (
           <label className="checkbox">
             <input
               type="checkbox"
@@ -880,29 +1254,29 @@ export function TransactionForm({
               defaultChecked={transaction?.applyConsultantShare ?? false}
             />
             {t("applyConsultantShare")}
+            <InfoTip text={t("applyConsultantShareTip")} />
           </label>
         ) : null}
-        {consultantId && (
+        {hasConsultant && (
           <label>
             {t("consultantDescription")}
+            <InfoTip text={t("consultantDescriptionTip")} />
             <input
               className="field"
               name="visibleDescription"
-              defaultValue={transaction?.visibleDescription ?? receiptText}
+              value={visibleDescription}
+              onChange={(event) => setVisibleDescription(event.target.value)}
             />
           </label>
         )}
         <label>
           {t("internalNote")}
+          <InfoTip text={t("internalNoteTip")} />
           <input
             className="field"
             name="internalNote"
-            defaultValue={
-              transaction?.internalNote ??
-              (receipt
-                ? `${t("receipt")}: ${receiptText} (${receipt.userName})`
-                : undefined)
-            }
+            value={internalNote}
+            onChange={(event) => setInternalNote(event.target.value)}
           />
         </label>
         <div
@@ -917,6 +1291,12 @@ export function TransactionForm({
             <span>{t("vatAmount")}</span>
             <strong>{formatSek(amountSummary.vatMinor, locale)}</strong>
           </div>
+          {amountSummary.roundingMinor !== 0 && (
+            <div>
+              <span>{t("rounding")}</span>
+              <strong>{formatSek(amountSummary.roundingMinor, locale)}</strong>
+            </div>
+          )}
           <div>
             <span>{t("totalIncludingVat")}</span>
             <strong>{formatSek(amountSummary.grossMinor, locale)}</strong>
@@ -929,13 +1309,111 @@ export function TransactionForm({
           onFilesChange={setAttachmentFiles}
           removedAttachmentIds={removedAttachmentIds}
           onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
+          ai={
+            aiEnabled
+              ? {
+                  busyKey: aiBusyKey,
+                  processedKeys: aiProcessedKeys,
+                  onProcess: processWithAi,
+                }
+              : undefined
+          }
         />
+        {aiNotice && (
+          <div
+            className={`form-wide notice notice-${aiNotice.tone} notice-with-icon ai-notice`}
+            role={aiNotice.tone === "error" ? "alert" : "status"}
+          >
+            {aiNotice.tone === "success" ? (
+              <SuccessCheckIcon />
+            ) : (
+              <WarningTriangleIcon />
+            )}
+            <div>
+              {aiNotice.messages.map((message) => (
+                <span key={message}>{message}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {aiCurrencyWarning && (
+          <div
+            className="form-wide notice notice-error notice-with-icon ai-currency-warning"
+            role="alert"
+          >
+            <WarningTriangleIcon />
+            <div>
+              {aiCurrencyWarning.map((message) => (
+                <span key={message}>{message}</span>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="form-wide actions">
-          <button className="button" disabled={busy}>
+          <button className="button" disabled={busy || aiBusyKey !== null}>
             {transaction ? t("saveChanges") : t("postTransaction")}
           </button>
         </div>
         {error && <p className="form-wide notice notice-error">{error}</p>}
+        {pendingVatMismatch && (
+          <div className="modal-backdrop" role="presentation">
+            <section
+              className="modal modal-small"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="transaction-vat-warning-title"
+              aria-describedby="transaction-vat-warning-description"
+            >
+              <header className="modal-header">
+                <div>
+                  <h2 id="transaction-vat-warning-title">
+                    {t("vatMismatchTitle")}
+                  </h2>
+                  <p id="transaction-vat-warning-description">
+                    {t("vatMismatchWarning")
+                      .replace(
+                        "{net}",
+                        formatSek(amountSummary.netMinor, locale),
+                      )
+                      .replace(
+                        "{rate}",
+                        (vatRateBps / 100).toLocaleString(locale),
+                      )
+                      .replace(
+                        "{expected}",
+                        formatSek(expectedVatMinor, locale),
+                      )
+                      .replace(
+                        "{vat}",
+                        formatSek(amountSummary.vatMinor, locale),
+                      )}
+                  </p>
+                </div>
+              </header>
+              <footer className="modal-actions">
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => setPendingVatMismatch(null)}
+                >
+                  {t("backAndCheck")}
+                </button>
+                <button
+                  className="button"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    const payload = pendingVatMismatch;
+                    setPendingVatMismatch(null);
+                    post(payload, false);
+                  }}
+                >
+                  {t("continuePosting")}
+                </button>
+              </footer>
+            </section>
+          </div>
+        )}
         {pendingMonthMismatch && (
           <div className="modal-backdrop" role="presentation">
             <section
@@ -958,7 +1436,7 @@ export function TransactionForm({
                       )
                       .replace(
                         "{transactionType}",
-                        t(direction).toLocaleLowerCase(locale),
+                        t(direction || "income").toLocaleLowerCase(locale),
                       )
                       .replace(
                         "{transactionMonth}",

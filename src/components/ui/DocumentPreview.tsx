@@ -17,6 +17,14 @@ export async function downloadFile(fileUrl: string, fileName: string) {
   return true;
 }
 
+export function OpenInNewTabIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
+      <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+    </svg>
+  );
+}
+
 export function PrintIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
@@ -26,19 +34,23 @@ export function PrintIcon() {
 }
 
 /**
- * Inline PDF or image preview of a server-protected file, with icon-only
- * download and print buttons. `toolbar` renders before the buttons and
- * `toolbarEnd` after them.
+ * Inline PDF or image preview of a server-protected file (`fileUrl`) or a
+ * local file that is not uploaded yet (`blob`), with icon-only download and
+ * print buttons. PDFs also get an open-in-new-tab button, since many mobile
+ * browsers cannot show a PDF inside a frame. `toolbar` renders before the
+ * buttons and `toolbarEnd` after them.
  */
 export function DocumentPreview({
   fileUrl,
+  blob,
   fileName,
   contentType,
   title,
   toolbar,
   toolbarEnd,
 }: {
-  fileUrl: string;
+  fileUrl?: string;
+  blob?: Blob;
   fileName: string;
   contentType: string;
   title: string;
@@ -46,10 +58,12 @@ export function DocumentPreview({
   toolbarEnd?: React.ReactNode;
 }) {
   const { t } = useLocale();
-  const [loaded, setLoaded] = useState<{ src: string; url: string } | null>(
-    null,
-  );
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const source = blob ?? fileUrl ?? null;
+  const [loaded, setLoaded] = useState<{
+    source: Blob | string;
+    url: string;
+  } | null>(null);
+  const [failedSource, setFailedSource] = useState<Blob | string | null>(null);
   const [actionError, setActionError] = useState("");
   const printFrame = useRef<HTMLIFrameElement | null>(null);
   const isImage = contentType.startsWith("image/");
@@ -57,16 +71,20 @@ export function DocumentPreview({
   useEffect(() => {
     let active = true;
     let objectUrl: string | null = null;
-    void appCheckFetch(`${fileUrl}?disposition=inline`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error("documentLoadFailed");
-        const blob = await response.blob();
+    const loadedBlob = blob
+      ? Promise.resolve(blob)
+      : appCheckFetch(`${fileUrl}?disposition=inline`).then((response) => {
+          if (!response.ok) throw new Error("documentLoadFailed");
+          return response.blob();
+        });
+    void loadedBlob
+      .then((value) => {
         if (!active) return;
-        objectUrl = URL.createObjectURL(blob);
-        setLoaded({ src: fileUrl, url: objectUrl });
+        objectUrl = URL.createObjectURL(value);
+        setLoaded({ source: blob ?? fileUrl!, url: objectUrl });
       })
       .catch(() => {
-        if (active) setFailedSrc(fileUrl);
+        if (active) setFailedSource(blob ?? fileUrl!);
       });
     return () => {
       active = false;
@@ -74,10 +92,10 @@ export function DocumentPreview({
       printFrame.current?.remove();
       printFrame.current = null;
     };
-  }, [fileUrl]);
+  }, [fileUrl, blob]);
 
-  const url = loaded?.src === fileUrl ? loaded.url : null;
-  const failed = failedSrc === fileUrl;
+  const url = loaded && loaded.source === source ? loaded.url : null;
+  const failed = failedSource !== null && failedSource === source;
 
   function print() {
     if (!url) return;
@@ -107,7 +125,14 @@ export function DocumentPreview({
 
   async function download() {
     setActionError("");
-    if (!(await downloadFile(fileUrl, fileName)))
+    if (blob && url) {
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = fileName;
+      anchor.click();
+      return;
+    }
+    if (!fileUrl || !(await downloadFile(fileUrl, fileName)))
       setActionError(t("documentDownloadFailed"));
   }
 
@@ -135,6 +160,18 @@ export function DocumentPreview({
           >
             <PrintIcon />
           </button>
+          {!isImage && url && (
+            <a
+              className="table-action icon-action document-icon-action"
+              href={url}
+              target="_blank"
+              rel="noopener"
+              aria-label={t("openInNewTab")}
+              title={t("openInNewTab")}
+            >
+              <OpenInNewTabIcon />
+            </a>
+          )}
         </div>
         {toolbarEnd}
       </div>

@@ -17,6 +17,11 @@ export default function AdminPage() {
       t("emailTemplatesDescription"),
       "/admin/email-templates",
     ],
+    [
+      t("aiIntegration"),
+      t("aiIntegrationDescription"),
+      "/admin/ai-integration",
+    ],
     [t("auditHistory"), t("auditHistoryDescription"), "/admin/audit"],
   ];
   return (
