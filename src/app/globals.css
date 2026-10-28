@@ -1587,6 +1587,32 @@ th.actions-heading {
   }
 }
 
+.ai-currency-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--danger);
+  font-weight: 600;
+}
+
+.ai-currency-warning svg {
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.ai-currency-warning div {
+  display: grid;
+  gap: 4px;
+}
+
+.ai-currency-warning span + span {
+  font-weight: 400;
+}
+
 .field-error {
   color: var(--danger);
   font-size: 12px;

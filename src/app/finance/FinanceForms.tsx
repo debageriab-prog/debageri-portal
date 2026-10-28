@@ -14,6 +14,7 @@ import { receiptVatRateBps } from "@/domain/receipts";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { FinanceCsvImport } from "./FinanceCsvImport";
 import { transactionMonthMismatch } from "./transaction-navigation";
+import { WarningTriangleIcon } from "@/components/ui/FileActionIcons";
 import {
   FinanceAttachments,
   processAttachmentWithAi,
@@ -669,6 +670,9 @@ export function TransactionForm({
       (receipt ? `${t("receipt")}: ${receiptText} (${receipt.userName})` : ""),
   );
   const [aiBusyKey, setAiBusyKey] = useState<string | null>(null);
+  const [aiCurrencyWarning, setAiCurrencyWarning] = useState<string[] | null>(
+    null,
+  );
   const [aiNotice, setAiNotice] = useState<{
     tone: "success" | "warning" | "error";
     messages: string[];
@@ -681,6 +685,7 @@ export function TransactionForm({
   ) {
     setAiBusyKey(key);
     setAiNotice(null);
+    setAiCurrencyWarning(null);
     const result = await processAttachmentWithAi(source);
     setAiBusyKey(null);
     const extraction = result.extraction;
@@ -766,6 +771,15 @@ export function TransactionForm({
       setInternalNote(summary);
       filled++;
     }
+    if (conversion)
+      setAiCurrencyWarning([
+        t("aiConversionCheck").replace("{currency}", conversion.currency),
+        conversionText,
+      ]);
+    else if (foreignAmounts)
+      setAiCurrencyWarning([
+        t("aiForeignCurrency").replace("{currency}", extraction.currency),
+      ]);
     if (!filled) {
       setAiNotice({
         tone: "warning",
@@ -774,15 +788,6 @@ export function TransactionForm({
       return;
     }
     const messages = [t("aiFilledFromFile").replace("{name}", name)];
-    if (conversion)
-      messages.push(
-        t("aiConversionCheck").replace("{currency}", conversion.currency),
-        conversionText,
-      );
-    if (foreignAmounts)
-      messages.push(
-        t("aiForeignCurrency").replace("{currency}", extraction.currency),
-      );
     if (
       !foreignAmounts &&
       extraction.netMinor !== null &&
@@ -800,7 +805,7 @@ export function TransactionForm({
     if (!extraction.direction || !extraction.categoryId)
       messages.push(t("aiChooseRemaining"));
     setAiNotice({
-      tone: messages.length > 1 || conversion ? "warning" : "success",
+      tone: messages.length > 1 ? "warning" : "success",
       messages,
     });
   }
@@ -1155,6 +1160,19 @@ export function TransactionForm({
             {aiNotice.messages.map((message) => (
               <span key={message}>{message}</span>
             ))}
+          </div>
+        )}
+        {aiCurrencyWarning && (
+          <div
+            className="form-wide notice notice-error ai-currency-warning"
+            role="alert"
+          >
+            <WarningTriangleIcon />
+            <div>
+              {aiCurrencyWarning.map((message) => (
+                <span key={message}>{message}</span>
+              ))}
+            </div>
           </div>
         )}
         <div className="form-wide actions">

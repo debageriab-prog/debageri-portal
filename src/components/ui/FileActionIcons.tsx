@@ -39,3 +39,12 @@ export function FileViewIcon() {
     </svg>
   );
 }
+
+export function WarningTriangleIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22">
+      <path d="M10.3 3.9 2.2 18a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9v4.5M12 17.2v.3" />
+    </svg>
+  );
+}
