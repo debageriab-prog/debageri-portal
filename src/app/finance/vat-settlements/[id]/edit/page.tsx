@@ -5,6 +5,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
 import { isAiFeatureEnabled } from "@/server/services/ai-service";
+import { accountingRecipientLabels } from "@/server/services/accounting-email-service";
 import { VatSettlementForm } from "../../new/VatSettlementForm";
 
 export default async function EditVatSettlementPage({
@@ -66,6 +67,11 @@ export default async function EditVatSettlementPage({
         <VatSettlementForm
           payableMinor={payableMinor}
           locale={actor.locale}
+          accountingRecipients={await accountingRecipientLabels(
+            db,
+            actor.organizationId,
+            "vatSettlements",
+          )}
           aiEnabled={await isAiFeatureEnabled(
             db,
             actor.organizationId,
