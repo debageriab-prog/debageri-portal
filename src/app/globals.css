@@ -1487,6 +1487,39 @@ th.actions-heading {
   stroke-width: 1.8;
 }
 
+.attachment-ai {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.attachment-ai:hover:not(:disabled),
+.attachment-ai:focus-visible {
+  background: var(--accent);
+  color: white;
+}
+
+.attachment-ai:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.attachment-ai svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
 .attachment-download {
   display: inline-grid;
   flex: 0 0 auto;

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { expensableReceipt } from "@/server/services/receipt-service";
+import { isAiFeatureEnabled } from "@/server/services/ai-service";
 import { type ExpenseReceipt, TransactionForm } from "../../FinanceForms";
 import { financeFormContext, financeUsers } from "../../form-data";
 import {
@@ -53,6 +54,11 @@ export default async function NewTransactionPage({
       categories={categories}
       returnHref={returnHref}
       receipt={receipt}
+      aiEnabled={await isAiFeatureEnabled(
+        db,
+        actor.organizationId,
+        "financeAttachments",
+      )}
       defaultDate={transactionDefaultDate(
         returnHref,
         new Date().toISOString().slice(0, 10),

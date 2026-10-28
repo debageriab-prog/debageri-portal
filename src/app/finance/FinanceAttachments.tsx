@@ -4,9 +4,11 @@ import { ReactNode, useEffect, useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { appCheckFetch } from "@/lib/firebase/client";
 import {
+  FileAiIcon,
   FileDownloadIcon,
   FileRemoveIcon,
 } from "@/components/ui/FileActionIcons";
+import type { FinanceExtraction } from "@/domain/ai";
 
 export type FinanceEntityType = "transaction" | "vatSettlement" | "invoice";
 type Attachment = {
@@ -112,6 +114,71 @@ export async function saveFinanceAttachmentChanges(
   return uploadFinanceAttachments(entityType, entityId, files);
 }
 
+export type AiAttachmentSource =
+  | { kind: "file"; file: File }
+  | { kind: "stored"; entityId: string; attachmentId: string };
+
+/** Asks the server to read one attachment with the configured AI provider. */
+export async function processAttachmentWithAi(
+  source: AiAttachmentSource,
+): Promise<{ extraction?: FinanceExtraction; error?: string }> {
+  let init: RequestInit;
+  if (source.kind === "file") {
+    const body = new FormData();
+    body.append("file", source.file);
+    init = { method: "POST", body };
+  } else {
+    init = {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        entityId: source.entityId,
+        attachmentId: source.attachmentId,
+      }),
+    };
+  }
+  try {
+    const response = await appCheckFetch("/api/ai/finance-attachment", init);
+    const result = (await response.json().catch(() => ({}))) as {
+      extraction?: FinanceExtraction;
+      error?: string;
+    };
+    return response.ok && result.extraction
+      ? { extraction: result.extraction }
+      : { error: result.error ?? "aiProviderFailed" };
+  } catch {
+    return { error: "aiProviderFailed" };
+  }
+}
+
+function AiProcessButton({
+  name,
+  busy,
+  disabled,
+  onClick,
+}: {
+  name: string;
+  busy: boolean;
+  disabled: boolean;
+  onClick(): void;
+}) {
+  const { t } = useLocale();
+  return (
+    <button
+      className="attachment-ai"
+      type="button"
+      aria-label={t("aiProcessAttachmentNamed").replace("{name}", name)}
+      title={t("aiProcessAttachmentNamed").replace("{name}", name)}
+      disabled={disabled}
+      aria-busy={busy}
+      onClick={onClick}
+    >
+      <FileAiIcon />
+      <span>{busy ? t("aiProcessing") : t("aiProcessAttachment")}</span>
+    </button>
+  );
+}
+
 export function FinanceAttachments({
   entityType,
   entityId,
@@ -119,6 +186,7 @@ export function FinanceAttachments({
   onFilesChange,
   removedAttachmentIds,
   onRemovedAttachmentIdsChange,
+  ai,
 }: {
   entityType: FinanceEntityType;
   entityId?: string;
@@ -126,6 +194,11 @@ export function FinanceAttachments({
   onFilesChange(files: File[]): void;
   removedAttachmentIds: string[];
   onRemovedAttachmentIdsChange(ids: string[]): void;
+  /** Shows "Process attachment with AI" next to each file when set. */
+  ai?: {
+    busyKey: string | null;
+    onProcess(source: AiAttachmentSource, key: string, name: string): void;
+  };
 }) {
   const { t } = useLocale();
   const [existing, setExisting] = useState<Attachment[]>([]);
@@ -162,6 +235,24 @@ export function FinanceAttachments({
                 attachmentId={attachment.id}
                 name={attachment.name}
               />
+              {ai && (
+                <AiProcessButton
+                  name={attachment.name}
+                  busy={ai.busyKey === attachment.id}
+                  disabled={ai.busyKey !== null}
+                  onClick={() =>
+                    ai.onProcess(
+                      {
+                        kind: "stored",
+                        entityId: entityId!,
+                        attachmentId: attachment.id,
+                      },
+                      attachment.id,
+                      attachment.name,
+                    )
+                  }
+                />
+              )}
               <button
                 className="attachment-remove"
                 type="button"
@@ -211,27 +302,40 @@ export function FinanceAttachments({
             {t("filesSelected").replace("{count}", String(files.length))}
           </p>
           <ul className="attachment-list pending-attachment-list">
-            {files.map((file, index) => (
-              <li key={`${file.name}-${file.size}-${file.lastModified}`}>
-                <span>{file.name}</span>
-                <button
-                  className="attachment-remove"
-                  type="button"
-                  aria-label={t("removeAttachment").replace(
-                    "{name}",
-                    file.name,
+            {files.map((file, index) => {
+              const key = `${file.name}-${file.size}-${file.lastModified}`;
+              return (
+                <li key={key}>
+                  <span>{file.name}</span>
+                  {ai && (
+                    <AiProcessButton
+                      name={file.name}
+                      busy={ai.busyKey === key}
+                      disabled={ai.busyKey !== null}
+                      onClick={() =>
+                        ai.onProcess({ kind: "file", file }, key, file.name)
+                      }
+                    />
                   )}
-                  title={t("removeAttachment").replace("{name}", file.name)}
-                  onClick={() =>
-                    onFilesChange(
-                      files.filter((_, itemIndex) => itemIndex !== index),
-                    )
-                  }
-                >
-                  <FileRemoveIcon />
-                </button>
-              </li>
-            ))}
+                  <button
+                    className="attachment-remove"
+                    type="button"
+                    aria-label={t("removeAttachment").replace(
+                      "{name}",
+                      file.name,
+                    )}
+                    title={t("removeAttachment").replace("{name}", file.name)}
+                    onClick={() =>
+                      onFilesChange(
+                        files.filter((_, itemIndex) => itemIndex !== index),
+                      )
+                    }
+                  >
+                    <FileRemoveIcon />
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}

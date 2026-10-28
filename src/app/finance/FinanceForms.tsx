@@ -16,8 +16,19 @@ import { FinanceCsvImport } from "./FinanceCsvImport";
 import { transactionMonthMismatch } from "./transaction-navigation";
 import {
   FinanceAttachments,
+  processAttachmentWithAi,
   saveFinanceAttachmentChanges,
+  type AiAttachmentSource,
 } from "./FinanceAttachments";
+
+const AI_ERROR_CODES = [
+  "aiDisabled",
+  "aiNotConfigured",
+  "aiUnsupportedFile",
+  "aiProviderRejected",
+  "aiNoResult",
+  "attachmentTooLarge",
+];
 
 type User = { id: string; displayName: string };
 type Customer = { id: string; name: string };
@@ -568,6 +579,7 @@ export function TransactionForm({
   defaultDate,
   transaction,
   receipt,
+  aiEnabled = false,
 }: {
   users: User[];
   categories: Category[];
@@ -575,6 +587,7 @@ export function TransactionForm({
   defaultDate?: string;
   transaction?: EditableTransaction;
   receipt?: ExpenseReceipt;
+  aiEnabled?: boolean;
 }) {
   const { t, locale } = useLocale();
   const receiptConsultant = receipt
@@ -617,6 +630,106 @@ export function TransactionForm({
   );
   const { busy, error, submit } = useFinanceSubmit(returnHref);
   const [receiptFileError, setReceiptFileError] = useState(false);
+  const [categoryId, setCategoryId] = useState(transaction?.categoryId ?? "");
+  const [date, setDate] = useState(
+    transaction?.date ?? receipt?.date ?? defaultDate ?? today(),
+  );
+  const receiptText = receipt
+    ? [receipt.name, receipt.description].filter(Boolean).join(" – ")
+    : "";
+  const [internalNote, setInternalNote] = useState(
+    transaction?.internalNote ??
+      (receipt ? `${t("receipt")}: ${receiptText} (${receipt.userName})` : ""),
+  );
+  const [aiBusyKey, setAiBusyKey] = useState<string | null>(null);
+  const [aiNotice, setAiNotice] = useState<{
+    tone: "success" | "warning" | "error";
+    messages: string[];
+  } | null>(null);
+
+  async function processWithAi(
+    source: AiAttachmentSource,
+    key: string,
+    name: string,
+  ) {
+    setAiBusyKey(key);
+    setAiNotice(null);
+    const result = await processAttachmentWithAi(source);
+    setAiBusyKey(null);
+    const extraction = result.extraction;
+    if (!extraction) {
+      const code = AI_ERROR_CODES.includes(result.error ?? "")
+        ? result.error
+        : "aiProviderFailed";
+      setAiNotice({
+        tone: "error",
+        messages: [t(`aiError_${code}` as Parameters<typeof t>[0])],
+      });
+      return;
+    }
+    let filled = 0;
+    if (extraction.direction) {
+      setDirection(extraction.direction);
+      filled++;
+    }
+    if (extraction.date) {
+      setDate(extraction.date);
+      filled++;
+    }
+    if (extraction.grossMinor !== null && extraction.grossMinor > 0) {
+      setAmountMode("gross");
+      setAmount((extraction.grossMinor / 100).toFixed(2));
+      filled++;
+    } else if (extraction.netMinor !== null && extraction.netMinor > 0) {
+      setAmountMode("net");
+      setAmount((extraction.netMinor / 100).toFixed(2));
+      filled++;
+    }
+    if (extraction.vatRateBps !== null) {
+      setVatPercent(String(extraction.vatRateBps / 100));
+      filled++;
+    }
+    if (extraction.categoryId) {
+      setCategoryId(extraction.categoryId);
+      filled++;
+    }
+    const summary = [extraction.counterpartyName, extraction.description]
+      .filter(Boolean)
+      .join(" – ");
+    if (summary && !internalNote.trim()) {
+      setInternalNote(summary);
+      filled++;
+    }
+    if (!filled) {
+      setAiNotice({
+        tone: "warning",
+        messages: [t("aiNothingFound").replace("{name}", name)],
+      });
+      return;
+    }
+    const messages = [t("aiFilledFromFile").replace("{name}", name)];
+    if (extraction.currency && extraction.currency !== "SEK")
+      messages.push(
+        t("aiForeignCurrency").replace("{currency}", extraction.currency),
+      );
+    if (
+      extraction.netMinor !== null &&
+      extraction.vatMinor !== null &&
+      extraction.vatRateBps !== null &&
+      calculateVatMinor(extraction.netMinor, extraction.vatRateBps) !==
+        extraction.vatMinor
+    )
+      messages.push(
+        t("aiVatDiffers").replace(
+          "{vat}",
+          formatSek(extraction.vatMinor, locale),
+        ),
+      );
+    setAiNotice({
+      tone: messages.length > 1 ? "warning" : "success",
+      messages,
+    });
+  }
   useEffect(() => {
     if (!receipt) return;
     let active = true;
@@ -636,9 +749,6 @@ export function TransactionForm({
       active = false;
     };
   }, [receipt]);
-  const receiptText = receipt
-    ? [receipt.name, receipt.description].filter(Boolean).join(" – ")
-    : "";
   const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
   const amountSummary = useMemo(() => {
     try {
@@ -672,7 +782,6 @@ export function TransactionForm({
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const date = String(form.get("date") ?? "");
     const payload = {
       action: transaction ? "updateTransaction" : "createTransaction",
       ...(transaction ? { transactionId: transaction.id } : {}),
@@ -769,7 +878,12 @@ export function TransactionForm({
           <select
             className="field"
             name="categoryId"
-            defaultValue={transaction?.categoryId ?? ""}
+            value={
+              availableCategories.some((item) => item.id === categoryId)
+                ? categoryId
+                : ""
+            }
+            onChange={(event) => setCategoryId(event.target.value)}
             required
           >
             <option value="">{t("selectCategory")}</option>
@@ -806,9 +920,8 @@ export function TransactionForm({
             className="field"
             type="date"
             name="date"
-            defaultValue={
-              transaction?.date ?? receipt?.date ?? defaultDate ?? today()
-            }
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
             required
           />
         </label>
@@ -897,12 +1010,8 @@ export function TransactionForm({
           <input
             className="field"
             name="internalNote"
-            defaultValue={
-              transaction?.internalNote ??
-              (receipt
-                ? `${t("receipt")}: ${receiptText} (${receipt.userName})`
-                : undefined)
-            }
+            value={internalNote}
+            onChange={(event) => setInternalNote(event.target.value)}
           />
         </label>
         <div
@@ -929,9 +1038,24 @@ export function TransactionForm({
           onFilesChange={setAttachmentFiles}
           removedAttachmentIds={removedAttachmentIds}
           onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
+          ai={
+            aiEnabled
+              ? { busyKey: aiBusyKey, onProcess: processWithAi }
+              : undefined
+          }
         />
+        {aiNotice && (
+          <div
+            className={`form-wide notice notice-${aiNotice.tone} ai-notice`}
+            role={aiNotice.tone === "error" ? "alert" : "status"}
+          >
+            {aiNotice.messages.map((message) => (
+              <span key={message}>{message}</span>
+            ))}
+          </div>
+        )}
         <div className="form-wide actions">
-          <button className="button" disabled={busy}>
+          <button className="button" disabled={busy || aiBusyKey !== null}>
             {transaction ? t("saveChanges") : t("postTransaction")}
           </button>
         </div>

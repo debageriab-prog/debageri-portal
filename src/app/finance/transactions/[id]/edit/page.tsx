@@ -5,6 +5,7 @@ import {
 } from "../../../FinanceForms";
 import { financeFormContext, financeUsers } from "../../../form-data";
 import { safeTransactionReturnHref } from "../../../transaction-navigation";
+import { isAiFeatureEnabled } from "@/server/services/ai-service";
 
 export default async function EditTransactionPage({
   params,
@@ -62,6 +63,11 @@ export default async function EditTransactionPage({
       users={users}
       categories={categories}
       transaction={transaction}
+      aiEnabled={await isAiFeatureEnabled(
+        db,
+        actor.organizationId,
+        "financeAttachments",
+      )}
       returnHref={safeTransactionReturnHref((await searchParams).returnTo)}
     />
   );

@@ -1,0 +1,364 @@
+import "server-only";
+
+import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
+import type { Firestore } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
+import { z } from "zod";
+import type { PortalUser } from "@/domain/types";
+import {
+  aiFeatureEnabled,
+  aiSettingsFrom,
+  FINANCE_EXTRACTION_JSON_SCHEMA,
+  normalizeFinanceExtraction,
+  type AiFeature,
+  type AiProvider,
+  type FinanceExtraction,
+  type RawFinanceExtraction,
+} from "@/domain/ai";
+import {
+  decryptPassword,
+  encryptPassword,
+} from "@/server/services/reminder-service";
+import type { aiSettingsSchema } from "@/server/validators/ai";
+
+export class AiError extends Error {
+  constructor(
+    public code:
+      | "aiDisabled"
+      | "aiNotConfigured"
+      | "aiUnsupportedFile"
+      | "aiProviderRejected"
+      | "aiProviderFailed"
+      | "aiNoResult",
+    public status: number,
+  ) {
+    super(code);
+  }
+}
+
+const SETTINGS_COLLECTION = "aiSettings";
+
+export async function readAiSettings(db: Firestore, organizationId: string) {
+  const data = (
+    await db.collection(SETTINGS_COLLECTION).doc(organizationId).get()
+  ).data();
+  const keys = (data?.encryptedApiKeys ?? {}) as Partial<
+    Record<AiProvider, string>
+  >;
+  return {
+    settings: aiSettingsFrom(data),
+    keyConfigured: {
+      anthropic: Boolean(keys.anthropic),
+      openai: Boolean(keys.openai),
+    } as Record<AiProvider, boolean>,
+    encryptedKeys: keys,
+  };
+}
+
+export async function isAiFeatureEnabled(
+  db: Firestore,
+  organizationId: string,
+  feature: AiFeature,
+) {
+  const { settings, keyConfigured } = await readAiSettings(db, organizationId);
+  return (
+    aiFeatureEnabled(settings, feature) && keyConfigured[settings.provider]
+  );
+}
+
+export async function saveAiSettings(
+  db: Firestore,
+  actor: PortalUser,
+  input: z.infer<typeof aiSettingsSchema>,
+) {
+  if (actor.role !== "admin") throw new AiError("aiDisabled", 403);
+  const ref = db.collection(SETTINGS_COLLECTION).doc(actor.organizationId);
+  const { encryptedKeys } = await readAiSettings(db, actor.organizationId);
+  if (input.enabled && !input.apiKey && !encryptedKeys[input.provider])
+    throw new AiError("aiNotConfigured", 400);
+  const { apiKey, ...settings } = input;
+  await db.runTransaction(async (transaction) => {
+    transaction.set(
+      ref,
+      {
+        organizationId: actor.organizationId,
+        ...settings,
+        ...(apiKey
+          ? { encryptedApiKeys: { [input.provider]: encryptPassword(apiKey) } }
+          : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: actor.id,
+      },
+      { merge: true },
+    );
+    transaction.create(db.collection("auditLogs").doc(), {
+      organizationId: actor.organizationId,
+      actorUserId: actor.id,
+      action: "aiSettingsUpdated",
+      entityType: "aiSettings",
+      entityId: actor.organizationId,
+      timestamp: FieldValue.serverTimestamp(),
+      metadata: { ...settings, apiKeyChanged: Boolean(apiKey) },
+    });
+  });
+}
+
+export type ExtractionFile = {
+  name: string;
+  contentType: string;
+  bytes: Buffer;
+};
+
+type ExtractionContext = {
+  organizationName: string;
+  categories: { id: string; direction: string; name: string }[];
+};
+
+const rawExtractionSchema = z.object({
+  documentType: z.enum(["receipt", "invoice", "other"]),
+  direction: z.enum(["income", "expense"]).nullable(),
+  date: z.string().nullable(),
+  currency: z.string().nullable(),
+  netAmount: z.number().nullable(),
+  vatAmount: z.number().nullable(),
+  totalAmount: z.number().nullable(),
+  vatRatePercent: z.number().nullable(),
+  counterpartyName: z.string().nullable(),
+  description: z.string().nullable(),
+  categoryId: z.string().nullable(),
+}) satisfies z.ZodType<RawFinanceExtraction>;
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+type ImageType = (typeof IMAGE_TYPES)[number];
+const MAX_EMAIL_CHARS = 60_000;
+
+function instructions(context: ExtractionContext) {
+  return [
+    `You read bookkeeping documents (receipts, supplier invoices, customer invoices, order confirmations) for the Swedish company "${context.organizationName}" and extract the values needed to post one ledger transaction.`,
+    "Rules:",
+    '- direction: "expense" when the company is the buyer or payer, "income" when the company issued the invoice or receives the money, null if unclear.',
+    "- date: the invoice or purchase date (not the due date) as YYYY-MM-DD.",
+    "- currency: ISO 4217 code such as SEK or EUR.",
+    "- netAmount, vatAmount, totalAmount: the document's totals in major units (kronor, not öre) as plain numbers. netAmount excludes VAT (moms), totalAmount includes it. If the document has several VAT rates, return the summed totals and the dominant rate in vatRatePercent.",
+    "- vatRatePercent: e.g. 25, 12, 6 or 0.",
+    "- counterpartyName: the other party (the supplier for expenses, the customer for income).",
+    "- description: a short description of what was bought or sold, in the document's language, at most 15 words.",
+    "- categoryId: the id of the best matching category from the list below for the chosen direction, or null if none fits.",
+    "Use null for any value that is not clearly stated or derivable from the document. Never guess amounts.",
+    "Categories (id | direction | name):",
+    ...context.categories.map(
+      (category) => `${category.id} | ${category.direction} | ${category.name}`,
+    ),
+  ].join("\n");
+}
+
+/** Plain-text view of an .eml file; binary parts are dropped. */
+function emailText(bytes: Buffer) {
+  const raw = bytes.toString("utf8");
+  return raw
+    .replace(/^[A-Za-z0-9+/=]{60,}$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .slice(0, MAX_EMAIL_CHARS);
+}
+
+async function callAnthropic(
+  apiKey: string,
+  model: string,
+  file: ExtractionFile,
+  system: string,
+) {
+  const client = new Anthropic({ apiKey, timeout: 90_000 });
+  const data = file.bytes.toString("base64");
+  const source: Anthropic.ContentBlockParam =
+    file.contentType === "application/pdf"
+      ? {
+          type: "document",
+          source: { type: "base64", media_type: "application/pdf", data },
+        }
+      : IMAGE_TYPES.includes(file.contentType as ImageType)
+        ? {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: file.contentType as ImageType,
+              data,
+            },
+          }
+        : { type: "text", text: emailText(file.bytes) };
+  try {
+    const response = await client.messages.create({
+      model,
+      max_tokens: 4000,
+      system,
+      output_config: {
+        effort: "low",
+        format: {
+          type: "json_schema",
+          schema: FINANCE_EXTRACTION_JSON_SCHEMA,
+        },
+      },
+      messages: [
+        {
+          role: "user",
+          content: [
+            source,
+            {
+              type: "text",
+              text: `Extract the transaction values from the attached file "${file.name}".`,
+            },
+          ],
+        },
+      ],
+    });
+    if (response.stop_reason === "refusal")
+      throw new AiError("aiNoResult", 422);
+    return response.content
+      .flatMap((block) => (block.type === "text" ? [block.text] : []))
+      .join("");
+  } catch (error) {
+    if (error instanceof AiError) throw error;
+    if (
+      error instanceof Anthropic.AuthenticationError ||
+      error instanceof Anthropic.PermissionDeniedError ||
+      error instanceof Anthropic.NotFoundError ||
+      error instanceof Anthropic.BadRequestError
+    ) {
+      console.error("Anthropic rejected the extraction request", {
+        status: error.status,
+        message: error.message,
+      });
+      throw new AiError("aiProviderRejected", 502);
+    }
+    console.error("Anthropic extraction failed", error);
+    throw new AiError("aiProviderFailed", 502);
+  }
+}
+
+async function callOpenAi(
+  apiKey: string,
+  model: string,
+  file: ExtractionFile,
+  system: string,
+) {
+  const client = new OpenAI({ apiKey, timeout: 90_000 });
+  const data = file.bytes.toString("base64");
+  const source: OpenAI.Responses.ResponseInputContent =
+    file.contentType === "application/pdf"
+      ? {
+          type: "input_file",
+          filename: file.name.toLowerCase().endsWith(".pdf")
+            ? file.name
+            : `${file.name}.pdf`,
+          file_data: `data:application/pdf;base64,${data}`,
+        }
+      : IMAGE_TYPES.includes(file.contentType as ImageType)
+        ? {
+            type: "input_image",
+            detail: "high",
+            image_url: `data:${file.contentType};base64,${data}`,
+          }
+        : { type: "input_text", text: emailText(file.bytes) };
+  try {
+    const response = await client.responses.create({
+      model,
+      instructions: system,
+      input: [
+        {
+          role: "user",
+          content: [
+            source,
+            {
+              type: "input_text",
+              text: `Extract the transaction values from the attached file "${file.name}".`,
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "finance_document",
+          strict: true,
+          schema: FINANCE_EXTRACTION_JSON_SCHEMA,
+        },
+      },
+    });
+    return response.output_text;
+  } catch (error) {
+    if (
+      error instanceof OpenAI.AuthenticationError ||
+      error instanceof OpenAI.PermissionDeniedError ||
+      error instanceof OpenAI.NotFoundError ||
+      error instanceof OpenAI.BadRequestError
+    ) {
+      console.error("OpenAI rejected the extraction request", {
+        status: error.status,
+        message: error.message,
+      });
+      throw new AiError("aiProviderRejected", 502);
+    }
+    console.error("OpenAI extraction failed", error);
+    throw new AiError("aiProviderFailed", 502);
+  }
+}
+
+/** Reads one finance attachment with the organization's configured AI. */
+export async function extractFinanceDocument(
+  db: Firestore,
+  actor: PortalUser,
+  file: ExtractionFile,
+): Promise<FinanceExtraction> {
+  const { settings, encryptedKeys } = await readAiSettings(
+    db,
+    actor.organizationId,
+  );
+  if (!aiFeatureEnabled(settings, "financeAttachments"))
+    throw new AiError("aiDisabled", 403);
+  const encryptedKey = encryptedKeys[settings.provider];
+  if (!encryptedKey) throw new AiError("aiNotConfigured", 400);
+  if (
+    file.contentType !== "application/pdf" &&
+    file.contentType !== "message/rfc822" &&
+    !IMAGE_TYPES.includes(file.contentType as ImageType)
+  )
+    throw new AiError("aiUnsupportedFile", 400);
+
+  const [organization, categorySnapshot] = await Promise.all([
+    db.collection("organizations").doc(actor.organizationId).get(),
+    db
+      .collection("financeCategories")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+  ]);
+  const categories = categorySnapshot.docs
+    .filter((document) => document.data().active !== false)
+    .map((document) => {
+      const name = document.data().name as { en?: string; sv?: string };
+      return {
+        id: document.id,
+        direction: String(document.data().direction),
+        name: [name?.en, name?.sv].filter(Boolean).join(" / "),
+      };
+    });
+  const system = instructions({
+    organizationName: String(organization.data()?.name ?? "Debageri"),
+    categories,
+  });
+  const apiKey = decryptPassword(encryptedKey);
+  const output =
+    settings.provider === "anthropic"
+      ? await callAnthropic(apiKey, settings.model, file, system)
+      : await callOpenAi(apiKey, settings.model, file, system);
+
+  let parsed: z.infer<typeof rawExtractionSchema>;
+  try {
+    parsed = rawExtractionSchema.parse(JSON.parse(output));
+  } catch {
+    throw new AiError("aiNoResult", 422);
+  }
+  return normalizeFinanceExtraction(
+    parsed,
+    categories.map((category) => category.id),
+  );
+}
