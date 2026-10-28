@@ -1622,6 +1622,56 @@ th.actions-heading {
   font-weight: 400;
 }
 
+/* The tooltip is positioned against the label so it never leaves the form. */
+label:has(> .info-tip) {
+  position: relative;
+}
+
+.info-tip {
+  display: inline-flex;
+  margin-left: 5px;
+  color: var(--muted);
+  vertical-align: -2px;
+  cursor: help;
+}
+
+.info-tip:hover,
+.info-tip:focus-visible {
+  color: var(--accent-dark);
+  outline: none;
+}
+
+.info-tip svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+}
+
+.info-tip-text {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: none;
+  width: max-content;
+  max-width: min(280px, 100%);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: white;
+  box-shadow: 0 10px 24px rgb(58 41 29 / 18%);
+  color: #4b3b31;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.info-tip:hover .info-tip-text,
+.info-tip:focus .info-tip-text {
+  display: block;
+}
+
 .field-error {
   color: var(--danger);
   font-size: 12px;

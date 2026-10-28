@@ -13,6 +13,7 @@ import {
   MAX_ROUNDING_MINOR,
   type TransactionAmountMode,
 } from "@/domain/finance/calculations";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { receiptVatRateBps } from "@/domain/receipts";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { FinanceCsvImport } from "./FinanceCsvImport";
@@ -1059,6 +1060,7 @@ export function TransactionForm({
       <form className="form-grid" onSubmit={onSubmit}>
         <label>
           {t("type")}
+          <InfoTip text={t("typeTip")} />
           <select
             className="field"
             name="direction"
@@ -1077,6 +1079,7 @@ export function TransactionForm({
         </label>
         <label>
           {t("category")}
+          <InfoTip text={t("categoryTip")} />
           <select
             className="field"
             name="categoryId"
@@ -1102,6 +1105,7 @@ export function TransactionForm({
         </label>
         <label>
           {t("consultant")}
+          <InfoTip text={t("consultantTip")} />
           <select
             className="field"
             name="consultantId"
@@ -1125,6 +1129,7 @@ export function TransactionForm({
         </label>
         <label>
           {t("date")}
+          <InfoTip text={t("dateTip")} />
           <input
             className="field"
             type="date"
@@ -1136,6 +1141,7 @@ export function TransactionForm({
         </label>
         <label>
           {t("amountEntryMode")}
+          <InfoTip text={t("amountEntryModeTip")} />
           <select
             className="field"
             value={amountMode}
@@ -1159,6 +1165,13 @@ export function TransactionForm({
         </label>
         <label>
           {amountMode === "gross" ? t("totalAmountSek") : t("netAmountSek")}
+          <InfoTip
+            text={
+              amountMode === "gross"
+                ? t("totalAmountSekTip")
+                : t("netAmountSekTip")
+            }
+          />
           <input
             className="field"
             type="number"
@@ -1172,6 +1185,7 @@ export function TransactionForm({
         {amountMode === "netVat" && (
           <label>
             {t("vatAmountSek")}
+            <InfoTip text={t("vatAmountSekTip")} />
             <input
               className="field"
               type="number"
@@ -1185,6 +1199,7 @@ export function TransactionForm({
         )}
         <label>
           {t("vatPercent")}
+          <InfoTip text={t("vatPercentTip")} />
           <input
             className="field"
             type="number"
@@ -1198,6 +1213,7 @@ export function TransactionForm({
         </label>
         <label>
           {t("roundingSek")}
+          <InfoTip text={t("roundingSekTip")} />
           <input
             className="field"
             type="number"
@@ -1206,14 +1222,13 @@ export function TransactionForm({
             step="0.01"
             value={rounding}
             placeholder="0.00"
-            aria-describedby="transaction-rounding-help"
             onChange={(event) => setRounding(event.target.value)}
           />
-          <small id="transaction-rounding-help">{t("roundingHelp")}</small>
         </label>
         {direction === "expense" ? (
           <label>
             {t("funding")}
+            <InfoTip text={t("fundingTip")} />
             <select
               className="field"
               name="funding"
@@ -1239,11 +1254,13 @@ export function TransactionForm({
               defaultChecked={transaction?.applyConsultantShare ?? false}
             />
             {t("applyConsultantShare")}
+            <InfoTip text={t("applyConsultantShareTip")} />
           </label>
         ) : null}
         {hasConsultant && (
           <label>
             {t("consultantDescription")}
+            <InfoTip text={t("consultantDescriptionTip")} />
             <input
               className="field"
               name="visibleDescription"
@@ -1254,6 +1271,7 @@ export function TransactionForm({
         )}
         <label>
           {t("internalNote")}
+          <InfoTip text={t("internalNoteTip")} />
           <input
             className="field"
             name="internalNote"
