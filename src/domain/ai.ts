@@ -5,8 +5,18 @@ export type AiProvider = "anthropic" | "openai";
 export const AI_PROVIDERS: AiProvider[] = ["anthropic", "openai"];
 
 /** Portal areas an admin can switch AI on for, one at a time. */
-export type AiFeature = "financeAttachments";
-export const AI_FEATURES: AiFeature[] = ["financeAttachments"];
+export type AiFeature = "financeAttachments" | "financeInvoices";
+export const AI_FEATURES: AiFeature[] = [
+  "financeAttachments",
+  "financeInvoices",
+];
+
+/** What a document is read for; each purpose has its own AI switch. */
+export type AiExtractionPurpose = "transaction" | "invoice";
+export const AI_PURPOSE_FEATURE: Record<AiExtractionPurpose, AiFeature> = {
+  transaction: "financeAttachments",
+  invoice: "financeInvoices",
+};
 
 /** Suggested model IDs per provider; admins may also enter any other ID. */
 export const AI_MODEL_PRESETS: Record<AiProvider, string[]> = {
@@ -67,6 +77,9 @@ export type RawFinanceExtraction = {
   description: string | null;
   categoryId: string | null;
   consultantId: string | null;
+  invoiceNumber: string | null;
+  dueDate: string | null;
+  customerId: string | null;
 };
 
 const nullable = (schema: Record<string, unknown>) => ({
@@ -91,6 +104,9 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     "description",
     "categoryId",
     "consultantId",
+    "invoiceNumber",
+    "dueDate",
+    "customerId",
   ],
   properties: {
     documentType: { type: "string", enum: ["receipt", "invoice", "other"] },
@@ -106,6 +122,9 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     description: nullable({ type: "string" }),
     categoryId: nullable({ type: "string" }),
     consultantId: nullable({ type: "string" }),
+    invoiceNumber: nullable({ type: "string" }),
+    dueDate: nullable({ type: "string" }),
+    customerId: nullable({ type: "string" }),
   },
 };
 
@@ -134,6 +153,10 @@ export type FinanceExtraction = {
   consultantId: string | null;
   /** How this consultant's latest expense in the category was paid. */
   funding: "company" | "consultant" | null;
+  invoiceNumber: string | null;
+  /** Never before `date`. */
+  dueDate: string | null;
+  customerId: string | null;
   /** Set when foreign amounts were converted to SEK. */
   conversion: {
     currency: string;
@@ -187,6 +210,7 @@ export function normalizeFinanceExtraction(
   raw: RawFinanceExtraction,
   categoryIds: string[],
   consultantIds: string[] = [],
+  customerIds: string[] = [],
 ): FinanceExtraction {
   let netMinor = toMinor(raw.netAmount);
   let vatMinor = toMinor(raw.vatAmount);
@@ -214,12 +238,14 @@ export function normalizeFinanceExtraction(
     vatRateBps = Math.round(raw.vatRatePercent * 100);
 
   const currency = text(raw.currency, 10)?.toUpperCase() ?? null;
+  const date = validDate(raw.date);
+  const dueDate = validDate(raw.dueDate);
   return {
     direction:
       raw.direction === "income" || raw.direction === "expense"
         ? raw.direction
         : null,
-    date: validDate(raw.date),
+    date,
     currency: currency && /^[A-Z]{3}$/.test(currency) ? currency : "SEK",
     netMinor,
     vatMinor,
@@ -237,6 +263,12 @@ export function normalizeFinanceExtraction(
         ? raw.consultantId
         : null,
     funding: null,
+    invoiceNumber: text(raw.invoiceNumber, 60),
+    dueDate: dueDate && (!date || dueDate >= date) ? dueDate : null,
+    customerId:
+      raw.customerId && customerIds.includes(raw.customerId)
+        ? raw.customerId
+        : null,
     conversion: null,
   };
 }

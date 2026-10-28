@@ -83,6 +83,7 @@ export interface FinancePageData {
     status: "issued" | "paid" | "void";
     netMinor: number;
     vatMinor: number;
+    roundingMinor: number;
     grossMinor: number;
     shareBps: number;
   }>;
@@ -2876,6 +2877,12 @@ export function FinanceDashboard({
                   {formatSek(viewingInvoice.vatMinor, locale) || "\u2014"}
                 </dd>
               </div>
+              {viewingInvoice.roundingMinor !== 0 && (
+                <div>
+                  <dt>{t("rounding")}</dt>
+                  <dd>{formatSek(viewingInvoice.roundingMinor, locale)}</dd>
+                </div>
+              )}
               <div>
                 <dt>{t("totalIncludingVat")}</dt>
                 <dd>

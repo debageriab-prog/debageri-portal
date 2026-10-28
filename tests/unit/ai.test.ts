@@ -7,6 +7,7 @@ import {
   aiFeatureEnabled,
   aiSettingsFrom,
   DEFAULT_AI_MODEL,
+  AI_PURPOSE_FEATURE,
   convertExtractionToSek,
   matchConsultantByName,
   normalizeFinanceExtraction,
@@ -28,6 +29,9 @@ const empty: RawFinanceExtraction = {
   description: null,
   categoryId: null,
   consultantId: null,
+  invoiceNumber: null,
+  dueDate: null,
+  customerId: null,
 };
 
 describe("AI settings", () => {
@@ -36,7 +40,7 @@ describe("AI settings", () => {
       enabled: false,
       provider: "anthropic",
       model: DEFAULT_AI_MODEL.anthropic,
-      features: { financeAttachments: false },
+      features: { financeAttachments: false, financeInvoices: false },
     });
   });
 
@@ -48,12 +52,16 @@ describe("AI settings", () => {
       features: { financeAttachments: true },
     });
     expect(aiFeatureEnabled(on, "financeAttachments")).toBe(true);
+    expect(aiFeatureEnabled(on, "financeInvoices")).toBe(false);
     expect(
       aiFeatureEnabled({ ...on, enabled: false }, "financeAttachments"),
     ).toBe(false);
     expect(
       aiFeatureEnabled(
-        { ...on, features: { financeAttachments: false } },
+        {
+          ...on,
+          features: { financeAttachments: false, financeInvoices: true },
+        },
         "financeAttachments",
       ),
     ).toBe(false);
@@ -73,7 +81,10 @@ describe("AI settings", () => {
       model: "claude-haiku-5-5",
       features: { financeAttachments: true },
     };
-    expect(aiSettingsSchema.safeParse(valid).success).toBe(true);
+    expect(aiSettingsSchema.safeParse(valid).data?.features).toEqual({
+      financeAttachments: true,
+      financeInvoices: false,
+    });
     expect(
       aiSettingsSchema.safeParse({ ...valid, provider: "gemini" }).success,
     ).toBe(false);
@@ -127,6 +138,9 @@ describe("normalizeFinanceExtraction", () => {
       categoryId: "office",
       consultantId: null,
       funding: null,
+      invoiceNumber: null,
+      dueDate: null,
+      customerId: null,
       conversion: null,
     });
   });
@@ -304,5 +318,51 @@ describe("consultant in AI output", () => {
         ["anna"],
       ).consultantId,
     ).toBeNull();
+  });
+});
+
+describe("invoice fields in AI output", () => {
+  it("keeps the invoice number, a known customer and a valid due date", () => {
+    expect(
+      normalizeFinanceExtraction(
+        {
+          ...empty,
+          date: "2026-10-01",
+          dueDate: "2026-10-31",
+          invoiceNumber: "  2026-117 ",
+          customerId: "acme",
+        },
+        [],
+        [],
+        ["acme"],
+      ),
+    ).toMatchObject({
+      invoiceNumber: "2026-117",
+      dueDate: "2026-10-31",
+      customerId: "acme",
+    });
+  });
+
+  it("drops unknown customers and due dates before the invoice date", () => {
+    expect(
+      normalizeFinanceExtraction(
+        {
+          ...empty,
+          date: "2026-10-01",
+          dueDate: "2026-09-30",
+          customerId: "made-up",
+        },
+        [],
+        [],
+        ["acme"],
+      ),
+    ).toMatchObject({ dueDate: null, customerId: null });
+  });
+
+  it("maps each purpose to its own switch", () => {
+    expect(AI_PURPOSE_FEATURE).toEqual({
+      transaction: "financeAttachments",
+      invoice: "financeInvoices",
+    });
   });
 });

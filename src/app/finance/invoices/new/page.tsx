@@ -1,3 +1,4 @@
+import { isAiFeatureEnabled } from "@/server/services/ai-service";
 import { InvoiceForm } from "../../FinanceForms";
 import { financeFormContext, financeUsers } from "../../form-data";
 
@@ -16,6 +17,11 @@ export default async function NewInvoicePage() {
           name: String(document.data().name),
         }))
         .sort((a, b) => a.name.localeCompare(b.name))}
+      aiEnabled={await isAiFeatureEnabled(
+        db,
+        actor.organizationId,
+        "financeInvoices",
+      )}
     />
   );
 }

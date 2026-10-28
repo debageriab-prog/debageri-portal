@@ -424,6 +424,8 @@ export async function createInvoice(
     dueDate: string;
     netMinor: number;
     vatRateBps: number;
+    /** Öresavrundning, included in the invoice total. */
+    roundingMinor?: number;
     visibleDescription: string;
     internalNote: string;
     shareBpsOverride: number | null;
@@ -470,6 +472,7 @@ export async function createInvoice(
       model === "flexible" ? (input.shareBpsOverride ?? agreement.shareBps) : 0;
   }
   const vatMinor = calculateVatMinor(input.netMinor, input.vatRateBps);
+  const roundingMinor = input.roundingMinor ?? 0;
   const ref = db.collection("invoices").doc();
   const batch = db.batch();
   batch.create(ref, {
@@ -480,7 +483,8 @@ export async function createInvoice(
     customerFinanceEmail: customerData.financeEmail,
     currency: "SEK",
     vatMinor,
-    grossMinor: input.netMinor + vatMinor,
+    roundingMinor,
+    grossMinor: input.netMinor + vatMinor + roundingMinor,
     compensationModel: model,
     shareBps,
     status: "issued",
@@ -557,7 +561,12 @@ export async function markInvoicePaid(
       netMinor: allocation.companyMinor,
       vatRateBps: data.vatRateBps,
       vatMinor: data.vatMinor,
-      grossMinor: allocation.companyMinor + data.vatMinor,
+      // The company receives the rounding with the VAT.
+      roundingMinor: Number(data.roundingMinor ?? 0),
+      grossMinor:
+        allocation.companyMinor +
+        data.vatMinor +
+        Number(data.roundingMinor ?? 0),
       consultantBalanceDeltaMinor: allocation.companyMinor,
       invoiceAllocation: "company_share",
     });

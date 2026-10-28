@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
+import type { AiExtractionPurpose } from "@/domain/ai";
 import { financeAttachmentReferenceSchema } from "@/server/validators/ai";
 import {
   AiError,
@@ -15,8 +16,9 @@ function contentType(name: string, type: string) {
 }
 
 /**
- * Reads a transaction attachment with AI. Accepts either a file that has not
- * been uploaded yet (multipart `file`) or a stored attachment (JSON
+ * Reads a finance attachment with AI. Accepts either a file that has not
+ * been uploaded yet (multipart `file`, with `purpose` "invoice" for a new
+ * invoice) or a stored transaction attachment (JSON
  * `{ entityId, attachmentId }`). Nothing is saved; the caller fills its form.
  */
 export async function POST(request: Request) {
@@ -28,8 +30,11 @@ export async function POST(request: Request) {
   const { db, storage } = getAdminServices();
 
   let file: ExtractionFile;
+  let purpose: AiExtractionPurpose = "transaction";
   if (request.headers.get("content-type")?.startsWith("multipart/form-data")) {
-    const upload = (await request.formData().catch(() => null))?.get("file");
+    const form = await request.formData().catch(() => null);
+    const upload = form?.get("file");
+    if (form?.get("purpose") === "invoice") purpose = "invoice";
     if (!(upload instanceof File) || upload.size === 0)
       return NextResponse.json({ error: "invalidInput" }, { status: 400 });
     if (upload.size > MAX_BYTES)
@@ -72,7 +77,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const extraction = await extractFinanceDocument(db, actor, file);
+    const extraction = await extractFinanceDocument(db, actor, file, purpose);
     return NextResponse.json({ extraction });
   } catch (error) {
     if (error instanceof AiError)

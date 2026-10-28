@@ -155,6 +155,7 @@ export default async function FinancePage({
         status: data.status as "issued" | "paid" | "void",
         netMinor: Number(data.netMinor),
         vatMinor: Number(data.vatMinor),
+        roundingMinor: Number(data.roundingMinor ?? 0),
         grossMinor: Number(data.grossMinor),
         shareBps: Number(data.shareBps ?? 0),
       };

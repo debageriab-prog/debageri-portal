@@ -12,7 +12,8 @@ encrypted with `REMINDER_CREDENTIAL_ENCRYPTION_KEY` and never returned to the
 browser. A finance attachment is sent to the selected provider (Anthropic or
 OpenAI) only when an admin or accountant clicks "Process attachment with AI",
 together with the organization's category names and consultant display names
-so the provider can pick the category and the consultant named in the file;
+(and, for new invoices, customer names) so the provider can pick the category,
+consultant and customer named in the file;
 the response only pre-fills the form and nothing is stored until the person
 posts the transaction. Review the provider's data-processing terms before
 enabling it.
