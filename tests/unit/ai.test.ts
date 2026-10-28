@@ -9,6 +9,8 @@ import {
   DEFAULT_AI_MODEL,
   AI_PURPOSE_FEATURE,
   convertExtractionToSek,
+  FINANCE_EXTRACTION_JSON_SCHEMA,
+  MAX_SCHEMA_UNION_FIELDS,
   matchConsultantByName,
   normalizeFinanceExtraction,
   type RawFinanceExtraction,
@@ -415,5 +417,52 @@ describe("invoice period", () => {
     expect(
       consultantServicesDescription("", "2026-01-01", "2026-01-31"),
     ).toBeNull();
+  });
+});
+
+describe("extraction schema", () => {
+  it("stays within the provider limit on union-typed fields", () => {
+    const unions = Object.values(
+      FINANCE_EXTRACTION_JSON_SCHEMA.properties,
+    ).filter(
+      (property) =>
+        "anyOf" in property ||
+        Array.isArray((property as { type?: unknown }).type),
+    );
+    expect(unions.length).toBeLessThanOrEqual(MAX_SCHEMA_UNION_FIELDS);
+  });
+
+  it("treats empty text from the model as unknown", () => {
+    expect(
+      normalizeFinanceExtraction(
+        {
+          ...empty,
+          date: "",
+          currency: "",
+          counterpartyName: "",
+          categoryId: "",
+          consultantId: "",
+          invoiceNumber: "",
+          dueDate: "",
+          periodFrom: "",
+          periodTo: "",
+          customerId: "",
+        },
+        ["office"],
+        ["anna"],
+        ["acme"],
+      ),
+    ).toMatchObject({
+      date: null,
+      currency: "SEK",
+      counterpartyName: null,
+      categoryId: null,
+      consultantId: null,
+      invoiceNumber: null,
+      dueDate: null,
+      periodFrom: null,
+      periodTo: null,
+      customerId: null,
+    });
   });
 });

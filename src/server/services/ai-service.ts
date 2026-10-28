@@ -179,6 +179,7 @@ function instructions(context: ExtractionContext) {
       : "- customerId: always null.",
     '- consultantId: the id of the consultant from the consultant list below whose full name, first name or last name appears in the document, for example as buyer, cardholder, passenger, guest, "Er referens" or recipient. null if no consultant is named or the name could belong to more than one of them.',
     "Use null for any value that is not clearly stated or derivable from the document. Never guess amounts.",
+    'Text fields cannot be null: wherever these rules say null for a text value (dates, currency, names, ids, invoice number, description), return an empty string "" instead.',
     "Categories (id | direction | name):",
     ...context.categories.map(
       (category) => `${category.id} | ${category.direction} | ${category.name}`,

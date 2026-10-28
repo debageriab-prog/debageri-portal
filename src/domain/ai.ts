@@ -89,7 +89,16 @@ const nullable = (schema: Record<string, unknown>) => ({
   anyOf: [schema, { type: "null" }],
 });
 
-/** JSON schema for structured output; every field is required but nullable. */
+/**
+ * Most providers cap how many fields may be a union such as "number or null"
+ * (Anthropic allows 16), so text fields are plain strings where "" means
+ * unknown, and only the direction and amounts are nullable.
+ */
+export const MAX_SCHEMA_UNION_FIELDS = 16;
+
+const plainText = { type: "string" };
+
+/** JSON schema for structured output; every field is required. */
 export const FINANCE_EXTRACTION_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -116,22 +125,22 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
   properties: {
     documentType: { type: "string", enum: ["receipt", "invoice", "other"] },
     direction: nullable({ type: "string", enum: ["income", "expense"] }),
-    date: nullable({ type: "string" }),
-    currency: nullable({ type: "string" }),
+    date: plainText,
+    currency: plainText,
     netAmount: nullable({ type: "number" }),
     vatAmount: nullable({ type: "number" }),
     totalAmount: nullable({ type: "number" }),
     roundingAmount: nullable({ type: "number" }),
     vatRatePercent: nullable({ type: "number" }),
-    counterpartyName: nullable({ type: "string" }),
-    description: nullable({ type: "string" }),
-    categoryId: nullable({ type: "string" }),
-    consultantId: nullable({ type: "string" }),
-    invoiceNumber: nullable({ type: "string" }),
-    dueDate: nullable({ type: "string" }),
-    periodFrom: nullable({ type: "string" }),
-    periodTo: nullable({ type: "string" }),
-    customerId: nullable({ type: "string" }),
+    counterpartyName: plainText,
+    description: plainText,
+    categoryId: plainText,
+    consultantId: plainText,
+    invoiceNumber: plainText,
+    dueDate: plainText,
+    periodFrom: plainText,
+    periodTo: plainText,
+    customerId: plainText,
   },
 };
 
