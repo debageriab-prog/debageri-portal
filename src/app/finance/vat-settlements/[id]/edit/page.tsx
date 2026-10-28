@@ -4,6 +4,7 @@ import { vatPayableMinor } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
+import { isAiFeatureEnabled } from "@/server/services/ai-service";
 import { VatSettlementForm } from "../../new/VatSettlementForm";
 
 export default async function EditVatSettlementPage({
@@ -41,9 +42,12 @@ export default async function EditVatSettlementPage({
       })),
       settlements.docs.map((item) => ({
         amountMinor: Number(item.data().amountMinor ?? 0),
+        roundingMinor: Number(item.data().roundingMinor ?? 0),
         status: item.data().status,
       })),
-    ) + Number(data.amountMinor ?? 0);
+    ) +
+    Number(data.amountMinor ?? 0) +
+    Number(data.roundingMinor ?? 0);
   const t = await getTranslator();
   return (
     <>
@@ -62,12 +66,18 @@ export default async function EditVatSettlementPage({
         <VatSettlementForm
           payableMinor={payableMinor}
           locale={actor.locale}
+          aiEnabled={await isAiFeatureEnabled(
+            db,
+            actor.organizationId,
+            "financeVatSettlements",
+          )}
           settlement={{
             id,
             paymentDate: String(data.paymentDate),
             periodFrom: String(data.periodFrom),
             periodTo: String(data.periodTo),
             amountMinor: Number(data.amountMinor),
+            roundingMinor: Number(data.roundingMinor ?? 0),
             reference: String(data.reference ?? ""),
             note: String(data.note ?? ""),
           }}

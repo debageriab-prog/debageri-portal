@@ -1049,6 +1049,8 @@ export async function createVatSettlement(
     periodFrom: string;
     periodTo: string;
     amountMinor: number;
+    /** Öresavrundning, settled together with the amount. */
+    roundingMinor?: number;
     reference: string;
     note: string;
   },
@@ -1075,11 +1077,12 @@ export async function createVatSettlement(
       })),
       settlementsSnapshot.docs.map((document) => ({
         amountMinor: Number(document.data().amountMinor ?? 0),
+        roundingMinor: Number(document.data().roundingMinor ?? 0),
         status: document.data().status as "active" | "reversed",
       })),
     );
     if (payable <= 0) throw new FinanceError("noVatPayable", 409);
-    if (input.amountMinor > payable)
+    if (input.amountMinor + (input.roundingMinor ?? 0) > payable)
       throw new FinanceError("vatSettlementExceedsPayable", 409);
     transaction.create(settlementRef, {
       organizationId: actor.organizationId,
@@ -1087,6 +1090,7 @@ export async function createVatSettlement(
       periodFrom: input.periodFrom,
       periodTo: input.periodTo,
       amountMinor: input.amountMinor,
+      roundingMinor: input.roundingMinor ?? 0,
       currency: "SEK",
       reference: input.reference,
       note: input.note,
@@ -1154,6 +1158,8 @@ export async function updateVatSettlement(
     periodFrom: string;
     periodTo: string;
     amountMinor: number;
+    /** Öresavrundning, settled together with the amount. */
+    roundingMinor?: number;
     reference: string;
     note: string;
   },
@@ -1185,16 +1191,23 @@ export async function updateVatSettlement(
         })),
         settlementsSnapshot.docs.map((document) => ({
           amountMinor: Number(document.data().amountMinor ?? 0),
+          roundingMinor: Number(document.data().roundingMinor ?? 0),
           status: document.data().status,
         })),
-      ) + Number(data.amountMinor ?? 0);
-    if (input.amountMinor > payableIncludingCurrent)
+      ) +
+      Number(data.amountMinor ?? 0) +
+      Number(data.roundingMinor ?? 0);
+    if (
+      input.amountMinor + (input.roundingMinor ?? 0) >
+      payableIncludingCurrent
+    )
       throw new FinanceError("vatSettlementExceedsPayable", 409);
     transaction.update(reference, {
       paymentDate: input.paymentDate,
       periodFrom: input.periodFrom,
       periodTo: input.periodTo,
       amountMinor: input.amountMinor,
+      roundingMinor: input.roundingMinor ?? 0,
       reference: input.reference,
       note: input.note,
       updatedAt: FieldValue.serverTimestamp(),

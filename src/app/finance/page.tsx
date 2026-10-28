@@ -231,6 +231,7 @@ export default async function FinancePage({
   ).map((document) => ({
     id: document.id,
     amountMinor: Number(document.data().amountMinor ?? 0),
+    roundingMinor: Number(document.data().roundingMinor ?? 0),
     status: document.data().status as "active" | "reversed",
   }));
 

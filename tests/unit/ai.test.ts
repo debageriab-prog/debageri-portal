@@ -41,6 +41,7 @@ const empty: RawFinanceExtraction = {
   periodFrom: null,
   periodTo: null,
   customerId: null,
+  paymentReference: null,
 };
 
 describe("AI settings", () => {
@@ -49,7 +50,11 @@ describe("AI settings", () => {
       enabled: false,
       provider: "anthropic",
       model: DEFAULT_AI_MODEL.anthropic,
-      features: { financeAttachments: false, financeInvoices: false },
+      features: {
+        financeAttachments: false,
+        financeInvoices: false,
+        financeVatSettlements: false,
+      },
     });
   });
 
@@ -69,7 +74,11 @@ describe("AI settings", () => {
       aiFeatureEnabled(
         {
           ...on,
-          features: { financeAttachments: false, financeInvoices: true },
+          features: {
+            financeAttachments: false,
+            financeInvoices: true,
+            financeVatSettlements: false,
+          },
         },
         "financeAttachments",
       ),
@@ -93,6 +102,7 @@ describe("AI settings", () => {
     expect(aiSettingsSchema.safeParse(valid).data?.features).toEqual({
       financeAttachments: true,
       financeInvoices: false,
+      financeVatSettlements: false,
     });
     expect(
       aiSettingsSchema.safeParse({ ...valid, provider: "gemini" }).success,
@@ -134,6 +144,7 @@ describe("normalizeFinanceExtraction", () => {
         ["office"],
       ),
     ).toEqual({
+      documentType: "receipt",
       direction: "expense",
       date: "2026-10-12",
       currency: "SEK",
@@ -152,6 +163,7 @@ describe("normalizeFinanceExtraction", () => {
       periodFrom: null,
       periodTo: null,
       customerId: null,
+      paymentReference: null,
       conversion: null,
     });
   });
@@ -374,6 +386,7 @@ describe("invoice fields in AI output", () => {
     expect(AI_PURPOSE_FEATURE).toEqual({
       transaction: "financeAttachments",
       invoice: "financeInvoices",
+      vatSettlement: "financeVatSettlements",
     });
   });
 });
@@ -498,5 +511,38 @@ describe("consultantServicesNote", () => {
     expect(
       consultantServicesNote("Ework Group AB", "", "2026-08-01", "2026-09-30"),
     ).toBeNull();
+  });
+});
+
+describe("VAT settlement fields in AI output", () => {
+  it("keeps the OCR reference and treats empty text as unknown", () => {
+    expect(
+      normalizeFinanceExtraction(
+        { ...empty, paymentReference: " 1655955584297 " },
+        [],
+      ).paymentReference,
+    ).toBe("1655955584297");
+    expect(
+      normalizeFinanceExtraction({ ...empty, paymentReference: "" }, [])
+        .paymentReference,
+    ).toBeNull();
+  });
+});
+
+describe("document type", () => {
+  it("passes through VAT documents and falls back to other", () => {
+    expect(
+      normalizeFinanceExtraction({ ...empty, documentType: "vatDocument" }, [])
+        .documentType,
+    ).toBe("vatDocument");
+    expect(
+      normalizeFinanceExtraction(
+        {
+          ...empty,
+          documentType: "letter" as RawFinanceExtraction["documentType"],
+        },
+        [],
+      ).documentType,
+    ).toBe("other");
   });
 });

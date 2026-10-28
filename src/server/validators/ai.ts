@@ -13,10 +13,13 @@ export const aiSettingsSchema = z.object({
   features: z.object({
     financeAttachments: z.boolean(),
     financeInvoices: z.boolean().default(false),
+    financeVatSettlements: z.boolean().default(false),
   }),
 });
 
 export const financeAttachmentReferenceSchema = z.object({
   entityId: z.string().min(1).max(200),
   attachmentId: z.string().min(1).max(200),
+  /** Stored attachments belong to a transaction or a VAT settlement. */
+  purpose: z.enum(["transaction", "vatSettlement"]).default("transaction"),
 });

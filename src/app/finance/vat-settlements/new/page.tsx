@@ -4,6 +4,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
 import { vatPayableMinor } from "@/domain/finance/calculations";
+import { isAiFeatureEnabled } from "@/server/services/ai-service";
 import { VatSettlementForm } from "./VatSettlementForm";
 
 export default async function NewVatSettlementPage() {
@@ -28,6 +29,7 @@ export default async function NewVatSettlementPage() {
     })),
     settlements.docs.map((document) => ({
       amountMinor: Number(document.data().amountMinor ?? 0),
+      roundingMinor: Number(document.data().roundingMinor ?? 0),
       status: document.data().status,
     })),
   );
@@ -45,7 +47,15 @@ export default async function NewVatSettlementPage() {
         </div>
       </div>
       <section className="card">
-        <VatSettlementForm payableMinor={payableMinor} locale={actor.locale} />
+        <VatSettlementForm
+          payableMinor={payableMinor}
+          locale={actor.locale}
+          aiEnabled={await isAiFeatureEnabled(
+            db,
+            actor.organizationId,
+            "financeVatSettlements",
+          )}
+        />
       </section>
     </>
   );

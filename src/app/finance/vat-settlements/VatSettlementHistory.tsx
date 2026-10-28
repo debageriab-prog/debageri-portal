@@ -6,10 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { formatSek } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
-import {
-  AttachmentDownloadLink,
-  AttachmentDownloads,
-} from "../FinanceAttachments";
+import { AttachmentDownloads, StoredAttachment } from "../FinanceAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 
 export type VatSettlementRow = {
@@ -18,11 +15,12 @@ export type VatSettlementRow = {
   periodFrom: string;
   periodTo: string;
   amountMinor: number;
+  roundingMinor: number;
   reference: string;
   note: string;
   status: "active" | "reversed";
   reversalReason: string;
-  attachments: Array<{ id: string; name: string }>;
+  attachments: Array<{ id: string; name: string; contentType: string }>;
 };
 
 export function VatSettlementHistory({
@@ -124,11 +122,10 @@ export function VatSettlementHistory({
                     <ul className="table-attachment-list">
                       {settlement.attachments.map((attachment) => (
                         <li key={attachment.id}>
-                          <AttachmentDownloadLink
+                          <StoredAttachment
                             entityType="vatSettlement"
                             entityId={settlement.id}
-                            attachmentId={attachment.id}
-                            name={attachment.name}
+                            attachment={attachment}
                           />
                         </li>
                       ))}
@@ -217,6 +214,12 @@ export function VatSettlementHistory({
                 <dt>{t("amount")}</dt>
                 <dd>{formatSek(viewing.amountMinor, locale)}</dd>
               </div>
+              {viewing.roundingMinor !== 0 && (
+                <div>
+                  <dt>{t("rounding")}</dt>
+                  <dd>{formatSek(viewing.roundingMinor, locale)}</dd>
+                </div>
+              )}
               <div>
                 <dt>{t("paymentReference")}</dt>
                 <dd>{viewing.reference || "\u2014"}</dd>

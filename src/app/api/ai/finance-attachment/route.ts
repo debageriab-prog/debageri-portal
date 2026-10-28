@@ -17,9 +17,9 @@ function contentType(name: string, type: string) {
 
 /**
  * Reads a finance attachment with AI. Accepts either a file that has not
- * been uploaded yet (multipart `file`, with `purpose` "invoice" for a new
- * invoice) or a stored transaction attachment (JSON
- * `{ entityId, attachmentId }`). Nothing is saved; the caller fills its form.
+ * been uploaded yet (multipart `file` and `purpose`) or a stored transaction
+ * or VAT settlement attachment (JSON `{ entityId, attachmentId, purpose }`).
+ * Nothing is saved; the caller fills its form.
  */
 export async function POST(request: Request) {
   const actor = await verifySession();
@@ -34,7 +34,9 @@ export async function POST(request: Request) {
   if (request.headers.get("content-type")?.startsWith("multipart/form-data")) {
     const form = await request.formData().catch(() => null);
     const upload = form?.get("file");
-    if (form?.get("purpose") === "invoice") purpose = "invoice";
+    const requested = form?.get("purpose");
+    if (requested === "invoice" || requested === "vatSettlement")
+      purpose = requested;
     if (!(upload instanceof File) || upload.size === 0)
       return NextResponse.json({ error: "invalidInput" }, { status: 400 });
     if (upload.size > MAX_BYTES)
@@ -61,7 +63,7 @@ export async function POST(request: Request) {
     if (
       !attachment.exists ||
       data?.organizationId !== actor.organizationId ||
-      data?.entityType !== "transaction" ||
+      data?.entityType !== parsed.data.purpose ||
       data?.entityId !== parsed.data.entityId
     )
       return NextResponse.json({ error: "notFound" }, { status: 404 });
@@ -69,6 +71,7 @@ export async function POST(request: Request) {
       .bucket()
       .file(String(data.storagePath))
       .download();
+    purpose = parsed.data.purpose;
     file = {
       name: String(data.name),
       contentType: String(data.contentType),

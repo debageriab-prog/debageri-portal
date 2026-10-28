@@ -6,17 +6,20 @@ export type AiProvider = "anthropic" | "openai";
 export const AI_PROVIDERS: AiProvider[] = ["anthropic", "openai"];
 
 /** Portal areas an admin can switch AI on for, one at a time. */
-export type AiFeature = "financeAttachments" | "financeInvoices";
+export type AiFeature =
+  "financeAttachments" | "financeInvoices" | "financeVatSettlements";
 export const AI_FEATURES: AiFeature[] = [
   "financeAttachments",
   "financeInvoices",
+  "financeVatSettlements",
 ];
 
 /** What a document is read for; each purpose has its own AI switch. */
-export type AiExtractionPurpose = "transaction" | "invoice";
+export type AiExtractionPurpose = "transaction" | "invoice" | "vatSettlement";
 export const AI_PURPOSE_FEATURE: Record<AiExtractionPurpose, AiFeature> = {
   transaction: "financeAttachments",
   invoice: "financeInvoices",
+  vatSettlement: "financeVatSettlements",
 };
 
 /** Suggested model IDs per provider; admins may also enter any other ID. */
@@ -63,9 +66,18 @@ export function aiFeatureEnabled(settings: AiSettings, feature: AiFeature) {
   return settings.enabled && settings.features[feature];
 }
 
+/** What kind of document the model thinks the file is. */
+export const FINANCE_DOCUMENT_TYPES = [
+  "receipt",
+  "invoice",
+  "vatDocument",
+  "other",
+] as const;
+export type FinanceDocumentType = (typeof FINANCE_DOCUMENT_TYPES)[number];
+
 /** What the model is asked to return, amounts in major currency units. */
 export type RawFinanceExtraction = {
-  documentType: "receipt" | "invoice" | "other";
+  documentType: FinanceDocumentType;
   direction: "income" | "expense" | null;
   date: string | null;
   currency: string | null;
@@ -83,6 +95,7 @@ export type RawFinanceExtraction = {
   periodFrom: string | null;
   periodTo: string | null;
   customerId: string | null;
+  paymentReference: string | null;
 };
 
 const nullable = (schema: Record<string, unknown>) => ({
@@ -121,9 +134,10 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     "periodFrom",
     "periodTo",
     "customerId",
+    "paymentReference",
   ],
   properties: {
-    documentType: { type: "string", enum: ["receipt", "invoice", "other"] },
+    documentType: { type: "string", enum: FINANCE_DOCUMENT_TYPES },
     direction: nullable({ type: "string", enum: ["income", "expense"] }),
     date: plainText,
     currency: plainText,
@@ -141,6 +155,7 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     periodFrom: plainText,
     periodTo: plainText,
     customerId: plainText,
+    paymentReference: plainText,
   },
 };
 
@@ -152,6 +167,7 @@ export type SekExchangeRate = {
 };
 
 export type FinanceExtraction = {
+  documentType: FinanceDocumentType;
   direction: "income" | "expense" | null;
   date: string | null;
   /** Currency of the amounts below; SEK once converted. */
@@ -176,6 +192,8 @@ export type FinanceExtraction = {
   periodFrom: string | null;
   periodTo: string | null;
   customerId: string | null;
+  /** OCR or other payment reference. */
+  paymentReference: string | null;
   /** Set when foreign amounts were converted to SEK. */
   conversion: {
     currency: string;
@@ -264,6 +282,9 @@ export function normalizeFinanceExtraction(
   const period =
     periodFrom && periodTo && validInvoicePeriod(periodFrom, periodTo);
   return {
+    documentType: FINANCE_DOCUMENT_TYPES.includes(raw.documentType)
+      ? raw.documentType
+      : "other",
     direction:
       raw.direction === "income" || raw.direction === "expense"
         ? raw.direction
@@ -294,6 +315,7 @@ export function normalizeFinanceExtraction(
       raw.customerId && customerIds.includes(raw.customerId)
         ? raw.customerId
         : null,
+    paymentReference: text(raw.paymentReference, 120),
     conversion: null,
   };
 }
