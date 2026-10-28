@@ -591,7 +591,17 @@ export function InvoiceForm({
       filled++;
     }
     const conversionText = aiConversionText(extraction, t, locale);
-    if (conversionText && !internalNote.trim()) setInternalNote(conversionText);
+    const summary = [
+      extraction.counterpartyName,
+      extraction.description,
+      conversionText,
+    ]
+      .filter(Boolean)
+      .join(" – ");
+    if (summary && !internalNote.trim()) {
+      setInternalNote(summary);
+      filled++;
+    }
     setAiCurrencyWarning(aiCurrencyWarningLines(extraction, conversionText, t));
     if (!filled) {
       setAiNotice({
