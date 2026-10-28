@@ -14,7 +14,10 @@ import { receiptVatRateBps } from "@/domain/receipts";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { FinanceCsvImport } from "./FinanceCsvImport";
 import { transactionMonthMismatch } from "./transaction-navigation";
-import { WarningTriangleIcon } from "@/components/ui/FileActionIcons";
+import {
+  SuccessCheckIcon,
+  WarningTriangleIcon,
+} from "@/components/ui/FileActionIcons";
 import {
   FinanceAttachments,
   processAttachmentWithAi,
@@ -1154,17 +1157,24 @@ export function TransactionForm({
         />
         {aiNotice && (
           <div
-            className={`form-wide notice notice-${aiNotice.tone} ai-notice`}
+            className={`form-wide notice notice-${aiNotice.tone} notice-with-icon ai-notice`}
             role={aiNotice.tone === "error" ? "alert" : "status"}
           >
-            {aiNotice.messages.map((message) => (
-              <span key={message}>{message}</span>
-            ))}
+            {aiNotice.tone === "success" ? (
+              <SuccessCheckIcon />
+            ) : (
+              <WarningTriangleIcon />
+            )}
+            <div>
+              {aiNotice.messages.map((message) => (
+                <span key={message}>{message}</span>
+              ))}
+            </div>
           </div>
         )}
         {aiCurrencyWarning && (
           <div
-            className="form-wide notice notice-error ai-currency-warning"
+            className="form-wide notice notice-error notice-with-icon ai-currency-warning"
             role="alert"
           >
             <WarningTriangleIcon />

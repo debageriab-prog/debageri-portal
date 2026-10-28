@@ -1587,15 +1587,24 @@ th.actions-heading {
   }
 }
 
-.ai-currency-warning {
+.notice-success {
+  border: 1px solid var(--success);
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.notice-with-icon {
   display: flex;
   align-items: flex-start;
   gap: 10px;
+}
+
+.ai-currency-warning {
   border: 1px solid var(--danger);
   font-weight: 600;
 }
 
-.ai-currency-warning svg {
+.notice-with-icon svg {
   flex: 0 0 auto;
   fill: none;
   stroke: currentColor;
@@ -1604,7 +1613,7 @@ th.actions-heading {
   stroke-width: 2;
 }
 
-.ai-currency-warning div {
+.notice-with-icon > div {
   display: grid;
   gap: 4px;
 }
