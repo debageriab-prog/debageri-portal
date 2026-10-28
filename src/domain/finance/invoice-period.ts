@@ -25,17 +25,29 @@ export function validInvoicePeriod(
   return Boolean(periodFrom && periodTo && periodTo >= periodFrom);
 }
 
-/** "Jan-2026", "Jan-Feb-2026" or "Dec-2025-Jan-2026" for a service period. */
+function lastDayOfMonth(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/**
+ * Whole months read "Jan-2026" or "Jan-Feb-2026"; other periods add the
+ * days, as in "Aug24-Sep27-2026". A period over New Year names both years:
+ * "Dec-2025-Jan-2026" or "Dec24-2025-Jan27-2026".
+ */
 export function invoicePeriodLabel(periodFrom: string, periodTo: string) {
-  const [fromYear, fromMonth] = periodFrom.split("-").map(Number);
-  const [toYear, toMonth] = periodTo.split("-").map(Number);
-  const from = MONTHS[(fromMonth ?? 0) - 1];
-  const to = MONTHS[(toMonth ?? 0) - 1];
-  if (!from || !to) return null;
+  const [fromYear = 0, fromMonth = 0, fromDay = 0] = periodFrom
+    .split("-")
+    .map(Number);
+  const [toYear = 0, toMonth = 0, toDay = 0] = periodTo.split("-").map(Number);
+  const fromName = MONTHS[fromMonth - 1];
+  const toName = MONTHS[toMonth - 1];
+  if (!fromName || !toName) return null;
+  const wholeMonths =
+    fromDay === 1 && toDay === lastDayOfMonth(toYear, toMonth);
+  const from = wholeMonths ? fromName : `${fromName}${fromDay}`;
+  const to = wholeMonths ? toName : `${toName}${toDay}`;
   if (fromYear !== toYear) return `${from}-${fromYear}-${to}-${toYear}`;
-  return fromMonth === toMonth
-    ? `${from}-${fromYear}`
-    : `${from}-${to}-${fromYear}`;
+  return from === to ? `${from}-${fromYear}` : `${from}-${to}-${fromYear}`;
 }
 
 /**
@@ -51,4 +63,23 @@ export function consultantServicesDescription(
   if (!validInvoicePeriod(periodFrom, periodTo)) return null;
   const period = invoicePeriodLabel(periodFrom, periodTo);
   return period ? `Consultant services - ${consultantName} - ${period}` : null;
+}
+
+/**
+ * The internal note for a consultant's invoice: the description with the
+ * customer first, "Ework Group AB - Consultant services - Anna Berg - Jan-2026".
+ */
+export function consultantServicesNote(
+  customerName: string,
+  consultantName: string,
+  periodFrom: string | null,
+  periodTo: string | null,
+) {
+  const description = consultantServicesDescription(
+    consultantName,
+    periodFrom,
+    periodTo,
+  );
+  if (!description) return null;
+  return customerName ? `${customerName} - ${description}` : description;
 }

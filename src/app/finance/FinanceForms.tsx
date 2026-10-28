@@ -14,7 +14,10 @@ import {
   type TransactionAmountMode,
 } from "@/domain/finance/calculations";
 import { InfoTip } from "@/components/ui/InfoTip";
-import { consultantServicesDescription } from "@/domain/finance/invoice-period";
+import {
+  consultantServicesDescription,
+  consultantServicesNote,
+} from "@/domain/finance/invoice-period";
 import type { FinanceExtraction } from "@/domain/ai";
 import { receiptVatRateBps } from "@/domain/receipts";
 import { appCheckFetch } from "@/lib/firebase/client";
@@ -460,9 +463,10 @@ export function InvoiceForm({
   const [dueDate, setDueDate] = useState(today());
   const [periodFrom, setPeriodFrom] = useState("");
   const [periodTo, setPeriodTo] = useState("");
-  // The last description generated from consultant and period; replaced on
-  // change until the user types their own.
+  // The last description and note generated from customer, consultant and
+  // period; replaced on change until the user types their own.
   const [autoDescription, setAutoDescription] = useState("");
+  const [autoInternalNote, setAutoInternalNote] = useState("");
   const [netAmount, setNetAmount] = useState("");
   const [vatPercent, setVatPercent] = useState("25");
   const [rounding, setRounding] = useState("");
@@ -493,28 +497,45 @@ export function InvoiceForm({
     ? calculateVatMinor(netMinor, vatRateBps)
     : 0;
 
-  /** Refreshes the generated consultant description after a change. */
-  function updateDescription(next: {
+  /**
+   * Refreshes the generated consultant description and internal note after a
+   * change, unless the user has written their own text in that field.
+   */
+  function updateGeneratedTexts(next: {
+    customerId?: string;
     consultantId?: string;
     periodFrom?: string;
     periodTo?: string;
-    fallback?: string | null;
+    fallbackDescription?: string | null;
+    fallbackNote?: string;
+    noteSuffix?: string;
   }) {
-    const name =
+    const consultantName =
       users.find((user) => user.id === (next.consultantId ?? consultantId))
         ?.displayName ?? "";
-    const generated =
-      consultantServicesDescription(
-        name,
-        (next.periodFrom ?? periodFrom) || null,
-        (next.periodTo ?? periodTo) || null,
-      ) ?? "";
-    const untouched =
-      !visibleDescription.trim() || visibleDescription === autoDescription;
-    if (!untouched) return;
-    const value = generated || next.fallback || visibleDescription;
-    setVisibleDescription(value);
-    setAutoDescription(value);
+    const customerName =
+      customers.find(
+        (customer) => customer.id === (next.customerId ?? customerId),
+      )?.name ?? "";
+    const from = (next.periodFrom ?? periodFrom) || null;
+    const to = (next.periodTo ?? periodTo) || null;
+    const description =
+      consultantServicesDescription(consultantName, from, to) ?? "";
+    const note = consultantServicesNote(customerName, consultantName, from, to);
+    if (!visibleDescription.trim() || visibleDescription === autoDescription) {
+      const value =
+        description || next.fallbackDescription || visibleDescription;
+      setVisibleDescription(value);
+      setAutoDescription(value);
+    }
+    if (!internalNote.trim() || internalNote === autoInternalNote) {
+      const value =
+        (note && [note, next.noteSuffix].filter(Boolean).join(" - ")) ||
+        next.fallbackNote ||
+        internalNote;
+      setInternalNote(value);
+      setAutoInternalNote(value);
+    }
   }
 
   async function processWithAi(
@@ -558,12 +579,6 @@ export function InvoiceForm({
       setPeriodTo(extraction.periodTo);
       filled++;
     }
-    updateDescription({
-      consultantId: consultantFound ? extraction.consultantId! : undefined,
-      periodFrom: extraction.periodFrom ?? undefined,
-      periodTo: extraction.periodTo ?? undefined,
-      fallback: extraction.description,
-    });
     if (extraction.date) {
       setIssueDate(extraction.date);
       filled++;
@@ -591,17 +606,21 @@ export function InvoiceForm({
       filled++;
     }
     const conversionText = aiConversionText(extraction, t, locale);
-    const summary = [
-      extraction.counterpartyName,
-      extraction.description,
-      conversionText,
-    ]
-      .filter(Boolean)
-      .join(" – ");
-    if (summary && !internalNote.trim()) {
-      setInternalNote(summary);
-      filled++;
-    }
+    updateGeneratedTexts({
+      customerId: customerFound ? extraction.customerId! : undefined,
+      consultantId: consultantFound ? extraction.consultantId! : undefined,
+      periodFrom: extraction.periodFrom ?? undefined,
+      periodTo: extraction.periodTo ?? undefined,
+      fallbackDescription: extraction.description,
+      fallbackNote: [
+        extraction.counterpartyName,
+        extraction.description,
+        conversionText,
+      ]
+        .filter(Boolean)
+        .join(" - "),
+      noteSuffix: conversionText,
+    });
     setAiCurrencyWarning(aiCurrencyWarningLines(extraction, conversionText, t));
     if (!filled) {
       setAiNotice({
@@ -689,7 +708,10 @@ export function InvoiceForm({
               className="field"
               name="customerId"
               value={customerId}
-              onChange={(event) => setCustomerId(event.target.value)}
+              onChange={(event) => {
+                setCustomerId(event.target.value);
+                updateGeneratedTexts({ customerId: event.target.value });
+              }}
               required
             >
               <option value="">{t("selectCustomer")}</option>
@@ -709,7 +731,7 @@ export function InvoiceForm({
               value={consultantId}
               onChange={(event) => {
                 setConsultantId(event.target.value);
-                updateDescription({ consultantId: event.target.value });
+                updateGeneratedTexts({ consultantId: event.target.value });
               }}
             >
               <option value="">{t("companyOnly")}</option>
@@ -732,7 +754,7 @@ export function InvoiceForm({
               required={Boolean(periodTo)}
               onChange={(event) => {
                 setPeriodFrom(event.target.value);
-                updateDescription({ periodFrom: event.target.value });
+                updateGeneratedTexts({ periodFrom: event.target.value });
               }}
             />
           </label>
@@ -748,7 +770,7 @@ export function InvoiceForm({
               required={Boolean(periodFrom)}
               onChange={(event) => {
                 setPeriodTo(event.target.value);
-                updateDescription({ periodTo: event.target.value });
+                updateGeneratedTexts({ periodTo: event.target.value });
               }}
             />
           </label>

@@ -18,6 +18,7 @@ import {
 import { aiSettingsSchema } from "@/server/validators/ai";
 import {
   consultantServicesDescription,
+  consultantServicesNote,
   validInvoicePeriod,
 } from "@/domain/finance/invoice-period";
 
@@ -408,8 +409,20 @@ describe("invoice period", () => {
       consultantServicesDescription("Anna Berg", "2026-01-01", "2026-01-31"),
     ).toBe("Consultant services - Anna Berg - Jan-2026");
     expect(
-      consultantServicesDescription("Anna Berg", "2026-01-15", "2026-02-14"),
+      consultantServicesDescription("Anna Berg", "2026-01-01", "2026-02-28"),
     ).toBe("Consultant services - Anna Berg - Jan-Feb-2026");
+    expect(
+      consultantServicesDescription("Anna Berg", "2026-08-24", "2026-09-27"),
+    ).toBe("Consultant services - Anna Berg - Aug24-Sep27-2026");
+    expect(
+      consultantServicesDescription("Anna Berg", "2026-02-01", "2026-02-28"),
+    ).toBe("Consultant services - Anna Berg - Feb-2026");
+    expect(
+      consultantServicesDescription("Anna Berg", "2026-02-02", "2026-02-27"),
+    ).toBe("Consultant services - Anna Berg - Feb2-Feb27-2026");
+    expect(
+      consultantServicesDescription("Anna Berg", "2025-12-24", "2026-01-27"),
+    ).toBe("Consultant services - Anna Berg - Dec24-2025-Jan27-2026");
     expect(
       consultantServicesDescription("Anna Berg", "2025-12-01", "2026-01-31"),
     ).toBe("Consultant services - Anna Berg - Dec-2025-Jan-2026");
@@ -464,5 +477,26 @@ describe("extraction schema", () => {
       periodTo: null,
       customerId: null,
     });
+  });
+});
+
+describe("consultantServicesNote", () => {
+  it("puts the customer before the consultant description", () => {
+    expect(
+      consultantServicesNote(
+        "Ework Group AB",
+        "Shahab Bagheri",
+        "2026-08-01",
+        "2026-09-30",
+      ),
+    ).toBe(
+      "Ework Group AB - Consultant services - Shahab Bagheri - Aug-Sep-2026",
+    );
+    expect(
+      consultantServicesNote("", "Shahab Bagheri", "2026-08-01", "2026-09-30"),
+    ).toBe("Consultant services - Shahab Bagheri - Aug-Sep-2026");
+    expect(
+      consultantServicesNote("Ework Group AB", "", "2026-08-01", "2026-09-30"),
+    ).toBeNull();
   });
 });
