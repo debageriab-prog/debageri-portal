@@ -6,17 +6,20 @@ export type AiProvider = "anthropic" | "openai";
 export const AI_PROVIDERS: AiProvider[] = ["anthropic", "openai"];
 
 /** Portal areas an admin can switch AI on for, one at a time. */
-export type AiFeature = "financeAttachments" | "financeInvoices";
+export type AiFeature =
+  "financeAttachments" | "financeInvoices" | "financeVatSettlements";
 export const AI_FEATURES: AiFeature[] = [
   "financeAttachments",
   "financeInvoices",
+  "financeVatSettlements",
 ];
 
 /** What a document is read for; each purpose has its own AI switch. */
-export type AiExtractionPurpose = "transaction" | "invoice";
+export type AiExtractionPurpose = "transaction" | "invoice" | "vatSettlement";
 export const AI_PURPOSE_FEATURE: Record<AiExtractionPurpose, AiFeature> = {
   transaction: "financeAttachments",
   invoice: "financeInvoices",
+  vatSettlement: "financeVatSettlements",
 };
 
 /** Suggested model IDs per provider; admins may also enter any other ID. */
@@ -83,6 +86,7 @@ export type RawFinanceExtraction = {
   periodFrom: string | null;
   periodTo: string | null;
   customerId: string | null;
+  paymentReference: string | null;
 };
 
 const nullable = (schema: Record<string, unknown>) => ({
@@ -121,6 +125,7 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     "periodFrom",
     "periodTo",
     "customerId",
+    "paymentReference",
   ],
   properties: {
     documentType: { type: "string", enum: ["receipt", "invoice", "other"] },
@@ -141,6 +146,7 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     periodFrom: plainText,
     periodTo: plainText,
     customerId: plainText,
+    paymentReference: plainText,
   },
 };
 
@@ -176,6 +182,8 @@ export type FinanceExtraction = {
   periodFrom: string | null;
   periodTo: string | null;
   customerId: string | null;
+  /** OCR or other payment reference. */
+  paymentReference: string | null;
   /** Set when foreign amounts were converted to SEK. */
   conversion: {
     currency: string;
@@ -294,6 +302,7 @@ export function normalizeFinanceExtraction(
       raw.customerId && customerIds.includes(raw.customerId)
         ? raw.customerId
         : null,
+    paymentReference: text(raw.paymentReference, 120),
     conversion: null,
   };
 }

@@ -148,6 +148,7 @@ const rawExtractionSchema = z.object({
   periodFrom: z.string().nullable().default(null),
   periodTo: z.string().nullable().default(null),
   customerId: z.string().nullable().default(null),
+  paymentReference: z.string().nullable().default(null),
 }) satisfies z.ZodType<RawFinanceExtraction>;
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -156,9 +157,11 @@ const MAX_EMAIL_CHARS = 60_000;
 
 function instructions(context: ExtractionContext) {
   return [
-    context.purpose === "invoice"
-      ? `You read customer invoices issued by the Swedish company "${context.organizationName}" and extract the values needed to register the invoice.`
-      : `You read bookkeeping documents (receipts, supplier invoices, customer invoices, order confirmations) for the Swedish company "${context.organizationName}" and extract the values needed to post one ledger transaction.`,
+    context.purpose === "vatSettlement"
+      ? `You read Swedish VAT documents for the company "${context.organizationName}": Skatteverket's receipt (kvittens) for a submitted VAT return (momsdeklaration), or a confirmation of a VAT payment to the tax account, and extract the values needed to record the VAT payment.`
+      : context.purpose === "invoice"
+        ? `You read customer invoices issued by the Swedish company "${context.organizationName}" and extract the values needed to register the invoice.`
+        : `You read bookkeeping documents (receipts, supplier invoices, customer invoices, order confirmations) for the Swedish company "${context.organizationName}" and extract the values needed to post one ledger transaction.`,
     "Rules:",
     '- direction: "expense" when the company is the buyer or payer, "income" when the company issued the invoice or receives the money, null if unclear.',
     "- date: the invoice or purchase date (not the due date) as YYYY-MM-DD, whatever format the document prints dates in.",
@@ -177,6 +180,12 @@ function instructions(context: ExtractionContext) {
     context.customers.length
       ? "- customerId: the id of the customer from the customer list below that the invoice is addressed to, or null if none matches."
       : "- customerId: always null.",
+    "- paymentReference: the OCR or payment reference number (Referensnummer, OCR) exactly as printed, or null.",
+    ...(context.purpose === "vatSettlement"
+      ? [
+          'For this VAT document: totalAmount is the VAT to pay ("Moms att betala", box 49) as a positive number, or null when VAT is refunded ("Moms att få tillbaka"). netAmount, vatAmount, roundingAmount and vatRatePercent are null. periodFrom and periodTo are the first and last day of the reporting period ("Redovisningsperiod"), so "April - Juni 2026" is 2026-04-01 to 2026-06-30. date is the date the VAT was paid when the document shows a payment, otherwise null. dueDate is the due date ("Ordinarie förfallodatum", "Förfallodag"). description is the document title with the receipt number ("Kvittensnummer"), for example "Momsdeklaration april - juni 2026, kvittens 20260812 190812 165595558429". direction, categoryId, consultantId, customerId and invoiceNumber are null.',
+        ]
+      : []),
     '- consultantId: the id of the consultant from the consultant list below whose full name, first name or last name appears in the document, for example as buyer, cardholder, passenger, guest, "Er referens" or recipient. null if no consultant is named or the name could belong to more than one of them.',
     "Use null for any value that is not clearly stated or derivable from the document. Never guess amounts.",
     'Text fields cannot be null: wherever these rules say null for a text value (dates, currency, names, ids, invoice number, description), return an empty string "" instead.',
@@ -448,8 +457,8 @@ export async function extractFinanceDocument(
   const system = instructions({
     organizationName: String(organization.data()?.name ?? "Debageri"),
     purpose,
-    categories: purpose === "invoice" ? [] : categories,
-    consultants,
+    categories: purpose === "transaction" ? categories : [],
+    consultants: purpose === "vatSettlement" ? [] : consultants,
     customers,
   });
   const apiKey = decryptPassword(encryptedKey);
@@ -471,7 +480,10 @@ export async function extractFinanceDocument(
     customers.map((customer) => customer.id),
   );
   extraction.consultantId =
-    matchConsultantByName(file.name, consultants) ?? extraction.consultantId;
+    (purpose === "vatSettlement"
+      ? null
+      : matchConsultantByName(file.name, consultants)) ??
+    extraction.consultantId;
   const category = categories.find((item) => item.id === extraction.categoryId);
   if (extraction.consultantId && category?.direction === "expense")
     // A suggestion only; never fail the reading over it.

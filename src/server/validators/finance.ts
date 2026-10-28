@@ -163,6 +163,7 @@ const vatSettlementFields = {
   periodFrom: date,
   periodTo: date,
   amountMinor: z.number().int().min(1).max(10_000_000_000),
+  roundingMinor: rounding,
   reference: z.string().trim().max(120).default(""),
   note: z.string().trim().max(500).default(""),
 };

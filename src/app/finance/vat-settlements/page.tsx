@@ -23,12 +23,19 @@ export default async function VatSettlementsPage() {
       .where("organizationId", "==", actor.organizationId)
       .get(),
   ]);
-  const attachments = new Map<string, Array<{ id: string; name: string }>>();
+  const attachments = new Map<
+    string,
+    Array<{ id: string; name: string; contentType: string }>
+  >();
   for (const document of attachmentsSnapshot.docs) {
     const data = document.data();
     if (data.entityType !== "vatSettlement") continue;
     const entityAttachments = attachments.get(String(data.entityId)) ?? [];
-    entityAttachments.push({ id: document.id, name: String(data.name) });
+    entityAttachments.push({
+      id: document.id,
+      name: String(data.name),
+      contentType: String(data.contentType ?? ""),
+    });
     attachments.set(String(data.entityId), entityAttachments);
   }
   const settlements: VatSettlementRow[] = snapshot.docs
@@ -38,6 +45,7 @@ export default async function VatSettlementsPage() {
       periodFrom: String(document.data().periodFrom),
       periodTo: String(document.data().periodTo),
       amountMinor: Number(document.data().amountMinor),
+      roundingMinor: Number(document.data().roundingMinor ?? 0),
       reference: String(document.data().reference ?? ""),
       note: String(document.data().note ?? ""),
       status: document.data().status as "active" | "reversed",

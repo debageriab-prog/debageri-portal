@@ -433,7 +433,12 @@ export function financeTotals(
 
 export function vatPayableMinor(
   transactions: Array<Pick<FinancialTransaction, "direction" | "vatMinor">>,
-  settlements: Array<{ amountMinor: number; status: "active" | "reversed" }>,
+  settlements: Array<{
+    amountMinor: number;
+    /** Öresavrundning settled without being paid. */
+    roundingMinor?: number;
+    status: "active" | "reversed";
+  }>,
 ) {
   const vat = transactions.reduce(
     (total, transaction) =>
@@ -445,7 +450,11 @@ export function vatPayableMinor(
   );
   const paid = settlements
     .filter((settlement) => settlement.status === "active")
-    .reduce((total, settlement) => total + settlement.amountMinor, 0);
+    .reduce(
+      (total, settlement) =>
+        total + settlement.amountMinor + (settlement.roundingMinor ?? 0),
+      0,
+    );
   return vat - paid;
 }
 

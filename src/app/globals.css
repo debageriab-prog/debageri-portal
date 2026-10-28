@@ -1911,6 +1911,21 @@ label:has(> .info-tip) {
   overflow-wrap: anywhere;
 }
 
+.stored-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stored-attachment-name {
+  max-width: 18rem;
+  overflow-wrap: anywhere;
+}
+
+.table-attachment-list .stored-attachment a {
+  display: inline-grid;
+}
+
 .action-icon-svg {
   width: 1.15rem;
   height: 1.15rem;

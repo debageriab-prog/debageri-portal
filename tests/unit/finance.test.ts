@@ -321,6 +321,27 @@ describe("finance calculations", () => {
     });
   });
 
+  it("counts VAT settlement rounding as settled", () => {
+    const transactions = [
+      { direction: "income" as const, vatMinor: 75_762_37 },
+    ];
+    expect(
+      vatPayableMinor(transactions, [
+        { amountMinor: 75_762_00, roundingMinor: 37, status: "active" },
+      ]),
+    ).toBe(0);
+    expect(
+      vatPayableMinor(transactions, [
+        { amountMinor: 75_762_00, roundingMinor: 37, status: "reversed" },
+      ]),
+    ).toBe(75_762_37);
+    expect(
+      vatPayableMinor(transactions, [
+        { amountMinor: 75_762_00, status: "active" },
+      ]),
+    ).toBe(37);
+  });
+
   it("adds öresavrundning to the total only", () => {
     expect(
       calculateTransactionAmounts("netVat", 229_00, 2_500, 57_25, -25),

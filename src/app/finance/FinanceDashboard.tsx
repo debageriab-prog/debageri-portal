@@ -124,6 +124,7 @@ export interface FinancePageData {
   vatSettlements: Array<{
     id: string;
     amountMinor: number;
+    roundingMinor: number;
     status: "active" | "reversed";
   }>;
 }

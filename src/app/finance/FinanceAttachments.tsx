@@ -228,6 +228,7 @@ export async function processAttachmentWithAi(
       body: JSON.stringify({
         entityId: source.entityId,
         attachmentId: source.attachmentId,
+        purpose,
       }),
     };
   }
@@ -553,6 +554,52 @@ export function FinanceAttachments({
   );
 }
 
+/**
+ * A stored attachment's name followed by view (PDF and images) and download
+ * icons; the view icon opens the preview popup.
+ */
+export function StoredAttachment({
+  entityType,
+  entityId,
+  attachment,
+}: {
+  entityType: FinanceEntityType;
+  entityId: string;
+  attachment: { id: string; name: string; contentType: string };
+}) {
+  const [previewing, setPreviewing] = useState(false);
+  return (
+    <span className="stored-attachment">
+      <span className="stored-attachment-name">{attachment.name}</span>
+      {canPreview(attachment.contentType) && (
+        <PreviewButton
+          name={attachment.name}
+          onClick={() => setPreviewing(true)}
+        />
+      )}
+      <AttachmentDownloadLink
+        className="attachment-download"
+        entityType={entityType}
+        entityId={entityId}
+        attachmentId={attachment.id}
+        name={attachment.name}
+      >
+        <FileDownloadIcon />
+      </AttachmentDownloadLink>
+      {previewing && (
+        <AttachmentPreviewModal
+          target={{
+            name: attachment.name,
+            contentType: attachment.contentType,
+            fileUrl: attachmentUrl(entityType, entityId, attachment.id),
+          }}
+          onClose={() => setPreviewing(false)}
+        />
+      )}
+    </span>
+  );
+}
+
 export function AttachmentDownloads({
   entityType,
   entityId,
@@ -586,16 +633,11 @@ export function AttachmentDownloads({
         <ul className="attachment-list">
           {items.map((item) => (
             <li key={item.id}>
-              <span>{item.name}</span>
-              <AttachmentDownloadLink
-                className="attachment-download"
+              <StoredAttachment
                 entityType={entityType}
                 entityId={entityId}
-                attachmentId={item.id}
-                name={item.name}
-              >
-                <FileDownloadIcon />
-              </AttachmentDownloadLink>
+                attachment={item}
+              />
             </li>
           ))}
         </ul>
