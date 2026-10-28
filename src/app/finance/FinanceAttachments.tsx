@@ -121,7 +121,11 @@ export type AiAttachmentSource =
 /** Asks the server to read one attachment with the configured AI provider. */
 export async function processAttachmentWithAi(
   source: AiAttachmentSource,
-): Promise<{ extraction?: FinanceExtraction; error?: string }> {
+): Promise<{
+  extraction?: FinanceExtraction;
+  error?: string;
+  detail?: string;
+}> {
   let init: RequestInit;
   if (source.kind === "file") {
     const body = new FormData();
@@ -142,10 +146,11 @@ export async function processAttachmentWithAi(
     const result = (await response.json().catch(() => ({}))) as {
       extraction?: FinanceExtraction;
       error?: string;
+      detail?: string;
     };
     return response.ok && result.extraction
       ? { extraction: result.extraction }
-      : { error: result.error ?? "aiProviderFailed" };
+      : { error: result.error ?? "aiProviderFailed", detail: result.detail };
   } catch {
     return { error: "aiProviderFailed" };
   }

@@ -34,6 +34,7 @@ export function AiIntegrationForm({
       ? ""
       : settings.model,
   );
+  const [features, setFeatures] = useState(settings.features);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -53,12 +54,7 @@ export function AiIntegrationForm({
           provider,
           model: modelChoice === CUSTOM_MODEL ? customModel : modelChoice,
           apiKey: String(form.get("apiKey") ?? "").trim() || undefined,
-          features: Object.fromEntries(
-            AI_FEATURES.map((feature) => [
-              feature,
-              form.get(`feature-${feature}`) === "on",
-            ]),
-          ),
+          features,
         }),
       });
       const result = (await response.json().catch(() => ({}))) as {
@@ -83,7 +79,7 @@ export function AiIntegrationForm({
   return (
     <form className="card reminder-settings-form" onSubmit={save}>
       <div className="form-grid">
-        <label className="checkbox-row form-wide">
+        <label className="ai-enable-row form-wide">
           <input
             type="checkbox"
             checked={enabled}
@@ -94,81 +90,93 @@ export function AiIntegrationForm({
             <small>{t("aiEnableIntegrationHelp")}</small>
           </span>
         </label>
-        <label>
-          {t("aiProvider")}
-          <select
-            className="field"
-            value={provider}
-            onChange={(event) => {
-              const next = event.target.value as AiProvider;
-              setProvider(next);
-              setModelChoice(DEFAULT_AI_MODEL[next]);
-              setCustomModel("");
-            }}
-          >
-            {AI_PROVIDERS.map((item) => (
-              <option key={item} value={item}>
-                {t(`aiProvider_${item}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {t("aiModel")}
-          <select
-            className="field"
-            value={modelChoice}
-            onChange={(event) => setModelChoice(event.target.value)}
-          >
-            {AI_MODEL_PRESETS[provider].map((model) => (
-              <option key={model} value={model}>
-                {model}
-              </option>
-            ))}
-            <option value={CUSTOM_MODEL}>{t("aiCustomModel")}</option>
-          </select>
-        </label>
-        {modelChoice === CUSTOM_MODEL && (
+        <fieldset
+          className="ai-settings-fields form-grid form-wide"
+          disabled={!enabled}
+        >
           <label>
-            {t("aiCustomModelId")}
+            {t("aiProvider")}
+            <select
+              className="field"
+              value={provider}
+              onChange={(event) => {
+                const next = event.target.value as AiProvider;
+                setProvider(next);
+                setModelChoice(DEFAULT_AI_MODEL[next]);
+                setCustomModel("");
+              }}
+            >
+              {AI_PROVIDERS.map((item) => (
+                <option key={item} value={item}>
+                  {t(`aiProvider_${item}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t("aiModel")}
+            <select
+              className="field"
+              value={modelChoice}
+              onChange={(event) => setModelChoice(event.target.value)}
+            >
+              {AI_MODEL_PRESETS[provider].map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+              <option value={CUSTOM_MODEL}>{t("aiCustomModel")}</option>
+            </select>
+          </label>
+          {modelChoice === CUSTOM_MODEL && (
+            <label>
+              {t("aiCustomModelId")}
+              <input
+                className="field"
+                value={customModel}
+                onChange={(event) => setCustomModel(event.target.value)}
+                pattern="[A-Za-z0-9._:/\-]+"
+                required
+              />
+            </label>
+          )}
+          <label className="form-wide">
+            {t("aiApiKey").replace("{provider}", t(`aiProvider_${provider}`))}
             <input
               className="field"
-              value={customModel}
-              onChange={(event) => setCustomModel(event.target.value)}
-              pattern="[A-Za-z0-9._:/\-]+"
-              required
+              name="apiKey"
+              type="password"
+              autoComplete="off"
+              key={provider}
+              placeholder={
+                keyConfigured[provider] ? t("aiLeaveBlankApiKey") : ""
+              }
+              required={enabled && !keyConfigured[provider]}
             />
+            <small className="muted">{t("aiApiKeyHelp")}</small>
           </label>
-        )}
-        <label className="form-wide">
-          {t("aiApiKey").replace("{provider}", t(`aiProvider_${provider}`))}
-          <input
-            className="field"
-            name="apiKey"
-            type="password"
-            autoComplete="off"
-            key={provider}
-            placeholder={keyConfigured[provider] ? t("aiLeaveBlankApiKey") : ""}
-            required={enabled && !keyConfigured[provider]}
-          />
-          <small className="muted">{t("aiApiKeyHelp")}</small>
-        </label>
-        <fieldset className="access-section form-wide">
-          <legend>{t("aiEnabledSections")}</legend>
-          <p className="muted">{t("aiEnabledSectionsHelp")}</p>
-          {AI_FEATURES.map((feature) => (
-            <label className="checkbox-row" key={feature}>
-              <input
-                name={`feature-${feature}`}
-                type="checkbox"
-                defaultChecked={settings.features[feature]}
-              />
-              <span>
-                <strong>{t(`aiFeature_${feature}`)}</strong>
-                <small>{t(`aiFeatureHelp_${feature}`)}</small>
-              </span>
-            </label>
-          ))}
+          <fieldset className="access-section form-wide">
+            <legend>{t("aiEnabledSections")}</legend>
+            <p className="muted">{t("aiEnabledSectionsHelp")}</p>
+            {AI_FEATURES.map((feature) => (
+              <label className="checkbox-row" key={feature}>
+                <input
+                  type="checkbox"
+                  checked={features[feature]}
+                  onChange={(event) =>
+                    setFeatures({
+                      ...features,
+                      [feature]: event.target.checked,
+                    })
+                  }
+                />
+                <span>
+                  <strong>{t(`aiFeature_${feature}`)}</strong>
+                  <small>{t(`aiFeatureHelp_${feature}`)}</small>
+                </span>
+              </label>
+            ))}
+          </fieldset>
         </fieldset>
       </div>
       {error && <p className="notice notice-error">{error}</p>}

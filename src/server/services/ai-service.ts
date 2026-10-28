@@ -32,9 +32,15 @@ export class AiError extends Error {
       | "aiProviderFailed"
       | "aiNoResult",
     public status: number,
+    /** Provider's own error text, shown to finance users to help fix setup. */
+    public detail?: string,
   ) {
     super(code);
   }
+}
+
+function providerDetail(status: number | undefined, message: string) {
+  return `${status ?? ""} ${message}`.replace(/\s+/g, " ").trim().slice(0, 300);
 }
 
 const SETTINGS_COLLECTION = "aiSettings";
@@ -228,7 +234,11 @@ async function callAnthropic(
         status: error.status,
         message: error.message,
       });
-      throw new AiError("aiProviderRejected", 502);
+      throw new AiError(
+        "aiProviderRejected",
+        502,
+        providerDetail(error.status, error.message),
+      );
     }
     console.error("Anthropic extraction failed", error);
     throw new AiError("aiProviderFailed", 502);
@@ -296,7 +306,11 @@ async function callOpenAi(
         status: error.status,
         message: error.message,
       });
-      throw new AiError("aiProviderRejected", 502);
+      throw new AiError(
+        "aiProviderRejected",
+        502,
+        providerDetail(error.status, error.message),
+      );
     }
     console.error("OpenAI extraction failed", error);
     throw new AiError("aiProviderFailed", 502);

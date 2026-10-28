@@ -901,5 +901,6 @@
   "aiError_aiProviderRejected": "AI-leverantören avvisade begäran. Kontrollera API-nyckel och modell i inställningarna för AI-integration.",
   "aiError_aiProviderFailed": "AI-leverantören kunde inte nås. Försök igen om en stund.",
   "aiError_aiNoResult": "AI kunde inte läsa den här filen.",
-  "aiError_attachmentTooLarge": "Filen är för stor för att läsas."
+  "aiError_attachmentTooLarge": "Filen är för stor för att läsas.",
+  "aiProviderSaid": "Svar från leverantören: {detail}"
 }

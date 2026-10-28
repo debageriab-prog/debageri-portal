@@ -663,7 +663,12 @@ export function TransactionForm({
         : "aiProviderFailed";
       setAiNotice({
         tone: "error",
-        messages: [t(`aiError_${code}` as Parameters<typeof t>[0])],
+        messages: [
+          t(`aiError_${code}` as Parameters<typeof t>[0]),
+          ...(result.detail
+            ? [t("aiProviderSaid").replace("{detail}", result.detail)]
+            : []),
+        ],
       });
       return;
     }

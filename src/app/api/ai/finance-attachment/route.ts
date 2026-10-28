@@ -76,7 +76,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ extraction });
   } catch (error) {
     if (error instanceof AiError)
-      return NextResponse.json({ error: error.code }, { status: error.status });
+      return NextResponse.json(
+        { error: error.code, detail: error.detail },
+        { status: error.status },
+      );
     throw error;
   }
 }
