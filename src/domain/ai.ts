@@ -66,6 +66,7 @@ export type RawFinanceExtraction = {
   counterpartyName: string | null;
   description: string | null;
   categoryId: string | null;
+  consultantId: string | null;
 };
 
 const nullable = (schema: Record<string, unknown>) => ({
@@ -89,6 +90,7 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     "counterpartyName",
     "description",
     "categoryId",
+    "consultantId",
   ],
   properties: {
     documentType: { type: "string", enum: ["receipt", "invoice", "other"] },
@@ -103,6 +105,7 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     counterpartyName: nullable({ type: "string" }),
     description: nullable({ type: "string" }),
     categoryId: nullable({ type: "string" }),
+    consultantId: nullable({ type: "string" }),
   },
 };
 
@@ -127,6 +130,10 @@ export type FinanceExtraction = {
   counterpartyName: string | null;
   description: string | null;
   categoryId: string | null;
+  /** Consultant named in the file name or document. */
+  consultantId: string | null;
+  /** How this consultant's latest expense in the category was paid. */
+  funding: "company" | "consultant" | null;
   /** Set when foreign amounts were converted to SEK. */
   conversion: {
     currency: string;
@@ -179,6 +186,7 @@ function text(value: string | null, max: number) {
 export function normalizeFinanceExtraction(
   raw: RawFinanceExtraction,
   categoryIds: string[],
+  consultantIds: string[] = [],
 ): FinanceExtraction {
   let netMinor = toMinor(raw.netAmount);
   let vatMinor = toMinor(raw.vatAmount);
@@ -224,8 +232,54 @@ export function normalizeFinanceExtraction(
       raw.categoryId && categoryIds.includes(raw.categoryId)
         ? raw.categoryId
         : null,
+    consultantId:
+      raw.consultantId && consultantIds.includes(raw.consultantId)
+        ? raw.consultantId
+        : null,
+    funding: null,
     conversion: null,
   };
+}
+
+function nameWords(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .split(/[^\p{L}]+/u)
+    .filter((word) => word.length >= 2);
+}
+
+/**
+ * The consultant named in `text` (such as a file name): a full-name match
+ * wins, otherwise a first or last name no other consultant shares. Null when
+ * nobody or more than one consultant matches. Accents are ignored.
+ */
+export function matchConsultantByName(
+  text: string,
+  consultants: { id: string; displayName: string }[],
+) {
+  const words = new Set(nameWords(text));
+  const names = consultants.map((consultant) => ({
+    id: consultant.id,
+    parts: nameWords(consultant.displayName),
+  }));
+  const only = (ids: string[]) => (ids.length === 1 ? ids[0] : null);
+  const full = names
+    .filter(({ parts }) => parts.length > 1)
+    .filter(({ parts }) => parts.every((part) => words.has(part)))
+    .map(({ id }) => id);
+  if (full.length) return only(full);
+  const owners = new Map<string, Set<string>>();
+  for (const { id, parts } of names)
+    for (const part of [parts[0], parts.at(-1)].filter(Boolean) as string[])
+      owners.set(part, (owners.get(part) ?? new Set()).add(id));
+  const partial = new Set(
+    [...words]
+      .map((word) => owners.get(word))
+      .flatMap((ids) => (ids?.size === 1 ? [...ids] : [])),
+  );
+  return only([...partial]);
 }
 
 /**

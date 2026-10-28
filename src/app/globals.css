@@ -1665,6 +1665,28 @@ th.actions-heading {
   stroke-width: 1.8;
 }
 
+.attachment-ai-done {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--success);
+  border-radius: 999px;
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.attachment-ai-done svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
 .attachment-download {
   display: inline-grid;
   flex: 0 0 auto;

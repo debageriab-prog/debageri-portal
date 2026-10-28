@@ -898,6 +898,7 @@
   "aiProcessAttachment": "Process attachment with AI",
   "aiProcessAttachmentNamed": "Process {name} with AI",
   "aiProcessing": "Reading…",
+  "aiProcessed": "Processed with AI",
   "aiFilledFromFile": "Filled in from {name}. Review the values before posting.",
   "aiNothingFound": "No transaction values could be read from {name}.",
   "aiForeignCurrency": "The document is in {currency} and no exchange rate was found, so the amount was left empty. Enter the SEK amount yourself.",

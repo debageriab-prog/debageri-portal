@@ -49,9 +49,9 @@ export function WarningTriangleIcon() {
   );
 }
 
-export function SuccessCheckIcon() {
+export function SuccessCheckIcon({ size = 22 }: { size?: number }) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22">
+    <svg aria-hidden="true" viewBox="0 0 24 24" width={size} height={size}>
       <circle cx="12" cy="12" r="9.5" />
       <path d="m7.8 12.3 2.8 2.8 5.6-5.8" />
     </svg>

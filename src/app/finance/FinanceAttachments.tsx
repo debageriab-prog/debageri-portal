@@ -8,6 +8,7 @@ import {
   FileDownloadIcon,
   FileRemoveIcon,
   FileViewIcon,
+  SuccessCheckIcon,
 } from "@/components/ui/FileActionIcons";
 import { DocumentPreview } from "@/components/ui/DocumentPreview";
 import type { FinanceExtraction } from "@/domain/ai";
@@ -247,14 +248,23 @@ function AiProcessButton({
   name,
   busy,
   disabled,
+  processed,
   onClick,
 }: {
   name: string;
   busy: boolean;
   disabled: boolean;
+  processed: boolean;
   onClick(): void;
 }) {
   const { t } = useLocale();
+  if (processed)
+    return (
+      <span className="attachment-ai-done" role="status">
+        <SuccessCheckIcon size={16} />
+        <span>{t("aiProcessed")}</span>
+      </span>
+    );
   return (
     <button
       className="attachment-ai"
@@ -289,6 +299,8 @@ export function FinanceAttachments({
   /** Shows "Process attachment with AI" next to each file when set. */
   ai?: {
     busyKey: string | null;
+    /** Keys of attachments already read with AI. */
+    processedKeys: string[];
     onProcess(source: AiAttachmentSource, key: string, name: string): void;
   };
 }) {
@@ -333,6 +345,7 @@ export function FinanceAttachments({
                   name={attachment.name}
                   busy={ai.busyKey === attachment.id}
                   disabled={ai.busyKey !== null}
+                  processed={ai.processedKeys.includes(attachment.id)}
                   onClick={() =>
                     ai.onProcess(
                       {
@@ -421,6 +434,7 @@ export function FinanceAttachments({
                       name={file.name}
                       busy={ai.busyKey === key}
                       disabled={ai.busyKey !== null}
+                      processed={ai.processedKeys.includes(key)}
                       onClick={() =>
                         ai.onProcess({ kind: "file", file }, key, file.name)
                       }

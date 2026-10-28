@@ -11,6 +11,7 @@ import {
   aiSettingsFrom,
   convertExtractionToSek,
   FINANCE_EXTRACTION_JSON_SCHEMA,
+  matchConsultantByName,
   normalizeFinanceExtraction,
   type AiFeature,
   type AiProvider,
@@ -121,6 +122,7 @@ export type ExtractionFile = {
 type ExtractionContext = {
   organizationName: string;
   categories: { id: string; direction: string; name: string }[];
+  consultants: { id: string; displayName: string }[];
 };
 
 const rawExtractionSchema = z.object({
@@ -136,6 +138,7 @@ const rawExtractionSchema = z.object({
   counterpartyName: z.string().nullable(),
   description: z.string().nullable(),
   categoryId: z.string().nullable(),
+  consultantId: z.string().nullable().default(null),
 }) satisfies z.ZodType<RawFinanceExtraction>;
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -155,10 +158,15 @@ function instructions(context: ExtractionContext) {
     "- counterpartyName: the other party (the supplier for expenses, the customer for income).",
     "- description: a short description of what was bought or sold, in the document's language, at most 15 words.",
     "- categoryId: the id of the best matching category from the list below for the chosen direction, or null if none fits.",
+    '- consultantId: the id of the consultant from the consultant list below whose full name, first name or last name appears in the document, for example as buyer, cardholder, passenger, guest, "Er referens" or recipient. null if no consultant is named or the name could belong to more than one of them.',
     "Use null for any value that is not clearly stated or derivable from the document. Never guess amounts.",
     "Categories (id | direction | name):",
     ...context.categories.map(
       (category) => `${category.id} | ${category.direction} | ${category.name}`,
+    ),
+    "Consultants (id | name):",
+    ...context.consultants.map(
+      (consultant) => `${consultant.id} | ${consultant.displayName}`,
     ),
   ].join("\n");
 }
@@ -322,6 +330,33 @@ async function callOpenAi(
 }
 
 /** Reads one finance attachment with the organization's configured AI. */
+/** How the consultant's latest posted expense in the category was paid. */
+async function latestFunding(
+  db: Firestore,
+  organizationId: string,
+  consultantId: string,
+  categoryId: string,
+) {
+  const snapshot = await db
+    .collection("financialTransactions")
+    .where("organizationId", "==", organizationId)
+    .where("consultantId", "==", consultantId)
+    .where("categoryId", "==", categoryId)
+    .orderBy("date", "desc")
+    .limit(10)
+    .get();
+  const latest = snapshot.docs
+    .map((document) => document.data())
+    .find(
+      (data) =>
+        data.direction === "expense" &&
+        data.status === "posted" &&
+        !data.reversedByTransactionId &&
+        (data.funding === "company" || data.funding === "consultant"),
+    );
+  return (latest?.funding as "company" | "consultant" | undefined) ?? null;
+}
+
 export async function extractFinanceDocument(
   db: Firestore,
   actor: PortalUser,
@@ -342,13 +377,24 @@ export async function extractFinanceDocument(
   )
     throw new AiError("aiUnsupportedFile", 400);
 
-  const [organization, categorySnapshot] = await Promise.all([
+  const [organization, categorySnapshot, userSnapshot] = await Promise.all([
     db.collection("organizations").doc(actor.organizationId).get(),
     db
       .collection("financeCategories")
       .where("organizationId", "==", actor.organizationId)
       .get(),
+    db
+      .collection("users")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
   ]);
+  const consultants = userSnapshot.docs
+    .filter((document) => document.data().role === "consultant")
+    .map((document) => ({
+      id: document.id,
+      displayName: String(document.data().displayName ?? ""),
+    }))
+    .filter((consultant) => consultant.displayName.trim());
   const categories = categorySnapshot.docs
     .filter((document) => document.data().active !== false)
     .map((document) => {
@@ -362,6 +408,7 @@ export async function extractFinanceDocument(
   const system = instructions({
     organizationName: String(organization.data()?.name ?? "Debageri"),
     categories,
+    consultants,
   });
   const apiKey = decryptPassword(encryptedKey);
   const output =
@@ -378,7 +425,22 @@ export async function extractFinanceDocument(
   const extraction = normalizeFinanceExtraction(
     parsed,
     categories.map((category) => category.id),
+    consultants.map((consultant) => consultant.id),
   );
+  extraction.consultantId =
+    matchConsultantByName(file.name, consultants) ?? extraction.consultantId;
+  const category = categories.find((item) => item.id === extraction.categoryId);
+  if (extraction.consultantId && category?.direction === "expense")
+    // A suggestion only; never fail the reading over it.
+    extraction.funding = await latestFunding(
+      db,
+      actor.organizationId,
+      extraction.consultantId,
+      category.id,
+    ).catch((error: unknown) => {
+      console.warn("Previous funding lookup failed", { error });
+      return null;
+    });
   if (extraction.currency === "SEK") return extraction;
   const rate = await sekExchangeRate(
     extraction.currency,

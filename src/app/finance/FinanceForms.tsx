@@ -704,7 +704,11 @@ export function TransactionForm({
     transaction?.internalNote ??
       (receipt ? `${t("receipt")}: ${receiptText} (${receipt.userName})` : ""),
   );
+  const [visibleDescription, setVisibleDescription] = useState(
+    transaction?.visibleDescription ?? receiptText,
+  );
   const [aiBusyKey, setAiBusyKey] = useState<string | null>(null);
+  const [aiProcessedKeys, setAiProcessedKeys] = useState<string[]>([]);
   const [aiCurrencyWarning, setAiCurrencyWarning] = useState<string[] | null>(
     null,
   );
@@ -739,6 +743,7 @@ export function TransactionForm({
       });
       return;
     }
+    setAiProcessedKeys((keys) => [...keys, key]);
     let filled = 0;
     const foreignAmounts = extraction.currency !== "SEK";
     if (extraction.direction) {
@@ -786,6 +791,24 @@ export function TransactionForm({
       clearFieldError("categoryId");
       filled++;
     }
+    const consultantFound = users.some(
+      (user) => user.id === extraction.consultantId,
+    );
+    if (consultantFound) {
+      setConsultantId(extraction.consultantId!);
+      clearFieldError("consultantId");
+      filled++;
+    }
+    if (extraction.funding && extraction.direction !== "income") {
+      setFunding(extraction.funding);
+      clearFieldError("funding");
+      filled++;
+    }
+    const consultantText = [extraction.counterpartyName, extraction.description]
+      .filter(Boolean)
+      .join(" – ");
+    if (consultantText && !visibleDescription.trim())
+      setVisibleDescription(consultantText);
     const conversion = extraction.conversion;
     const conversionText = conversion
       ? t("aiConvertedCurrency")
@@ -854,7 +877,11 @@ export function TransactionForm({
           formatSek(extraction.vatMinor, locale),
         ),
       );
-    if (!extraction.direction || !extraction.categoryId)
+    if (
+      !extraction.direction ||
+      !extraction.categoryId ||
+      (!consultantFound && !consultantId)
+    )
       messages.push(t("aiChooseRemaining"));
     setAiNotice({
       tone: messages.length > 1 ? "warning" : "success",
@@ -956,9 +983,7 @@ export function TransactionForm({
         direction === "expense" ? (hasConsultant ? funding : "company") : null,
       applyConsultantShare:
         hasConsultant && form.get("applyConsultantShare") === "on",
-      visibleDescription: hasConsultant
-        ? String(form.get("visibleDescription") ?? "")
-        : "",
+      visibleDescription: hasConsultant ? visibleDescription : "",
       internalNote: form.get("internalNote"),
       ...(receipt && !transaction ? { receiptId: receipt.id } : {}),
     };
@@ -1222,7 +1247,8 @@ export function TransactionForm({
             <input
               className="field"
               name="visibleDescription"
-              defaultValue={transaction?.visibleDescription ?? receiptText}
+              value={visibleDescription}
+              onChange={(event) => setVisibleDescription(event.target.value)}
             />
           </label>
         )}
@@ -1267,7 +1293,11 @@ export function TransactionForm({
           onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
           ai={
             aiEnabled
-              ? { busyKey: aiBusyKey, onProcess: processWithAi }
+              ? {
+                  busyKey: aiBusyKey,
+                  processedKeys: aiProcessedKeys,
+                  onProcess: processWithAi,
+                }
               : undefined
           }
         />

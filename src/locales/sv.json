@@ -898,6 +898,7 @@
   "aiProcessAttachment": "Läs bilaga med AI",
   "aiProcessAttachmentNamed": "Läs {name} med AI",
   "aiProcessing": "Läser…",
+  "aiProcessed": "Läst med AI",
   "aiFilledFromFile": "Ifyllt från {name}. Kontrollera värdena innan du bokför.",
   "aiNothingFound": "Inga transaktionsvärden kunde läsas från {name}.",
   "aiForeignCurrency": "Dokumentet är i {currency} och ingen växelkurs hittades, så beloppet lämnades tomt. Ange beloppet i SEK själv.",
