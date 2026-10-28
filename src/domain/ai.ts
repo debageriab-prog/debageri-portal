@@ -1,12 +1,23 @@
 import { receiptVatRateBps } from "@/domain/receipts";
 import { MAX_ROUNDING_MINOR } from "@/domain/finance/calculations";
+import { validInvoicePeriod } from "@/domain/finance/invoice-period";
 
 export type AiProvider = "anthropic" | "openai";
 export const AI_PROVIDERS: AiProvider[] = ["anthropic", "openai"];
 
 /** Portal areas an admin can switch AI on for, one at a time. */
-export type AiFeature = "financeAttachments";
-export const AI_FEATURES: AiFeature[] = ["financeAttachments"];
+export type AiFeature = "financeAttachments" | "financeInvoices";
+export const AI_FEATURES: AiFeature[] = [
+  "financeAttachments",
+  "financeInvoices",
+];
+
+/** What a document is read for; each purpose has its own AI switch. */
+export type AiExtractionPurpose = "transaction" | "invoice";
+export const AI_PURPOSE_FEATURE: Record<AiExtractionPurpose, AiFeature> = {
+  transaction: "financeAttachments",
+  invoice: "financeInvoices",
+};
 
 /** Suggested model IDs per provider; admins may also enter any other ID. */
 export const AI_MODEL_PRESETS: Record<AiProvider, string[]> = {
@@ -67,13 +78,27 @@ export type RawFinanceExtraction = {
   description: string | null;
   categoryId: string | null;
   consultantId: string | null;
+  invoiceNumber: string | null;
+  dueDate: string | null;
+  periodFrom: string | null;
+  periodTo: string | null;
+  customerId: string | null;
 };
 
 const nullable = (schema: Record<string, unknown>) => ({
   anyOf: [schema, { type: "null" }],
 });
 
-/** JSON schema for structured output; every field is required but nullable. */
+/**
+ * Most providers cap how many fields may be a union such as "number or null"
+ * (Anthropic allows 16), so text fields are plain strings where "" means
+ * unknown, and only the direction and amounts are nullable.
+ */
+export const MAX_SCHEMA_UNION_FIELDS = 16;
+
+const plainText = { type: "string" };
+
+/** JSON schema for structured output; every field is required. */
 export const FINANCE_EXTRACTION_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -91,21 +116,31 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     "description",
     "categoryId",
     "consultantId",
+    "invoiceNumber",
+    "dueDate",
+    "periodFrom",
+    "periodTo",
+    "customerId",
   ],
   properties: {
     documentType: { type: "string", enum: ["receipt", "invoice", "other"] },
     direction: nullable({ type: "string", enum: ["income", "expense"] }),
-    date: nullable({ type: "string" }),
-    currency: nullable({ type: "string" }),
+    date: plainText,
+    currency: plainText,
     netAmount: nullable({ type: "number" }),
     vatAmount: nullable({ type: "number" }),
     totalAmount: nullable({ type: "number" }),
     roundingAmount: nullable({ type: "number" }),
     vatRatePercent: nullable({ type: "number" }),
-    counterpartyName: nullable({ type: "string" }),
-    description: nullable({ type: "string" }),
-    categoryId: nullable({ type: "string" }),
-    consultantId: nullable({ type: "string" }),
+    counterpartyName: plainText,
+    description: plainText,
+    categoryId: plainText,
+    consultantId: plainText,
+    invoiceNumber: plainText,
+    dueDate: plainText,
+    periodFrom: plainText,
+    periodTo: plainText,
+    customerId: plainText,
   },
 };
 
@@ -134,6 +169,13 @@ export type FinanceExtraction = {
   consultantId: string | null;
   /** How this consultant's latest expense in the category was paid. */
   funding: "company" | "consultant" | null;
+  invoiceNumber: string | null;
+  /** Never before `date`. */
+  dueDate: string | null;
+  /** Service period the invoice covers; both set or both null. */
+  periodFrom: string | null;
+  periodTo: string | null;
+  customerId: string | null;
   /** Set when foreign amounts were converted to SEK. */
   conversion: {
     currency: string;
@@ -187,6 +229,7 @@ export function normalizeFinanceExtraction(
   raw: RawFinanceExtraction,
   categoryIds: string[],
   consultantIds: string[] = [],
+  customerIds: string[] = [],
 ): FinanceExtraction {
   let netMinor = toMinor(raw.netAmount);
   let vatMinor = toMinor(raw.vatAmount);
@@ -214,12 +257,18 @@ export function normalizeFinanceExtraction(
     vatRateBps = Math.round(raw.vatRatePercent * 100);
 
   const currency = text(raw.currency, 10)?.toUpperCase() ?? null;
+  const date = validDate(raw.date);
+  const dueDate = validDate(raw.dueDate);
+  const periodFrom = validDate(raw.periodFrom);
+  const periodTo = validDate(raw.periodTo);
+  const period =
+    periodFrom && periodTo && validInvoicePeriod(periodFrom, periodTo);
   return {
     direction:
       raw.direction === "income" || raw.direction === "expense"
         ? raw.direction
         : null,
-    date: validDate(raw.date),
+    date,
     currency: currency && /^[A-Z]{3}$/.test(currency) ? currency : "SEK",
     netMinor,
     vatMinor,
@@ -237,6 +286,14 @@ export function normalizeFinanceExtraction(
         ? raw.consultantId
         : null,
     funding: null,
+    invoiceNumber: text(raw.invoiceNumber, 60),
+    dueDate: dueDate && (!date || dueDate >= date) ? dueDate : null,
+    periodFrom: period ? periodFrom : null,
+    periodTo: period ? periodTo : null,
+    customerId:
+      raw.customerId && customerIds.includes(raw.customerId)
+        ? raw.customerId
+        : null,
     conversion: null,
   };
 }

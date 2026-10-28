@@ -10,7 +10,10 @@ export const aiSettingsSchema = z.object({
     .max(100)
     .regex(/^[A-Za-z0-9._:/-]+$/),
   apiKey: z.string().trim().min(10).max(500).optional(),
-  features: z.object({ financeAttachments: z.boolean() }),
+  features: z.object({
+    financeAttachments: z.boolean(),
+    financeInvoices: z.boolean().default(false),
+  }),
 });
 
 export const financeAttachmentReferenceSchema = z.object({

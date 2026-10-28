@@ -11,7 +11,7 @@ import {
   SuccessCheckIcon,
 } from "@/components/ui/FileActionIcons";
 import { DocumentPreview } from "@/components/ui/DocumentPreview";
-import type { FinanceExtraction } from "@/domain/ai";
+import type { AiExtractionPurpose, FinanceExtraction } from "@/domain/ai";
 
 export type FinanceEntityType = "transaction" | "vatSettlement" | "invoice";
 type Attachment = {
@@ -209,6 +209,7 @@ export type AiAttachmentSource =
 /** Asks the server to read one attachment with the configured AI provider. */
 export async function processAttachmentWithAi(
   source: AiAttachmentSource,
+  purpose: AiExtractionPurpose = "transaction",
 ): Promise<{
   extraction?: FinanceExtraction;
   error?: string;
@@ -218,6 +219,7 @@ export async function processAttachmentWithAi(
   if (source.kind === "file") {
     const body = new FormData();
     body.append("file", source.file);
+    body.append("purpose", purpose);
     init = { method: "POST", body };
   } else {
     init = {

@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
@@ -87,9 +88,8 @@ export function RedDayManagement({
         <form className="form-grid" onSubmit={add}>
           <label>
             {t("date")}
-            <input
+            <DateInput
               className="field"
-              type="date"
               name="date"
               min={`${year}-01-01`}
               max={`${year}-12-31`}

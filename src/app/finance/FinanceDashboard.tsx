@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import Link from "next/link";
 import {
   FormEvent,
@@ -79,10 +80,13 @@ export interface FinancePageData {
     vatRateBps: number;
     issueDate: string;
     dueDate: string;
+    periodFrom: string | null;
+    periodTo: string | null;
     paidDate: string | null;
     status: "issued" | "paid" | "void";
     netMinor: number;
     vatMinor: number;
+    roundingMinor: number;
     grossMinor: number;
     shareBps: number;
   }>;
@@ -1944,9 +1948,8 @@ export function FinanceDashboard({
                     <>
                       <label className="compact-date-field">
                         {t("fromDateInclusive")}
-                        <input
+                        <DateInput
                           className="field finance-period"
-                          type="date"
                           value={chartRangeFrom}
                           onChange={(event) =>
                             changeChartRangeFrom(event.target.value)
@@ -1955,9 +1958,8 @@ export function FinanceDashboard({
                       </label>
                       <label className="compact-date-field">
                         {t("toDateInclusive")}
-                        <input
+                        <DateInput
                           className="field finance-period"
-                          type="date"
                           value={chartRangeTo}
                           onChange={(event) =>
                             changeChartRangeTo(event.target.value)
@@ -2499,9 +2501,8 @@ export function FinanceDashboard({
               <>
                 <label>
                   {t("fromDateInclusive")}
-                  <input
+                  <DateInput
                     className="field"
-                    type="date"
                     value={transactionRangeFrom}
                     onChange={(event) =>
                       changeTransactionRangeFrom(event.target.value)
@@ -2510,9 +2511,8 @@ export function FinanceDashboard({
                 </label>
                 <label>
                   {t("toDateInclusive")}
-                  <input
+                  <DateInput
                     className="field"
-                    type="date"
                     value={transactionRangeTo}
                     onChange={(event) =>
                       changeTransactionRangeTo(event.target.value)
@@ -2845,6 +2845,14 @@ export function FinanceDashboard({
                 </dd>
               </div>
               <div>
+                <dt>{t("invoicePeriod")}</dt>
+                <dd>
+                  {viewingInvoice.periodFrom && viewingInvoice.periodTo
+                    ? `${viewingInvoice.periodFrom} – ${viewingInvoice.periodTo}`
+                    : "\u2014"}
+                </dd>
+              </div>
+              <div>
                 <dt>{t("issueDate")}</dt>
                 <dd>{viewingInvoice.issueDate || "\u2014"}</dd>
               </div>
@@ -2876,6 +2884,12 @@ export function FinanceDashboard({
                   {formatSek(viewingInvoice.vatMinor, locale) || "\u2014"}
                 </dd>
               </div>
+              {viewingInvoice.roundingMinor !== 0 && (
+                <div>
+                  <dt>{t("rounding")}</dt>
+                  <dd>{formatSek(viewingInvoice.roundingMinor, locale)}</dd>
+                </div>
+              )}
               <div>
                 <dt>{t("totalIncludingVat")}</dt>
                 <dd>
@@ -2958,9 +2972,8 @@ export function FinanceDashboard({
             <div className="form-grid">
               <label>
                 {t("paymentDate")}
-                <input
+                <DateInput
                   className="field"
-                  type="date"
                   name="paidDate"
                   defaultValue={today()}
                   required
@@ -3028,9 +3041,8 @@ export function FinanceDashboard({
             </header>
             <label>
               {t("validTo")}
-              <input
+              <DateInput
                 className="field"
-                type="date"
                 name="validTo"
                 min={endingAgreement.validFrom}
                 defaultValue={today()}

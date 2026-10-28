@@ -8,6 +8,7 @@ import {
   calculateVatMinor,
   vatPayableMinor,
 } from "@/domain/finance/calculations";
+import { validInvoicePeriod } from "@/domain/finance/invoice-period";
 
 export class FinanceError extends Error {
   constructor(
@@ -422,8 +423,12 @@ export async function createInvoice(
     customerId: string;
     issueDate: string;
     dueDate: string;
+    periodFrom?: string | null;
+    periodTo?: string | null;
     netMinor: number;
     vatRateBps: number;
+    /** Öresavrundning, included in the invoice total. */
+    roundingMinor?: number;
     visibleDescription: string;
     internalNote: string;
     shareBpsOverride: number | null;
@@ -433,6 +438,10 @@ export async function createInvoice(
   requireFinanceManager(actor);
   if (input.dueDate < input.issueDate)
     throw new FinanceError("invoiceDateInvalid");
+  const periodFrom = input.periodFrom ?? null;
+  const periodTo = input.periodTo ?? null;
+  if (!validInvoicePeriod(periodFrom, periodTo))
+    throw new FinanceError("invoicePeriodInvalid");
   const duplicate = await db
     .collection("invoices")
     .where("organizationId", "==", actor.organizationId)
@@ -470,6 +479,7 @@ export async function createInvoice(
       model === "flexible" ? (input.shareBpsOverride ?? agreement.shareBps) : 0;
   }
   const vatMinor = calculateVatMinor(input.netMinor, input.vatRateBps);
+  const roundingMinor = input.roundingMinor ?? 0;
   const ref = db.collection("invoices").doc();
   const batch = db.batch();
   batch.create(ref, {
@@ -479,8 +489,11 @@ export async function createInvoice(
     customerContactPerson: customerData.contactPerson,
     customerFinanceEmail: customerData.financeEmail,
     currency: "SEK",
+    periodFrom,
+    periodTo,
     vatMinor,
-    grossMinor: input.netMinor + vatMinor,
+    roundingMinor,
+    grossMinor: input.netMinor + vatMinor + roundingMinor,
     compensationModel: model,
     shareBps,
     status: "issued",
@@ -557,7 +570,12 @@ export async function markInvoicePaid(
       netMinor: allocation.companyMinor,
       vatRateBps: data.vatRateBps,
       vatMinor: data.vatMinor,
-      grossMinor: allocation.companyMinor + data.vatMinor,
+      // The company receives the rounding with the VAT.
+      roundingMinor: Number(data.roundingMinor ?? 0),
+      grossMinor:
+        allocation.companyMinor +
+        data.vatMinor +
+        Number(data.roundingMinor ?? 0),
       consultantBalanceDeltaMinor: allocation.companyMinor,
       invoiceAllocation: "company_share",
     });

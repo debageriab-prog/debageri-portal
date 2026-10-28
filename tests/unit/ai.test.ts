@@ -7,12 +7,20 @@ import {
   aiFeatureEnabled,
   aiSettingsFrom,
   DEFAULT_AI_MODEL,
+  AI_PURPOSE_FEATURE,
   convertExtractionToSek,
+  FINANCE_EXTRACTION_JSON_SCHEMA,
+  MAX_SCHEMA_UNION_FIELDS,
   matchConsultantByName,
   normalizeFinanceExtraction,
   type RawFinanceExtraction,
 } from "@/domain/ai";
 import { aiSettingsSchema } from "@/server/validators/ai";
+import {
+  consultantServicesDescription,
+  consultantServicesNote,
+  validInvoicePeriod,
+} from "@/domain/finance/invoice-period";
 
 const empty: RawFinanceExtraction = {
   documentType: "receipt",
@@ -28,6 +36,11 @@ const empty: RawFinanceExtraction = {
   description: null,
   categoryId: null,
   consultantId: null,
+  invoiceNumber: null,
+  dueDate: null,
+  periodFrom: null,
+  periodTo: null,
+  customerId: null,
 };
 
 describe("AI settings", () => {
@@ -36,7 +49,7 @@ describe("AI settings", () => {
       enabled: false,
       provider: "anthropic",
       model: DEFAULT_AI_MODEL.anthropic,
-      features: { financeAttachments: false },
+      features: { financeAttachments: false, financeInvoices: false },
     });
   });
 
@@ -48,12 +61,16 @@ describe("AI settings", () => {
       features: { financeAttachments: true },
     });
     expect(aiFeatureEnabled(on, "financeAttachments")).toBe(true);
+    expect(aiFeatureEnabled(on, "financeInvoices")).toBe(false);
     expect(
       aiFeatureEnabled({ ...on, enabled: false }, "financeAttachments"),
     ).toBe(false);
     expect(
       aiFeatureEnabled(
-        { ...on, features: { financeAttachments: false } },
+        {
+          ...on,
+          features: { financeAttachments: false, financeInvoices: true },
+        },
         "financeAttachments",
       ),
     ).toBe(false);
@@ -73,7 +90,10 @@ describe("AI settings", () => {
       model: "claude-haiku-5-5",
       features: { financeAttachments: true },
     };
-    expect(aiSettingsSchema.safeParse(valid).success).toBe(true);
+    expect(aiSettingsSchema.safeParse(valid).data?.features).toEqual({
+      financeAttachments: true,
+      financeInvoices: false,
+    });
     expect(
       aiSettingsSchema.safeParse({ ...valid, provider: "gemini" }).success,
     ).toBe(false);
@@ -127,6 +147,11 @@ describe("normalizeFinanceExtraction", () => {
       categoryId: "office",
       consultantId: null,
       funding: null,
+      invoiceNumber: null,
+      dueDate: null,
+      periodFrom: null,
+      periodTo: null,
+      customerId: null,
       conversion: null,
     });
   });
@@ -303,6 +328,175 @@ describe("consultant in AI output", () => {
         [],
         ["anna"],
       ).consultantId,
+    ).toBeNull();
+  });
+});
+
+describe("invoice fields in AI output", () => {
+  it("keeps the invoice number, a known customer and a valid due date", () => {
+    expect(
+      normalizeFinanceExtraction(
+        {
+          ...empty,
+          date: "2026-10-01",
+          dueDate: "2026-10-31",
+          invoiceNumber: "  2026-117 ",
+          customerId: "acme",
+        },
+        [],
+        [],
+        ["acme"],
+      ),
+    ).toMatchObject({
+      invoiceNumber: "2026-117",
+      dueDate: "2026-10-31",
+      customerId: "acme",
+    });
+  });
+
+  it("drops unknown customers and due dates before the invoice date", () => {
+    expect(
+      normalizeFinanceExtraction(
+        {
+          ...empty,
+          date: "2026-10-01",
+          dueDate: "2026-09-30",
+          customerId: "made-up",
+        },
+        [],
+        [],
+        ["acme"],
+      ),
+    ).toMatchObject({ dueDate: null, customerId: null });
+  });
+
+  it("maps each purpose to its own switch", () => {
+    expect(AI_PURPOSE_FEATURE).toEqual({
+      transaction: "financeAttachments",
+      invoice: "financeInvoices",
+    });
+  });
+});
+
+describe("invoice period", () => {
+  it("keeps a valid period from AI output and drops a reversed one", () => {
+    expect(
+      normalizeFinanceExtraction(
+        { ...empty, periodFrom: "2026-01-01", periodTo: "2026-01-31" },
+        [],
+      ),
+    ).toMatchObject({ periodFrom: "2026-01-01", periodTo: "2026-01-31" });
+    expect(
+      normalizeFinanceExtraction(
+        { ...empty, periodFrom: "2026-02-01", periodTo: "2026-01-31" },
+        [],
+      ),
+    ).toMatchObject({ periodFrom: null, periodTo: null });
+    expect(
+      normalizeFinanceExtraction({ ...empty, periodFrom: "2026-01-01" }, []),
+    ).toMatchObject({ periodFrom: null, periodTo: null });
+  });
+
+  it("accepts both dates or neither", () => {
+    expect(validInvoicePeriod(null, null)).toBe(true);
+    expect(validInvoicePeriod("2026-01-01", "2026-01-31")).toBe(true);
+    expect(validInvoicePeriod("2026-01-01", null)).toBe(false);
+    expect(validInvoicePeriod("2026-02-01", "2026-01-31")).toBe(false);
+  });
+
+  it("names the months in the consultant description", () => {
+    expect(
+      consultantServicesDescription("Anna Berg", "2026-01-01", "2026-01-31"),
+    ).toBe("Consultant services - Anna Berg - Jan-2026");
+    expect(
+      consultantServicesDescription("Anna Berg", "2026-01-01", "2026-02-28"),
+    ).toBe("Consultant services - Anna Berg - Jan-Feb-2026");
+    expect(
+      consultantServicesDescription("Anna Berg", "2026-08-24", "2026-09-27"),
+    ).toBe("Consultant services - Anna Berg - Aug24-Sep27-2026");
+    expect(
+      consultantServicesDescription("Anna Berg", "2026-02-01", "2026-02-28"),
+    ).toBe("Consultant services - Anna Berg - Feb-2026");
+    expect(
+      consultantServicesDescription("Anna Berg", "2026-02-02", "2026-02-27"),
+    ).toBe("Consultant services - Anna Berg - Feb2-Feb27-2026");
+    expect(
+      consultantServicesDescription("Anna Berg", "2025-12-24", "2026-01-27"),
+    ).toBe("Consultant services - Anna Berg - Dec24-2025-Jan27-2026");
+    expect(
+      consultantServicesDescription("Anna Berg", "2025-12-01", "2026-01-31"),
+    ).toBe("Consultant services - Anna Berg - Dec-2025-Jan-2026");
+    expect(consultantServicesDescription("Anna Berg", null, null)).toBeNull();
+    expect(
+      consultantServicesDescription("", "2026-01-01", "2026-01-31"),
+    ).toBeNull();
+  });
+});
+
+describe("extraction schema", () => {
+  it("stays within the provider limit on union-typed fields", () => {
+    const unions = Object.values(
+      FINANCE_EXTRACTION_JSON_SCHEMA.properties,
+    ).filter(
+      (property) =>
+        "anyOf" in property ||
+        Array.isArray((property as { type?: unknown }).type),
+    );
+    expect(unions.length).toBeLessThanOrEqual(MAX_SCHEMA_UNION_FIELDS);
+  });
+
+  it("treats empty text from the model as unknown", () => {
+    expect(
+      normalizeFinanceExtraction(
+        {
+          ...empty,
+          date: "",
+          currency: "",
+          counterpartyName: "",
+          categoryId: "",
+          consultantId: "",
+          invoiceNumber: "",
+          dueDate: "",
+          periodFrom: "",
+          periodTo: "",
+          customerId: "",
+        },
+        ["office"],
+        ["anna"],
+        ["acme"],
+      ),
+    ).toMatchObject({
+      date: null,
+      currency: "SEK",
+      counterpartyName: null,
+      categoryId: null,
+      consultantId: null,
+      invoiceNumber: null,
+      dueDate: null,
+      periodFrom: null,
+      periodTo: null,
+      customerId: null,
+    });
+  });
+});
+
+describe("consultantServicesNote", () => {
+  it("puts the customer before the consultant description", () => {
+    expect(
+      consultantServicesNote(
+        "Ework Group AB",
+        "Shahab Bagheri",
+        "2026-08-01",
+        "2026-09-30",
+      ),
+    ).toBe(
+      "Ework Group AB - Consultant services - Shahab Bagheri - Aug-Sep-2026",
+    );
+    expect(
+      consultantServicesNote("", "Shahab Bagheri", "2026-08-01", "2026-09-30"),
+    ).toBe("Consultant services - Shahab Bagheri - Aug-Sep-2026");
+    expect(
+      consultantServicesNote("Ework Group AB", "", "2026-08-01", "2026-09-30"),
     ).toBeNull();
   });
 });

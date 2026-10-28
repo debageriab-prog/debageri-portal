@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import Link from "next/link";
 import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -315,9 +316,8 @@ export function EmployeeEditor({
         <div className="form-grid">
           <label>
             {t("employmentStartDate")}
-            <input
+            <DateInput
               className="field"
-              type="date"
               value={values.employmentStartDate}
               onChange={(event) =>
                 set("employmentStartDate", event.target.value)
@@ -329,9 +329,8 @@ export function EmployeeEditor({
           {!creating && (
             <label>
               {t("employmentEndDate")}
-              <input
+              <DateInput
                 className="field"
-                type="date"
                 value={values.employmentEndDate}
                 onChange={(event) =>
                   set("employmentEndDate", event.target.value)
@@ -344,9 +343,8 @@ export function EmployeeEditor({
           {reportsTime ? (
             <label>
               {t("reportingStartDate")}
-              <input
+              <DateInput
                 className="field"
-                type="date"
                 value={values.reportingStartDate}
                 onChange={(event) =>
                   set("reportingStartDate", event.target.value)

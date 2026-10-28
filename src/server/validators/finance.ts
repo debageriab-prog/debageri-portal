@@ -4,6 +4,13 @@ import { MAX_ROUNDING_MINOR } from "@/domain/finance/calculations";
 const date = z.iso.date();
 const minor = z.number().int().min(0).max(10_000_000_000);
 const vatRateBps = z.number().int().min(0).max(10_000);
+/** Öresavrundning, plus or minus; part of the total only. */
+const rounding = z
+  .number()
+  .int()
+  .min(-MAX_ROUNDING_MINOR)
+  .max(MAX_ROUNDING_MINOR)
+  .default(0);
 
 export const compensationSchema = z.object({
   action: z.literal("setCompensation"),
@@ -64,8 +71,12 @@ export const invoiceSchema = z.object({
   customerId: z.string().min(1).max(128),
   issueDate: date,
   dueDate: date,
+  /** Optional service period the invoice covers; both or neither. */
+  periodFrom: date.nullable().default(null),
+  periodTo: date.nullable().default(null),
   netMinor: minor,
   vatRateBps,
+  roundingMinor: rounding,
   visibleDescription: z.string().trim().max(300).default(""),
   internalNote: z.string().trim().max(1_000).default(""),
   shareBpsOverride: z
@@ -93,13 +104,7 @@ const transactionFields = {
   amountMinor: minor,
   /** The entered VAT amount; required when `amountMode` is `netVat`. */
   vatMinor: minor.nullable().default(null),
-  /** Öresavrundning, plus or minus; part of the total only. */
-  roundingMinor: z
-    .number()
-    .int()
-    .min(-MAX_ROUNDING_MINOR)
-    .max(MAX_ROUNDING_MINOR)
-    .default(0),
+  roundingMinor: rounding,
   vatRateBps,
   funding: z.enum(["company", "consultant"]).nullable(),
   applyConsultantShare: z.boolean().default(false),

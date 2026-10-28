@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -14,6 +15,11 @@ import {
   type TransactionAmountMode,
 } from "@/domain/finance/calculations";
 import { InfoTip } from "@/components/ui/InfoTip";
+import {
+  consultantServicesDescription,
+  consultantServicesNote,
+} from "@/domain/finance/invoice-period";
+import type { FinanceExtraction } from "@/domain/ai";
 import { receiptVatRateBps } from "@/domain/receipts";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { FinanceCsvImport } from "./FinanceCsvImport";
@@ -42,6 +48,136 @@ const AI_ERROR_CODES = [
   "aiNoResult",
   "attachmentTooLarge",
 ];
+
+type Translate = ReturnType<typeof useLocale>["t"];
+
+/**
+ * A success notice's first message is the success itself; any further
+ * messages are follow-ups shown in a separate warning banner.
+ */
+type AiNotice = {
+  tone: "success" | "warning" | "error";
+  messages: string[];
+};
+
+function aiErrorNotice(
+  result: { error?: string; detail?: string },
+  t: Translate,
+): AiNotice {
+  const code = AI_ERROR_CODES.includes(result.error ?? "")
+    ? result.error
+    : "aiProviderFailed";
+  return {
+    tone: "error",
+    messages: [
+      t(`aiError_${code}` as Parameters<Translate>[0]),
+      ...(result.detail
+        ? [t("aiProviderSaid").replace("{detail}", result.detail)]
+        : []),
+    ],
+  };
+}
+
+/** "Original: 112,00 EUR, rate …" for an AI currency conversion, or "". */
+function aiConversionText(
+  extraction: FinanceExtraction,
+  t: Translate,
+  locale: string,
+) {
+  const conversion = extraction.conversion;
+  if (!conversion) return "";
+  return t("aiConvertedCurrency")
+    .replace(
+      "{amount}",
+      (
+        (conversion.grossMinor ?? conversion.netMinor ?? 0) / 100
+      ).toLocaleString(locale, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    )
+    .replace("{currency}", conversion.currency)
+    .replace(
+      "{rate}",
+      conversion.rate.rate.toLocaleString(locale, { maximumFractionDigits: 4 }),
+    )
+    .replace("{source}", t(`exchangeRateSource_${conversion.rate.source}`))
+    .replace("{date}", conversion.rate.date);
+}
+
+/** The red currency banner's lines, or null when the amounts were SEK. */
+function aiCurrencyWarningLines(
+  extraction: FinanceExtraction,
+  conversionText: string,
+  t: Translate,
+) {
+  if (extraction.conversion)
+    return [
+      t("aiConversionCheck").replace(
+        "{currency}",
+        extraction.conversion.currency,
+      ),
+      conversionText,
+    ];
+  if (extraction.currency !== "SEK")
+    return [t("aiForeignCurrency").replace("{currency}", extraction.currency)];
+  return null;
+}
+
+function AiNotices({
+  notice,
+  currencyWarning,
+}: {
+  notice: AiNotice | null;
+  currencyWarning: string[] | null;
+}) {
+  const success = notice?.tone === "success";
+  const main = success ? notice.messages.slice(0, 1) : (notice?.messages ?? []);
+  const followUps = success ? notice.messages.slice(1) : [];
+  return (
+    <>
+      {notice && (
+        <div
+          className={`form-wide notice notice-${notice.tone} notice-with-icon ai-notice`}
+          role={notice.tone === "error" ? "alert" : "status"}
+        >
+          {success ? <SuccessCheckIcon /> : <WarningTriangleIcon />}
+          <div>
+            {main.map((message) => (
+              <span key={message}>{message}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {followUps.length > 0 && (
+        <div
+          className="form-wide notice notice-warning notice-with-icon ai-notice"
+          role="status"
+        >
+          <WarningTriangleIcon />
+          <div>
+            {followUps.map((message) => (
+              <span key={message}>{message}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {currencyWarning && (
+        <div
+          className="form-wide notice notice-error notice-with-icon ai-currency-warning"
+          role="alert"
+        >
+          <WarningTriangleIcon />
+          <div>
+            {currencyWarning.map((message) => (
+              <span key={message}>{message}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 type User = { id: string; displayName: string };
 type Customer = { id: string; name: string };
@@ -277,9 +413,8 @@ export function CompensationForm({ users }: { users: User[] }) {
         </label>
         <label>
           {t("validFrom")}
-          <input
+          <DateInput
             className="field"
-            type="date"
             name="validFrom"
             defaultValue={today()}
             required
@@ -287,7 +422,7 @@ export function CompensationForm({ users }: { users: User[] }) {
         </label>
         <label>
           {t("validTo")}
-          <input className="field" type="date" name="validTo" />
+          <DateInput className="field" name="validTo" />
         </label>
         {model === "flexible" ? (
           <label>
@@ -330,37 +465,226 @@ export function CompensationForm({ users }: { users: User[] }) {
 export function InvoiceForm({
   users,
   customers,
+  aiEnabled = false,
 }: {
   users: User[];
   customers: Customer[];
+  aiEnabled?: boolean;
 }) {
   const { t, locale } = useLocale();
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [customerId, setCustomerId] = useState("");
+  const [consultantId, setConsultantId] = useState("");
+  const [issueDate, setIssueDate] = useState(today());
+  const [dueDate, setDueDate] = useState(today());
+  const [periodFrom, setPeriodFrom] = useState("");
+  const [periodTo, setPeriodTo] = useState("");
+  // The last description and note generated from customer, consultant and
+  // period; replaced on change until the user types their own.
+  const [autoDescription, setAutoDescription] = useState("");
+  const [autoInternalNote, setAutoInternalNote] = useState("");
   const [netAmount, setNetAmount] = useState("");
   const [vatPercent, setVatPercent] = useState("25");
+  const [rounding, setRounding] = useState("");
+  const [visibleDescription, setVisibleDescription] = useState("");
+  const [internalNote, setInternalNote] = useState("");
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
     [],
   );
+  const [aiBusyKey, setAiBusyKey] = useState<string | null>(null);
+  const [aiProcessedKeys, setAiProcessedKeys] = useState<string[]>([]);
+  const [aiNotice, setAiNotice] = useState<AiNotice | null>(null);
+  const [aiCurrencyWarning, setAiCurrencyWarning] = useState<string[] | null>(
+    null,
+  );
   const { busy, error, submit } = useFinanceSubmit("/finance?section=invoices");
-  const netMinor = parseSek(netAmount);
-  const vatMinor = Number.isFinite(Number(vatPercent))
-    ? calculateVatMinor(netMinor, Math.round(Number(vatPercent) * 100))
+  const amountMinor = (parse: (value: string) => number, value: string) => {
+    try {
+      return parse(value);
+    } catch {
+      return 0;
+    }
+  };
+  const netMinor = amountMinor(parseSek, netAmount || "0");
+  const roundingMinor = amountMinor(parseSignedSek, rounding);
+  const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
+  const vatMinor = Number.isFinite(vatRateBps)
+    ? calculateVatMinor(netMinor, vatRateBps)
     : 0;
+
+  /**
+   * Refreshes the generated consultant description and internal note after a
+   * change, unless the user has written their own text in that field.
+   */
+  function updateGeneratedTexts(next: {
+    customerId?: string;
+    consultantId?: string;
+    periodFrom?: string;
+    periodTo?: string;
+    fallbackDescription?: string | null;
+    fallbackNote?: string;
+    noteSuffix?: string;
+  }) {
+    const consultantName =
+      users.find((user) => user.id === (next.consultantId ?? consultantId))
+        ?.displayName ?? "";
+    const customerName =
+      customers.find(
+        (customer) => customer.id === (next.customerId ?? customerId),
+      )?.name ?? "";
+    const from = (next.periodFrom ?? periodFrom) || null;
+    const to = (next.periodTo ?? periodTo) || null;
+    const description =
+      consultantServicesDescription(consultantName, from, to) ?? "";
+    const note = consultantServicesNote(customerName, consultantName, from, to);
+    if (!visibleDescription.trim() || visibleDescription === autoDescription) {
+      const value =
+        description || next.fallbackDescription || visibleDescription;
+      setVisibleDescription(value);
+      setAutoDescription(value);
+    }
+    if (!internalNote.trim() || internalNote === autoInternalNote) {
+      const value =
+        (note && [note, next.noteSuffix].filter(Boolean).join(" - ")) ||
+        next.fallbackNote ||
+        internalNote;
+      setInternalNote(value);
+      setAutoInternalNote(value);
+    }
+  }
+
+  async function processWithAi(
+    source: AiAttachmentSource,
+    key: string,
+    name: string,
+  ) {
+    setAiBusyKey(key);
+    setAiNotice(null);
+    setAiCurrencyWarning(null);
+    const result = await processAttachmentWithAi(source, "invoice");
+    setAiBusyKey(null);
+    const extraction = result.extraction;
+    if (!extraction) {
+      setAiNotice(aiErrorNotice(result, t));
+      return;
+    }
+    setAiProcessedKeys((keys) => [...keys, key]);
+    let filled = 0;
+    const foreignAmounts = extraction.currency !== "SEK";
+    if (extraction.invoiceNumber) {
+      setInvoiceNumber(extraction.invoiceNumber);
+      filled++;
+    }
+    const customerFound = customers.some(
+      (customer) => customer.id === extraction.customerId,
+    );
+    if (customerFound) {
+      setCustomerId(extraction.customerId!);
+      filled++;
+    }
+    const consultantFound = users.some(
+      (user) => user.id === extraction.consultantId,
+    );
+    if (consultantFound) {
+      setConsultantId(extraction.consultantId!);
+      filled++;
+    }
+    if (extraction.periodFrom && extraction.periodTo) {
+      setPeriodFrom(extraction.periodFrom);
+      setPeriodTo(extraction.periodTo);
+      filled++;
+    }
+    if (extraction.date) {
+      setIssueDate(extraction.date);
+      filled++;
+    }
+    if (extraction.dueDate) {
+      setDueDate(extraction.dueDate);
+      filled++;
+    }
+    if (
+      !foreignAmounts &&
+      extraction.netMinor !== null &&
+      extraction.netMinor > 0
+    ) {
+      setNetAmount((extraction.netMinor / 100).toFixed(2));
+      filled++;
+    }
+    if (!foreignAmounts)
+      setRounding(
+        extraction.roundingMinor
+          ? (extraction.roundingMinor / 100).toFixed(2)
+          : "",
+      );
+    if (extraction.vatRateBps !== null) {
+      setVatPercent(String(extraction.vatRateBps / 100));
+      filled++;
+    }
+    const conversionText = aiConversionText(extraction, t, locale);
+    updateGeneratedTexts({
+      customerId: customerFound ? extraction.customerId! : undefined,
+      consultantId: consultantFound ? extraction.consultantId! : undefined,
+      periodFrom: extraction.periodFrom ?? undefined,
+      periodTo: extraction.periodTo ?? undefined,
+      fallbackDescription: extraction.description,
+      fallbackNote: [
+        extraction.counterpartyName,
+        extraction.description,
+        conversionText,
+      ]
+        .filter(Boolean)
+        .join(" - "),
+      noteSuffix: conversionText,
+    });
+    setAiCurrencyWarning(aiCurrencyWarningLines(extraction, conversionText, t));
+    if (!filled) {
+      setAiNotice({
+        tone: "warning",
+        messages: [t("aiNothingFound").replace("{name}", name)],
+      });
+      return;
+    }
+    const messages = [t("aiFilledFromFile").replace("{name}", name)];
+    if (
+      !foreignAmounts &&
+      extraction.netMinor !== null &&
+      extraction.vatMinor !== null &&
+      extraction.vatRateBps !== null &&
+      calculateVatMinor(extraction.netMinor, extraction.vatRateBps) !==
+        extraction.vatMinor
+    )
+      messages.push(
+        t("aiVatDiffers").replace(
+          "{vat}",
+          formatSek(extraction.vatMinor, locale),
+        ),
+      );
+    if (!customerFound && !customerId) messages.push(t("aiChooseRemaining"));
+    setAiNotice({
+      tone: "success",
+      messages,
+    });
+  }
+
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     void submit(
       {
         action: "createInvoice",
-        invoiceNumber: form.get("invoiceNumber"),
-        consultantId: form.get("consultantId") || null,
-        customerId: form.get("customerId"),
-        issueDate: form.get("issueDate"),
-        dueDate: form.get("dueDate"),
-        netMinor,
-        vatRateBps: Math.round(Number(vatPercent) * 100),
-        visibleDescription: form.get("visibleDescription"),
-        internalNote: form.get("internalNote"),
+        invoiceNumber,
+        consultantId: consultantId || null,
+        customerId,
+        issueDate,
+        dueDate,
+        periodFrom: periodFrom || null,
+        periodTo: periodTo || null,
+        netMinor: parseSek(netAmount),
+        vatRateBps,
+        roundingMinor,
+        visibleDescription,
+        internalNote,
         shareBpsOverride: form.get("sharePercent")
           ? Math.round(Number(form.get("sharePercent")) * 100)
           : null,
@@ -384,11 +708,28 @@ export function InvoiceForm({
         <form className="form-grid" onSubmit={onSubmit}>
           <label>
             {t("invoiceNumber")}
-            <input className="field" name="invoiceNumber" required />
+            <InfoTip text={t("invoiceNumberTip")} />
+            <input
+              className="field"
+              name="invoiceNumber"
+              value={invoiceNumber}
+              onChange={(event) => setInvoiceNumber(event.target.value)}
+              required
+            />
           </label>
           <label>
             {t("customer")}
-            <select className="field" name="customerId" required>
+            <InfoTip text={t("customerTip")} />
+            <select
+              className="field"
+              name="customerId"
+              value={customerId}
+              onChange={(event) => {
+                setCustomerId(event.target.value);
+                updateGeneratedTexts({ customerId: event.target.value });
+              }}
+              required
+            >
               <option value="">{t("selectCustomer")}</option>
               {customers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
@@ -399,7 +740,16 @@ export function InvoiceForm({
           </label>
           <label>
             {t("consultant")}
-            <select className="field" name="consultantId">
+            <InfoTip text={t("invoiceConsultantTip")} />
+            <select
+              className="field"
+              name="consultantId"
+              value={consultantId}
+              onChange={(event) => {
+                setConsultantId(event.target.value);
+                updateGeneratedTexts({ consultantId: event.target.value });
+              }}
+            >
               <option value="">{t("companyOnly")}</option>
               {users.map((user) => (
                 <option key={user.id} value={user.id}>
@@ -409,27 +759,61 @@ export function InvoiceForm({
             </select>
           </label>
           <label>
-            {t("issueDate")}
-            <input
+            {t("periodFrom")}
+            <InfoTip text={t("periodFromTip")} />
+            <DateInput
               className="field"
-              type="date"
+              name="periodFrom"
+              value={periodFrom}
+              max={periodTo || undefined}
+              required={Boolean(periodTo)}
+              onChange={(event) => {
+                setPeriodFrom(event.target.value);
+                updateGeneratedTexts({ periodFrom: event.target.value });
+              }}
+            />
+          </label>
+          <label>
+            {t("periodTo")}
+            <InfoTip text={t("periodToTip")} />
+            <DateInput
+              className="field"
+              name="periodTo"
+              value={periodTo}
+              min={periodFrom || undefined}
+              required={Boolean(periodFrom)}
+              onChange={(event) => {
+                setPeriodTo(event.target.value);
+                updateGeneratedTexts({ periodTo: event.target.value });
+              }}
+            />
+          </label>
+          <label>
+            {t("issueDate")}
+            <InfoTip text={t("issueDateTip")} />
+            <DateInput
+              className="field"
               name="issueDate"
-              defaultValue={today()}
+              value={issueDate}
+              onChange={(event) => setIssueDate(event.target.value)}
               required
             />
           </label>
           <label>
             {t("dueDate")}
-            <input
+            <InfoTip text={t("dueDateTip")} />
+            <DateInput
               className="field"
-              type="date"
               name="dueDate"
-              defaultValue={today()}
+              value={dueDate}
+              min={issueDate}
+              onChange={(event) => setDueDate(event.target.value)}
               required
             />
           </label>
           <label>
             {t("netAmountSek")}
+            <InfoTip text={t("netAmountSekTip")} />
             <input
               className="field"
               type="number"
@@ -443,6 +827,7 @@ export function InvoiceForm({
           </label>
           <label>
             {t("vatPercent")}
+            <InfoTip text={t("vatPercentTip")} />
             <input
               className="field"
               type="number"
@@ -455,12 +840,23 @@ export function InvoiceForm({
               required
             />
           </label>
-          <div className="metric">
-            <span>{t("totalIncludingVat")}</span>
-            <strong>{formatSek(netMinor + vatMinor, locale)}</strong>
-          </div>
+          <label>
+            {t("roundingSek")}
+            <InfoTip text={t("roundingSekTip")} />
+            <input
+              className="field"
+              type="number"
+              min={-MAX_ROUNDING_MINOR / 100}
+              max={MAX_ROUNDING_MINOR / 100}
+              step="0.01"
+              value={rounding}
+              placeholder="0.00"
+              onChange={(event) => setRounding(event.target.value)}
+            />
+          </label>
           <label>
             {t("shareOverride")}
+            <InfoTip text={t("shareOverrideTip")} />
             <input
               className="field"
               type="number"
@@ -472,21 +868,68 @@ export function InvoiceForm({
           </label>
           <label>
             {t("consultantDescription")}
-            <input className="field" name="visibleDescription" />
+            <InfoTip text={t("consultantDescriptionTip")} />
+            <input
+              className="field"
+              name="visibleDescription"
+              value={visibleDescription}
+              onChange={(event) => setVisibleDescription(event.target.value)}
+            />
           </label>
           <label>
             {t("internalNote")}
-            <input className="field" name="internalNote" />
+            <InfoTip text={t("internalNoteTip")} />
+            <input
+              className="field"
+              name="internalNote"
+              value={internalNote}
+              onChange={(event) => setInternalNote(event.target.value)}
+            />
           </label>
+          <div
+            className="transaction-amount-summary form-wide"
+            aria-live="polite"
+          >
+            <div>
+              <span>{t("netAmount")}</span>
+              <strong>{formatSek(netMinor, locale)}</strong>
+            </div>
+            <div>
+              <span>{t("vatAmount")}</span>
+              <strong>{formatSek(vatMinor, locale)}</strong>
+            </div>
+            {roundingMinor !== 0 && (
+              <div>
+                <span>{t("rounding")}</span>
+                <strong>{formatSek(roundingMinor, locale)}</strong>
+              </div>
+            )}
+            <div>
+              <span>{t("totalIncludingVat")}</span>
+              <strong>
+                {formatSek(netMinor + vatMinor + roundingMinor, locale)}
+              </strong>
+            </div>
+          </div>
           <FinanceAttachments
             entityType="invoice"
             files={attachmentFiles}
             onFilesChange={setAttachmentFiles}
             removedAttachmentIds={removedAttachmentIds}
             onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
+            ai={
+              aiEnabled
+                ? {
+                    busyKey: aiBusyKey,
+                    processedKeys: aiProcessedKeys,
+                    onProcess: processWithAi,
+                  }
+                : undefined
+            }
           />
+          <AiNotices notice={aiNotice} currencyWarning={aiCurrencyWarning} />
           <div className="form-wide actions">
-            <button className="button" disabled={busy}>
+            <button className="button" disabled={busy || aiBusyKey !== null}>
               {t("createInvoice")}
             </button>
           </div>
@@ -713,10 +1156,7 @@ export function TransactionForm({
   const [aiCurrencyWarning, setAiCurrencyWarning] = useState<string[] | null>(
     null,
   );
-  const [aiNotice, setAiNotice] = useState<{
-    tone: "success" | "warning" | "error";
-    messages: string[];
-  } | null>(null);
+  const [aiNotice, setAiNotice] = useState<AiNotice | null>(null);
 
   async function processWithAi(
     source: AiAttachmentSource,
@@ -730,18 +1170,7 @@ export function TransactionForm({
     setAiBusyKey(null);
     const extraction = result.extraction;
     if (!extraction) {
-      const code = AI_ERROR_CODES.includes(result.error ?? "")
-        ? result.error
-        : "aiProviderFailed";
-      setAiNotice({
-        tone: "error",
-        messages: [
-          t(`aiError_${code}` as Parameters<typeof t>[0]),
-          ...(result.detail
-            ? [t("aiProviderSaid").replace("{detail}", result.detail)]
-            : []),
-        ],
-      });
+      setAiNotice(aiErrorNotice(result, t));
       return;
     }
     setAiProcessedKeys((keys) => [...keys, key]);
@@ -810,31 +1239,7 @@ export function TransactionForm({
       .join(" – ");
     if (consultantText && !visibleDescription.trim())
       setVisibleDescription(consultantText);
-    const conversion = extraction.conversion;
-    const conversionText = conversion
-      ? t("aiConvertedCurrency")
-          .replace(
-            "{amount}",
-            (
-              (conversion.grossMinor ?? conversion.netMinor ?? 0) / 100
-            ).toLocaleString(locale, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            }),
-          )
-          .replace("{currency}", conversion.currency)
-          .replace(
-            "{rate}",
-            conversion.rate.rate.toLocaleString(locale, {
-              maximumFractionDigits: 4,
-            }),
-          )
-          .replace(
-            "{source}",
-            t(`exchangeRateSource_${conversion.rate.source}`),
-          )
-          .replace("{date}", conversion.rate.date)
-      : "";
+    const conversionText = aiConversionText(extraction, t, locale);
     const summary = [
       extraction.counterpartyName,
       extraction.description,
@@ -846,15 +1251,7 @@ export function TransactionForm({
       setInternalNote(summary);
       filled++;
     }
-    if (conversion)
-      setAiCurrencyWarning([
-        t("aiConversionCheck").replace("{currency}", conversion.currency),
-        conversionText,
-      ]);
-    else if (foreignAmounts)
-      setAiCurrencyWarning([
-        t("aiForeignCurrency").replace("{currency}", extraction.currency),
-      ]);
+    setAiCurrencyWarning(aiCurrencyWarningLines(extraction, conversionText, t));
     if (!filled) {
       setAiNotice({
         tone: "warning",
@@ -885,7 +1282,7 @@ export function TransactionForm({
     )
       messages.push(t("aiChooseRemaining"));
     setAiNotice({
-      tone: messages.length > 1 ? "warning" : "success",
+      tone: "success",
       messages,
     });
   }
@@ -1130,9 +1527,8 @@ export function TransactionForm({
         <label>
           {t("date")}
           <InfoTip text={t("dateTip")} />
-          <input
+          <DateInput
             className="field"
-            type="date"
             name="date"
             value={date}
             onChange={(event) => setDate(event.target.value)}
@@ -1319,36 +1715,7 @@ export function TransactionForm({
               : undefined
           }
         />
-        {aiNotice && (
-          <div
-            className={`form-wide notice notice-${aiNotice.tone} notice-with-icon ai-notice`}
-            role={aiNotice.tone === "error" ? "alert" : "status"}
-          >
-            {aiNotice.tone === "success" ? (
-              <SuccessCheckIcon />
-            ) : (
-              <WarningTriangleIcon />
-            )}
-            <div>
-              {aiNotice.messages.map((message) => (
-                <span key={message}>{message}</span>
-              ))}
-            </div>
-          </div>
-        )}
-        {aiCurrencyWarning && (
-          <div
-            className="form-wide notice notice-error notice-with-icon ai-currency-warning"
-            role="alert"
-          >
-            <WarningTriangleIcon />
-            <div>
-              {aiCurrencyWarning.map((message) => (
-                <span key={message}>{message}</span>
-              ))}
-            </div>
-          </div>
-        )}
+        <AiNotices notice={aiNotice} currencyWarning={aiCurrencyWarning} />
         <div className="form-wide actions">
           <button className="button" disabled={busy || aiBusyKey !== null}>
             {transaction ? t("saveChanges") : t("postTransaction")}

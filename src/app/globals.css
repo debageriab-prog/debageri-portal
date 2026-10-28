@@ -1672,6 +1672,65 @@ label:has(> .info-tip) {
   display: block;
 }
 
+.date-input {
+  position: relative;
+  display: block;
+}
+
+.date-input > input:first-child {
+  width: 100%;
+  padding-right: 2.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.date-input-button {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  display: inline-grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--accent-dark);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.date-input-button:hover:not(:disabled),
+.date-input-button:focus-visible {
+  background: var(--accent-soft);
+}
+
+.date-input-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.date-input-button svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+/* Invisible anchor so the browser's calendar opens under the field. */
+.date-input-picker {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .field-error {
   color: var(--danger);
   font-size: 12px;

@@ -7,12 +7,14 @@ import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 import type { PortalUser } from "@/domain/types";
 import {
+  AI_PURPOSE_FEATURE,
   aiFeatureEnabled,
   aiSettingsFrom,
   convertExtractionToSek,
   FINANCE_EXTRACTION_JSON_SCHEMA,
   matchConsultantByName,
   normalizeFinanceExtraction,
+  type AiExtractionPurpose,
   type AiFeature,
   type AiProvider,
   type FinanceExtraction,
@@ -121,8 +123,10 @@ export type ExtractionFile = {
 
 type ExtractionContext = {
   organizationName: string;
+  purpose: AiExtractionPurpose;
   categories: { id: string; direction: string; name: string }[];
   consultants: { id: string; displayName: string }[];
+  customers: { id: string; name: string }[];
 };
 
 const rawExtractionSchema = z.object({
@@ -139,6 +143,11 @@ const rawExtractionSchema = z.object({
   description: z.string().nullable(),
   categoryId: z.string().nullable(),
   consultantId: z.string().nullable().default(null),
+  invoiceNumber: z.string().nullable().default(null),
+  dueDate: z.string().nullable().default(null),
+  periodFrom: z.string().nullable().default(null),
+  periodTo: z.string().nullable().default(null),
+  customerId: z.string().nullable().default(null),
 }) satisfies z.ZodType<RawFinanceExtraction>;
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -147,19 +156,30 @@ const MAX_EMAIL_CHARS = 60_000;
 
 function instructions(context: ExtractionContext) {
   return [
-    `You read bookkeeping documents (receipts, supplier invoices, customer invoices, order confirmations) for the Swedish company "${context.organizationName}" and extract the values needed to post one ledger transaction.`,
+    context.purpose === "invoice"
+      ? `You read customer invoices issued by the Swedish company "${context.organizationName}" and extract the values needed to register the invoice.`
+      : `You read bookkeeping documents (receipts, supplier invoices, customer invoices, order confirmations) for the Swedish company "${context.organizationName}" and extract the values needed to post one ledger transaction.`,
     "Rules:",
     '- direction: "expense" when the company is the buyer or payer, "income" when the company issued the invoice or receives the money, null if unclear.',
-    "- date: the invoice or purchase date (not the due date) as YYYY-MM-DD.",
+    "- date: the invoice or purchase date (not the due date) as YYYY-MM-DD, whatever format the document prints dates in.",
     "- currency: ISO 4217 code of the amounts, such as SEK or EUR. Use SEK when the document does not state or clearly imply another currency. Do not convert amounts yourself; report them in the document's currency.",
     "- netAmount, vatAmount, totalAmount: the document's totals in major units (kronor, not öre) as plain numbers. netAmount excludes VAT (moms), totalAmount is the final amount to pay including VAT and any rounding. If the document has several VAT rates, return the summed totals and the dominant rate in vatRatePercent.",
     '- roundingAmount: a separate rounding line such as "Öresavrundning", "Avrundning" or "Rounding", signed as printed (for example -0.25 or 0.40), in major units. Do not fold it into netAmount or vatAmount. null when the document has no rounding line.',
     "- vatRatePercent: e.g. 25, 12, 6 or 0.",
     "- counterpartyName: the other party (the supplier for expenses, the customer for income).",
     "- description: a short description of what was bought or sold, in the document's language, at most 15 words.",
-    "- categoryId: the id of the best matching category from the list below for the chosen direction, or null if none fits.",
+    context.purpose === "invoice"
+      ? "- categoryId: always null."
+      : "- categoryId: the id of the best matching category from the list below for the chosen direction, or null if none fits.",
+    "- invoiceNumber: the invoice number (fakturanummer) exactly as printed, or null.",
+    '- dueDate: as YYYY-MM-DD, whatever format the document prints dates in. First look for a date labelled as the due or payment date, such as "Due date", "Förfallodatum", "Förfallodag", "Betalas senast", "Expected payment date" or "Payment date", and use it. Only when no such date is printed, calculate it from the payment terms, for example "30 days" or "30 dagar netto" means 30 days after the invoice date. null when there is neither.',
+    '- periodFrom, periodTo: the service period the invoice covers (for example "Period", "Avser", "Avser period", "Tidsperiod") as YYYY-MM-DD. When only a month is stated, such as "januari 2026", use its first and last day. null for both when no period is stated.',
+    context.customers.length
+      ? "- customerId: the id of the customer from the customer list below that the invoice is addressed to, or null if none matches."
+      : "- customerId: always null.",
     '- consultantId: the id of the consultant from the consultant list below whose full name, first name or last name appears in the document, for example as buyer, cardholder, passenger, guest, "Er referens" or recipient. null if no consultant is named or the name could belong to more than one of them.',
     "Use null for any value that is not clearly stated or derivable from the document. Never guess amounts.",
+    'Text fields cannot be null: wherever these rules say null for a text value (dates, currency, names, ids, invoice number, description), return an empty string "" instead.',
     "Categories (id | direction | name):",
     ...context.categories.map(
       (category) => `${category.id} | ${category.direction} | ${category.name}`,
@@ -168,6 +188,14 @@ function instructions(context: ExtractionContext) {
     ...context.consultants.map(
       (consultant) => `${consultant.id} | ${consultant.displayName}`,
     ),
+    ...(context.customers.length
+      ? [
+          "Customers (id | name):",
+          ...context.customers.map(
+            (customer) => `${customer.id} | ${customer.name}`,
+          ),
+        ]
+      : []),
   ].join("\n");
 }
 
@@ -361,12 +389,13 @@ export async function extractFinanceDocument(
   db: Firestore,
   actor: PortalUser,
   file: ExtractionFile,
+  purpose: AiExtractionPurpose = "transaction",
 ): Promise<FinanceExtraction> {
   const { settings, encryptedKeys } = await readAiSettings(
     db,
     actor.organizationId,
   );
-  if (!aiFeatureEnabled(settings, "financeAttachments"))
+  if (!aiFeatureEnabled(settings, AI_PURPOSE_FEATURE[purpose]))
     throw new AiError("aiDisabled", 403);
   const encryptedKey = encryptedKeys[settings.provider];
   if (!encryptedKey) throw new AiError("aiNotConfigured", 400);
@@ -377,17 +406,28 @@ export async function extractFinanceDocument(
   )
     throw new AiError("aiUnsupportedFile", 400);
 
-  const [organization, categorySnapshot, userSnapshot] = await Promise.all([
-    db.collection("organizations").doc(actor.organizationId).get(),
-    db
-      .collection("financeCategories")
-      .where("organizationId", "==", actor.organizationId)
-      .get(),
-    db
-      .collection("users")
-      .where("organizationId", "==", actor.organizationId)
-      .get(),
-  ]);
+  const [organization, categorySnapshot, userSnapshot, customerSnapshot] =
+    await Promise.all([
+      db.collection("organizations").doc(actor.organizationId).get(),
+      db
+        .collection("financeCategories")
+        .where("organizationId", "==", actor.organizationId)
+        .get(),
+      db
+        .collection("users")
+        .where("organizationId", "==", actor.organizationId)
+        .get(),
+      purpose === "invoice"
+        ? db
+            .collection("financeCustomers")
+            .where("organizationId", "==", actor.organizationId)
+            .get()
+        : null,
+    ]);
+  const customers = (customerSnapshot?.docs ?? []).map((document) => ({
+    id: document.id,
+    name: String(document.data().name ?? ""),
+  }));
   const consultants = userSnapshot.docs
     .filter((document) => document.data().role === "consultant")
     .map((document) => ({
@@ -407,8 +447,10 @@ export async function extractFinanceDocument(
     });
   const system = instructions({
     organizationName: String(organization.data()?.name ?? "Debageri"),
-    categories,
+    purpose,
+    categories: purpose === "invoice" ? [] : categories,
     consultants,
+    customers,
   });
   const apiKey = decryptPassword(encryptedKey);
   const output =
@@ -426,6 +468,7 @@ export async function extractFinanceDocument(
     parsed,
     categories.map((category) => category.id),
     consultants.map((consultant) => consultant.id),
+    customers.map((customer) => customer.id),
   );
   extraction.consultantId =
     matchConsultantByName(file.name, consultants) ?? extraction.consultantId;
