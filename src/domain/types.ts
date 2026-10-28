@@ -144,6 +144,8 @@ export interface FinancialTransaction {
   netMinor: number;
   vatRateBps: number;
   vatMinor: number;
+  /** Öresavrundning, included in `grossMinor`; missing on older entries. */
+  roundingMinor?: number;
   grossMinor: number;
   funding: FinanceFunding | null;
   consultantBalanceDeltaMinor: number;

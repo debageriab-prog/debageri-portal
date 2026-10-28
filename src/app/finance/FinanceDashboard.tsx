@@ -97,6 +97,7 @@ export interface FinancePageData {
     netMinor: number;
     vatRateBps: number;
     vatMinor: number;
+    roundingMinor: number;
     grossMinor: number;
     consultantBalanceDeltaMinor: number;
     visibleDescription: string;
@@ -2742,6 +2743,12 @@ export function FinanceDashboard({
                 <dt>{t("vatAmount")}</dt>
                 <dd>{formatSek(viewingTransaction.vatMinor, locale)}</dd>
               </div>
+              {viewingTransaction.roundingMinor !== 0 && (
+                <div>
+                  <dt>{t("rounding")}</dt>
+                  <dd>{formatSek(viewingTransaction.roundingMinor, locale)}</dd>
+                </div>
+              )}
               <div>
                 <dt>{t("totalIncludingVat")}</dt>
                 <dd>{formatSek(viewingTransaction.grossMinor, locale)}</dd>

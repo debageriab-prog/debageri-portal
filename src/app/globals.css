@@ -2471,7 +2471,8 @@ th.actions-heading {
 }
 .transaction-amount-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   gap: 10px;
 }
 .transaction-amount-summary > div {
@@ -3053,6 +3054,7 @@ th.actions-heading {
     grid-template-columns: 1fr;
   }
   .transaction-amount-summary {
+    grid-auto-flow: row;
     grid-template-columns: 1fr;
   }
   .transaction-period-summary {

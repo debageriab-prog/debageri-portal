@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_ROUNDING_MINOR } from "@/domain/finance/calculations";
 
 const date = z.iso.date();
 const minor = z.number().int().min(0).max(10_000_000_000);
@@ -92,6 +93,13 @@ const transactionFields = {
   amountMinor: minor,
   /** The entered VAT amount; required when `amountMode` is `netVat`. */
   vatMinor: minor.nullable().default(null),
+  /** Öresavrundning, plus or minus; part of the total only. */
+  roundingMinor: z
+    .number()
+    .int()
+    .min(-MAX_ROUNDING_MINOR)
+    .max(MAX_ROUNDING_MINOR)
+    .default(0),
   vatRateBps,
   funding: z.enum(["company", "consultant"]).nullable(),
   applyConsultantShare: z.boolean().default(false),

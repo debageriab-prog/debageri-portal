@@ -9,6 +9,8 @@ import {
   calculateTransactionAmounts,
   formatSek,
   parseSek,
+  parseSignedSek,
+  MAX_ROUNDING_MINOR,
   type TransactionAmountMode,
 } from "@/domain/finance/calculations";
 import { receiptVatRateBps } from "@/domain/receipts";
@@ -59,6 +61,7 @@ export type EditableTransaction = {
   netMinor: number;
   grossMinor: number;
   vatRateBps: number;
+  roundingMinor: number;
   funding: "company" | "consultant" | null;
   applyConsultantShare: boolean;
   visibleDescription: string;
@@ -639,7 +642,10 @@ export function TransactionForm({
   const initialAmounts = transaction
     ? {
         netMinor: transaction.netMinor,
-        vatMinor: transaction.grossMinor - transaction.netMinor,
+        vatMinor:
+          transaction.grossMinor -
+          transaction.netMinor -
+          transaction.roundingMinor,
       }
     : receipt?.netMinor
       ? { netMinor: receipt.netMinor, vatMinor: receipt.vatMinor }
@@ -662,6 +668,11 @@ export function TransactionForm({
   );
   const [vatAmount, setVatAmount] = useState(
     initialAmounts ? (initialAmounts.vatMinor / 100).toFixed(2) : "",
+  );
+  const [rounding, setRounding] = useState(
+    transaction?.roundingMinor
+      ? (transaction.roundingMinor / 100).toFixed(2)
+      : "",
   );
   const [funding, setFunding] = useState<"" | "company" | "consultant">(
     transaction?.funding ?? "",
@@ -760,6 +771,12 @@ export function TransactionForm({
       setAmount((extraction.netMinor / 100).toFixed(2));
       filled++;
     }
+    if (!foreignAmounts)
+      setRounding(
+        extraction.roundingMinor
+          ? (extraction.roundingMinor / 100).toFixed(2)
+          : "",
+      );
     if (extraction.vatRateBps !== null) {
       setVatPercent(String(extraction.vatRateBps / 100));
       filled++;
@@ -864,6 +881,13 @@ export function TransactionForm({
     };
   }, [receipt]);
   const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
+  const roundingMinor = (() => {
+    try {
+      return parseSignedSek(rounding);
+    } catch {
+      return 0;
+    }
+  })();
   const amountSummary = useMemo(() => {
     try {
       return calculateTransactionAmounts(
@@ -871,11 +895,12 @@ export function TransactionForm({
         parseSek(amount || 0),
         vatRateBps,
         amountMode === "netVat" ? parseSek(vatAmount || 0) : null,
+        roundingMinor,
       );
     } catch {
-      return { netMinor: 0, vatMinor: 0, grossMinor: 0 };
+      return { netMinor: 0, vatMinor: 0, roundingMinor: 0, grossMinor: 0 };
     }
-  }, [amount, amountMode, vatAmount, vatRateBps]);
+  }, [amount, amountMode, vatAmount, vatRateBps, roundingMinor]);
   const expectedVatMinor = calculateVatMinor(
     amountSummary.netMinor,
     vatRateBps,
@@ -925,6 +950,7 @@ export function TransactionForm({
       amountMode,
       amountMinor: parseSek(amount),
       vatMinor: amountMode === "netVat" ? parseSek(vatAmount) : null,
+      roundingMinor,
       vatRateBps,
       funding:
         direction === "expense" ? (hasConsultant ? funding : "company") : null,
@@ -1145,6 +1171,21 @@ export function TransactionForm({
             required
           />
         </label>
+        <label>
+          {t("roundingSek")}
+          <input
+            className="field"
+            type="number"
+            min={-MAX_ROUNDING_MINOR / 100}
+            max={MAX_ROUNDING_MINOR / 100}
+            step="0.01"
+            value={rounding}
+            placeholder="0.00"
+            aria-describedby="transaction-rounding-help"
+            onChange={(event) => setRounding(event.target.value)}
+          />
+          <small id="transaction-rounding-help">{t("roundingHelp")}</small>
+        </label>
         {direction === "expense" ? (
           <label>
             {t("funding")}
@@ -1206,6 +1247,12 @@ export function TransactionForm({
             <span>{t("vatAmount")}</span>
             <strong>{formatSek(amountSummary.vatMinor, locale)}</strong>
           </div>
+          {amountSummary.roundingMinor !== 0 && (
+            <div>
+              <span>{t("rounding")}</span>
+              <strong>{formatSek(amountSummary.roundingMinor, locale)}</strong>
+            </div>
+          )}
           <div>
             <span>{t("totalIncludingVat")}</span>
             <strong>{formatSek(amountSummary.grossMinor, locale)}</strong>

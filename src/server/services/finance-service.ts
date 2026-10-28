@@ -611,6 +611,8 @@ type FinancialTransactionInput = {
   netMinor: number;
   vatRateBps: number;
   vatMinor?: number;
+  /** Öresavrundning, included in `grossMinor`. */
+  roundingMinor?: number;
   grossMinor?: number;
   funding: "company" | "consultant" | null;
   applyConsultantShare: boolean;
@@ -683,7 +685,9 @@ export async function createFinancialTransaction(
   const balanceDelta = await validateFinancialTransaction(db, actor, input);
   const vatMinor =
     input.vatMinor ?? calculateVatMinor(input.netMinor, input.vatRateBps);
-  const grossMinor = input.grossMinor ?? input.netMinor + vatMinor;
+  const roundingMinor = input.roundingMinor ?? 0;
+  const grossMinor =
+    input.grossMinor ?? input.netMinor + vatMinor + roundingMinor;
   const ref = db.collection("financialTransactions").doc();
   const batch = db.batch();
   batch.create(ref, {
@@ -691,6 +695,7 @@ export async function createFinancialTransaction(
     ...input,
     currency: "SEK",
     vatMinor,
+    roundingMinor,
     grossMinor,
     invoiceId: null,
     consultantBalanceDeltaMinor: balanceDelta,
@@ -739,7 +744,9 @@ export async function updateFinancialTransaction(
   const balanceDelta = await validateFinancialTransaction(db, actor, input);
   const vatMinor =
     input.vatMinor ?? calculateVatMinor(input.netMinor, input.vatRateBps);
-  const grossMinor = input.grossMinor ?? input.netMinor + vatMinor;
+  const roundingMinor = input.roundingMinor ?? 0;
+  const grossMinor =
+    input.grossMinor ?? input.netMinor + vatMinor + roundingMinor;
   const batch = db.batch();
   batch.update(ref, {
     direction: input.direction,
@@ -749,6 +756,7 @@ export async function updateFinancialTransaction(
     netMinor: input.netMinor,
     vatRateBps: input.vatRateBps,
     vatMinor,
+    roundingMinor,
     grossMinor,
     funding: input.funding,
     applyConsultantShare: input.applyConsultantShare,
@@ -911,6 +919,7 @@ export async function voidFinancialTransaction(
       ...data,
       netMinor: -data.netMinor,
       vatMinor: -data.vatMinor,
+      roundingMinor: -Number(data.roundingMinor ?? 0),
       grossMinor: -data.grossMinor,
       consultantBalanceDeltaMinor: -data.consultantBalanceDeltaMinor,
       status: "reversal",

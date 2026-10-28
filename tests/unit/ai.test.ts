@@ -21,6 +21,7 @@ const empty: RawFinanceExtraction = {
   netAmount: null,
   vatAmount: null,
   totalAmount: null,
+  roundingAmount: null,
   vatRatePercent: null,
   counterpartyName: null,
   description: null,
@@ -116,6 +117,7 @@ describe("normalizeFinanceExtraction", () => {
       currency: "SEK",
       netMinor: 80_000,
       vatMinor: 20_000,
+      roundingMinor: null,
       grossMinor: 100_000,
       vatRateBps: 2500,
       counterpartyName: "Kontorsbolaget AB",
@@ -143,6 +145,40 @@ describe("normalizeFinanceExtraction", () => {
         [],
       ).vatMinor,
     ).toBe(600);
+  });
+
+  it("keeps öresavrundning out of net and VAT", () => {
+    const receipt = { ...empty, netAmount: 229, vatAmount: 57.25 };
+    expect(
+      normalizeFinanceExtraction(
+        { ...receipt, totalAmount: 286, roundingAmount: -0.25 },
+        [],
+      ),
+    ).toMatchObject({
+      netMinor: 22_900,
+      vatMinor: 5_725,
+      roundingMinor: -25,
+      grossMinor: 28_600,
+      vatRateBps: 2500,
+    });
+    expect(
+      normalizeFinanceExtraction({ ...receipt, roundingAmount: -0.25 }, [])
+        .grossMinor,
+    ).toBe(28_600);
+    expect(
+      normalizeFinanceExtraction(
+        { ...empty, totalAmount: 286, vatAmount: 57.25, roundingAmount: -0.25 },
+        [],
+      ).netMinor,
+    ).toBe(22_900);
+    expect(
+      normalizeFinanceExtraction({ ...receipt, roundingAmount: 0 }, [])
+        .roundingMinor,
+    ).toBeNull();
+    expect(
+      normalizeFinanceExtraction({ ...receipt, roundingAmount: 5_000 }, [])
+        .roundingMinor,
+    ).toBeNull();
   });
 
   it("snaps rounding noise to Swedish VAT rates", () => {

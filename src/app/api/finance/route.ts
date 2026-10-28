@@ -37,6 +37,7 @@ function transactionAmounts(data: {
   amountMode: TransactionAmountMode;
   amountMinor: number;
   vatMinor: number | null;
+  roundingMinor: number;
   vatRateBps: number;
 }) {
   if (data.amountMode === "netVat" && data.vatMinor === null)
@@ -46,6 +47,7 @@ function transactionAmounts(data: {
     data.amountMinor,
     data.vatRateBps,
     data.vatMinor,
+    data.roundingMinor,
   );
 }
 

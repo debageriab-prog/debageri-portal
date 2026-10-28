@@ -1,4 +1,5 @@
 import { receiptVatRateBps } from "@/domain/receipts";
+import { MAX_ROUNDING_MINOR } from "@/domain/finance/calculations";
 
 export type AiProvider = "anthropic" | "openai";
 export const AI_PROVIDERS: AiProvider[] = ["anthropic", "openai"];
@@ -60,6 +61,7 @@ export type RawFinanceExtraction = {
   netAmount: number | null;
   vatAmount: number | null;
   totalAmount: number | null;
+  roundingAmount: number | null;
   vatRatePercent: number | null;
   counterpartyName: string | null;
   description: string | null;
@@ -82,6 +84,7 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     "netAmount",
     "vatAmount",
     "totalAmount",
+    "roundingAmount",
     "vatRatePercent",
     "counterpartyName",
     "description",
@@ -95,6 +98,7 @@ export const FINANCE_EXTRACTION_JSON_SCHEMA = {
     netAmount: nullable({ type: "number" }),
     vatAmount: nullable({ type: "number" }),
     totalAmount: nullable({ type: "number" }),
+    roundingAmount: nullable({ type: "number" }),
     vatRatePercent: nullable({ type: "number" }),
     counterpartyName: nullable({ type: "string" }),
     description: nullable({ type: "string" }),
@@ -116,6 +120,8 @@ export type FinanceExtraction = {
   currency: string;
   netMinor: number | null;
   vatMinor: number | null;
+  /** Öresavrundning, plus or minus, included in `grossMinor`. */
+  roundingMinor: number | null;
   grossMinor: number | null;
   vatRateBps: number | null;
   counterpartyName: string | null;
@@ -135,6 +141,13 @@ const SWEDISH_VAT_RATES_BPS = [0, 600, 1200, 2500];
 function toMinor(value: number | null) {
   if (value === null || !Number.isFinite(value) || value < 0) return null;
   return Math.round(value * 100);
+}
+
+/** Signed rounding in öre; null when absent, zero or implausibly large. */
+function toRoundingMinor(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return null;
+  const minor = Math.round(value * 100);
+  return minor !== 0 && Math.abs(minor) <= MAX_ROUNDING_MINOR ? minor : null;
 }
 
 function snapVatRate(bps: number) {
@@ -160,7 +173,8 @@ function text(value: string | null, max: number) {
 
 /**
  * Turns model output into integer öre and a VAT rate the form can use,
- * filling in whichever of net, VAT and total the document left out.
+ * filling in whichever of net, VAT and total the document left out. The
+ * total includes any rounding: total = net + VAT + rounding.
  */
 export function normalizeFinanceExtraction(
   raw: RawFinanceExtraction,
@@ -169,12 +183,14 @@ export function normalizeFinanceExtraction(
   let netMinor = toMinor(raw.netAmount);
   let vatMinor = toMinor(raw.vatAmount);
   let grossMinor = toMinor(raw.totalAmount);
+  const roundingMinor = toRoundingMinor(raw.roundingAmount);
+  const rounding = roundingMinor ?? 0;
   if (grossMinor === null && netMinor !== null && vatMinor !== null)
-    grossMinor = netMinor + vatMinor;
+    grossMinor = netMinor + vatMinor + rounding;
   if (netMinor === null && grossMinor !== null && vatMinor !== null)
-    netMinor = grossMinor - vatMinor;
+    netMinor = grossMinor - rounding - vatMinor;
   if (vatMinor === null && grossMinor !== null && netMinor !== null)
-    vatMinor = grossMinor - netMinor;
+    vatMinor = grossMinor - rounding - netMinor;
   if (netMinor !== null && netMinor < 0) netMinor = null;
   if (vatMinor !== null && vatMinor < 0) vatMinor = null;
 
@@ -199,6 +215,7 @@ export function normalizeFinanceExtraction(
     currency: currency && /^[A-Z]{3}$/.test(currency) ? currency : "SEK",
     netMinor,
     vatMinor,
+    roundingMinor,
     grossMinor,
     vatRateBps,
     counterpartyName: text(raw.counterpartyName, 120),
@@ -212,8 +229,8 @@ export function normalizeFinanceExtraction(
 }
 
 /**
- * Converts foreign-currency amounts to SEK. Net and total are converted and
- * VAT is their difference, so the three always add up.
+ * Converts foreign-currency amounts to SEK. Net, rounding and total are
+ * converted and VAT is what remains, so the amounts always add up.
  */
 export function convertExtractionToSek(
   extraction: FinanceExtraction,
@@ -223,14 +240,16 @@ export function convertExtractionToSek(
     minor === null ? null : Math.round(minor * rate.rate);
   const netMinor = convert(extraction.netMinor);
   const grossMinor = convert(extraction.grossMinor);
+  const roundingMinor = convert(extraction.roundingMinor) || null;
   return {
     ...extraction,
     currency: "SEK",
     netMinor,
     grossMinor,
+    roundingMinor,
     vatMinor:
       netMinor !== null && grossMinor !== null
-        ? grossMinor - netMinor
+        ? grossMinor - netMinor - (roundingMinor ?? 0)
         : convert(extraction.vatMinor),
     conversion: {
       currency: extraction.currency,
