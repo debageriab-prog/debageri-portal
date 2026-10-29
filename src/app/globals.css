@@ -1146,12 +1146,15 @@ th {
   font-size: 14px;
   font-weight: 800;
 }
-.access-section .checkbox-row {
+/* Every checkbox keeps a visible space before its label. */
+.checkbox-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 34px;
   cursor: pointer;
+}
+.access-section .checkbox-row {
+  min-height: 34px;
 }
 .access-section .checkbox-row input {
   width: 17px;
@@ -1658,6 +1661,11 @@ label:has(> .info-tip) {
   color: var(--muted);
   vertical-align: -2px;
   cursor: help;
+}
+
+/* The row's gap already separates the icon from the label. */
+.checkbox-row > .info-tip {
+  margin-left: -4px;
 }
 
 .info-tip:hover,

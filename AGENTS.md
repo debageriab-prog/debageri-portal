@@ -21,3 +21,9 @@ Keep repeated controls and interaction patterns visually consistent across the
 portal. Reuse shared components and the established icon-button patterns for
 actions such as viewing, downloading, editing, and removing files instead of
 introducing section-specific text controls.
+
+Always leave a visible space between a checkbox and its label. Wrap the
+checkbox and its text in a `label.checkbox-row`, which provides the gap,
+instead of placing the input and text side by side without spacing. Put
+explanations of a checkbox or field in an `InfoTip` ("i" icon shown on hover)
+rather than in extra help text under the label.

@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { InfoTip } from "@/components/ui/InfoTip";
 import {
   NOTIFICATION_TOPICS,
   type NotificationSettings,
@@ -58,10 +59,8 @@ export function NotificationSettingsForm({
               type="checkbox"
               defaultChecked={notifications[topic]}
             />
-            <span>
-              <strong>{t(`notificationTopic_${topic}`)}</strong>
-              <small>{t(`notificationTopicHelp_${topic}`)}</small>
-            </span>
+            <span>{t(`notificationTopic_${topic}`)}</span>
+            <InfoTip text={t(`notificationTopicHelp_${topic}`)} />
           </label>
         ))}
       </fieldset>
