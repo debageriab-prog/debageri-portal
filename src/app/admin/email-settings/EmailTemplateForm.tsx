@@ -117,7 +117,7 @@ export function EmailTemplateForm({
   }
 
   return (
-    <form className="card reminder-settings-form" onSubmit={save}>
+    <form className="reminder-settings-form" onSubmit={save}>
       <div className="form-grid">
         <label className={isReminder ? "form-wide" : undefined}>
           {t("selectEmailTemplate")}

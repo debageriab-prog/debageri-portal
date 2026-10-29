@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { findMissingWeeks } from "@/domain/reminders/missing-weeks";
 import {
+  emailNotificationsSchema,
   emailSettingsSchema,
   emailTemplateSchema,
 } from "@/server/validators/reminder";
@@ -27,6 +28,18 @@ describe("time report reminders", () => {
         senderName: "Example",
       }).success,
     ).toBe(true);
+  });
+
+  it("saves notification switches without the SMTP connection", () => {
+    expect(
+      emailNotificationsSchema.safeParse({
+        notifications: { receipts: true, payslips: false, timesheets: true },
+      }).success,
+    ).toBe(true);
+    expect(
+      emailNotificationsSchema.safeParse({ notifications: { receipts: true } })
+        .success,
+    ).toBe(false);
   });
 
   it("only accepts registered email template identifiers", () => {
