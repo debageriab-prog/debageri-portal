@@ -1,4 +1,5 @@
-export type ActionIconType = "edit" | "delete" | "password" | "reverse" | "mfa";
+export type ActionIconType =
+  "edit" | "delete" | "password" | "reverse" | "mfa" | "copy" | "copied";
 
 export function ActionIcon({ type }: { type: ActionIconType }) {
   if (type === "edit")
@@ -20,6 +21,19 @@ export function ActionIcon({ type }: { type: ActionIconType }) {
       <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
         <rect x="7" y="3" width="10" height="18" rx="2" />
         <path d="M11 18h2M10 10.5l1.5 1.5 3-3" />
+      </svg>
+    );
+  if (type === "copy")
+    return (
+      <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <rect x="9" y="9" width="11" height="11" rx="2" />
+        <path d="M5 15V6a2 2 0 0 1 2-2h8" />
+      </svg>
+    );
+  if (type === "copied")
+    return (
+      <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <path d="m5 12.5 4.5 4.5L19 7.5" />
       </svg>
     );
   if (type === "reverse")

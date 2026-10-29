@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { accountingRecipientLabels } from "@/server/services/accounting-email-service";
 import { financeFormContext } from "../../../form-data";
 import { InvoiceAttachmentForm } from "./InvoiceAttachmentForm";
 
@@ -22,6 +23,11 @@ export default async function InvoiceAttachmentsPage({
       invoiceId={id}
       invoiceNumber={String(invoice.data()?.invoiceNumber)}
       uploadFailed={(await searchParams).uploadFailed === "1"}
+      accountingRecipients={await accountingRecipientLabels(
+        db,
+        actor.organizationId,
+        "invoices",
+      )}
     />
   );
 }

@@ -4,20 +4,30 @@ import { FormEvent, useState } from "react";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
+  ACCOUNTING_EMAIL_KINDS,
   defaultEmailTemplates,
   EMAIL_NOTIFICATION_KINDS,
   emailPlaceholders,
   NOTIFICATION_LOCALES,
-  type NotificationKind,
+  type EmailTemplateKind,
   type NotificationLocale,
 } from "@/domain/notifications";
+import { PlaceholderTable } from "./PlaceholderTable";
+
+/** Placeholders in the missing time report reminder. */
+const reminderPlaceholders = [
+  "employeeName",
+  "missingWeeks",
+  "organizationName",
+  "portalUrl",
+];
 
 type TemplateText = { subject: string; body: string; custom: boolean };
 export type NotificationTemplateState = Record<
-  NotificationKind,
+  EmailTemplateKind,
   Record<NotificationLocale, TemplateText>
 >;
-type TemplateId = "time-report-reminder" | NotificationKind;
+type TemplateId = "time-report-reminder" | EmailTemplateKind;
 
 export function EmailTemplateForm({
   subject,
@@ -129,6 +139,13 @@ export function EmailTemplateForm({
                 {t(`emailTemplate_${kind}`)}
               </option>
             ))}
+            <optgroup label={t("accountingEmailTemplates")}>
+              {ACCOUNTING_EMAIL_KINDS.map((kind) => (
+                <option key={kind} value={kind}>
+                  {t(`emailTemplate_${kind}`)}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </label>
         {!isReminder && (
@@ -172,16 +189,6 @@ export function EmailTemplateForm({
             maxLength={10000}
             required
           />
-          <small>
-            {isReminder
-              ? t("templatePlaceholders")
-              : t("notificationTemplatePlaceholders").replace(
-                  "{placeholders}",
-                  emailPlaceholders[templateId]
-                    .map((name) => `{{${name}}}`)
-                    .join(", "),
-                )}
-          </small>
           {!isReminder && (
             <small>
               {current.custom
@@ -190,6 +197,12 @@ export function EmailTemplateForm({
             </small>
           )}
         </label>
+        <PlaceholderTable
+          names={
+            isReminder ? reminderPlaceholders : emailPlaceholders[templateId]
+          }
+          vat={templateId === "accountingVatSettlement"}
+        />
       </div>
       {error && <p className="notice notice-error">{error}</p>}
       {message && <p className="notice">{message}</p>}

@@ -7,15 +7,19 @@ import {
   FinanceAttachments,
   saveFinanceAttachmentChanges,
 } from "../../../FinanceAttachments";
+import { useAccountingEmailPrompt } from "../../../AccountingEmailPrompt";
 
 export function InvoiceAttachmentForm({
   invoiceId,
   invoiceNumber,
   uploadFailed,
+  accountingRecipients = [],
 }: {
   invoiceId: string;
   invoiceNumber: string;
   uploadFailed: boolean;
+  /** Accounting contacts to offer emailing the invoice to after a new file. */
+  accountingRecipients?: string[];
 }) {
   const { t } = useLocale();
   const router = useRouter();
@@ -23,6 +27,7 @@ export function InvoiceAttachmentForm({
   const [removed, setRemoved] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const accounting = useAccountingEmailPrompt("invoice", accountingRecipients);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -44,8 +49,13 @@ export function InvoiceAttachmentForm({
         );
         return;
       }
-      router.push("/finance?section=invoices");
-      router.refresh();
+      const done = () => {
+        router.push("/finance?section=invoices");
+        router.refresh();
+      };
+      // Only a newly added file is worth sending again.
+      if (files.length) accounting.offer(invoiceId, done);
+      else done();
     } catch {
       setError(t("serverUnavailable"));
     } finally {
@@ -86,6 +96,7 @@ export function InvoiceAttachmentForm({
               {t("saveChanges")}
             </button>
           </div>
+          {accounting.dialog}
           {error && (
             <p className="form-wide notice notice-error" role="alert">
               {error}

@@ -5,6 +5,7 @@ import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
 import { vatPayableMinor } from "@/domain/finance/calculations";
 import { isAiFeatureEnabled } from "@/server/services/ai-service";
+import { accountingRecipientLabels } from "@/server/services/accounting-email-service";
 import { VatSettlementForm } from "./VatSettlementForm";
 
 export default async function NewVatSettlementPage() {
@@ -50,6 +51,11 @@ export default async function NewVatSettlementPage() {
         <VatSettlementForm
           payableMinor={payableMinor}
           locale={actor.locale}
+          accountingRecipients={await accountingRecipientLabels(
+            db,
+            actor.organizationId,
+            "vatSettlements",
+          )}
           aiEnabled={await isAiFeatureEnabled(
             db,
             actor.organizationId,

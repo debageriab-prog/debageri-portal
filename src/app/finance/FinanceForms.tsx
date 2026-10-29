@@ -29,6 +29,8 @@ import {
   saveFinanceAttachmentChanges,
   type AiAttachmentSource,
 } from "./FinanceAttachments";
+import { useAccountingEmailPrompt } from "./AccountingEmailPrompt";
+import type { AccountingEntityType } from "@/domain/accounting-email";
 import {
   aiConversionText,
   aiCurrencyWarningLines,
@@ -133,11 +135,21 @@ function FieldError({ message }: { message?: string }) {
   ) : null;
 }
 
-function useFinanceSubmit(successPath: string) {
+function useFinanceSubmit(
+  successPath: string,
+  accounting?: {
+    entityType: AccountingEntityType;
+    recipients: string[];
+  },
+) {
   const { t } = useLocale();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const prompt = useAccountingEmailPrompt(
+    accounting?.entityType ?? "transaction",
+    accounting?.recipients ?? [],
+  );
   async function submit(
     payload: Record<string, unknown>,
     attachment?: {
@@ -202,8 +214,10 @@ function useFinanceSubmit(successPath: string) {
           return;
         }
       }
-      router.push(successPath);
-      router.refresh();
+      prompt.offer(attachment?.entityId ?? result.id, () => {
+        router.push(successPath);
+        router.refresh();
+      });
     } catch {
       if (createdInvoiceId) {
         router.push(
@@ -217,7 +231,7 @@ function useFinanceSubmit(successPath: string) {
       setBusy(false);
     }
   }
-  return { busy, error, submit };
+  return { busy, error, submit, accountingDialog: prompt.dialog };
 }
 
 export function CompensationForm({ users }: { users: User[] }) {
@@ -329,10 +343,13 @@ export function InvoiceForm({
   users,
   customers,
   aiEnabled = false,
+  accountingRecipients = [],
 }: {
   users: User[];
   customers: Customer[];
   aiEnabled?: boolean;
+  /** Accounting contacts to offer emailing the new invoice to. */
+  accountingRecipients?: string[];
 }) {
   const { t, locale } = useLocale();
   const [invoiceNumber, setInvoiceNumber] = useState("");
@@ -361,7 +378,10 @@ export function InvoiceForm({
   const [aiCurrencyWarning, setAiCurrencyWarning] = useState<string[] | null>(
     null,
   );
-  const { busy, error, submit } = useFinanceSubmit("/finance?section=invoices");
+  const { busy, error, submit, accountingDialog } = useFinanceSubmit(
+    "/finance?section=invoices",
+    { entityType: "invoice", recipients: accountingRecipients },
+  );
   const amountMinor = (parse: (value: string) => number, value: string) => {
     try {
       return parse(value);
@@ -797,6 +817,7 @@ export function InvoiceForm({
             </button>
           </div>
           {error && <p className="form-wide notice notice-error">{error}</p>}
+          {accountingDialog}
         </form>
       )}
     </FormPage>
@@ -907,6 +928,7 @@ export function TransactionForm({
   defaultDate,
   transaction,
   receipt,
+  accountingRecipients = [],
   aiEnabled = false,
 }: {
   users: User[];
@@ -916,6 +938,8 @@ export function TransactionForm({
   transaction?: EditableTransaction;
   receipt?: ExpenseReceipt;
   aiEnabled?: boolean;
+  /** Accounting contacts to offer emailing the saved entry to. */
+  accountingRecipients?: string[];
 }) {
   const { t, locale } = useLocale();
   const receiptConsultant = receipt
@@ -998,7 +1022,10 @@ export function TransactionForm({
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
     [],
   );
-  const { busy, error, submit } = useFinanceSubmit(returnHref);
+  const { busy, error, submit, accountingDialog } = useFinanceSubmit(
+    returnHref,
+    { entityType: "transaction", recipients: accountingRecipients },
+  );
   const [receiptFileError, setReceiptFileError] = useState(false);
   const [categoryId, setCategoryId] = useState(transaction?.categoryId ?? "");
   const [date, setDate] = useState(
@@ -1585,6 +1612,7 @@ export function TransactionForm({
           </button>
         </div>
         {error && <p className="form-wide notice notice-error">{error}</p>}
+        {accountingDialog}
         {pendingVatMismatch && (
           <div className="modal-backdrop" role="presentation">
             <section

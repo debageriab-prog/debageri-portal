@@ -18,6 +18,7 @@ import {
   saveFinanceAttachmentChanges,
   type AiAttachmentSource,
 } from "../../FinanceAttachments";
+import { useAccountingEmailPrompt } from "../../AccountingEmailPrompt";
 import {
   aiConversionText,
   aiCurrencyWarningLines,
@@ -35,6 +36,7 @@ export function VatSettlementForm({
   locale,
   settlement,
   aiEnabled = false,
+  accountingRecipients = [],
 }: {
   payableMinor: number;
   locale: "sv-SE" | "en-SE";
@@ -49,6 +51,8 @@ export function VatSettlementForm({
     note: string;
   };
   aiEnabled?: boolean;
+  /** Accounting contacts to offer emailing the saved VAT payment to. */
+  accountingRecipients?: string[];
 }) {
   const { t } = useLocale();
   const router = useRouter();
@@ -72,6 +76,10 @@ export function VatSettlementForm({
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
     [],
+  );
+  const accounting = useAccountingEmailPrompt(
+    "vatSettlement",
+    accountingRecipients,
   );
   const [aiBusyKey, setAiBusyKey] = useState<string | null>(null);
   const [aiProcessedKeys, setAiProcessedKeys] = useState<string[]>([]);
@@ -210,8 +218,10 @@ export function VatSettlementForm({
         );
         return;
       }
-      router.push("/finance/vat-settlements");
-      router.refresh();
+      accounting.offer(settlement?.id ?? result.id, () => {
+        router.push("/finance/vat-settlements");
+        router.refresh();
+      });
     } catch {
       setError(t("serverUnavailable"));
     } finally {
@@ -328,6 +338,7 @@ export function VatSettlementForm({
       />
       <AiNotices notice={aiNotice} currencyWarning={aiCurrencyWarning} />
       {error && <p className="notice notice-error form-wide">{error}</p>}
+      {accounting.dialog}
       <div className="actions form-wide">
         <button
           className="button"

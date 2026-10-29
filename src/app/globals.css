@@ -830,6 +830,31 @@ th {
   min-height: 260px;
   resize: vertical;
 }
+
+.placeholder-table table {
+  min-width: 480px;
+}
+.placeholder-table th,
+.placeholder-table td {
+  padding: 8px 12px;
+  vertical-align: middle;
+}
+.placeholder-table th:first-child {
+  width: 1%;
+}
+.placeholder-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.placeholder-name code {
+  font-size: 13px;
+}
+.placeholder-name .table-action.icon-action {
+  width: 1.75rem;
+  height: 1.75rem;
+}
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -1729,6 +1754,67 @@ label:has(> .info-tip) {
   border: 0;
   opacity: 0;
   pointer-events: none;
+}
+
+.accounting-emails {
+  display: grid;
+  gap: 14px;
+}
+
+.accounting-contact {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fbf8f5;
+}
+
+.accounting-contact-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 9rem) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.accounting-contact-fields label {
+  display: grid;
+  gap: 6px;
+  color: #4b3b31;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.accounting-contact-remove {
+  margin-bottom: 4px;
+}
+
+.accounting-contact-purposes {
+  display: grid;
+  gap: 2px;
+}
+
+.accounting-recipient-list {
+  margin: 0 0 12px;
+  padding-left: 1.2rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .accounting-contact-fields {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .accounting-contact-fields label {
+    grid-column: 1 / -1;
+  }
+
+  .accounting-contact-remove {
+    grid-row: 1;
+    grid-column: 2;
+    justify-self: end;
+  }
 }
 
 .field-error {

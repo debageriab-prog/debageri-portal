@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EMAIL_TEMPLATE_KINDS } from "@/domain/notifications";
 
 export const emailSettingsSchema = z.object({
   smtpHost: z.string().trim().min(1).max(255),
@@ -17,14 +18,7 @@ export const emailSettingsSchema = z.object({
     .optional(),
 });
 
-const notificationKind = z.enum([
-  "receiptSubmitted",
-  "receiptApproved",
-  "receiptRejected",
-  "payslipPublished",
-  "timesheetApproved",
-  "timesheetRejected",
-]);
+const notificationKind = z.enum(EMAIL_TEMPLATE_KINDS);
 const templateText = {
   subject: z.string().trim().min(1).max(200),
   template: z.string().trim().min(1).max(10000),

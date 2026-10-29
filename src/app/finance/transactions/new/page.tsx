@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { expensableReceipt } from "@/server/services/receipt-service";
 import { isAiFeatureEnabled } from "@/server/services/ai-service";
+import { accountingRecipientLabels } from "@/server/services/accounting-email-service";
 import { type ExpenseReceipt, TransactionForm } from "../../FinanceForms";
 import { financeFormContext, financeUsers } from "../../form-data";
 import {
@@ -54,6 +55,11 @@ export default async function NewTransactionPage({
       categories={categories}
       returnHref={returnHref}
       receipt={receipt}
+      accountingRecipients={await accountingRecipientLabels(
+        db,
+        actor.organizationId,
+        "transactions",
+      )}
       aiEnabled={await isAiFeatureEnabled(
         db,
         actor.organizationId,

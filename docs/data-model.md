@@ -2,21 +2,22 @@
 
 Every organization-owned document has `organizationId`. Dates are `YYYY-MM-DD` in `Europe/Stockholm`; durations are integer minutes to avoid floating-point errors. Server timestamps provide audit chronology.
 
-| Collection               | ID / purpose                                                                  | Write owner             | Reads                       |
-| ------------------------ | ----------------------------------------------------------------------------- | ----------------------- | --------------------------- |
-| `organizations`          | organization ID; locale, timezone, schedule defaults                          | admin service           | members                     |
-| `users`                  | Firebase UID; profile, role, reporting dates, `reportsTime`, active status    | admin service           | role/capability based       |
-| `timeCodes`              | stable code ID; localized names, category, behavior, effective range          | admin service           | members                     |
-| `timesheets`             | `{org}_{uid}_{isoYear}-W{ww}`; week state and trusted totals                  | trusted workflow        | self/assigned manager/admin |
-| `timeEntries`            | generated ID; date allocation and immutable code snapshot                     | employee while editable | self/assigned manager/admin |
-| `approvalEvents`         | generated; append-only transition history                                     | trusted workflow        | participants/admin          |
-| `holidays`               | stable date/region ID                                                         | admin service           | members                     |
-| `auditLogs`              | generated; immutable sensitive action record                                  | trusted services        | admin                       |
-| `compensationAgreements` | effective-dated flexible/fixed compensation and rates                         | admin service           | finance server only         |
-| `financeCategories`      | bilingual income/expense classifications                                      | admin service           | finance server only         |
-| `invoices`               | consultant attribution, net/VAT/gross values, payment state                   | finance service         | admin/accountant server     |
-| `financialTransactions`  | immutable income, expense, and reversal ledger in integer Ã¶re                | finance service         | role-scoped finance server  |
-| `aiSettings`             | organization ID; AI on/off, provider, model, enabled sections, encrypted keys | admin service           | server only                 |
+| Collection                | ID / purpose                                                                        | Write owner              | Reads                       |
+| ------------------------- | ----------------------------------------------------------------------------------- | ------------------------ | --------------------------- |
+| `organizations`           | organization ID; locale, timezone, schedule defaults                                | admin service            | members                     |
+| `users`                   | Firebase UID; profile, role, reporting dates, `reportsTime`, active status          | admin service            | role/capability based       |
+| `timeCodes`               | stable code ID; localized names, category, behavior, effective range                | admin service            | members                     |
+| `timesheets`              | `{org}_{uid}_{isoYear}-W{ww}`; week state and trusted totals                        | trusted workflow         | self/assigned manager/admin |
+| `timeEntries`             | generated ID; date allocation and immutable code snapshot                           | employee while editable  | self/assigned manager/admin |
+| `approvalEvents`          | generated; append-only transition history                                           | trusted workflow         | participants/admin          |
+| `holidays`                | stable date/region ID                                                               | admin service            | members                     |
+| `auditLogs`               | generated; immutable sensitive action record                                        | trusted services         | admin                       |
+| `compensationAgreements`  | effective-dated flexible/fixed compensation and rates                               | admin service            | finance server only         |
+| `financeCategories`       | bilingual income/expense classifications                                            | admin service            | finance server only         |
+| `invoices`                | consultant attribution, net/VAT/gross values, payment state                         | finance service          | admin/accountant server     |
+| `financialTransactions`   | immutable income, expense, and reversal ledger in integer Ã¶re                      | finance service          | role-scoped finance server  |
+| `aiSettings`              | organization ID; AI on/off, provider, model, enabled sections, encrypted keys       | admin service            | server only                 |
+| `accountingEmailSettings` | per-organization accounting email addresses and which finance changes each receives | accounting email service | server only (admin API)     |
 
 Weekly sheets are approval/state units; entries remain separate so one date can have multiple codes and date-range reporting stays queryable. Each eligible weekday expects eight reported hours, while submitted sheets preserve their historical expected total. Code snapshots preserve historical meaning after a rename/deactivation. Approval events are append-only because current sheet fields are not history.
 

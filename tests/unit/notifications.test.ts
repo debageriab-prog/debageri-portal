@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import en from "@/locales/en.json";
 import sv from "@/locales/sv.json";
 import {
+  buildAccountingEmail,
   buildNotification,
   customEmailTemplate,
   defaultEmailTemplates,
-  EMAIL_NOTIFICATION_KINDS,
+  EMAIL_TEMPLATE_KINDS,
   emailPlaceholders,
   fill,
   formatIsoWeek,
@@ -124,7 +125,7 @@ describe("in-app notifications", () => {
 describe("editable email templates", () => {
   it("only uses placeholders that are listed for admins", () => {
     for (const locale of NOTIFICATION_LOCALES)
-      for (const kind of EMAIL_NOTIFICATION_KINDS) {
+      for (const kind of EMAIL_TEMPLATE_KINDS) {
         const { subject, body } = defaultEmailTemplates[locale][kind];
         const used = [...`${subject} ${body}`.matchAll(/\{\{(\w+)\}\}/g)].map(
           (match) => match[1],
@@ -132,6 +133,65 @@ describe("editable email templates", () => {
         for (const name of used)
           expect(emailPlaceholders[kind], `${locale} ${kind}`).toContain(name);
       }
+  });
+
+  it("describes every placeholder in both languages", () => {
+    const names = new Set(
+      EMAIL_TEMPLATE_KINDS.flatMap((kind) => emailPlaceholders[kind]),
+    );
+    const keys = [
+      ...[...names].map((name) => `placeholderHelp_${name}`),
+      "placeholderHelp_vat_amount",
+      "placeholderHelp_vat_period",
+    ];
+    for (const key of keys) {
+      expect(en[key as keyof typeof en], key).toBeTruthy();
+      expect(sv[key as keyof typeof sv], key).toBeTruthy();
+    }
+  });
+
+  it("keeps accounting details on separate lines and other values on one", () => {
+    const email = buildAccountingEmail("accountingInvoice", "en-SE", {
+      recipientName: "Byrån",
+      organizationName: "Debageri AB",
+      invoiceNumber: "SB-1",
+      customer: "Ework\nGroup AB",
+      details: "Invoice number:  SB-1\nCustomer:        Ework Group AB",
+      files: "Attached files: a.pdf",
+    });
+    expect(email.subject).toBe("Debageri AB: invoice SB-1, Ework Group AB");
+    expect(email.text).toContain(
+      "Invoice number:  SB-1\nCustomer:        Ework Group AB",
+    );
+    expect(email.text).toContain("to Ework Group AB.");
+    expect(email.text).not.toContain("{{");
+  });
+
+  it("uses a saved accounting template", () => {
+    const stored = {
+      accountingVatSettlement: {
+        "sv-SE": { subject: "Moms {{period}}", body: "{{details}}" },
+      },
+    };
+    expect(
+      buildAccountingEmail(
+        "accountingVatSettlement",
+        "sv-SE",
+        { period: "2026-04-01 – 2026-06-30", details: "Belopp: 1 kr" },
+        customEmailTemplate(stored, "accountingVatSettlement", "sv-SE"),
+      ),
+    ).toEqual({
+      subject: "Moms 2026-04-01 – 2026-06-30",
+      text: "Belopp: 1 kr",
+    });
+    expect(
+      emailTemplateSchema.safeParse({
+        templateId: "accountingInvoice",
+        locale: "en-SE",
+        subject: "Invoice",
+        template: "{{details}}",
+      }).success,
+    ).toBe(true);
   });
 
   it("uses the admin's saved text and drops an empty comment line", () => {

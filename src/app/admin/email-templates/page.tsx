@@ -4,7 +4,7 @@ import { getTranslator } from "@/lib/localization/server";
 import {
   customEmailTemplate,
   defaultEmailTemplates,
-  EMAIL_NOTIFICATION_KINDS,
+  EMAIL_TEMPLATE_KINDS,
   NOTIFICATION_LOCALES,
 } from "@/domain/notifications";
 import {
@@ -28,7 +28,7 @@ export default async function EmailTemplatesPage() {
   const legacyData = legacyDoc.data();
   const stored = templatesDoc.data()?.notifications;
   const notifications = Object.fromEntries(
-    EMAIL_NOTIFICATION_KINDS.map((kind) => [
+    EMAIL_TEMPLATE_KINDS.map((kind) => [
       kind,
       Object.fromEntries(
         NOTIFICATION_LOCALES.map((locale) => {

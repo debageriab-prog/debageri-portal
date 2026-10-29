@@ -166,6 +166,28 @@ describe("Firestore rules", () => {
       }),
     );
   });
+  it("keeps accounting email settings server-only, even for admins", async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, "users/a1"), {
+        organizationId: "debageri",
+        status: "active",
+        role: "admin",
+      });
+      await setDoc(doc(db, "accountingEmailSettings/debageri"), {
+        organizationId: "debageri",
+        contacts: [],
+      });
+    });
+    const admin = env.authenticatedContext("a1").firestore();
+    await assertFails(getDoc(doc(admin, "accountingEmailSettings/debageri")));
+    await assertFails(
+      setDoc(doc(admin, "accountingEmailSettings/debageri"), {
+        organizationId: "debageri",
+        contacts: [],
+      }),
+    );
+  });
   it("keeps receipts server-only, even for their owner", async () => {
     await env.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "receipts/r1"), {
