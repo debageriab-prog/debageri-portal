@@ -968,7 +968,7 @@
   "previewAttachment": "Preview {name}",
   "openInNewTab": "Open in new tab",
   "organizationTab_general": "General",
-  "organizationTab_accounting": "Accounting",
+  "organizationTab_accounting": "Accounting emails",
   "accountingEmail": "Accounting email",
   "accountingEmailsDescription": "Email addresses of your accountant or accounting firm. After income, expenses, invoices or VAT payments are saved, the portal can email the details and files to the addresses chosen for that kind of change.",
   "accountingEmailsSmtpMissing": "Emails are sent with the organization's email settings, which are not set up yet.",

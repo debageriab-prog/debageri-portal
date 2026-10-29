@@ -968,7 +968,7 @@
   "previewAttachment": "Förhandsgranska {name}",
   "openInNewTab": "Öppna i ny flik",
   "organizationTab_general": "Allmänt",
-  "organizationTab_accounting": "Redovisning",
+  "organizationTab_accounting": "E-post till redovisning",
   "accountingEmail": "E-post till redovisning",
   "accountingEmailsDescription": "E-postadresser till er redovisningskonsult eller redovisningsbyrå. När intäkter, kostnader, fakturor eller momsbetalningar sparas kan portalen mejla uppgifterna och filerna till de adresser som valts för den typen av ändring.",
   "accountingEmailsSmtpMissing": "E-post skickas med organisationens e-postinställningar, som inte är konfigurerade ännu.",

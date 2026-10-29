@@ -19,7 +19,7 @@ posts the transaction. Review the provider's data-processing terms before
 enabling it.
 
 Admins can list accounting email addresses under Administration → Organization
-→ Accounting. After an income or expense, invoice or VAT payment is saved, the
+→ Accounting emails. After an income or expense, invoice or VAT payment is saved, the
 person saving it is asked whether to email it; only on yes are the record's
 details, including the internal note, and its attachments sent to the chosen
 addresses with the organization's SMTP settings, in each address's chosen
