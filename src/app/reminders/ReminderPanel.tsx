@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { sendReminders } from "./send-reminders";
 
 export function ReminderPanel({
   selectedUserId,
@@ -28,16 +28,10 @@ export function ReminderPanel({
     setBusy(true);
     setError("");
     setSuccess("");
-    const response = await appCheckFetch("/api/reminders/send", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ userId: selectedUserId }),
-    });
-    const result = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
+    const result = await sendReminders([selectedUserId]);
     setBusy(false);
-    if (!response.ok) return setError(result.error ?? t("reminderSendFailed"));
+    if (result.failed) return setError(result.error || t("reminderSendFailed"));
+    if (!result.sent) return setError(t("reminderSkipped"));
     setSent(true);
     setSuccess(t("reminderSentSuccessfully"));
     router.refresh();

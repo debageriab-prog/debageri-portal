@@ -4,6 +4,7 @@ import {
   receivesReminders,
 } from "@/domain/reminders/missing-weeks";
 import {
+  countsCurrentWeek,
   dueAutoReminders,
   normalizeAutoReminders,
 } from "@/domain/reminders/schedule";
@@ -13,6 +14,7 @@ import {
   emailNotificationsSchema,
   emailSettingsSchema,
   emailTemplateSchema,
+  sendReminderSchema,
 } from "@/server/validators/reminder";
 
 describe("time report reminders", () => {
@@ -130,6 +132,24 @@ describe("time report reminders", () => {
         redMonday,
       ),
     ).toEqual([]);
+  });
+
+  it("counts the current week on the last working day of a week or month", () => {
+    const none = new Set<string>();
+    // Friday 30 October 2026 closes the week; the month ends on Saturday.
+    expect(countsCurrentWeek("2026-10-30", none)).toBe(true);
+    expect(countsCurrentWeek("2026-10-29", none)).toBe(false);
+    // Tuesday 30 June 2026 closes the month in the middle of a week.
+    expect(countsCurrentWeek("2026-06-30", none)).toBe(true);
+    // A red Friday moves the end of the week to Thursday.
+    expect(countsCurrentWeek("2026-10-29", new Set(["2026-10-30"]))).toBe(true);
+  });
+
+  it("accepts one or several consultants for a manual reminder", () => {
+    expect(sendReminderSchema.safeParse({ userIds: ["a", "b"] }).success).toBe(
+      true,
+    );
+    expect(sendReminderSchema.safeParse({ userIds: [] }).success).toBe(false);
   });
 
   it("reads the date and hour in Stockholm", () => {

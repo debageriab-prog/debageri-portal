@@ -9,8 +9,13 @@ import {
   receivesReminders,
   toReportedWeek,
 } from "@/domain/reminders/missing-weeks";
+import { countsCurrentWeek } from "@/domain/reminders/schedule";
 import { deliverReminder } from "@/server/services/reminder-service";
 
+/**
+ * Sends a reminder to each selected consultant. Anyone with nothing missing or
+ * already reminded today is skipped, and one failure does not stop the rest.
+ */
 export async function POST(request: Request) {
   const actor = await verifySession();
   if (!actor || !["admin", "manager", "accountant"].includes(actor.role))
@@ -22,24 +27,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Select an employee." }, { status: 400 });
 
   const { db } = getAdminServices();
-  const [userDoc, settingsDoc, templatesDoc, organizationDoc, sheets] =
+  const [settingsDoc, templatesDoc, organizationDoc, holidayDocs] =
     await Promise.all([
-      db.collection("users").doc(parsed.data.userId).get(),
       db.collection("reminderSettings").doc(actor.organizationId).get(),
       db.collection("emailTemplates").doc(actor.organizationId).get(),
       db.collection("organizations").doc(actor.organizationId).get(),
       db
-        .collection("timesheets")
-        .where("userId", "==", parsed.data.userId)
+        .collection("holidays")
+        .where("organizationId", "==", actor.organizationId)
         .get(),
     ]);
-  const user = userDoc.data();
-  if (
-    !user ||
-    user.organizationId !== actor.organizationId ||
-    !receivesReminders(user)
-  )
-    return NextResponse.json({ error: "Employee not found." }, { status: 404 });
   const settings = settingsDoc.data();
   if (!settings?.encryptedPassword)
     return NextResponse.json(
@@ -47,48 +44,59 @@ export async function POST(request: Request) {
       { status: 409 },
     );
   const today = stockholmDateTime().date;
-  const missing = findMissingWeeks(
-    String(user.reportingStartDate ?? user.employmentStartDate ?? today),
+  const includeCurrentWeek = countsCurrentWeek(
     today,
-    sheets.docs.map((doc) => toReportedWeek(doc.data())),
-    { employmentEndDate: user.employmentEndDate ?? null },
+    new Set(holidayDocs.docs.map((doc) => String(doc.data().date))),
   );
-  if (!missing.length)
-    return NextResponse.json(
-      { error: "This employee has no missing time reports." },
-      { status: 409 },
-    );
+  const summary = { sent: 0, skipped: 0, failed: 0, error: "" };
 
-  try {
-    const sent = await deliverReminder({
-      reminderId: `${actor.organizationId}_${parsed.data.userId}_${today}`,
-      organizationId: actor.organizationId,
-      userId: parsed.data.userId,
-      user,
-      settings,
-      reminderTemplate: templatesDoc.data()?.timeReportReminder,
-      organizationName: String(organizationDoc.data()?.name ?? "Debageri"),
-      portalUrl: resolvePortalUrl(request.headers),
+  for (const userId of new Set(parsed.data.userIds)) {
+    const [userDoc, sheets] = await Promise.all([
+      db.collection("users").doc(userId).get(),
+      db.collection("timesheets").where("userId", "==", userId).get(),
+    ]);
+    const user = userDoc.data();
+    if (
+      !user ||
+      user.organizationId !== actor.organizationId ||
+      !receivesReminders(user)
+    ) {
+      summary.skipped += 1;
+      continue;
+    }
+    const missing = findMissingWeeks(
+      String(user.reportingStartDate ?? user.employmentStartDate ?? today),
       today,
-      missing,
-      sentBy: actor.id,
-      sentByRole: actor.role,
-    });
-    if (!sent)
-      return NextResponse.json(
-        { error: "A reminder has already been sent to this employee today." },
-        { status: 409 },
-      );
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? `The reminder could not be sent: ${error.message}`
-            : "The reminder could not be sent.",
-      },
-      { status: 502 },
+      sheets.docs.map((doc) => toReportedWeek(doc.data())),
+      { employmentEndDate: user.employmentEndDate ?? null, includeCurrentWeek },
     );
+    if (!missing.length) {
+      summary.skipped += 1;
+      continue;
+    }
+    try {
+      const sent = await deliverReminder({
+        organizationId: actor.organizationId,
+        userId,
+        user,
+        settings,
+        reminderTemplate: templatesDoc.data()?.timeReportReminder,
+        organizationName: String(organizationDoc.data()?.name ?? "Debageri"),
+        portalUrl: resolvePortalUrl(request.headers),
+        today,
+        missing,
+        sentBy: actor.id,
+        sentByRole: actor.role,
+      });
+      if (sent) summary.sent += 1;
+      else summary.skipped += 1;
+    } catch (error) {
+      summary.failed += 1;
+      summary.error ||=
+        error instanceof Error
+          ? `The reminder could not be sent: ${error.message}`
+          : "The reminder could not be sent.";
+    }
   }
+  return NextResponse.json(summary);
 }

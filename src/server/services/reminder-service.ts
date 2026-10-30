@@ -98,12 +98,12 @@ export async function sendReminderEmail(settings: {
 }
 
 /**
- * Records and emails one reminder. The event id keeps it from going out twice;
- * a failed send removes the event so it can be tried again. Returns false when
- * the reminder had already been sent and rethrows email failures.
+ * Records and emails one reminder. The event id allows one reminder per
+ * consultant per day, manual or automatic; a failed send removes the event so
+ * it can be tried again. Returns false when one was already sent today and
+ * rethrows email failures.
  */
 export async function deliverReminder(input: {
-  reminderId: string;
   organizationId: string;
   userId: string;
   user: DocumentData;
@@ -118,7 +118,9 @@ export async function deliverReminder(input: {
 }) {
   const { user, settings, reminderTemplate } = input;
   const { db } = getAdminServices();
-  const reminderRef = db.collection("reminderEvents").doc(input.reminderId);
+  const reminderRef = db
+    .collection("reminderEvents")
+    .doc(`${input.organizationId}_${input.userId}_${input.today}`);
   try {
     await reminderRef.create({
       organizationId: input.organizationId,

@@ -35,6 +35,24 @@ function datesInMonth(date: string) {
   );
 }
 
+function workingDays(date: string, holidays: Set<string>) {
+  const { isoYear, isoWeek } = getIsoWeek(date);
+  const isWorking = (day: string) => isWorkingDay(day, holidays);
+  return {
+    week: getIsoWeekDates(isoYear, isoWeek).filter(isWorking),
+    month: datesInMonth(date).filter(isWorking),
+  };
+}
+
+/**
+ * The current week is due on the last working day of its week or month, so
+ * every reminder and count treats it as missing from that day on.
+ */
+export function countsCurrentWeek(date: string, holidays: Set<string>) {
+  const { week, month } = workingDays(date, holidays);
+  return week.at(-1) === date || month.at(-1) === date;
+}
+
 /** Returns the enabled reminders that fall on this date and Stockholm hour. */
 export function dueAutoReminders(
   settings: AutoReminderSettings,
@@ -43,11 +61,7 @@ export function dueAutoReminders(
   holidays: Set<string>,
 ) {
   if (!isWorkingDay(date, holidays)) return [];
-  const { isoYear, isoWeek } = getIsoWeek(date);
-  const week = getIsoWeekDates(isoYear, isoWeek).filter((day) =>
-    isWorkingDay(day, holidays),
-  );
-  const month = datesInMonth(date).filter((day) => isWorkingDay(day, holidays));
+  const { week, month } = workingDays(date, holidays);
   const due: Array<[AutoReminderKind, number, boolean]> = [
     ["firstWorkingDayOfWeek", MORNING_REMINDER_HOUR, week[0] === date],
     ["lastWorkingDayOfWeek", EVENING_REMINDER_HOUR, week.at(-1) === date],

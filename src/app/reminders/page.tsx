@@ -7,7 +7,10 @@ import {
   receivesReminders,
   toReportedWeek,
 } from "@/domain/reminders/missing-weeks";
-import { normalizeAutoReminders } from "@/domain/reminders/schedule";
+import {
+  countsCurrentWeek,
+  normalizeAutoReminders,
+} from "@/domain/reminders/schedule";
 import { AutoReminderForm } from "./AutoReminderForm";
 import { ReminderOverview, type ReminderRow } from "./ReminderOverview";
 import { RemindersTabs } from "./RemindersTabs";
@@ -21,23 +24,36 @@ export default async function RemindersPage({
   const t = await getTranslator();
   const { tab } = await searchParams;
   const { db } = getAdminServices();
-  const [usersSnapshot, settingsDoc, sheetsSnapshot, remindersSnapshot] =
-    await Promise.all([
-      db
-        .collection("users")
-        .where("organizationId", "==", actor.organizationId)
-        .get(),
-      db.collection("reminderSettings").doc(actor.organizationId).get(),
-      db
-        .collection("timesheets")
-        .where("organizationId", "==", actor.organizationId)
-        .get(),
-      db
-        .collection("reminderEvents")
-        .where("organizationId", "==", actor.organizationId)
-        .get(),
-    ]);
+  const [
+    usersSnapshot,
+    settingsDoc,
+    sheetsSnapshot,
+    remindersSnapshot,
+    holidaysSnapshot,
+  ] = await Promise.all([
+    db
+      .collection("users")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+    db.collection("reminderSettings").doc(actor.organizationId).get(),
+    db
+      .collection("timesheets")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+    db
+      .collection("reminderEvents")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+    db
+      .collection("holidays")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+  ]);
   const today = stockholmDateTime().date;
+  const includeCurrentWeek = countsCurrentWeek(
+    today,
+    new Set(holidaysSnapshot.docs.map((doc) => String(doc.data().date))),
+  );
   const sheets = sheetsSnapshot.docs.map((doc) => doc.data());
   const reminders = remindersSnapshot.docs
     .map((doc) => doc.data())
@@ -64,7 +80,10 @@ export default async function RemindersPage({
           String(data.reportingStartDate ?? data.employmentStartDate ?? today),
           today,
           reports,
-          { employmentEndDate: data.employmentEndDate ?? null },
+          {
+            employmentEndDate: data.employmentEndDate ?? null,
+            includeCurrentWeek,
+          },
         ),
         latestReport: reports[0]
           ? {

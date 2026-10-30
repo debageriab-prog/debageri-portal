@@ -6,8 +6,8 @@ import {
   toReportedWeek,
 } from "@/domain/reminders/missing-weeks";
 import {
+  countsCurrentWeek,
   dueAutoReminders,
-  EVENING_REMINDER_HOUR,
   normalizeAutoReminders,
 } from "@/domain/reminders/schedule";
 import { stockholmDateTime } from "@/lib/dates/stockholm";
@@ -17,22 +17,14 @@ import { deliverReminder } from "@/server/services/reminder-service";
 export const AUTO_REMINDER_SENDER = "system";
 
 /**
- * Sends the automatic reminders due at this moment. Each run has its own event
- * id per consultant, so a repeated scheduler call sends nothing twice, and a
- * manual reminder the same day replaces the automatic one.
+ * Sends the automatic reminders due at this moment. A consultant gets at most
+ * one reminder a day, so repeated scheduler calls and consultants already
+ * reminded today are skipped.
  */
 export async function runAutoReminders(portalUrl: string, now = new Date()) {
   const { date, hour } = stockholmDateTime(now);
   const { db } = getAdminServices();
-  const [settingsDocs, sentToday] = await Promise.all([
-    db.collection("reminderSettings").get(),
-    db.collection("reminderEvents").where("sentDate", "==", date).get(),
-  ]);
-  const remindedManually = new Set(
-    sentToday.docs
-      .filter((doc) => doc.data().sentBy !== AUTO_REMINDER_SENDER)
-      .map((doc) => String(doc.data().userId)),
-  );
+  const settingsDocs = await db.collection("reminderSettings").get();
   const summary = { sent: 0, failed: 0 };
 
   for (const settingsDoc of settingsDocs.docs) {
@@ -73,8 +65,7 @@ export async function runAutoReminders(portalUrl: string, now = new Date()) {
       if (
         !receivesReminders(user) ||
         !reportingStart ||
-        (user.employmentEndDate && user.employmentEndDate < date) ||
-        remindedManually.has(userDoc.id)
+        (user.employmentEndDate && user.employmentEndDate < date)
       )
         continue;
       const missing = findMissingWeeks(
@@ -85,13 +76,12 @@ export async function runAutoReminders(portalUrl: string, now = new Date()) {
           .map((sheet) => toReportedWeek(sheet.data())),
         {
           employmentEndDate: user.employmentEndDate ?? null,
-          includeCurrentWeek: hour === EVENING_REMINDER_HOUR,
+          includeCurrentWeek: countsCurrentWeek(date, holidays),
         },
       );
       if (!missing.length) continue;
       try {
         const sent = await deliverReminder({
-          reminderId: `${organizationId}_${userDoc.id}_${date}_auto-${hour}`,
           organizationId,
           userId: userDoc.id,
           user,
