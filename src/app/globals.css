@@ -831,6 +831,10 @@ th {
   max-width: 520px;
 }
 
+#reminders-panel-overview .row-actions {
+  justify-content: flex-start;
+}
+
 #reminders-panel-overview .table-action {
   white-space: nowrap;
 }
