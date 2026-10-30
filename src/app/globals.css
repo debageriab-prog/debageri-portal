@@ -1156,7 +1156,7 @@ th {
 .access-section .checkbox-row {
   min-height: 34px;
 }
-.access-section .checkbox-row input {
+.checkbox-row input {
   width: 17px;
   height: 17px;
   flex: 0 0 auto;
@@ -1513,26 +1513,6 @@ th.actions-heading {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
-}
-
-.ai-enable-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  cursor: pointer;
-}
-
-.ai-enable-row input {
-  width: 17px;
-  height: 17px;
-  flex: 0 0 auto;
-  margin: 2px 0 0;
-  accent-color: var(--accent-dark);
-}
-
-.ai-enable-row span {
-  display: grid;
-  gap: 2px;
 }
 
 .ai-settings-fields {
