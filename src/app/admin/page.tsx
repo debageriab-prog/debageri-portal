@@ -13,11 +13,6 @@ export default function AdminPage() {
       "/admin/email-settings",
     ],
     [
-      t("emailTemplates"),
-      t("emailTemplatesDescription"),
-      "/admin/email-templates",
-    ],
-    [
       t("aiIntegration"),
       t("aiIntegrationDescription"),
       "/admin/ai-integration",

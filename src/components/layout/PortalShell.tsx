@@ -201,7 +201,6 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
           { label: t("employees"), href: "/admin/users" },
           { label: t("organization"), href: "/admin/settings" },
           { label: t("emailSettings"), href: "/admin/email-settings" },
-          { label: t("emailTemplates"), href: "/admin/email-templates" },
           { label: t("aiIntegration"), href: "/admin/ai-integration" },
           { label: t("auditHistory"), href: "/admin/audit" },
         ],

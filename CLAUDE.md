@@ -116,6 +116,9 @@ listed in `.env.example`.
   `notice-warning` banners.
 - **Consistent controls**: reuse `ActionIcon` and `FileActionIcons` icon
   buttons for view, download, edit and remove instead of new text buttons.
+- **Checkboxes**: always leave a space between a checkbox and its label by
+  using `label.checkbox-row`. Put explanations in an `InfoTip` hover icon
+  (`ui/InfoTip.tsx`), not in help text under the label.
 - **Publishing a PR**: after pushing, watch the required CI checks until they
   pass. Fix failures the PR caused and keep watching the new run.
 - Follow the visual identity in `docs/ui-design-system.md`: warm beige and

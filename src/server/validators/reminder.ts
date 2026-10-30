@@ -9,13 +9,14 @@ export const emailSettingsSchema = z.object({
   password: z.string().min(1).max(500).optional(),
   fromEmail: z.string().email(),
   senderName: z.string().trim().min(1).max(120),
-  notifications: z
-    .object({
-      receipts: z.boolean(),
-      payslips: z.boolean(),
-      timesheets: z.boolean(),
-    })
-    .optional(),
+});
+
+export const emailNotificationsSchema = z.object({
+  notifications: z.object({
+    receipts: z.boolean(),
+    payslips: z.boolean(),
+    timesheets: z.boolean(),
+  }),
 });
 
 const notificationKind = z.enum(EMAIL_TEMPLATE_KINDS);

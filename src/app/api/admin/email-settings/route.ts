@@ -2,7 +2,10 @@ import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
-import { emailSettingsSchema } from "@/server/validators/reminder";
+import {
+  emailNotificationsSchema,
+  emailSettingsSchema,
+} from "@/server/validators/reminder";
 import { encryptPassword } from "@/server/services/reminder-service";
 
 export async function PUT(request: Request) {
@@ -31,6 +34,32 @@ export async function PUT(request: Request) {
       organizationId: actor.organizationId,
       ...settings,
       ...(password ? { encryptedPassword: encryptPassword(password) } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: actor.id,
+    },
+    { merge: true },
+  );
+  return NextResponse.json({ ok: true });
+}
+
+/** Saves the notification switches on their own, leaving SMTP untouched. */
+export async function PATCH(request: Request) {
+  const actor = await verifySession();
+  if (!actor || actor.role !== "admin")
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  const parsed = emailNotificationsSchema.safeParse(
+    await request.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return NextResponse.json(
+      { error: "Check the notification settings." },
+      { status: 400 },
+    );
+  const { db } = getAdminServices();
+  await db.collection("reminderSettings").doc(actor.organizationId).set(
+    {
+      organizationId: actor.organizationId,
+      notifications: parsed.data.notifications,
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: actor.id,
     },
