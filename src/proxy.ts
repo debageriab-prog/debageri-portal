@@ -9,6 +9,12 @@ export async function proxy(request: NextRequest) {
       /^\/api\/users\/[^/]+\/avatar$/.test(request.nextUrl.pathname))
   )
     return NextResponse.next();
+  // Cloud Scheduler has no App Check token; the route checks its own secret.
+  if (
+    request.method === "POST" &&
+    request.nextUrl.pathname === "/api/cron/reminders"
+  )
+    return NextResponse.next();
   const rejection = await rejectInvalidAppCheck(request);
   return rejection ?? NextResponse.next();
 }

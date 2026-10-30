@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { findMissingWeeks } from "@/domain/reminders/missing-weeks";
+import {
+  findMissingWeeks,
+  receivesReminders,
+} from "@/domain/reminders/missing-weeks";
+import {
+  dueAutoReminders,
+  normalizeAutoReminders,
+} from "@/domain/reminders/schedule";
+import { stockholmDateTime } from "@/lib/dates/stockholm";
+import { isAuthorizedCronRequest } from "@/server/security/cron-auth";
 import {
   emailNotificationsSchema,
   emailSettingsSchema,
@@ -15,6 +24,135 @@ describe("time report reminders", () => {
         { isoYear: 2026, isoWeek: 30, status: "draft" },
       ]),
     ).toEqual([{ isoYear: 2026, isoWeek: 30 }]);
+  });
+
+  it("stops counting weeks after the employment end date", () => {
+    expect(
+      findMissingWeeks("2026-07-06", "2026-08-26", [], {
+        employmentEndDate: "2026-07-15",
+      }),
+    ).toEqual([
+      { isoYear: 2026, isoWeek: 28 },
+      { isoYear: 2026, isoWeek: 29 },
+    ]);
+  });
+
+  it("includes the current week for end-of-period reminders", () => {
+    const reports = [{ isoYear: 2026, isoWeek: 30, status: "approved" }];
+    expect(
+      findMissingWeeks("2026-07-20", "2026-07-31", reports, {
+        includeCurrentWeek: true,
+      }),
+    ).toEqual([{ isoYear: 2026, isoWeek: 31 }]);
+    expect(
+      findMissingWeeks("2026-07-20", "2026-07-31", [
+        ...reports,
+        { isoYear: 2026, isoWeek: 31, status: "submitted" },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("requires every started part of a week that spans two months", () => {
+    const firstPart = {
+      isoYear: 2026,
+      isoWeek: 31,
+      status: "submitted",
+      part: 1,
+      partCount: 2,
+    };
+    // Week 31 of 2026 runs from 27 July to 2 August.
+    expect(findMissingWeeks("2026-07-27", "2026-08-05", [firstPart])).toEqual([
+      { isoYear: 2026, isoWeek: 31 },
+    ]);
+    expect(
+      findMissingWeeks("2026-07-27", "2026-08-05", [
+        firstPart,
+        { ...firstPart, part: 2 },
+      ]),
+    ).toEqual([]);
+    expect(
+      findMissingWeeks("2026-07-27", "2026-07-31", [firstPart], {
+        includeCurrentWeek: true,
+      }),
+    ).toEqual([]);
+  });
+
+  it("leaves inactive users and other roles out of reminders", () => {
+    expect(receivesReminders({ role: "consultant", status: "active" })).toBe(
+      true,
+    );
+    expect(receivesReminders({ role: "employee" })).toBe(true);
+    expect(receivesReminders({ role: "consultant", status: "inactive" })).toBe(
+      false,
+    );
+    expect(receivesReminders({ role: "admin", status: "active" })).toBe(false);
+  });
+
+  it("keeps every automatic reminder off by default", () => {
+    expect(normalizeAutoReminders(undefined)).toEqual({
+      firstWorkingDayOfWeek: false,
+      lastWorkingDayOfWeek: false,
+      firstWorkingDayOfMonth: false,
+      lastWorkingDayOfMonth: false,
+    });
+  });
+
+  it("finds due automatic reminders by working day and hour", () => {
+    const all = {
+      firstWorkingDayOfWeek: true,
+      lastWorkingDayOfWeek: true,
+      firstWorkingDayOfMonth: true,
+      lastWorkingDayOfMonth: true,
+    };
+    const none = new Set<string>();
+    // Monday 3 August 2026 opens both the week and the month.
+    expect(dueAutoReminders(all, "2026-08-03", 9, none)).toEqual([
+      "firstWorkingDayOfWeek",
+      "firstWorkingDayOfMonth",
+    ]);
+    expect(dueAutoReminders(all, "2026-08-03", 17, none)).toEqual([]);
+    // Friday 31 July 2026 closes both the week and the month.
+    expect(dueAutoReminders(all, "2026-07-31", 17, none)).toEqual([
+      "lastWorkingDayOfWeek",
+      "lastWorkingDayOfMonth",
+    ]);
+    // A red Monday moves the first working day to Tuesday.
+    const redMonday = new Set(["2026-08-10"]);
+    expect(dueAutoReminders(all, "2026-08-10", 9, redMonday)).toEqual([]);
+    expect(dueAutoReminders(all, "2026-08-11", 9, redMonday)).toEqual([
+      "firstWorkingDayOfWeek",
+    ]);
+    expect(
+      dueAutoReminders(
+        { ...all, firstWorkingDayOfWeek: false },
+        "2026-08-11",
+        9,
+        redMonday,
+      ),
+    ).toEqual([]);
+  });
+
+  it("reads the date and hour in Stockholm", () => {
+    expect(stockholmDateTime(new Date("2026-07-15T07:00:00Z"))).toEqual({
+      date: "2026-07-15",
+      hour: 9,
+    });
+    expect(stockholmDateTime(new Date("2026-01-15T16:00:00Z"))).toEqual({
+      date: "2026-01-15",
+      hour: 17,
+    });
+    expect(stockholmDateTime(new Date("2026-07-15T22:30:00Z"))).toEqual({
+      date: "2026-07-16",
+      hour: 0,
+    });
+  });
+
+  it("only accepts the scheduler's secret", () => {
+    expect(isAuthorizedCronRequest("Bearer secret", "secret")).toBe(true);
+    expect(isAuthorizedCronRequest("Bearer other", "secret")).toBe(false);
+    expect(isAuthorizedCronRequest(null, "secret")).toBe(false);
+    expect(isAuthorizedCronRequest("Bearer ", undefined)).toBe(false);
+    expect(isAuthorizedCronRequest("Bearer ", "")).toBe(false);
   });
 
   it("validates email connection settings separately from templates", () => {

@@ -29,6 +29,7 @@ Configure these under repository **Settings → Secrets and variables → Action
 | `NEXT_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY` | App Check web provider site key                                                                              |
 | `NEXT_PUBLIC_PORTAL_URL`                            | Production portal URL, normally `https://portal.debageri.se`                                                 |
 | `REMINDER_CREDENTIAL_ENCRYPTION_KEY`                | Long random hex secret used to encrypt stored reminder SMTP passwords                                        |
+| `REMINDER_CRON_SECRET`                              | Long random hex secret Cloud Scheduler sends to `/api/cron/reminders`                                        |
 
 Development previews also require:
 
@@ -44,6 +45,7 @@ Development previews also require:
 | `DEV_FIREBASE_MESSAGING_SENDER_ID` | Development Firebase Web App sender ID                                            |
 | `DEV_FIREBASE_APP_CHECK_SITE_KEY`  | Development App Check reCAPTCHA v3 public site key                                |
 | `DEV_REMINDER_ENCRYPTION_KEY`      | Development-only random encryption key; never reuse the production encryption key |
+| `DEV_REMINDER_CRON_SECRET`         | Development-only scheduler secret; never reuse the production secret              |
 
 Firebase web values are public application configuration, but GitHub secrets keep build configuration consistent and avoid accidental logging. Do not add a Firebase Admin JSON key.
 
@@ -56,6 +58,32 @@ openssl rand -hex 32
 Changing or deleting this key makes previously saved SMTP passwords
 undecryptable. After rotating it, an administrator must save the reminder
 sender password again.
+
+## Automatic reminders
+
+The Auto Reminder tab only stores which reminders are enabled. They are sent by
+a Cloud Scheduler job that calls `POST /api/cron/reminders` at 09:00 and 17:00
+Stockholm time on weekdays. The endpoint works out which reminders are due, so
+the job needs no changes when the options change. Without
+`REMINDER_CRON_SECRET` it refuses every call.
+
+Generate the secret with `openssl rand -hex 32`, save it as the
+`REMINDER_CRON_SECRET` GitHub secret, deploy, and then create the job once:
+
+```bash
+gcloud scheduler jobs create http portal-auto-reminders \
+  --project=debageri-portal \
+  --location=europe-west1 \
+  --schedule="0 9,17 * * 1-5" \
+  --time-zone="Europe/Stockholm" \
+  --http-method=POST \
+  --uri="https://portal.debageri.se/api/cron/reminders" \
+  --headers="Authorization=Bearer YOUR_SECRET" \
+  --attempt-deadline=300s
+```
+
+Leave the job out of `debageri-portal-dev` unless you are testing reminders,
+because it would email the development users.
 
 The App Check site key setup, allowed domains, staged enforcement, and
 verification procedure are documented in

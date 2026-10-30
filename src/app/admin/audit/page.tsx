@@ -82,6 +82,7 @@ export default async function AuditPage() {
     "timesheet.reopened": "Reopened time report",
     "timesheet.auto_approved_non_working":
       "Reported non-working period with 0 hours",
+    "reminders.auto_updated": "Updated automatic reminders",
   };
   return (
     <>

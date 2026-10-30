@@ -1,15 +1,15 @@
-import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 import { resolvePortalUrl } from "@/lib/config/portal-url";
+import { stockholmDateTime } from "@/lib/dates/stockholm";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { sendReminderSchema } from "@/server/validators/reminder";
-import { findMissingWeeks } from "@/domain/reminders/missing-weeks";
 import {
-  defaultReminderSubject,
-  defaultReminderTemplate,
-  sendReminderEmail,
-} from "@/server/services/reminder-service";
+  findMissingWeeks,
+  receivesReminders,
+  toReportedWeek,
+} from "@/domain/reminders/missing-weeks";
+import { deliverReminder } from "@/server/services/reminder-service";
 
 export async function POST(request: Request) {
   const actor = await verifySession();
@@ -37,25 +37,21 @@ export async function POST(request: Request) {
   if (
     !user ||
     user.organizationId !== actor.organizationId ||
-    !["employee", "consultant"].includes(String(user.role))
+    !receivesReminders(user)
   )
     return NextResponse.json({ error: "Employee not found." }, { status: 404 });
   const settings = settingsDoc.data();
-  const reminderTemplate = templatesDoc.data()?.timeReportReminder;
   if (!settings?.encryptedPassword)
     return NextResponse.json(
       { error: "Reminder email settings are not configured." },
       { status: 409 },
     );
-  const today = new Date().toISOString().slice(0, 10);
+  const today = stockholmDateTime().date;
   const missing = findMissingWeeks(
     String(user.reportingStartDate ?? user.employmentStartDate ?? today),
     today,
-    sheets.docs.map((doc) => ({
-      isoYear: Number(doc.data().isoYear),
-      isoWeek: Number(doc.data().isoWeek),
-      status: String(doc.data().status),
-    })),
+    sheets.docs.map((doc) => toReportedWeek(doc.data())),
+    { employmentEndDate: user.employmentEndDate ?? null },
   );
   if (!missing.length)
     return NextResponse.json(
@@ -63,70 +59,28 @@ export async function POST(request: Request) {
       { status: 409 },
     );
 
-  const reminderId = `${actor.organizationId}_${parsed.data.userId}_${today}`;
-  const reminderRef = db.collection("reminderEvents").doc(reminderId);
   try {
-    await reminderRef.create({
+    const sent = await deliverReminder({
+      reminderId: `${actor.organizationId}_${parsed.data.userId}_${today}`,
       organizationId: actor.organizationId,
       userId: parsed.data.userId,
-      recipientEmail: String(user.email),
+      user,
+      settings,
+      reminderTemplate: templatesDoc.data()?.timeReportReminder,
+      organizationName: String(organizationDoc.data()?.name ?? "Debageri"),
+      portalUrl: resolvePortalUrl(request.headers),
+      today,
+      missing,
       sentBy: actor.id,
       sentByRole: actor.role,
-      sentDate: today,
-      missingWeeks: missing,
-      status: "sending",
-      createdAt: FieldValue.serverTimestamp(),
     });
-  } catch (error) {
-    const code =
-      typeof error === "object" && error && "code" in error
-        ? String(error.code)
-        : "";
-    if (code === "6" || code.toLowerCase().includes("already"))
+    if (!sent)
       return NextResponse.json(
         { error: "A reminder has already been sent to this employee today." },
         { status: 409 },
       );
-    throw error;
-  }
-
-  try {
-    await sendReminderEmail({
-      smtpHost: String(settings.smtpHost),
-      smtpPort: Number(settings.smtpPort),
-      smtpSecure: Boolean(settings.smtpSecure),
-      smtpUsername: String(settings.smtpUsername),
-      encryptedPassword: String(settings.encryptedPassword),
-      fromEmail: String(settings.fromEmail),
-      senderName: String(settings.senderName),
-      subject: String(
-        reminderTemplate?.subject ?? settings.subject ?? defaultReminderSubject,
-      ),
-      template: String(
-        reminderTemplate?.template ??
-          settings.template ??
-          defaultReminderTemplate,
-      ),
-      recipientEmail: String(user.email),
-      values: {
-        employeeName: String(user.displayName ?? user.email),
-        missingWeeks: missing
-          .map(
-            (week) =>
-              `${week.isoYear}-W${String(week.isoWeek).padStart(2, "0")}`,
-          )
-          .join("\n"),
-        organizationName: String(organizationDoc.data()?.name ?? "Debageri"),
-        portalUrl: resolvePortalUrl(request.headers),
-      },
-    });
-    await reminderRef.update({
-      status: "sent",
-      sentAt: FieldValue.serverTimestamp(),
-    });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    await reminderRef.delete();
     return NextResponse.json(
       {
         error:

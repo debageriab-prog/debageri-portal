@@ -9,10 +9,12 @@ export function ReminderPanel({
   selectedUserId,
   settingsConfigured,
   alreadySentToday,
+  nothingMissing,
 }: {
   selectedUserId?: string;
   settingsConfigured: boolean;
   alreadySentToday: boolean;
+  nothingMissing: boolean;
 }) {
   const { t } = useLocale();
   const router = useRouter();
@@ -49,13 +51,21 @@ export function ReminderPanel({
       {error && <p className="notice notice-error">{error}</p>}
       {success && <p className="notice">{success}</p>}
       {sent && !success && <p className="notice">{t("reminderAlreadySent")}</p>}
-      <button
-        className="button"
-        disabled={!selectedUserId || !settingsConfigured || sent || busy}
-        onClick={send}
-      >
-        {busy ? t("sendingReminder") : t("sendReminder")}
-      </button>
+      <footer className="modal-actions">
+        <button
+          className="button"
+          disabled={
+            !selectedUserId ||
+            !settingsConfigured ||
+            nothingMissing ||
+            sent ||
+            busy
+          }
+          onClick={send}
+        >
+          {busy ? t("sendingReminder") : t("sendReminder")}
+        </button>
+      </footer>
     </>
   );
 }
