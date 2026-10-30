@@ -40,5 +40,14 @@ export const emailTemplateSchema = z.union([
 ]);
 
 export const sendReminderSchema = z.object({
-  userId: z.string().min(1).max(128),
+  userIds: z.array(z.string().min(1).max(128)).min(1).max(500),
+});
+
+export const autoRemindersSchema = z.object({
+  autoReminders: z.object({
+    firstWorkingDayOfWeek: z.boolean(),
+    lastWorkingDayOfWeek: z.boolean(),
+    firstWorkingDayOfMonth: z.boolean(),
+    lastWorkingDayOfMonth: z.boolean(),
+  }),
 });

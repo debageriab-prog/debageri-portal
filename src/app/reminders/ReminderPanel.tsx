@@ -2,17 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { sendReminders } from "./send-reminders";
 
 export function ReminderPanel({
   selectedUserId,
   settingsConfigured,
   alreadySentToday,
+  nothingMissing,
 }: {
   selectedUserId?: string;
   settingsConfigured: boolean;
   alreadySentToday: boolean;
+  nothingMissing: boolean;
 }) {
   const { t } = useLocale();
   const router = useRouter();
@@ -26,16 +28,10 @@ export function ReminderPanel({
     setBusy(true);
     setError("");
     setSuccess("");
-    const response = await appCheckFetch("/api/reminders/send", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ userId: selectedUserId }),
-    });
-    const result = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
+    const result = await sendReminders([selectedUserId]);
     setBusy(false);
-    if (!response.ok) return setError(result.error ?? t("reminderSendFailed"));
+    if (result.failed) return setError(result.error || t("reminderSendFailed"));
+    if (!result.sent) return setError(t("reminderSkipped"));
     setSent(true);
     setSuccess(t("reminderSentSuccessfully"));
     router.refresh();
@@ -49,13 +45,21 @@ export function ReminderPanel({
       {error && <p className="notice notice-error">{error}</p>}
       {success && <p className="notice">{success}</p>}
       {sent && !success && <p className="notice">{t("reminderAlreadySent")}</p>}
-      <button
-        className="button"
-        disabled={!selectedUserId || !settingsConfigured || sent || busy}
-        onClick={send}
-      >
-        {busy ? t("sendingReminder") : t("sendReminder")}
-      </button>
+      <footer className="modal-actions">
+        <button
+          className="button"
+          disabled={
+            !selectedUserId ||
+            !settingsConfigured ||
+            nothingMissing ||
+            sent ||
+            busy
+          }
+          onClick={send}
+        >
+          {busy ? t("sendingReminder") : t("sendReminder")}
+        </button>
+      </footer>
     </>
   );
 }
