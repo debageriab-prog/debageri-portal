@@ -64,6 +64,22 @@ export function ReminderOverview({
             : row.latestReminder.sentByRole
         })`
       : t("never");
+  const confirmLine = (row: ReminderRow) =>
+    t("remindConfirmLine")
+      .replace("{name}", row.displayName)
+      .replace(
+        "{weeks}",
+        row.missing.length === 1
+          ? t("remindConfirmOneWeek")
+          : t("remindConfirmWeeks").replace(
+              "{count}",
+              String(row.missing.length),
+            ),
+      )
+      .replace(
+        "{date}",
+        row.latestReminder?.sentDate.replaceAll("-", "/") ?? t("never"),
+      );
   const blockedReason = (row: ReminderRow) => {
     if (!settingsConfigured) return t("reminderSettingsMissing");
     if (!row.missing.length) return t("noMissingWeeks");
@@ -227,7 +243,7 @@ export function ReminderOverview({
             </header>
             <ul className="reporting-day-list">
               {confirming.map((row) => (
-                <li key={row.id}>{row.displayName}</li>
+                <li key={row.id}>{confirmLine(row)}</li>
               ))}
             </ul>
             <footer className="modal-actions">
