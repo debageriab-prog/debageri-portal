@@ -52,6 +52,7 @@ export default async function FinancePage({
     customersSnapshot,
     vatSettlementsSnapshot,
     financeAttachmentsSnapshot,
+    agreementsSnapshot,
   ] = await Promise.all([
     db.collection("organizations").doc(organizationId).get(),
     manager
@@ -94,6 +95,16 @@ export default async function FinancePage({
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
+    manager
+      ? db
+          .collection("compensationAgreements")
+          .where("organizationId", "==", organizationId)
+          .get()
+      : db
+          .collection("compensationAgreements")
+          .where("organizationId", "==", organizationId)
+          .where("userId", "==", actor.id)
+          .get(),
   ]);
 
   const transactionAttachments = new Map<
@@ -195,6 +206,17 @@ export default async function FinancePage({
     })
     .filter((transaction) => manager || transaction.consultantId === actor.id)
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+  const agreements: FinancePageData["agreements"] = agreementsSnapshot.docs.map(
+    (document) => ({
+      id: document.id,
+      userId: String(document.data().userId),
+      model: document.data().model,
+      validFrom: String(document.data().validFrom),
+      validTo: document.data().validTo ?? null,
+      shareBps: Number(document.data().shareBps ?? 0),
+      fixedMonthlySalaryMinor: document.data().fixedMonthlySalaryMinor ?? null,
+    }),
+  );
   const customers: FinancePageData["customers"] = (
     customersSnapshot?.docs ?? []
   )
@@ -223,6 +245,7 @@ export default async function FinancePage({
         categories,
         invoices,
         transactions,
+        agreements,
         vatSettlements,
       }}
       actor={{ id: actor.id, role: actor.role, locale: actor.locale }}

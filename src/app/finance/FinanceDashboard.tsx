@@ -12,12 +12,20 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
+  compensationModelLabels,
+  monthlyCompensation,
+  type CompensationRecord,
+} from "@/domain/finance/compensation";
+import type { CompensationModel } from "@/domain/types";
+import { InfoTip } from "@/components/ui/InfoTip";
+import {
   belongsToCompany,
   belongsToConsultant,
   belongsToFixedConsultantResult,
   calculateShareMinor,
   companyOutstandingInvoiceShareMinor,
   companyBalanceDeltaMinor,
+  earnsInvoiceShare,
   expenseTotalsByCategory,
   FinanceHistoryEntry,
   financeTotals,
@@ -52,7 +60,7 @@ export interface FinancePageData {
     displayName: string;
     employeeNumber: string;
     role: string;
-    compensationModel: "flexible" | "fixed" | null;
+    compensationModel: CompensationModel | null;
   }>;
   customers: Array<{
     id: string;
@@ -71,7 +79,7 @@ export interface FinancePageData {
     id: string;
     invoiceNumber: string;
     consultantId: string | null;
-    compensationModel: "flexible" | "fixed" | null;
+    compensationModel: CompensationModel | null;
     customerName: string;
     customerContactPerson: string;
     customerFinanceEmail: string;
@@ -112,6 +120,7 @@ export interface FinancePageData {
     createdAt: number;
     attachments: Array<{ id: string; name: string }>;
   }>;
+  agreements: CompensationRecord[];
   vatSettlements: Array<{
     id: string;
     amountMinor: number;
@@ -1424,7 +1433,7 @@ export function FinanceDashboard({
   );
   const consultantLiability = manager
     ? data.users
-        .filter((user) => user.compensationModel === "flexible")
+        .filter((user) => earnsInvoiceShare(user.compensationModel))
         .reduce(
           (sum, user) =>
             sum +
@@ -1457,7 +1466,7 @@ export function FinanceDashboard({
       0,
     );
   const consultantBalanceHistory =
-    selectedModel === "flexible" &&
+    earnsInvoiceShare(selectedModel) &&
     selectedConsultant !== "all" &&
     selectedConsultant !== "company"
       ? flexibleConsultantBalanceHistory(
@@ -1470,7 +1479,7 @@ export function FinanceDashboard({
     selectedConsultant === "company"
       ? transactionFinanceHistory(summaryTransactions, "result")
       : selectedConsultant !== "all"
-        ? selectedModel === "flexible"
+        ? earnsInvoiceShare(selectedModel)
           ? flexibleConsultantRetainedResultHistory(
               data.invoices,
               data.transactions,
@@ -1487,12 +1496,18 @@ export function FinanceDashboard({
   const selectedFlexibleConsultantBalance =
     consultantBalanceHistory.at(-1)?.runningTotalMinor ?? 0;
   const retainedResult =
-    (selectedModel === "flexible" || selectedModel === "fixed") &&
+    selectedModel &&
     selectedConsultant !== "all" &&
     selectedConsultant !== "company"
       ? (retainedResultHistory.at(-1)?.runningTotalMinor ?? 0)
       : totals.netResultMinor -
         (selectedConsultant === "all" ? consultantLiability : 0);
+  const monthlyCompensationRows = monthlyCompensation(
+    data.agreements,
+    data.transactions,
+    selectedConsultant,
+    today(),
+  );
   const filteredInvoices = data.invoices.filter(
     (invoice) =>
       (invoiceConsultantFilter === "all" ||
@@ -1640,7 +1655,7 @@ export function FinanceDashboard({
     printWindow.document.close();
   }
   const chartMode =
-    !manager || selectedModel === "flexible" ? "balance" : "result";
+    !manager || earnsInvoiceShare(selectedModel) ? "balance" : "result";
 
   async function post(
     payload: Record<string, unknown>,
@@ -1780,7 +1795,7 @@ export function FinanceDashboard({
               (selectedConsultant !== "company" &&
                 selectedModel !== "fixed")) && (
               <div className="metric">
-                {selectedModel === "flexible" &&
+                {earnsInvoiceShare(selectedModel) &&
                 selectedConsultant !== "all" &&
                 selectedConsultant !== "company" ? (
                   <button
@@ -1829,8 +1844,7 @@ export function FinanceDashboard({
                   </div>
                 )}
                 <div className="metric">
-                  {((selectedModel === "flexible" ||
-                    selectedModel === "fixed") &&
+                  {(selectedModel &&
                     selectedConsultant !== "all" &&
                     selectedConsultant !== "company") ||
                   selectedConsultant === "company" ? (
@@ -1863,6 +1877,36 @@ export function FinanceDashboard({
               </>
             )}
           </section>
+          {monthlyCompensationRows.length > 0 && (
+            <section className="card table-wrap">
+              <div className="week-head">
+                <h2>
+                  {t("monthlyCompensation")}{" "}
+                  <InfoTip text={t("monthlyCompensationTip")} />
+                </h2>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("month")}</th>
+                    <th>{t("fixedSalary")}</th>
+                    <th>{t("invoiceShare")}</th>
+                    <th>{t("total")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyCompensationRows.map((row) => (
+                    <tr key={row.month}>
+                      <td>{row.month}</td>
+                      <td>{formatSek(row.fixedMinor, locale)}</td>
+                      <td>{formatSek(row.shareMinor, locale)}</td>
+                      <td>{formatSek(row.totalMinor, locale)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
           <section className="card finance-chart-controls">
             <div className="finance-chart-filter-groups">
               <div className="finance-chart-filter-group">
@@ -2820,9 +2864,9 @@ export function FinanceDashboard({
                 <dd>
                   {viewingInvoice.compensationModel
                     ? t(
-                        viewingInvoice.compensationModel === "fixed"
-                          ? "fixedSalary"
-                          : "flexible",
+                        compensationModelLabels[
+                          viewingInvoice.compensationModel
+                        ],
                       )
                     : "\u2014"}
                 </dd>

@@ -2,7 +2,10 @@
 
 import { DateInput } from "@/components/ui/DateInput";
 import { useLocale } from "@/components/localization/LocaleProvider";
-import type { CompensationValues } from "@/domain/finance/compensation";
+import {
+  compensationModelLabels,
+  type CompensationValues,
+} from "@/domain/finance/compensation";
 import { appCheckFetch } from "@/lib/firebase/client";
 
 /** Runs a compensation action; returns the error code, or null on success. */
@@ -34,17 +37,23 @@ export function CompensationFields({
         <select
           className="field"
           value={values.model}
-          onChange={(event) =>
+          onChange={(event) => {
+            const model = event.target.value as CompensationValues["model"];
+            // The flexible default is far too high on top of a salary.
             onChange({
-              model: event.target.value as CompensationValues["model"],
-            })
-          }
+              model,
+              ...(model === "hybrid" ? { sharePercent: "" } : {}),
+            });
+          }}
         >
-          <option value="flexible">{t("flexible")}</option>
-          <option value="fixed">{t("fixedSalary")}</option>
+          {(["flexible", "fixed", "hybrid"] as const).map((model) => (
+            <option key={model} value={model}>
+              {t(compensationModelLabels[model])}
+            </option>
+          ))}
         </select>
       </label>
-      {values.model === "flexible" ? (
+      {values.model !== "fixed" && (
         <label>
           {t("invoiceSharePercent")}
           <input
@@ -52,13 +61,14 @@ export function CompensationFields({
             type="number"
             value={values.sharePercent}
             onChange={(event) => onChange({ sharePercent: event.target.value })}
-            min="0"
+            min={values.model === "hybrid" ? "0.01" : "0"}
             max="100"
             step="0.01"
             required
           />
         </label>
-      ) : (
+      )}
+      {values.model !== "flexible" && (
         <label>
           {t("monthlySalary")}
           <input

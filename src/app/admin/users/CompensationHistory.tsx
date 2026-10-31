@@ -6,7 +6,10 @@ import { ActionIcon } from "@/components/ui/ActionIcon";
 import { DateInput } from "@/components/ui/DateInput";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { formatSek } from "@/domain/finance/calculations";
-import type { CompensationRecord } from "@/domain/finance/compensation";
+import {
+  compensationModelLabels,
+  type CompensationRecord,
+} from "@/domain/finance/compensation";
 import { postCompensationAction } from "./CompensationFields";
 
 function today() {
@@ -44,17 +47,18 @@ export function CompensationTable({
         <tbody>
           {agreements.map((agreement) => (
             <tr key={agreement.id}>
-              <td>
-                {t(agreement.model === "flexible" ? "flexible" : "fixedSalary")}
-              </td>
+              <td>{t(compensationModelLabels[agreement.model])}</td>
               <td>{agreement.validFrom}</td>
               <td>{agreement.validTo ?? "—"}</td>
               <td>
-                {agreement.model === "flexible"
-                  ? `${t("invoiceSharePercent")}: ${agreement.shareBps / 100}%`
-                  : agreement.fixedMonthlySalaryMinor !== null
-                    ? `${t("monthlySalary")}: ${formatSek(agreement.fixedMonthlySalaryMinor, locale)}`
-                    : "—"}
+                {[
+                  agreement.fixedMonthlySalaryMinor !== null &&
+                    `${t("monthlySalary")}: ${formatSek(agreement.fixedMonthlySalaryMinor, locale)}`,
+                  agreement.model !== "fixed" &&
+                    `${t("invoiceSharePercent")}: ${agreement.shareBps / 100}%`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "—"}
               </td>
               {canEnd && (
                 <td>

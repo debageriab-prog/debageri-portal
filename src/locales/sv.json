@@ -448,8 +448,8 @@
   "vatAmountSekTip": "Momsbeloppet exakt som det står på kvittot eller fakturan.",
   "vatPercentTip": "Momssatsen, oftast 25, 12, 6 eller 0.",
   "roundingSekTip": "Avrundning till hela kronor som står på kvittot, plus eller minus, till exempel -0,25. Påverkar bara totalbeloppet.",
-  "fundingTip": "Vem som betalade. För konsulter med flexibel ersättning dras en kostnad som konsulten betalat från konsultens saldo.",
-  "applyConsultantShareTip": "Krediterar konsulten med den avtalade andelen av nettobeloppet. Endast vid flexibel ersättning.",
+  "fundingTip": "Vem som betalade. För konsulter med fakturaandel dras en kostnad som konsulten betalat från konsultens saldo. Vid fast lön + fakturaandel bokförs den fasta lönen som betald av företaget och utbetalningar av andelen som betalda av konsulten.",
+  "applyConsultantShareTip": "Krediterar konsulten med den avtalade andelen av nettobeloppet. Endast vid ersättning med fakturaandel.",
   "consultantDescriptionTip": "Visas för konsulten i deras ekonomivy.",
   "internalNoteTip": "Syns bara för administratörer och ekonomer, aldrig för konsulten.",
   "invoiceNumberTip": "Fakturanumret exakt som det står på fakturan. Det måste vara unikt.",
@@ -459,7 +459,7 @@
   "invoiceConsultantTip": "Konsulten som utförde arbetet, eller Endast företaget när ingen konsult är inblandad. Avgör hur betalningen fördelas.",
   "issueDateTip": "Fakturadatum. Det avgör konsultens ersättningsavtal och momsperioden.",
   "dueDateTip": "Sista dagen för kunden att betala. Det kan inte vara före fakturadatum.",
-  "shareOverrideTip": "Valfritt. Ersätter konsultens avtalade andel för just den här fakturan. Endast vid flexibel ersättning.",
+  "shareOverrideTip": "Valfritt. Ersätter konsultens avtalade andel för just den här fakturan. Endast vid ersättning med fakturaandel.",
   "vatPaymentDateTip": "Dagen då momsen betalades till skattekontot. AI använder förfallodatumet när filen inte visar någon betalning.",
   "vatPaymentAmountTip": "Momsen som betalats till Skatteverket (Moms att betala). Den kan inte vara högre än momsen att betala just nu.",
   "vatPeriodFromTip": "Första dagen i redovisningsperioden, till exempel 2026-04-01 för april - juni.",
@@ -1181,5 +1181,9 @@
   "backToEmployee": "Tillbaka till {name}",
   "financeError_compensationConfirmationRequired": "Den aktuella ersättningsperioden saknar slutdatum. Ladda om sidan och bekräfta att den ska avslutas.",
   "endCurrentCompensationTitle": "Avsluta den aktuella ersättningen?",
-  "endCurrentCompensationExplanation": "Den aktuella ersättningen, som gäller från {validFrom}, saknar slutdatum. Om du sparar den nya ersättningen sätts dess slutdatum automatiskt till {validTo}."
+  "endCurrentCompensationExplanation": "Den aktuella ersättningen, som gäller från {validFrom}, saknar slutdatum. Om du sparar den nya ersättningen sätts dess slutdatum automatiskt till {validTo}.",
+  "fixedSalaryAndShare": "Fast lön + fakturaandel",
+  "monthlyCompensation": "Månadsersättning",
+  "monthlyCompensationTip": "Fast lön plus den fakturaandel som krediterats under månaden. Andelen räknas den månad fakturan betalas. Lönen proportioneras inte.",
+  "invoiceShare": "Fakturaandel"
 }
