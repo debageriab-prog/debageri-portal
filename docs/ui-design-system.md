@@ -1,6 +1,6 @@
 # UI design system
 
-English (`en-SE`) is the default interface locale. Employees can switch to Swedish (`sv-SE`) with the language selector; the choice is stored in a first-party `debageri-locale` cookie for one year. Components obtain user-facing strings through the locale provider and translation JSON files rather than branching on language in component code.
+English (`en-SE`) is the default interface locale. Employees can switch to Swedish (`sv-SE`) with the language selector; the choice is stored in a first-party `debageri-locale` cookie for one year and, when signed in, on the user's `locale` field, which sets the language of their emails. Administrators can also set that field on the employee page. Components obtain user-facing strings through the locale provider and translation JSON files rather than branching on language in component code.
 
 The portal derives its identity from the read-only `debageri-web` reference: warm beige `#F7F2EA`, dark brown `#3D3027`, muted brown `#7A5E4A`, tan `#9A7A63`, off-white cards `#FDFAF6`, and borders `#E8D8C8`. Typography is Inter where network/font delivery is configured, with a system fallback. Corners are softly rounded, shadows restrained, and spacing generous.
 

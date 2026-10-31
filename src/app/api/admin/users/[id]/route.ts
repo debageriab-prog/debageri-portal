@@ -10,6 +10,7 @@ import {
   documentAccessSchema,
   emailPreferencesSchema,
   employmentDatesValid,
+  localeSchema,
 } from "@/server/validators/user-access";
 
 const updateSchema = z
@@ -26,6 +27,7 @@ const updateSchema = z
     financeAccess: financeAccessSchema,
     documentAccess: documentAccessSchema,
     emailPreferences: emailPreferencesSchema.optional(),
+    locale: localeSchema,
   })
   .superRefine((value, context) => {
     if (!financeAccessMatchesRole(value.role, value.financeAccess))
@@ -127,6 +129,7 @@ export async function PATCH(
       ...(parsed.data.emailPreferences
         ? { emailPreferences: parsed.data.emailPreferences }
         : {}),
+      locale: parsed.data.locale,
       updatedAt: FieldValue.serverTimestamp(),
     });
     batch.create(loaded.db.collection("auditLogs").doc(), {
@@ -147,6 +150,7 @@ export async function PATCH(
         ...(parsed.data.emailPreferences
           ? { emailPreferences: parsed.data.emailPreferences }
           : {}),
+        locale: parsed.data.locale,
       },
     });
     await batch.commit();

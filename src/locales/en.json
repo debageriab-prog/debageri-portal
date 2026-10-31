@@ -275,6 +275,7 @@
   "editEmployeeDescription": "Update personal details, portal permissions and account availability.",
   "inactiveAccountHelp": "Inactive accounts cannot sign in until they are reactivated.",
   "ownAccountEditHelp": "For your own account, only full name and email can be changed.",
+  "employeeLanguageHelp": "Used for the emails this person receives.",
   "deleteEmployeeDescription": "Their login will be removed. Historical timesheets and audit records will remain.",
   "adminPasswordDescription": "Set a temporary password and share it securely. Their existing sessions will be signed out.",
   "reminders": "Reminders",

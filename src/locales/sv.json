@@ -275,6 +275,7 @@
   "editEmployeeDescription": "Uppdatera personuppgifter, portalbehörigheter och kontots tillgänglighet.",
   "inactiveAccountHelp": "Inaktiva konton kan inte logga in förrän de återaktiveras.",
   "ownAccountEditHelp": "För ditt eget konto kan endast fullständigt namn och e-post ändras.",
+  "employeeLanguageHelp": "Används för de e-postmeddelanden personen får.",
   "deleteEmployeeDescription": "Inloggningen tas bort. Historiska tidrapporter och revisionsposter finns kvar.",
   "adminPasswordDescription": "Ange ett tillfälligt lösenord och dela det säkert. Befintliga sessioner loggas ut.",
   "reminders": "Påminnelser",
