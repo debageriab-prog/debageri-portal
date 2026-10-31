@@ -12,12 +12,20 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
+  compensationModelLabels,
+  monthlyCompensation,
+  type CompensationRecord,
+} from "@/domain/finance/compensation";
+import type { CompensationModel } from "@/domain/types";
+import { InfoTip } from "@/components/ui/InfoTip";
+import {
   belongsToCompany,
   belongsToConsultant,
   belongsToFixedConsultantResult,
   calculateShareMinor,
   companyOutstandingInvoiceShareMinor,
   companyBalanceDeltaMinor,
+  earnsInvoiceShare,
   expenseTotalsByCategory,
   FinanceHistoryEntry,
   financeTotals,
@@ -52,7 +60,7 @@ export interface FinancePageData {
     displayName: string;
     employeeNumber: string;
     role: string;
-    compensationModel: "flexible" | "fixed" | null;
+    compensationModel: CompensationModel | null;
   }>;
   customers: Array<{
     id: string;
@@ -71,7 +79,7 @@ export interface FinancePageData {
     id: string;
     invoiceNumber: string;
     consultantId: string | null;
-    compensationModel: "flexible" | "fixed" | null;
+    compensationModel: CompensationModel | null;
     customerName: string;
     customerContactPerson: string;
     customerFinanceEmail: string;
@@ -112,15 +120,7 @@ export interface FinancePageData {
     createdAt: number;
     attachments: Array<{ id: string; name: string }>;
   }>;
-  agreements: Array<{
-    id: string;
-    userId: string;
-    model: "flexible" | "fixed";
-    validFrom: string;
-    validTo: string | null;
-    shareBps: number;
-    fixedMonthlySalaryMinor: number | null;
-  }>;
+  agreements: CompensationRecord[];
   vatSettlements: Array<{
     id: string;
     amountMinor: number;
@@ -131,12 +131,7 @@ export interface FinancePageData {
 
 type Actor = { id: string; role: string; locale: "sv-SE" | "en-SE" };
 type FinanceSection =
-  | "overview"
-  | "compensation"
-  | "invoices"
-  | "categories"
-  | "transactions"
-  | "customers";
+  "overview" | "invoices" | "categories" | "transactions" | "customers";
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -1306,9 +1301,6 @@ export function FinanceDashboard({
     if (value && transactionRangeFrom && value < transactionRangeFrom)
       setTransactionRangeFrom(value);
   };
-  const [endingAgreement, setEndingAgreement] = useState<
-    FinancePageData["agreements"][number] | null
-  >(null);
   const [deletingTransaction, setDeletingTransaction] = useState<
     FinancePageData["transactions"][number] | null
   >(null);
@@ -1441,7 +1433,7 @@ export function FinanceDashboard({
   );
   const consultantLiability = manager
     ? data.users
-        .filter((user) => user.compensationModel === "flexible")
+        .filter((user) => earnsInvoiceShare(user.compensationModel))
         .reduce(
           (sum, user) =>
             sum +
@@ -1474,7 +1466,7 @@ export function FinanceDashboard({
       0,
     );
   const consultantBalanceHistory =
-    selectedModel === "flexible" &&
+    earnsInvoiceShare(selectedModel) &&
     selectedConsultant !== "all" &&
     selectedConsultant !== "company"
       ? flexibleConsultantBalanceHistory(
@@ -1487,7 +1479,7 @@ export function FinanceDashboard({
     selectedConsultant === "company"
       ? transactionFinanceHistory(summaryTransactions, "result")
       : selectedConsultant !== "all"
-        ? selectedModel === "flexible"
+        ? earnsInvoiceShare(selectedModel)
           ? flexibleConsultantRetainedResultHistory(
               data.invoices,
               data.transactions,
@@ -1504,12 +1496,18 @@ export function FinanceDashboard({
   const selectedFlexibleConsultantBalance =
     consultantBalanceHistory.at(-1)?.runningTotalMinor ?? 0;
   const retainedResult =
-    (selectedModel === "flexible" || selectedModel === "fixed") &&
+    selectedModel &&
     selectedConsultant !== "all" &&
     selectedConsultant !== "company"
       ? (retainedResultHistory.at(-1)?.runningTotalMinor ?? 0)
       : totals.netResultMinor -
         (selectedConsultant === "all" ? consultantLiability : 0);
+  const monthlyCompensationRows = monthlyCompensation(
+    data.agreements,
+    data.transactions,
+    selectedConsultant,
+    today(),
+  );
   const filteredInvoices = data.invoices.filter(
     (invoice) =>
       (invoiceConsultantFilter === "all" ||
@@ -1657,7 +1655,7 @@ export function FinanceDashboard({
     printWindow.document.close();
   }
   const chartMode =
-    !manager || selectedModel === "flexible" ? "balance" : "result";
+    !manager || earnsInvoiceShare(selectedModel) ? "balance" : "result";
 
   async function post(
     payload: Record<string, unknown>,
@@ -1730,7 +1728,6 @@ export function FinanceDashboard({
 
   const title = {
     overview: manager ? t("financialOverview") : t("myFinances"),
-    compensation: t("compensationManagement"),
     invoices: manager ? t("invoiceManagement") : t("myInvoices"),
     categories: t("categoryManagement"),
     transactions: t("incomeExpenseManagement"),
@@ -1798,7 +1795,7 @@ export function FinanceDashboard({
               (selectedConsultant !== "company" &&
                 selectedModel !== "fixed")) && (
               <div className="metric">
-                {selectedModel === "flexible" &&
+                {earnsInvoiceShare(selectedModel) &&
                 selectedConsultant !== "all" &&
                 selectedConsultant !== "company" ? (
                   <button
@@ -1847,8 +1844,7 @@ export function FinanceDashboard({
                   </div>
                 )}
                 <div className="metric">
-                  {((selectedModel === "flexible" ||
-                    selectedModel === "fixed") &&
+                  {(selectedModel &&
                     selectedConsultant !== "all" &&
                     selectedConsultant !== "company") ||
                   selectedConsultant === "company" ? (
@@ -1881,6 +1877,36 @@ export function FinanceDashboard({
               </>
             )}
           </section>
+          {monthlyCompensationRows.length > 0 && (
+            <section className="card table-wrap">
+              <div className="week-head">
+                <h2>
+                  {t("monthlyCompensation")}{" "}
+                  <InfoTip text={t("monthlyCompensationTip")} />
+                </h2>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("month")}</th>
+                    <th>{t("fixedSalary")}</th>
+                    <th>{t("invoiceShare")}</th>
+                    <th>{t("total")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyCompensationRows.map((row) => (
+                    <tr key={row.month}>
+                      <td>{row.month}</td>
+                      <td>{formatSek(row.fixedMinor, locale)}</td>
+                      <td>{formatSek(row.shareMinor, locale)}</td>
+                      <td>{formatSek(row.totalMinor, locale)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
           <section className="card finance-chart-controls">
             <div className="finance-chart-filter-groups">
               <div className="finance-chart-filter-group">
@@ -2076,70 +2102,6 @@ export function FinanceDashboard({
             </section>
           )}
         </>
-      )}
-
-      {manager && section === "compensation" && (
-        <section className="card table-wrap">
-          <div className="week-head">
-            <h2>{t("currentCompensation")}</h2>
-            {admin && (
-              <Link className="button" href="/finance/compensation/new">
-                {t("addCompensation")}
-              </Link>
-            )}
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>{t("consultant")}</th>
-                <th>{t("compensationModel")}</th>
-                <th>{t("validFrom")}</th>
-                <th>{t("validTo")}</th>
-                <th>{t("compensationTerms")}</th>
-                {admin && (
-                  <th>
-                    <span className="sr-only">{t("actions")}</span>
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {data.agreements.map((agreement) => (
-                <tr key={agreement.id}>
-                  <td>{consultantName(agreement.userId)}</td>
-                  <td>
-                    {t(
-                      agreement.model === "flexible"
-                        ? "flexible"
-                        : "fixedSalary",
-                    )}
-                  </td>
-                  <td>{agreement.validFrom}</td>
-                  <td>{agreement.validTo ?? "—"}</td>
-                  <td>
-                    {agreement.model === "flexible"
-                      ? `${t("invoiceSharePercent")}: ${agreement.shareBps / 100}%`
-                      : agreement.fixedMonthlySalaryMinor !== null
-                        ? `${t("monthlySalary")}: ${formatSek(agreement.fixedMonthlySalaryMinor, locale)}`
-                        : "—"}
-                  </td>
-                  {admin && (
-                    <td>
-                      {agreement.validTo === null && (
-                        <button
-                          className="table-action"
-                          onClick={() => setEndingAgreement(agreement)}
-                        >
-                          {t("setValidTo")}
-                        </button>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
       )}
 
       {manager && section === "customers" && (
@@ -2902,9 +2864,9 @@ export function FinanceDashboard({
                 <dd>
                   {viewingInvoice.compensationModel
                     ? t(
-                        viewingInvoice.compensationModel === "fixed"
-                          ? "fixedSalary"
-                          : "flexible",
+                        compensationModelLabels[
+                          viewingInvoice.compensationModel
+                        ],
                       )
                     : "\u2014"}
                 </dd>
@@ -3008,58 +2970,6 @@ export function FinanceDashboard({
               </button>
               <button className="button" disabled={busy}>
                 {t("markAsPaid")}
-              </button>
-            </footer>
-          </form>
-        </div>
-      )}
-      {endingAgreement && (
-        <div className="modal-backdrop" role="presentation">
-          <form
-            className="modal modal-small"
-            role="alertdialog"
-            aria-modal="true"
-            onSubmit={(event: FormEvent<HTMLFormElement>) => {
-              event.preventDefault();
-              const form = new FormData(event.currentTarget);
-              void post(
-                {
-                  action: "setCompensationValidTo",
-                  agreementId: endingAgreement.id,
-                  validTo: form.get("validTo"),
-                },
-                "validToSaved",
-              ).then((ok) => {
-                if (ok) setEndingAgreement(null);
-              });
-            }}
-          >
-            <header className="modal-header">
-              <div>
-                <h2>{t("setValidToTitle")}</h2>
-                <p>{t("setValidToExplanation")}</p>
-              </div>
-            </header>
-            <label>
-              {t("validTo")}
-              <DateInput
-                className="field"
-                name="validTo"
-                min={endingAgreement.validFrom}
-                defaultValue={today()}
-                required
-              />
-            </label>
-            <footer className="modal-actions">
-              <button
-                className="button secondary"
-                type="button"
-                onClick={() => setEndingAgreement(null)}
-              >
-                {t("cancel")}
-              </button>
-              <button className="button" disabled={busy}>
-                {t("confirmSetValidTo")}
               </button>
             </footer>
           </form>

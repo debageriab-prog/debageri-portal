@@ -11,10 +11,31 @@ import {
   NOTIFICATION_TOPICS,
   type EmailPreferences,
 } from "@/domain/notifications";
+import {
+  compensationInput,
+  defaultCompensationValues,
+  type CompensationRecord,
+} from "@/domain/finance/compensation";
+import {
+  CompensationFields,
+  postCompensationAction,
+} from "./CompensationFields";
+import {
+  AddCompensationDialog,
+  CompensationTable,
+  EndCompensationDialog,
+} from "./CompensationHistory";
 import type { ManagedUser } from "./UserManagement";
 
-type Tab = "general" | "employment" | "access" | "notifications";
-const TABS: Tab[] = ["general", "employment", "access", "notifications"];
+type Tab =
+  "general" | "employment" | "compensation" | "access" | "notifications";
+const TABS: Tab[] = [
+  "general",
+  "employment",
+  "compensation",
+  "access",
+  "notifications",
+];
 
 const noFinance: FinanceAccess = {
   enabled: false,
@@ -42,15 +63,23 @@ function documentAccessForRole(
 export function EmployeeEditor({
   employee,
   isSelf = false,
+  financeEnabled,
+  agreements = [],
+  initialTab = "general",
+  compensationFailed = false,
 }: {
   employee?: ManagedUser;
   isSelf?: boolean;
+  financeEnabled: boolean;
+  agreements?: CompensationRecord[];
+  initialTab?: Tab;
+  compensationFailed?: boolean;
 }) {
   const { t } = useLocale();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const creating = !employee;
-  const [tab, setTab] = useState<Tab>("general");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [values, setValues] = useState({
     displayName: employee?.displayName ?? "",
     email: employee?.email ?? "",
@@ -86,12 +115,25 @@ export function EmployeeEditor({
       timesheets: true,
     },
   );
+  const [addCompensation, setAddCompensation] = useState(false);
+  const [compensation, setCompensation] = useState(() =>
+    defaultCompensationValues(today()),
+  );
+  const [addingAgreement, setAddingAgreement] = useState(false);
+  const [endingAgreement, setEndingAgreement] =
+    useState<CompensationRecord | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(
+    compensationFailed ? t("employeeCompensationSaveFailed") : "",
+  );
+  const [message, setMessage] = useState("");
   const reportsTime =
     role === "consultant" || (role === "manager" && managerReportsTime);
   const isConsultant = role === "consultant";
   const hasDocumentAccess = ["consultant", "manager"].includes(role);
+  // Agreements attach to the stored role, so a role change must be saved first.
+  const canAddCompensation =
+    financeEnabled && isConsultant && employee?.role === "consultant";
 
   function set(name: keyof typeof values, value: string) {
     setValues((current) => ({ ...current, [name]: value }));
@@ -121,6 +163,7 @@ export function EmployeeEditor({
     if (revealInvalidField()) return;
     setBusy(true);
     setError("");
+    setMessage("");
     const payload = {
       displayName: values.displayName,
       email: values.email,
@@ -139,6 +182,7 @@ export function EmployeeEditor({
             employmentEndDate: values.employmentEndDate || null,
           }),
     };
+    let createdId: string | undefined;
     try {
       const response = await appCheckFetch(
         creating
@@ -152,14 +196,32 @@ export function EmployeeEditor({
       );
       const result = (await response.json().catch(() => ({}))) as {
         error?: string;
+        id?: string;
       };
       if (!response.ok) {
         setError(result.error ?? t("employeeSaveFailed"));
         return;
       }
+      createdId = result.id;
+      if (creating && isConsultant && addCompensation && createdId) {
+        const failure = await postCompensationAction({
+          action: "setCompensation",
+          userId: createdId,
+          ...compensationInput(compensation),
+        });
+        if (failure) throw new Error(failure);
+      }
       router.push(`/admin/users?saved=${creating ? "created" : "updated"}`);
       router.refresh();
     } catch {
+      if (createdId) {
+        // The employee exists, so continue on their page instead of resubmitting.
+        router.push(
+          `/admin/users/${encodeURIComponent(createdId)}/edit?tab=compensation&compensationFailed=1`,
+        );
+        router.refresh();
+        return;
+      }
       setError(t("serverUnavailable"));
     } finally {
       setBusy(false);
@@ -167,357 +229,463 @@ export function EmployeeEditor({
   }
 
   return (
-    <form
-      ref={formRef}
-      className="card employee-editor"
-      onSubmit={submit}
-      noValidate
-    >
-      <div className="editor-tabs" role="tablist" aria-label={t("employee")}>
-        {TABS.map((item) => (
-          <button
-            key={item}
-            type="button"
-            role="tab"
-            id={`employee-tab-${item}`}
-            aria-controls={`employee-panel-${item}`}
-            aria-selected={tab === item}
-            className={`editor-tab${tab === item ? " active" : ""}`}
-            onClick={() => setTab(item)}
-          >
-            {t(`employeeTab_${item}`)}
-          </button>
-        ))}
-      </div>
-
-      <section
-        className="editor-panel"
-        data-tab="general"
-        role="tabpanel"
-        id="employee-panel-general"
-        aria-labelledby="employee-tab-general"
-        hidden={tab !== "general"}
+    <>
+      <form
+        ref={formRef}
+        className="card employee-editor"
+        onSubmit={submit}
+        noValidate
       >
-        <p className="muted editor-panel-intro">
-          {t("employeeTabIntro_general")}
-        </p>
-        <div className="form-grid">
-          <label>
-            {t("fullName")}
-            <input
-              className="field"
-              value={values.displayName}
-              onChange={(event) => set("displayName", event.target.value)}
-              placeholder="e.g. Anna Andersson"
-              minLength={2}
-              maxLength={100}
-              autoFocus
-              required
-            />
-          </label>
-          <label>
-            {t("workEmail")}
-            <input
-              className="field"
-              type="email"
-              value={values.email}
-              onChange={(event) => set("email", event.target.value)}
-              placeholder="anna@debageri.se"
-              required
-            />
-          </label>
-          <label>
-            {t("employeeNumber")}
-            <input
-              className="field"
-              value={values.employeeNumber}
-              onChange={(event) => set("employeeNumber", event.target.value)}
-              placeholder="DB-006"
-              maxLength={30}
-              disabled={isSelf}
-              required
-            />
-          </label>
-          <label>
-            {t("role")}
-            <select
-              className="field"
-              value={role}
-              onChange={(event) => changeRole(event.target.value)}
-              disabled={isSelf}
+        <div className="editor-tabs" role="tablist" aria-label={t("employee")}>
+          {TABS.map((item) => (
+            <button
+              key={item}
+              type="button"
+              role="tab"
+              id={`employee-tab-${item}`}
+              aria-controls={`employee-panel-${item}`}
+              aria-selected={tab === item}
+              className={`editor-tab${tab === item ? " active" : ""}`}
+              onClick={() => setTab(item)}
             >
-              <option value="consultant">{t("consultant")}</option>
-              <option value="manager">{t("manager")}</option>
-              <option value="accountant">{t("accountant")}</option>
-              <option value="admin">{t("administrator")}</option>
-            </select>
-          </label>
-          {role === "manager" && (
-            <label className="checkbox-row form-wide">
-              <input
-                type="checkbox"
-                checked={managerReportsTime}
-                onChange={(event) =>
-                  setManagerReportsTime(event.target.checked)
-                }
-                disabled={isSelf}
-              />
-              <span>
-                <strong>{t("reportsTime")}</strong>
-                <small>{t("managerReportsTimeHelp")}</small>
-              </span>
-            </label>
-          )}
-          {creating ? (
-            <label className="form-wide">
-              {t("temporaryPassword")}
+              {t(`employeeTab_${item}`)}
+            </button>
+          ))}
+        </div>
+
+        <section
+          className="editor-panel"
+          data-tab="general"
+          role="tabpanel"
+          id="employee-panel-general"
+          aria-labelledby="employee-tab-general"
+          hidden={tab !== "general"}
+        >
+          <p className="muted editor-panel-intro">
+            {t("employeeTabIntro_general")}
+          </p>
+          <div className="form-grid">
+            <label>
+              {t("fullName")}
               <input
                 className="field"
-                type="password"
-                value={values.password}
-                onChange={(event) => set("password", event.target.value)}
-                minLength={8}
-                maxLength={128}
-                placeholder={t("atLeast8Characters")}
-                autoComplete="new-password"
+                value={values.displayName}
+                onChange={(event) => set("displayName", event.target.value)}
+                placeholder="e.g. Anna Andersson"
+                minLength={2}
+                maxLength={100}
+                autoFocus
                 required
               />
-              <small>{t("temporaryPasswordHelp")}</small>
             </label>
-          ) : (
-            <label className="form-wide">
-              {t("accountStatus")}
+            <label>
+              {t("workEmail")}
+              <input
+                className="field"
+                type="email"
+                value={values.email}
+                onChange={(event) => set("email", event.target.value)}
+                placeholder="anna@debageri.se"
+                required
+              />
+            </label>
+            <label>
+              {t("employeeNumber")}
+              <input
+                className="field"
+                value={values.employeeNumber}
+                onChange={(event) => set("employeeNumber", event.target.value)}
+                placeholder="DB-006"
+                maxLength={30}
+                disabled={isSelf}
+                required
+              />
+            </label>
+            <label>
+              {t("role")}
               <select
                 className="field"
-                value={values.status}
-                onChange={(event) => set("status", event.target.value)}
+                value={role}
+                onChange={(event) => changeRole(event.target.value)}
                 disabled={isSelf}
               >
-                <option value="active">{t("active")}</option>
-                <option value="inactive">{t("inactive")}</option>
+                <option value="consultant">{t("consultant")}</option>
+                <option value="manager">{t("manager")}</option>
+                <option value="accountant">{t("accountant")}</option>
+                <option value="admin">{t("administrator")}</option>
               </select>
-              <small>{t("inactiveAccountHelp")}</small>
             </label>
-          )}
-        </div>
-      </section>
+            {role === "manager" && (
+              <label className="checkbox-row form-wide">
+                <input
+                  type="checkbox"
+                  checked={managerReportsTime}
+                  onChange={(event) =>
+                    setManagerReportsTime(event.target.checked)
+                  }
+                  disabled={isSelf}
+                />
+                <span>
+                  <strong>{t("reportsTime")}</strong>
+                  <small>{t("managerReportsTimeHelp")}</small>
+                </span>
+              </label>
+            )}
+            {creating ? (
+              <label className="form-wide">
+                {t("temporaryPassword")}
+                <input
+                  className="field"
+                  type="password"
+                  value={values.password}
+                  onChange={(event) => set("password", event.target.value)}
+                  minLength={8}
+                  maxLength={128}
+                  placeholder={t("atLeast8Characters")}
+                  autoComplete="new-password"
+                  required
+                />
+                <small>{t("temporaryPasswordHelp")}</small>
+              </label>
+            ) : (
+              <label className="form-wide">
+                {t("accountStatus")}
+                <select
+                  className="field"
+                  value={values.status}
+                  onChange={(event) => set("status", event.target.value)}
+                  disabled={isSelf}
+                >
+                  <option value="active">{t("active")}</option>
+                  <option value="inactive">{t("inactive")}</option>
+                </select>
+                <small>{t("inactiveAccountHelp")}</small>
+              </label>
+            )}
+          </div>
+        </section>
 
-      <section
-        className="editor-panel"
-        data-tab="employment"
-        role="tabpanel"
-        id="employee-panel-employment"
-        aria-labelledby="employee-tab-employment"
-        hidden={tab !== "employment"}
-      >
-        <p className="muted editor-panel-intro">
-          {t("employeeTabIntro_employment")}
-        </p>
-        <div className="form-grid">
-          <label>
-            {t("employmentStartDate")}
-            <DateInput
-              className="field"
-              value={values.employmentStartDate}
-              onChange={(event) =>
-                set("employmentStartDate", event.target.value)
-              }
-              disabled={isSelf}
-              required
-            />
-          </label>
-          {!creating && (
+        <section
+          className="editor-panel"
+          data-tab="employment"
+          role="tabpanel"
+          id="employee-panel-employment"
+          aria-labelledby="employee-tab-employment"
+          hidden={tab !== "employment"}
+        >
+          <p className="muted editor-panel-intro">
+            {t("employeeTabIntro_employment")}
+          </p>
+          <div className="form-grid">
             <label>
-              {t("employmentEndDate")}
+              {t("employmentStartDate")}
               <DateInput
                 className="field"
-                value={values.employmentEndDate}
+                value={values.employmentStartDate}
                 onChange={(event) =>
-                  set("employmentEndDate", event.target.value)
-                }
-                min={values.employmentStartDate || undefined}
-                disabled={isSelf}
-              />
-            </label>
-          )}
-          {reportsTime ? (
-            <label>
-              {t("reportingStartDate")}
-              <DateInput
-                className="field"
-                value={values.reportingStartDate}
-                onChange={(event) =>
-                  set("reportingStartDate", event.target.value)
+                  set("employmentStartDate", event.target.value)
                 }
                 disabled={isSelf}
                 required
               />
-              <small>{t("reportingStartHelp")}</small>
             </label>
-          ) : (
-            <p className="muted form-wide">{t("employeeNoTimeReporting")}</p>
-          )}
-        </div>
-      </section>
-
-      <section
-        className="editor-panel"
-        data-tab="access"
-        role="tabpanel"
-        id="employee-panel-access"
-        aria-labelledby="employee-tab-access"
-        hidden={tab !== "access"}
-      >
-        <p className="muted editor-panel-intro">
-          {t("employeeTabIntro_access")}
-        </p>
-        {!isConsultant && !hasDocumentAccess ? (
-          <p className="notice">{t("employeeAccessByRole")}</p>
-        ) : (
-          <div className="editor-access-groups">
-            {isConsultant && (
-              <fieldset className="access-section">
-                <legend>{t("finance")}</legend>
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={financeAccess.enabled}
-                    onChange={(event) =>
-                      setFinanceAccess({
-                        enabled: event.target.checked,
-                        myFinance: event.target.checked,
-                        myInvoices: event.target.checked,
-                      })
-                    }
-                  />
-                  <span>
-                    <strong>{t("finance")}</strong>
-                  </span>
-                </label>
-                <div className="access-children">
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={financeAccess.myFinance}
-                      disabled={!financeAccess.enabled}
-                      onChange={(event) =>
-                        setFinanceAccess((current) => ({
-                          ...current,
-                          enabled: event.target.checked || current.myInvoices,
-                          myFinance: event.target.checked,
-                        }))
-                      }
-                    />
-                    <span>
-                      <strong>{t("myFinanceAccess")}</strong>
-                    </span>
-                  </label>
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={financeAccess.myInvoices}
-                      disabled={!financeAccess.enabled}
-                      onChange={(event) =>
-                        setFinanceAccess((current) => ({
-                          ...current,
-                          enabled: current.myFinance || event.target.checked,
-                          myInvoices: event.target.checked,
-                        }))
-                      }
-                    />
-                    <span>
-                      <strong>{t("myInvoices")}</strong>
-                    </span>
-                  </label>
-                </div>
-              </fieldset>
+            {!creating && (
+              <label>
+                {t("employmentEndDate")}
+                <DateInput
+                  className="field"
+                  value={values.employmentEndDate}
+                  onChange={(event) =>
+                    set("employmentEndDate", event.target.value)
+                  }
+                  min={values.employmentStartDate || undefined}
+                  disabled={isSelf}
+                />
+              </label>
             )}
-            {hasDocumentAccess && (
-              <fieldset className="access-section">
-                <legend>{t("documents")}</legend>
-                {(
-                  [
-                    ...(isConsultant ? (["contracts"] as const) : []),
-                    "payslips",
-                    "receipts",
-                  ] as const
-                ).map((key) => (
-                  <label className="checkbox-row" key={key}>
-                    <input
-                      type="checkbox"
-                      checked={documentAccess[key]}
-                      onChange={(event) =>
-                        setDocumentAccess((current) => ({
-                          ...current,
-                          [key]: event.target.checked,
-                        }))
-                      }
-                    />
-                    <span>
-                      <strong>{t(`${key}Access`)}</strong>
-                    </span>
-                  </label>
-                ))}
-              </fieldset>
+            {reportsTime ? (
+              <label>
+                {t("reportingStartDate")}
+                <DateInput
+                  className="field"
+                  value={values.reportingStartDate}
+                  onChange={(event) =>
+                    set("reportingStartDate", event.target.value)
+                  }
+                  disabled={isSelf}
+                  required
+                />
+                <small>{t("reportingStartHelp")}</small>
+              </label>
+            ) : (
+              <p className="muted form-wide">{t("employeeNoTimeReporting")}</p>
             )}
           </div>
-        )}
-      </section>
+        </section>
 
-      <section
-        className="editor-panel"
-        data-tab="notifications"
-        role="tabpanel"
-        id="employee-panel-notifications"
-        aria-labelledby="employee-tab-notifications"
-        hidden={tab !== "notifications"}
-      >
-        <p className="muted editor-panel-intro">
-          {t("employeeTabIntro_notifications")}
-        </p>
-        <fieldset className="access-section">
-          <legend>{t("emailNotificationSettings")}</legend>
-          {NOTIFICATION_TOPICS.map((topic) => (
-            <label className="checkbox-row" key={topic}>
-              <input
-                type="checkbox"
-                checked={emailPreferences[topic]}
-                onChange={(event) =>
-                  setEmailPreferences((current) => ({
-                    ...current,
-                    [topic]: event.target.checked,
-                  }))
-                }
+        <section
+          className="editor-panel"
+          data-tab="compensation"
+          role="tabpanel"
+          id="employee-panel-compensation"
+          aria-labelledby="employee-tab-compensation"
+          hidden={tab !== "compensation"}
+        >
+          <p className="muted editor-panel-intro">
+            {t("employeeTabIntro_compensation")}
+          </p>
+          {!financeEnabled && (
+            <p className="notice">{t("financeError_financeDisabled")}</p>
+          )}
+          {!isConsultant && (
+            <p className="notice">{t("employeeCompensationConsultantsOnly")}</p>
+          )}
+          {creating ? (
+            financeEnabled &&
+            isConsultant && (
+              <div className="form-grid">
+                <label className="checkbox-row form-wide">
+                  <input
+                    type="checkbox"
+                    checked={addCompensation}
+                    onChange={(event) => {
+                      setAddCompensation(event.target.checked);
+                      if (event.target.checked)
+                        setCompensation((current) => ({
+                          ...current,
+                          validFrom: values.employmentStartDate,
+                        }));
+                    }}
+                  />
+                  <span>
+                    <strong>{t("addCompensationNow")}</strong>
+                  </span>
+                </label>
+                {addCompensation && (
+                  <CompensationFields
+                    values={compensation}
+                    onChange={(change) =>
+                      setCompensation((current) => ({ ...current, ...change }))
+                    }
+                  />
+                )}
+              </div>
+            )
+          ) : (
+            <>
+              {financeEnabled &&
+                isConsultant &&
+                employee.role !== "consultant" && (
+                  <p className="notice">
+                    {t("employeeCompensationSaveRoleFirst")}
+                  </p>
+                )}
+              <div className="week-head">
+                <h2>{t("compensationHistory")}</h2>
+                {canAddCompensation && (
+                  <button
+                    className="button"
+                    type="button"
+                    onClick={() => setAddingAgreement(true)}
+                  >
+                    {t("addCompensation")}
+                  </button>
+                )}
+              </div>
+              <CompensationTable
+                agreements={agreements}
+                canEnd={financeEnabled}
+                onEnd={setEndingAgreement}
               />
-              <span>
-                <strong>{t(`notificationTopic_${topic}`)}</strong>
-                <small>{t(`notificationTopicHelp_${topic}`)}</small>
-              </span>
-            </label>
-          ))}
-        </fieldset>
-      </section>
+            </>
+          )}
+        </section>
 
-      {isSelf && <p className="notice">{t("ownAccountEditHelp")}</p>}
-      {error && (
-        <p className="notice notice-error" role="alert">
-          {error}
-        </p>
+        <section
+          className="editor-panel"
+          data-tab="access"
+          role="tabpanel"
+          id="employee-panel-access"
+          aria-labelledby="employee-tab-access"
+          hidden={tab !== "access"}
+        >
+          <p className="muted editor-panel-intro">
+            {t("employeeTabIntro_access")}
+          </p>
+          {!isConsultant && !hasDocumentAccess ? (
+            <p className="notice">{t("employeeAccessByRole")}</p>
+          ) : (
+            <div className="editor-access-groups">
+              {isConsultant && (
+                <fieldset className="access-section">
+                  <legend>{t("finance")}</legend>
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={financeAccess.enabled}
+                      onChange={(event) =>
+                        setFinanceAccess({
+                          enabled: event.target.checked,
+                          myFinance: event.target.checked,
+                          myInvoices: event.target.checked,
+                        })
+                      }
+                    />
+                    <span>
+                      <strong>{t("finance")}</strong>
+                    </span>
+                  </label>
+                  <div className="access-children">
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={financeAccess.myFinance}
+                        disabled={!financeAccess.enabled}
+                        onChange={(event) =>
+                          setFinanceAccess((current) => ({
+                            ...current,
+                            enabled: event.target.checked || current.myInvoices,
+                            myFinance: event.target.checked,
+                          }))
+                        }
+                      />
+                      <span>
+                        <strong>{t("myFinanceAccess")}</strong>
+                      </span>
+                    </label>
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={financeAccess.myInvoices}
+                        disabled={!financeAccess.enabled}
+                        onChange={(event) =>
+                          setFinanceAccess((current) => ({
+                            ...current,
+                            enabled: current.myFinance || event.target.checked,
+                            myInvoices: event.target.checked,
+                          }))
+                        }
+                      />
+                      <span>
+                        <strong>{t("myInvoices")}</strong>
+                      </span>
+                    </label>
+                  </div>
+                </fieldset>
+              )}
+              {hasDocumentAccess && (
+                <fieldset className="access-section">
+                  <legend>{t("documents")}</legend>
+                  {(
+                    [
+                      ...(isConsultant ? (["contracts"] as const) : []),
+                      "payslips",
+                      "receipts",
+                    ] as const
+                  ).map((key) => (
+                    <label className="checkbox-row" key={key}>
+                      <input
+                        type="checkbox"
+                        checked={documentAccess[key]}
+                        onChange={(event) =>
+                          setDocumentAccess((current) => ({
+                            ...current,
+                            [key]: event.target.checked,
+                          }))
+                        }
+                      />
+                      <span>
+                        <strong>{t(`${key}Access`)}</strong>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section
+          className="editor-panel"
+          data-tab="notifications"
+          role="tabpanel"
+          id="employee-panel-notifications"
+          aria-labelledby="employee-tab-notifications"
+          hidden={tab !== "notifications"}
+        >
+          <p className="muted editor-panel-intro">
+            {t("employeeTabIntro_notifications")}
+          </p>
+          <fieldset className="access-section">
+            <legend>{t("emailNotificationSettings")}</legend>
+            {NOTIFICATION_TOPICS.map((topic) => (
+              <label className="checkbox-row" key={topic}>
+                <input
+                  type="checkbox"
+                  checked={emailPreferences[topic]}
+                  onChange={(event) =>
+                    setEmailPreferences((current) => ({
+                      ...current,
+                      [topic]: event.target.checked,
+                    }))
+                  }
+                />
+                <span>
+                  <strong>{t(`notificationTopic_${topic}`)}</strong>
+                  <small>{t(`notificationTopicHelp_${topic}`)}</small>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        </section>
+
+        {isSelf && <p className="notice">{t("ownAccountEditHelp")}</p>}
+        {message && <p className="notice notice-success">{message}</p>}
+        {error && (
+          <p className="notice notice-error" role="alert">
+            {error}
+          </p>
+        )}
+        <footer className="modal-actions editor-actions">
+          <Link className="button secondary" href="/admin/users">
+            {t("cancel")}
+          </Link>
+          <button className="button" disabled={busy}>
+            {busy
+              ? creating
+                ? t("creating")
+                : t("saving")
+              : creating
+                ? t("createEmployee")
+                : t("saveChanges")}
+          </button>
+        </footer>
+      </form>
+      {addingAgreement && employee && (
+        <AddCompensationDialog
+          employee={employee}
+          openAgreement={
+            agreements.find((agreement) => agreement.validTo === null) ?? null
+          }
+          close={() => setAddingAgreement(false)}
+          onSaved={() => {
+            setAddingAgreement(false);
+            setError("");
+            setMessage(t("compensationSaved"));
+          }}
+        />
       )}
-      <footer className="modal-actions editor-actions">
-        <Link className="button secondary" href="/admin/users">
-          {t("cancel")}
-        </Link>
-        <button className="button" disabled={busy}>
-          {busy
-            ? creating
-              ? t("creating")
-              : t("saving")
-            : creating
-              ? t("createEmployee")
-              : t("saveChanges")}
-        </button>
-      </footer>
-    </form>
+      {endingAgreement && (
+        <EndCompensationDialog
+          agreement={endingAgreement}
+          close={() => setEndingAgreement(null)}
+          onSaved={() => {
+            setEndingAgreement(null);
+            setError("");
+            setMessage(t("validToSaved"));
+          }}
+        />
+      )}
+    </>
   );
 }

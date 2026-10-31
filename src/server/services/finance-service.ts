@@ -1,13 +1,18 @@
 import "server-only";
 
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import type { PortalUser } from "@/domain/types";
+import type { CompensationModel, PortalUser } from "@/domain/types";
 import {
   allocateInvoiceIncome,
   calculateShareMinor,
   calculateVatMinor,
+  earnsInvoiceShare,
   vatPayableMinor,
 } from "@/domain/finance/calculations";
+import {
+  COMPENSATION_END_CONFIRMATION,
+  previousDay,
+} from "@/domain/finance/compensation";
 import { validInvoicePeriod } from "@/domain/finance/invoice-period";
 
 export class FinanceError extends Error {
@@ -44,7 +49,7 @@ async function activeAgreement(
     throw new FinanceError("compensationMissing", 409);
   return { id: document.id, ...data } as {
     id: string;
-    model: "flexible" | "fixed";
+    model: CompensationModel;
     shareBps: number;
     validFrom: string;
     validTo: string | null;
@@ -69,12 +74,6 @@ function audit(
     timestamp: FieldValue.serverTimestamp(),
     metadata,
   });
-}
-
-function previousDay(date: string) {
-  const value = new Date(`${date}T12:00:00Z`);
-  value.setUTCDate(value.getUTCDate() - 1);
-  return value.toISOString().slice(0, 10);
 }
 
 export async function enableFinance(db: Firestore, actor: PortalUser) {
@@ -136,11 +135,12 @@ export async function setCompensation(
   actor: PortalUser,
   input: {
     userId: string;
-    model: "flexible" | "fixed";
+    model: CompensationModel;
     validFrom: string;
     validTo: string | null;
     shareBps: number;
     fixedMonthlySalaryMinor: number | null;
+    confirmation?: typeof COMPENSATION_END_CONFIRMATION;
   },
 ) {
   if (actor.role !== "admin") throw new FinanceError("forbidden", 403);
@@ -162,6 +162,13 @@ export async function setCompensation(
       input.fixedMonthlySalaryMinor <= 0)
   )
     throw new FinanceError("compensationInvalid");
+  if (
+    input.model === "hybrid" &&
+    (input.shareBps <= 0 ||
+      input.fixedMonthlySalaryMinor === null ||
+      input.fixedMonthlySalaryMinor <= 0)
+  )
+    throw new FinanceError("compensationInvalid");
 
   const existing = await db
     .collection("compensationAgreements")
@@ -175,11 +182,14 @@ export async function setCompensation(
     throw new FinanceError("compensationDateConflict", 409);
   if (latest?.data().validTo && latest.data().validTo >= input.validFrom)
     throw new FinanceError("compensationDateConflict", 409);
+  const openAgreement = latest?.data().validTo === null ? latest : null;
+  if (openAgreement && input.confirmation !== COMPENSATION_END_CONFIRMATION)
+    throw new FinanceError("compensationConfirmationRequired", 409);
 
   const ref = db.collection("compensationAgreements").doc();
   const batch = db.batch();
-  if (latest && latest.data().validTo === null)
-    batch.update(latest.ref, {
+  if (openAgreement)
+    batch.update(openAgreement.ref, {
       validTo: previousDay(input.validFrom),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -189,9 +199,9 @@ export async function setCompensation(
     model: input.model,
     validFrom: input.validFrom,
     validTo: input.validTo,
-    shareBps: input.model === "flexible" ? input.shareBps : 0,
+    shareBps: earnsInvoiceShare(input.model) ? input.shareBps : 0,
     fixedMonthlySalaryMinor:
-      input.model === "fixed" ? input.fixedMonthlySalaryMinor : null,
+      input.model === "flexible" ? null : input.fixedMonthlySalaryMinor,
     currency: "SEK",
     createdAt: FieldValue.serverTimestamp(),
     createdBy: actor.id,
@@ -211,7 +221,8 @@ export async function setCompensation(
       userId: input.userId,
       model: input.model,
       validFrom: input.validFrom,
-      shareBps: input.model === "flexible" ? input.shareBps : 0,
+      shareBps: earnsInvoiceShare(input.model) ? input.shareBps : 0,
+      ...(openAgreement ? { endedAgreementId: openAgreement.id } : {}),
     },
   );
   await batch.commit();
@@ -458,7 +469,7 @@ export async function createInvoice(
   if (!customer.exists || customerData?.organizationId !== actor.organizationId)
     throw new FinanceError("customerInvalid", 404);
 
-  let model: "flexible" | "fixed" | null = null;
+  let model: CompensationModel | null = null;
   let shareBps = 0;
   if (input.consultantId) {
     const user = await db.collection("users").doc(input.consultantId).get();
@@ -475,8 +486,9 @@ export async function createInvoice(
       input.issueDate,
     );
     model = agreement.model;
-    shareBps =
-      model === "flexible" ? (input.shareBpsOverride ?? agreement.shareBps) : 0;
+    shareBps = earnsInvoiceShare(model)
+      ? (input.shareBpsOverride ?? agreement.shareBps)
+      : 0;
   }
   const vatMinor = calculateVatMinor(input.netMinor, input.vatRateBps);
   const roundingMinor = input.roundingMinor ?? 0;
@@ -582,7 +594,7 @@ export async function markInvoicePaid(
     const transactionIds = [companyTransactionRef.id];
     if (
       data.consultantId &&
-      data.compensationModel === "flexible" &&
+      earnsInvoiceShare(data.compensationModel) &&
       allocation.consultantMinor > 0
     ) {
       transaction.create(consultantTransactionRef, {
@@ -679,7 +691,7 @@ async function validateFinancialTransaction(
       input.consultantId,
       input.date,
     );
-    if (agreement.model === "flexible") {
+    if (earnsInvoiceShare(agreement.model)) {
       if (input.direction === "income" && input.applyConsultantShare)
         balanceDelta = calculateShareMinor(input.netMinor, agreement.shareBps);
       if (input.direction === "expense" && input.funding === "consultant")
@@ -871,7 +883,7 @@ export async function createExpenseCopies(
   for (const expense of input.expenses) {
     const consultantModel = agreementsByDate.get(expense.date)?.model ?? null;
     const balanceDelta = input.consultantId
-      ? consultantModel === "flexible" && expense.funding === "consultant"
+      ? earnsInvoiceShare(consultantModel) && expense.funding === "consultant"
         ? -expense.netMinor
         : 0
       : -expense.netMinor;
