@@ -112,10 +112,6 @@ function financeItems(t: Translate): NavItem[] {
       label: t("customerManagement"),
       href: "/finance?section=customers",
     },
-    {
-      label: t("compensationManagement"),
-      href: "/finance?section=compensation",
-    },
   ];
 }
 

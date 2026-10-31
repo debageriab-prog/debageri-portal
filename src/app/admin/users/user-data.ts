@@ -1,7 +1,41 @@
 import "server-only";
 
 import { emailPreferencesFrom } from "@/domain/notifications";
+import type { CompensationRecord } from "@/domain/finance/compensation";
 import type { ManagedUser } from "./UserManagement";
+
+export async function financeEnabled(
+  db: FirebaseFirestore.Firestore,
+  organizationId: string,
+) {
+  const organization = await db
+    .collection("organizations")
+    .doc(organizationId)
+    .get();
+  return organization.data()?.financeEnabled === true;
+}
+
+export async function compensationHistory(
+  db: FirebaseFirestore.Firestore,
+  organizationId: string,
+  userId: string,
+): Promise<CompensationRecord[]> {
+  const snapshot = await db
+    .collection("compensationAgreements")
+    .where("organizationId", "==", organizationId)
+    .where("userId", "==", userId)
+    .orderBy("validFrom", "desc")
+    .get();
+  return snapshot.docs.map((document) => ({
+    id: document.id,
+    userId: String(document.data().userId),
+    model: document.data().model as CompensationRecord["model"],
+    validFrom: String(document.data().validFrom),
+    validTo: document.data().validTo ?? null,
+    shareBps: Number(document.data().shareBps ?? 0),
+    fixedMonthlySalaryMinor: document.data().fixedMonthlySalaryMinor ?? null,
+  }));
+}
 
 export function toManagedUser(
   doc: FirebaseFirestore.DocumentSnapshot,

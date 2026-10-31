@@ -8,6 +8,10 @@ import {
   calculateVatMinor,
   vatPayableMinor,
 } from "@/domain/finance/calculations";
+import {
+  COMPENSATION_END_CONFIRMATION,
+  previousDay,
+} from "@/domain/finance/compensation";
 import { validInvoicePeriod } from "@/domain/finance/invoice-period";
 
 export class FinanceError extends Error {
@@ -69,12 +73,6 @@ function audit(
     timestamp: FieldValue.serverTimestamp(),
     metadata,
   });
-}
-
-function previousDay(date: string) {
-  const value = new Date(`${date}T12:00:00Z`);
-  value.setUTCDate(value.getUTCDate() - 1);
-  return value.toISOString().slice(0, 10);
 }
 
 export async function enableFinance(db: Firestore, actor: PortalUser) {
@@ -141,6 +139,7 @@ export async function setCompensation(
     validTo: string | null;
     shareBps: number;
     fixedMonthlySalaryMinor: number | null;
+    confirmation?: typeof COMPENSATION_END_CONFIRMATION;
   },
 ) {
   if (actor.role !== "admin") throw new FinanceError("forbidden", 403);
@@ -175,11 +174,14 @@ export async function setCompensation(
     throw new FinanceError("compensationDateConflict", 409);
   if (latest?.data().validTo && latest.data().validTo >= input.validFrom)
     throw new FinanceError("compensationDateConflict", 409);
+  const openAgreement = latest?.data().validTo === null ? latest : null;
+  if (openAgreement && input.confirmation !== COMPENSATION_END_CONFIRMATION)
+    throw new FinanceError("compensationConfirmationRequired", 409);
 
   const ref = db.collection("compensationAgreements").doc();
   const batch = db.batch();
-  if (latest && latest.data().validTo === null)
-    batch.update(latest.ref, {
+  if (openAgreement)
+    batch.update(openAgreement.ref, {
       validTo: previousDay(input.validFrom),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -212,6 +214,7 @@ export async function setCompensation(
       model: input.model,
       validFrom: input.validFrom,
       shareBps: input.model === "flexible" ? input.shareBps : 0,
+      ...(openAgreement ? { endedAgreementId: openAgreement.id } : {}),
     },
   );
   await batch.commit();
