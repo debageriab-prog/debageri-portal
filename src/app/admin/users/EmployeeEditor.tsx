@@ -21,6 +21,7 @@ import {
   postCompensationAction,
 } from "./CompensationFields";
 import {
+  AddCompensationDialog,
   CompensationTable,
   EndCompensationDialog,
 } from "./CompensationHistory";
@@ -65,14 +66,14 @@ export function EmployeeEditor({
   financeEnabled,
   agreements = [],
   initialTab = "general",
-  compensationNotice,
+  compensationFailed = false,
 }: {
   employee?: ManagedUser;
   isSelf?: boolean;
   financeEnabled: boolean;
   agreements?: CompensationRecord[];
   initialTab?: Tab;
-  compensationNotice?: "saved" | "failed";
+  compensationFailed?: boolean;
 }) {
   const { t } = useLocale();
   const router = useRouter();
@@ -118,15 +119,14 @@ export function EmployeeEditor({
   const [compensation, setCompensation] = useState(() =>
     defaultCompensationValues(today()),
   );
+  const [addingAgreement, setAddingAgreement] = useState(false);
   const [endingAgreement, setEndingAgreement] =
     useState<CompensationRecord | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(
-    compensationNotice === "failed" ? t("employeeCompensationSaveFailed") : "",
+    compensationFailed ? t("employeeCompensationSaveFailed") : "",
   );
-  const [message, setMessage] = useState(
-    compensationNotice === "saved" ? t("compensationSaved") : "",
-  );
+  const [message, setMessage] = useState("");
   const reportsTime =
     role === "consultant" || (role === "manager" && managerReportsTime);
   const isConsultant = role === "consultant";
@@ -483,12 +483,13 @@ export function EmployeeEditor({
               <div className="week-head">
                 <h2>{t("compensationHistory")}</h2>
                 {canAddCompensation && (
-                  <Link
+                  <button
                     className="button"
-                    href={`/admin/users/${encodeURIComponent(employee.id)}/compensation/new`}
+                    type="button"
+                    onClick={() => setAddingAgreement(true)}
                   >
                     {t("addCompensation")}
-                  </Link>
+                  </button>
                 )}
               </div>
               <CompensationTable
@@ -660,6 +661,20 @@ export function EmployeeEditor({
           </button>
         </footer>
       </form>
+      {addingAgreement && employee && (
+        <AddCompensationDialog
+          employee={employee}
+          openAgreement={
+            agreements.find((agreement) => agreement.validTo === null) ?? null
+          }
+          close={() => setAddingAgreement(false)}
+          onSaved={() => {
+            setAddingAgreement(false);
+            setError("");
+            setMessage(t("compensationSaved"));
+          }}
+        />
+      )}
       {endingAgreement && (
         <EndCompensationDialog
           agreement={endingAgreement}

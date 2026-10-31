@@ -15,15 +15,11 @@ export default async function EditEmployeePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{
-    tab?: string;
-    saved?: string;
-    compensationFailed?: string;
-  }>;
+  searchParams: Promise<{ tab?: string; compensationFailed?: string }>;
 }) {
   const actor = (await verifySession())!;
   const { id } = await params;
-  const { tab, saved, compensationFailed } = await searchParams;
+  const { tab, compensationFailed } = await searchParams;
   const t = await getTranslator();
   const { db } = getAdminServices();
   const snapshot = await db.collection("users").doc(id).get();
@@ -56,13 +52,7 @@ export default async function EditEmployeePage({
         financeEnabled={canManageCompensation}
         agreements={agreements}
         initialTab={tab === "compensation" ? "compensation" : undefined}
-        compensationNotice={
-          compensationFailed
-            ? "failed"
-            : saved === "compensation"
-              ? "saved"
-              : undefined
-        }
+        compensationFailed={Boolean(compensationFailed)}
       />
     </>
   );
