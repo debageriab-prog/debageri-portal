@@ -16,7 +16,7 @@ const rounding = z
 export const compensationSchema = z.object({
   action: z.literal("setCompensation"),
   userId: z.string().min(1).max(128),
-  model: z.enum(["flexible", "fixed"]),
+  model: z.enum(["flexible", "fixed", "hybrid"]),
   validFrom: date,
   validTo: date.nullable().default(null),
   shareBps: z.number().int().min(0).max(10_000),

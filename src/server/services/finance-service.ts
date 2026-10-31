@@ -1,11 +1,12 @@
 import "server-only";
 
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import type { PortalUser } from "@/domain/types";
+import type { CompensationModel, PortalUser } from "@/domain/types";
 import {
   allocateInvoiceIncome,
   calculateShareMinor,
   calculateVatMinor,
+  earnsInvoiceShare,
   vatPayableMinor,
 } from "@/domain/finance/calculations";
 import {
@@ -48,7 +49,7 @@ async function activeAgreement(
     throw new FinanceError("compensationMissing", 409);
   return { id: document.id, ...data } as {
     id: string;
-    model: "flexible" | "fixed";
+    model: CompensationModel;
     shareBps: number;
     validFrom: string;
     validTo: string | null;
@@ -134,7 +135,7 @@ export async function setCompensation(
   actor: PortalUser,
   input: {
     userId: string;
-    model: "flexible" | "fixed";
+    model: CompensationModel;
     validFrom: string;
     validTo: string | null;
     shareBps: number;
@@ -157,6 +158,13 @@ export async function setCompensation(
   if (
     input.model === "fixed" &&
     (input.shareBps !== 0 ||
+      input.fixedMonthlySalaryMinor === null ||
+      input.fixedMonthlySalaryMinor <= 0)
+  )
+    throw new FinanceError("compensationInvalid");
+  if (
+    input.model === "hybrid" &&
+    (input.shareBps <= 0 ||
       input.fixedMonthlySalaryMinor === null ||
       input.fixedMonthlySalaryMinor <= 0)
   )
@@ -191,9 +199,9 @@ export async function setCompensation(
     model: input.model,
     validFrom: input.validFrom,
     validTo: input.validTo,
-    shareBps: input.model === "flexible" ? input.shareBps : 0,
+    shareBps: earnsInvoiceShare(input.model) ? input.shareBps : 0,
     fixedMonthlySalaryMinor:
-      input.model === "fixed" ? input.fixedMonthlySalaryMinor : null,
+      input.model === "flexible" ? null : input.fixedMonthlySalaryMinor,
     currency: "SEK",
     createdAt: FieldValue.serverTimestamp(),
     createdBy: actor.id,
@@ -213,7 +221,7 @@ export async function setCompensation(
       userId: input.userId,
       model: input.model,
       validFrom: input.validFrom,
-      shareBps: input.model === "flexible" ? input.shareBps : 0,
+      shareBps: earnsInvoiceShare(input.model) ? input.shareBps : 0,
       ...(openAgreement ? { endedAgreementId: openAgreement.id } : {}),
     },
   );
@@ -461,7 +469,7 @@ export async function createInvoice(
   if (!customer.exists || customerData?.organizationId !== actor.organizationId)
     throw new FinanceError("customerInvalid", 404);
 
-  let model: "flexible" | "fixed" | null = null;
+  let model: CompensationModel | null = null;
   let shareBps = 0;
   if (input.consultantId) {
     const user = await db.collection("users").doc(input.consultantId).get();
@@ -478,8 +486,9 @@ export async function createInvoice(
       input.issueDate,
     );
     model = agreement.model;
-    shareBps =
-      model === "flexible" ? (input.shareBpsOverride ?? agreement.shareBps) : 0;
+    shareBps = earnsInvoiceShare(model)
+      ? (input.shareBpsOverride ?? agreement.shareBps)
+      : 0;
   }
   const vatMinor = calculateVatMinor(input.netMinor, input.vatRateBps);
   const roundingMinor = input.roundingMinor ?? 0;
@@ -585,7 +594,7 @@ export async function markInvoicePaid(
     const transactionIds = [companyTransactionRef.id];
     if (
       data.consultantId &&
-      data.compensationModel === "flexible" &&
+      earnsInvoiceShare(data.compensationModel) &&
       allocation.consultantMinor > 0
     ) {
       transaction.create(consultantTransactionRef, {
@@ -682,7 +691,7 @@ async function validateFinancialTransaction(
       input.consultantId,
       input.date,
     );
-    if (agreement.model === "flexible") {
+    if (earnsInvoiceShare(agreement.model)) {
       if (input.direction === "income" && input.applyConsultantShare)
         balanceDelta = calculateShareMinor(input.netMinor, agreement.shareBps);
       if (input.direction === "expense" && input.funding === "consultant")
@@ -874,7 +883,7 @@ export async function createExpenseCopies(
   for (const expense of input.expenses) {
     const consultantModel = agreementsByDate.get(expense.date)?.model ?? null;
     const balanceDelta = input.consultantId
-      ? consultantModel === "flexible" && expense.funding === "consultant"
+      ? earnsInvoiceShare(consultantModel) && expense.funding === "consultant"
         ? -expense.netMinor
         : 0
       : -expense.netMinor;

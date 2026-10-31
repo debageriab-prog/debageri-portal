@@ -1,4 +1,4 @@
-import type { FinancialTransaction } from "@/domain/types";
+import type { CompensationModel, FinancialTransaction } from "@/domain/types";
 
 const salaryExpenseCodes = new Set(["salary", "salary_tax", "employer_tax"]);
 
@@ -58,6 +58,11 @@ export function calculateTransactionAmounts(
   };
 }
 
+/** Models where paid invoices credit the consultant's balance. */
+export function earnsInvoiceShare(model: CompensationModel | null | undefined) {
+  return model === "flexible" || model === "hybrid";
+}
+
 export function calculateShareMinor(netMinor: number, shareBps: number) {
   return Math.round((netMinor * shareBps) / 10_000);
 }
@@ -74,7 +79,7 @@ export function companyOutstandingInvoiceShareMinor(invoice: {
 export function paidFlexibleCompanyResultMinor(
   invoices: Array<{
     consultantId: string | null;
-    compensationModel: "flexible" | "fixed" | null;
+    compensationModel: CompensationModel | null;
     status: "issued" | "paid" | "void";
     netMinor: number;
     shareBps: number;
@@ -85,7 +90,7 @@ export function paidFlexibleCompanyResultMinor(
     .filter(
       (invoice) =>
         invoice.consultantId === consultantId &&
-        invoice.compensationModel === "flexible" &&
+        earnsInvoiceShare(invoice.compensationModel) &&
         invoice.status === "paid",
     )
     .reduce(
@@ -99,7 +104,7 @@ type FlexibleInvoiceHistoryInput = {
   invoiceNumber: string;
   customerName: string;
   consultantId: string | null;
-  compensationModel: "flexible" | "fixed" | null;
+  compensationModel: CompensationModel | null;
   status: "issued" | "paid" | "void";
   paidDate: string | null;
   netMinor: number;
@@ -190,7 +195,7 @@ export function flexibleConsultantBalanceHistory(
       .filter(
         (invoice) =>
           invoice.consultantId === consultantId &&
-          invoice.compensationModel === "flexible" &&
+          earnsInvoiceShare(invoice.compensationModel) &&
           invoice.status === "paid" &&
           invoice.paidDate,
       )
@@ -232,7 +237,7 @@ export function flexibleConsultantRetainedResultHistory(
       .filter(
         (invoice) =>
           invoice.consultantId === consultantId &&
-          invoice.compensationModel === "flexible" &&
+          earnsInvoiceShare(invoice.compensationModel) &&
           invoice.status === "paid" &&
           invoice.paidDate,
       )
@@ -385,13 +390,12 @@ export function transactionTableDescription(
 
 export function allocateInvoiceIncome(
   netMinor: number,
-  compensationModel: "flexible" | "fixed" | null,
+  compensationModel: CompensationModel | null,
   shareBps: number,
 ) {
-  const consultantMinor =
-    compensationModel === "flexible"
-      ? calculateShareMinor(netMinor, shareBps)
-      : 0;
+  const consultantMinor = earnsInvoiceShare(compensationModel)
+    ? calculateShareMinor(netMinor, shareBps)
+    : 0;
   return {
     consultantMinor,
     companyMinor: netMinor - consultantMinor,

@@ -13,7 +13,7 @@ Every organization-owned document has `organizationId`. Dates are `YYYY-MM-DD` i
 | `approvalEvents`          | generated; append-only transition history                                           | trusted workflow         | participants/admin          |
 | `holidays`                | stable date/region ID                                                               | admin service            | members                     |
 | `auditLogs`               | generated; immutable sensitive action record                                        | trusted services         | admin                       |
-| `compensationAgreements`  | effective-dated flexible/fixed compensation and rates                               | admin service            | finance server only         |
+| `compensationAgreements`  | effective-dated flexible/fixed/hybrid compensation and rates                        | admin service            | finance server only         |
 | `financeCategories`       | bilingual income/expense classifications                                            | admin service            | finance server only         |
 | `invoices`                | consultant attribution, net/VAT/gross values, payment state                         | finance service          | admin/accountant server     |
 | `financialTransactions`   | immutable income, expense, and reversal ledger in integer Ã¶re                      | finance service          | role-scoped finance server  |
@@ -30,7 +30,10 @@ Finance uses SEK integer Ã¶re. Flexible consultant balances are the sum of
 snapshotted `consultantBalanceDeltaMinor` values: paid income creates a credit,
 consultant-funded expenses create a debit, and corrections create linked
 reversals. Fixed-salary consultants have attributed revenue and costs but no
-personal balance. VAT is stored separately from net revenue and cost. Internal
+personal balance. Hybrid consultants have a fixed monthly salary plus an
+invoice share: the share follows the flexible balance rules, and the salary is
+booked as a company-funded expense so it never touches the balance. VAT is
+stored separately from net revenue and cost. Internal
 notes never pass through consultant-facing responses.
 
 Indexes in `firestore.indexes.json` serve user date/week entry queries, user sheet history, and manager status queues. Future `leaveBalances`, `payslips`, `employeeDocuments`, `projects`, and `reportSummaries` retain organization isolation and server ownership. The portal database is separate because candidate recruitment data has a different purpose, access population, retention policy, and threat boundary.

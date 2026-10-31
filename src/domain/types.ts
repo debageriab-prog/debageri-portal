@@ -1,7 +1,8 @@
 export type UserRole =
   "employee" | "consultant" | "manager" | "accountant" | "admin";
 export type UserStatus = "active" | "inactive";
-export type CompensationModel = "flexible" | "fixed";
+/** `hybrid` pays a fixed monthly salary plus a share of invoices. */
+export type CompensationModel = "flexible" | "fixed" | "hybrid";
 export type FinanceDirection = "income" | "expense";
 export type FinanceFunding = "company" | "consultant";
 export interface FinanceAccess {

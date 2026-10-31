@@ -448,8 +448,8 @@
   "vatAmountSekTip": "The VAT amount exactly as printed on the receipt or invoice.",
   "vatPercentTip": "The VAT rate, usually 25, 12, 6 or 0.",
   "roundingSekTip": "Rounding to whole kronor printed on the receipt, plus or minus, such as -0.25. It only changes the total.",
-  "fundingTip": "Who paid. For consultants on flexible compensation, an expense paid by the consultant is deducted from their balance.",
-  "applyConsultantShareTip": "Credits the consultant with their agreed share of the net amount. Only for flexible compensation.",
+  "fundingTip": "Who paid. For consultants with an invoice share, an expense paid by the consultant is deducted from their balance. For fixed salary + invoice share, book the fixed salary as paid by the company and share payouts as paid by the consultant.",
+  "applyConsultantShareTip": "Credits the consultant with their agreed share of the net amount. Only for compensation with an invoice share.",
   "consultantDescriptionTip": "Shown to the consultant in their finance view.",
   "internalNoteTip": "Only visible to admins and accountants, never to the consultant.",
   "invoiceNumberTip": "The invoice number exactly as printed on the invoice. It must be unique.",
@@ -459,7 +459,7 @@
   "invoiceConsultantTip": "The consultant who did the work, or Company only when no consultant is involved. Decides how the payment is split.",
   "issueDateTip": "The invoice date. It decides the consultant's compensation agreement and the VAT period.",
   "dueDateTip": "The last day for the customer to pay. It cannot be before the invoice date.",
-  "shareOverrideTip": "Optional. Replaces the consultant's agreed share for this invoice only. Only for flexible compensation.",
+  "shareOverrideTip": "Optional. Replaces the consultant's agreed share for this invoice only. Only for compensation with an invoice share.",
   "vatPaymentDateTip": "The day the VAT was paid to the tax account. AI uses the due date when the file shows no payment.",
   "vatPaymentAmountTip": "The VAT paid to Skatteverket (Moms att betala). It cannot be more than the VAT currently payable.",
   "vatPeriodFromTip": "The first day of the VAT reporting period, for example 2026-04-01 for April - June.",
@@ -1181,5 +1181,9 @@
   "backToEmployee": "Back to {name}",
   "financeError_compensationConfirmationRequired": "The current compensation period has no end date. Reload the page and confirm that it should end.",
   "endCurrentCompensationTitle": "End the current compensation?",
-  "endCurrentCompensationExplanation": "The current compensation, valid from {validFrom}, has no end date. Saving the new one will automatically set its valid to date to {validTo}."
+  "endCurrentCompensationExplanation": "The current compensation, valid from {validFrom}, has no end date. Saving the new one will automatically set its valid to date to {validTo}.",
+  "fixedSalaryAndShare": "Fixed salary + invoice share",
+  "monthlyCompensation": "Monthly compensation",
+  "monthlyCompensationTip": "Fixed salary plus the invoice share credited that month. The share counts in the month the invoice is paid. The salary is not prorated.",
+  "invoiceShare": "Invoice share"
 }
