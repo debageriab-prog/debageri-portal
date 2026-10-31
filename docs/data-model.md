@@ -9,6 +9,7 @@ Every organization-owned document has `organizationId`. Dates are `YYYY-MM-DD` i
 | `timeCodes`               | stable code ID; localized names, category, behavior, effective range                | admin service            | members                     |
 | `timesheets`              | `{org}_{uid}_{isoYear}-W{ww}`; week state and trusted totals                        | trusted workflow         | self/assigned manager/admin |
 | `timeEntries`             | generated ID; date allocation and immutable code snapshot                           | employee while editable  | self/assigned manager/admin |
+| `timesheetAttachments`    | generated; file metadata for a time report, keyed by `timesheetId`                  | timesheet attachment API | server only (role checked)  |
 | `approvalEvents`          | generated; append-only transition history                                           | trusted workflow         | participants/admin          |
 | `holidays`                | stable date/region ID                                                               | admin service            | members                     |
 | `auditLogs`               | generated; immutable sensitive action record                                        | trusted services         | admin                       |
@@ -20,6 +21,8 @@ Every organization-owned document has `organizationId`. Dates are `YYYY-MM-DD` i
 | `accountingEmailSettings` | per-organization accounting email addresses and which finance changes each receives | accounting email service | server only (admin API)     |
 
 Weekly sheets are approval/state units; entries remain separate so one date can have multiple codes and date-range reporting stays queryable. Each eligible weekday expects eight reported hours, while submitted sheets preserve their historical expected total. Code snapshots preserve historical meaning after a rename/deactivation. Approval events are append-only because current sheet fields are not history.
+
+Time report files are private Storage objects under `organizations/{org}/timesheets/{uid}/{timesheetId}/`. The reporter adds and views them and can remove a file while the report is an unsent draft. Once a report has been sent, only admins and managers remove files. Every removal needs the typed confirmation phrase and is audited. Deleting a report keeps its files, which return when the same week is reported again, and deleting a sent report sets `locked` on them so the reporter cannot remove them that way.
 
 Entries duplicate ISO year/week, calendar year/month, and a UTC noon `dateTimestamp` for safe indexed queries. Snapshots contain code, localized-at-write name, category, and worked/expected flags. Used codes are deactivated, never deleted.
 

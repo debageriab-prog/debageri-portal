@@ -4,7 +4,12 @@ import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
 import { ReviewActions } from "./ReviewActions";
 import { getTranslator } from "@/lib/localization/server";
+import {
+  dateRangeLabel,
+  timesheetStatusLabel,
+} from "@/lib/localization/timesheets";
 import { aggregateReportedBreakdown } from "@/domain/reports/aggregate";
+import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
 
 export default async function ReviewPage({
   params,
@@ -46,11 +51,11 @@ export default async function ReviewPage({
           </div>
           <h1>{String(user?.displayName ?? user?.email ?? sheet.userId)}</h1>
           <p className="muted">
-            {sheet.periodStart} to {sheet.periodEnd}
+            {dateRangeLabel(t, sheet.periodStart, sheet.periodEnd)}
           </p>
           <p className="muted page-description">{t("reviewDescription")}</p>
         </div>
-        <span className="status">{sheet.status}</span>
+        <span className="status">{timesheetStatusLabel(t, sheet.status)}</span>
       </div>
       <div className="grid-2">
         <section className="card">
@@ -73,6 +78,7 @@ export default async function ReviewPage({
                 );
               })
           )}
+          <TimesheetAttachments timesheetId={id} />
         </section>
         <aside className="card">
           <h2>{t("summary")}</h2>

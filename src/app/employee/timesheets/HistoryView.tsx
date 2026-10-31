@@ -7,8 +7,16 @@ import { formatDuration } from "@/lib/durations/duration";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { aggregateReportedDays } from "@/domain/reports/aggregate";
+import { isEditable } from "@/domain/timesheets/rules";
+import type { TimesheetStatus } from "@/domain/types";
+import {
+  dateRangeLabel,
+  timesheetErrorMessage,
+  timesheetStatusLabel,
+} from "@/lib/localization/timesheets";
 
 type HistorySheet = {
   id: string;
@@ -351,14 +359,14 @@ export function HistoryView({
     for (const entry of entries.filter(
       (item) => item.timesheetId === timesheetId,
     )) {
-      const label = entry.countsAsWorkedTime ? "Worked" : entry.name;
+      const label = entry.countsAsWorkedTime ? t("worked") : entry.name;
       totals.set(label, (totals.get(label) ?? 0) + entry.minutes);
     }
-    if (!totals.size) totals.set("Worked", 0);
+    if (!totals.size) totals.set(t("worked"), 0);
     return [...totals].sort(([left], [right]) =>
-      left === "Worked"
+      left === t("worked")
         ? -1
-        : right === "Worked"
+        : right === t("worked")
           ? 1
           : left.localeCompare(right),
     );
@@ -376,7 +384,9 @@ export function HistoryView({
     );
     const result = await response.json().catch(() => ({}));
     if (!response.ok)
-      return setError(result.error ?? "Could not delete the time report.");
+      return setError(
+        timesheetErrorMessage(t, result.error, "timesheetDeleteFailed"),
+      );
     setDeleting(null);
     router.refresh();
   }
@@ -391,7 +401,7 @@ export function HistoryView({
             <th>{t("reported")}</th>
             <th>{t("status")}</th>
             <th>
-              <span className="sr-only">Actions</span>
+              <span className="sr-only">{t("actions")}</span>
             </th>
           </tr>
         </thead>
@@ -404,9 +414,7 @@ export function HistoryView({
                   ? `-${String(sheet.part).padStart(2, "0")}`
                   : ""}
               </td>
-              <td>
-                {sheet.periodStart} to {sheet.periodEnd}
-              </td>
+              <td>{dateRangeLabel(t, sheet.periodStart, sheet.periodEnd)}</td>
               <td>
                 <div className="report-breakdown">
                   {reportBreakdown(sheet.id).map(([label, minutes]) => (
@@ -418,7 +426,7 @@ export function HistoryView({
               </td>
               <td>
                 <span className={`status status-${sheet.status}`}>
-                  {sheet.status}
+                  {timesheetStatusLabel(t, sheet.status)}
                 </span>
               </td>
               <td>
@@ -430,18 +438,27 @@ export function HistoryView({
                     {t("view")}
                   </button>
                 ) : (
-                  ["draft", "submitted"].includes(sheet.status) && (
-                    <div className="row-actions">
-                      {sheet.status === "draft" && (
-                        <Link
-                          className="table-action icon-action"
-                          aria-label={t("edit")}
-                          title={t("edit")}
-                          href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
-                        >
-                          <ActionIcon type="edit" />
-                        </Link>
-                      )}
+                  <div className="row-actions">
+                    {isEditable(sheet.status as TimesheetStatus) ? (
+                      <Link
+                        className="table-action icon-action"
+                        aria-label={t("edit")}
+                        title={t("edit")}
+                        href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
+                      >
+                        <ActionIcon type="edit" />
+                      </Link>
+                    ) : (
+                      <Link
+                        className="table-action icon-action"
+                        aria-label={t("attachments")}
+                        title={t("attachments")}
+                        href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
+                      >
+                        <ActionIcon type="attach" />
+                      </Link>
+                    )}
+                    {["draft", "submitted"].includes(sheet.status) && (
                       <button
                         className="table-action table-action-danger icon-action"
                         aria-label={t("delete")}
@@ -454,8 +471,8 @@ export function HistoryView({
                       >
                         <ActionIcon type="delete" />
                       </button>
-                    </div>
-                  )
+                    )}
+                  </div>
                 )}
               </td>
             </tr>
@@ -613,14 +630,18 @@ export function HistoryView({
                   {t("delete")} {t("week").toLowerCase()} {deleting.isoWeek}?
                 </h2>
                 <p>
-                  This {deleting.status} report and its entries will be
-                  permanently removed.
+                  {t("deleteReportDescription").replace(
+                    "{status}",
+                    timesheetStatusLabel(t, deleting.status).toLowerCase(),
+                  )}
                 </p>
               </div>
             </header>
             {error && <p className="notice notice-error">{error}</p>}
             <label>
-              Type <strong>I am sure</strong> to confirm
+              {t("typeToConfirm").split("{phrase}")[0]}
+              <strong>{t("attachmentDeleteConfirmationPhrase")}</strong>
+              {t("typeToConfirm").split("{phrase}")[1]}
               <input
                 className="field"
                 value={deleteConfirmation}
@@ -652,7 +673,10 @@ export function HistoryView({
             className="modal"
             role="dialog"
             aria-modal="true"
-            aria-label={`Time report for week ${viewing.isoWeek}`}
+            aria-label={t("timeReportForWeek").replace(
+              "{week}",
+              String(viewing.isoWeek),
+            )}
             onMouseDown={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
@@ -665,7 +689,7 @@ export function HistoryView({
                     : ""}
                 </h2>
                 <p>
-                  {viewing.periodStart} to {viewing.periodEnd}
+                  {dateRangeLabel(t, viewing.periodStart, viewing.periodEnd)}
                 </p>
               </div>
               <button
@@ -701,6 +725,7 @@ export function HistoryView({
                 </tbody>
               </table>
             </div>
+            <TimesheetAttachments timesheetId={viewing.id} />
             <footer className="modal-actions">
               <button
                 className="button secondary"

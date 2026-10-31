@@ -1882,6 +1882,8 @@ th.actions-heading {
   flex: 0 0 auto;
   width: 2rem;
   height: 2rem;
+  padding: 0;
+  cursor: pointer;
   place-items: center;
   border: 1px solid var(--success);
   border-radius: 50%;
@@ -2137,23 +2139,39 @@ th.actions-heading {
   gap: 9px;
 }
 
-.copy-from-row {
+.timesheet-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.timesheet-quick-actions .button[aria-pressed="true"],
+.timesheet-quick-actions .button[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.timesheet-copy-panel {
   align-items: center;
+  margin-bottom: 16px;
 }
 
-.checkbox-line {
-  display: inline-flex;
+.timesheet-copy-panel label {
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
-.copy-from-row > strong {
-  white-space: nowrap;
+.timesheet-attachments {
+  margin-top: 16px;
 }
 
-.copy-from-select {
-  width: 210px;
-  flex: 0 0 210px;
+.timesheet-attachments legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 650;
 }
 
 .timesheet-controls label {
@@ -2166,6 +2184,62 @@ th.actions-heading {
   width: fit-content;
   margin-bottom: 12px;
   flex-wrap: wrap;
+}
+
+.timesheet-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.timesheet-week-nav strong {
+  margin-top: 0;
+}
+
+.timesheet-week-arrow {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #c4a98e;
+  border-radius: 10px;
+  background: transparent;
+  color: #3d3027;
+  cursor: pointer;
+}
+
+.timesheet-week-arrow:hover,
+.timesheet-week-arrow:focus-visible {
+  background: var(--accent-soft);
+}
+
+.timesheet-week-arrow .action-icon-svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.4;
+}
+
+.rejected-report-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.rejected-report-notice small {
+  display: block;
+  margin-top: 3px;
+}
+
+.rejected-report-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .reporting-week-selector .field {
@@ -2895,12 +2969,6 @@ th.actions-heading {
   border-bottom: 1px solid var(--border);
   border-radius: 20px 20px 0 0;
   background: linear-gradient(135deg, #f5ece4, #fbf8f5);
-}
-
-.timesheet-table-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
 }
 
 .timesheet-table-header strong,

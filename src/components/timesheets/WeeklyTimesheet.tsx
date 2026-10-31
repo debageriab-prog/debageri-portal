@@ -1,12 +1,24 @@
 "use client";
 
 import { useLocale } from "@/components/localization/LocaleProvider";
+import {
+  TimesheetAttachments,
+  timesheetAttachmentMessage,
+  uploadTimesheetAttachments,
+} from "@/components/timesheets/TimesheetAttachments";
 import { DateInput } from "@/components/ui/DateInput";
-import { isAfterEmployment } from "@/domain/timesheets/rules";
+import { ActionIcon } from "@/components/ui/ActionIcon";
+import {
+  hasSameEntries,
+  isAfterEmployment,
+  isEditable,
+} from "@/domain/timesheets/rules";
+import type { TimesheetStatus } from "@/domain/types";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
 import { appCheckFetch } from "@/lib/firebase/client";
+import { timesheetErrorMessage } from "@/lib/localization/timesheets";
 import {
   getIsoWeek,
   getIsoWeekDates,
@@ -33,7 +45,7 @@ type Data = {
   sheet: {
     isoYear: number;
     isoWeek: number;
-    status: string;
+    status: TimesheetStatus;
     expectedMinutes: number;
     rejectionReason?: string | null;
   };
@@ -43,6 +55,14 @@ type Data = {
   copyEntries: StoredEntry[];
   part: number;
   partCount: number;
+  rejectedReports: Array<{
+    id: string;
+    isoYear: number;
+    isoWeek: number;
+    part: number;
+    partCount: number;
+    reason: string;
+  }>;
   latestReported: {
     isoYear: number;
     isoWeek: number;
@@ -50,7 +70,6 @@ type Data = {
     periodEnd: string;
   } | null;
 };
-const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function entriesToRows(data: Data, entries: StoredEntry[]): Row[] {
   const rows = new Map<string, Row>();
@@ -78,15 +97,33 @@ function entriesToRows(data: Data, entries: StoredEntry[]): Row[] {
   );
 }
 
+function rowsToEntries(data: Data, rows: Row[]) {
+  return rows.flatMap((row) =>
+    row.minutes.flatMap((minutes, day) =>
+      minutes > 0
+        ? [
+            {
+              date: data.dates[day]!,
+              timeCodeId: row.timeCodeId,
+              minutes,
+              comment: null,
+            },
+          ]
+        : [],
+    ),
+  );
+}
+
 export function WeeklyTimesheet() {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const router = useRouter();
   const [data, setData] = useState<Data | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
-  const [message, setMessage] = useState("Loading...");
+  const [message, setMessage] = useState(t("loading"));
   const [yearInput, setYearInput] = useState(new Date().getUTCFullYear());
   const [weekInput, setWeekInput] = useState(1);
-  const [copyMode, setCopyMode] = useState("");
+  const [copyPanelOpen, setCopyPanelOpen] = useState(false);
+  const [copyError, setCopyError] = useState("");
   const [copyYear, setCopyYear] = useState(new Date().getUTCFullYear());
   const [copyWeek, setCopyWeek] = useState(1);
   const [weekMode, setWeekMode] = useState<"current" | "number" | "date">(
@@ -100,11 +137,16 @@ export function WeeklyTimesheet() {
   const [nonWorkingOpen, setNonWorkingOpen] = useState(false);
   const [autoApproving, setAutoApproving] = useState(false);
   const [workedAllDays, setWorkedAllDays] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [attachmentsVersion, setAttachmentsVersion] = useState(0);
   const periodClosed =
     data !== null && isAfterEmployment(data.dates[0]!, data.employmentEndDate);
-  const editable = data && data.sheet.status === "draft" && !periodClosed;
+  const editable = data && isEditable(data.sheet.status) && !periodClosed;
+  const hasWorkCode = data?.codes.some((code) => code.category === "work");
+  const otherRejected =
+    data?.rejectedReports.filter((report) => report.id !== data.id) ?? [];
   const periodLabel = data
-    ? `Week ${data.sheet.isoWeek}${
+    ? `${t("week")} ${data.sheet.isoWeek}${
         data.partCount > 1 ? `-${String(data.part).padStart(2, "0")}` : ""
       }`
     : "";
@@ -115,7 +157,8 @@ export function WeeklyTimesheet() {
     copy?: { year: number; week: number },
     part?: number,
   ) {
-    setMessage("Loading...");
+    setMessage(t("loading"));
+    setCopyError("");
     const query = new URLSearchParams();
     if (year && week) {
       query.set("year", String(year));
@@ -130,8 +173,22 @@ export function WeeklyTimesheet() {
       const response = await appCheckFetch(`/api/timesheets/current?${query}`);
       if (response.status === 401) return router.replace("/auth/login");
       const result = await response.json();
-      if (!response.ok) return setMessage(result.error);
+      if (!response.ok) {
+        const feedback = timesheetErrorMessage(
+          t,
+          result.error,
+          "timesheetLoadFailed",
+        );
+        setMessage(copy ? "" : feedback);
+        setCopyError(copy ? feedback : "");
+        return;
+      }
       const loaded = result.data as Data;
+      if (copy && !loaded.copyEntries.length) {
+        setMessage("");
+        setCopyError(t("copyWeekEmpty").replace("{week}", String(copy.week)));
+        return;
+      }
       setData(loaded);
       setYearInput(loaded.sheet.isoYear);
       setWeekInput(loaded.sheet.isoWeek);
@@ -139,19 +196,16 @@ export function WeeklyTimesheet() {
         entriesToRows(loaded, copy ? loaded.copyEntries : loaded.entries),
       );
       setWorkedAllDays(false);
+      if (!copy) setPendingFiles([]);
       setNonWorkingOpen(
         loaded.sheet.status === "draft" &&
           loaded.sheet.expectedMinutes === 0 &&
           !isAfterEmployment(loaded.dates[0]!, loaded.employmentEndDate) &&
           !copy,
       );
-      setMessage(
-        copy
-          ? "Copied entries are ready. Review, save and submit when finished."
-          : "",
-      );
+      setMessage(copy ? t("copiedEntriesReady") : "");
     } catch {
-      setMessage("The time report could not be loaded.");
+      setMessage(t("timesheetLoadFailed"));
     }
   }
 
@@ -190,6 +244,7 @@ export function WeeklyTimesheet() {
     if (!data) return;
     const workCode = data.codes.find((code) => code.category === "work");
     if (!workCode) return;
+    setCopyError("");
     setWorkedAllDays(checked);
     setRows((current) => {
       const existing = current.find((row) => row.timeCodeId === workCode.id);
@@ -230,15 +285,21 @@ export function WeeklyTimesheet() {
   const submitWarnings = [
     ...(reportedRedDays.length
       ? [
-          `Time is reported on ${reportedRedDays.length} red ${
-            reportedRedDays.length === 1 ? "day" : "days"
-          }.`,
+          reportedRedDays.length === 1
+            ? t("warningRedDay")
+            : t("warningRedDays").replace(
+                "{count}",
+                String(reportedRedDays.length),
+              ),
         ]
       : []),
-    ...(reported > 2400
-      ? ["Total reported time exceeds 40 hours for this week."]
+    ...(reported > 2400 ? [t("warningOver40Hours")] : []),
+    ...(futureDates.length ? [t("warningFutureDates")] : []),
+    ...(data?.sheet.status === "rejected" &&
+    !pendingFiles.length &&
+    hasSameEntries(data.entries, rowsToEntries(data, rows))
+      ? [t("warningResubmitUnchanged")]
       : []),
-    ...(futureDates.length ? ["You are reporting time on future dates!"] : []),
   ];
 
   function addRow() {
@@ -285,8 +346,17 @@ export function WeeklyTimesheet() {
     );
   }
 
+  const dateLocale = locale === "sv-SE" ? "sv-SE" : "en-GB";
+
+  function formatDayName(date: string) {
+    return new Intl.DateTimeFormat(dateLocale, {
+      timeZone: "UTC",
+      weekday: "short",
+    }).format(new Date(`${date}T12:00:00Z`));
+  }
+
   function formatReportingDay(date: string) {
-    return new Intl.DateTimeFormat("en-GB", {
+    return new Intl.DateTimeFormat(dateLocale, {
       timeZone: "UTC",
       weekday: "long",
       day: "numeric",
@@ -298,22 +368,9 @@ export function WeeklyTimesheet() {
 
   async function save() {
     if (!data) return false;
-    setMessage("Saving...");
+    setMessage(t("timesheetSaving"));
     try {
-      const entries = rows.flatMap((row) =>
-        row.minutes.flatMap((minutes, day) =>
-          minutes > 0
-            ? [
-                {
-                  date: data.dates[day],
-                  timeCodeId: row.timeCodeId,
-                  minutes,
-                  comment: null,
-                },
-              ]
-            : [],
-        ),
-      );
+      const entries = rowsToEntries(data, rows);
       const query = new URLSearchParams({
         year: String(data.sheet.isoYear),
         week: String(data.sheet.isoWeek),
@@ -326,17 +383,29 @@ export function WeeklyTimesheet() {
       });
       const result = await response.json().catch(() => ({}));
       const feedback = response.ok
-        ? "Saved."
-        : (result.error ?? "The time report could not be saved.");
+        ? t("saved")
+        : timesheetErrorMessage(t, result.error, "timesheetError_saveFailed");
       setMessage(feedback);
       if (!response.ok) setSubmitError(feedback);
       return response.ok;
     } catch {
-      const feedback = "The time report could not be saved. Please try again.";
+      const feedback = t("timesheetSaveRetry");
       setMessage(feedback);
       setSubmitError(feedback);
       return false;
     }
+  }
+
+  async function uploadPendingFiles(timesheetId: string) {
+    const { uploaded, error } = await uploadTimesheetAttachments(
+      timesheetId,
+      pendingFiles,
+    );
+    if (uploaded) {
+      setPendingFiles((current) => current.slice(uploaded));
+      setAttachmentsVersion((version) => version + 1);
+    }
+    return error ? timesheetAttachmentMessage(t, error) : null;
   }
 
   async function performSubmit() {
@@ -344,6 +413,12 @@ export function WeeklyTimesheet() {
     setSubmitError("");
     try {
       if (!(await save()) || !data) return;
+      const uploadError = await uploadPendingFiles(data.id);
+      if (uploadError) {
+        setMessage(uploadError);
+        setSubmitError(uploadError);
+        return;
+      }
       const response = await appCheckFetch(
         `/api/timesheets/${data.id}/submit`,
         {
@@ -354,9 +429,11 @@ export function WeeklyTimesheet() {
       );
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const feedback =
-          result.error ??
-          "You already reported this week. Delete the draft to report again, or edit the existing draft.";
+        const feedback = timesheetErrorMessage(
+          t,
+          result.error,
+          "timesheetError_alreadyReported",
+        );
         setMessage(feedback);
         setSubmitError(feedback);
         return;
@@ -364,7 +441,7 @@ export function WeeklyTimesheet() {
       setConfirmOpen(false);
       setConfirmation("");
       setRows([]);
-      setSuccess("Time reported successfully");
+      setSuccess(t("timesheetReported"));
       setWeekMode("number");
       if (data.part < data.partCount) {
         await loadWeek(
@@ -380,8 +457,7 @@ export function WeeklyTimesheet() {
         await loadWeek(selected.isoYear, selected.isoWeek);
       }
     } catch {
-      const feedback =
-        "The report could not be submitted. Please try again. Your draft is still saved.";
+      const feedback = t("timesheetSubmitRetry");
       setMessage(feedback);
       setSubmitError(feedback);
     } finally {
@@ -410,12 +486,13 @@ export function WeeklyTimesheet() {
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
         setSubmitError(
-          result.error ?? "The zero-hour report could not be created.",
+          timesheetErrorMessage(t, result.error, "zeroHoursFailed"),
         );
         return;
       }
+      const uploadError = await uploadPendingFiles(data.id);
       setNonWorkingOpen(false);
-      setSuccess("0 hours reported and approved successfully");
+      setSuccess(t("zeroHoursReported"));
       setWeekMode("number");
       if (data.part < data.partCount) {
         await loadWeek(
@@ -430,10 +507,9 @@ export function WeeklyTimesheet() {
         const selected = getIsoWeek(next);
         await loadWeek(selected.isoYear, selected.isoWeek);
       }
+      if (uploadError) setMessage(uploadError);
     } catch {
-      setSubmitError(
-        "The zero-hour report could not be created. Please try again.",
-      );
+      setSubmitError(t("zeroHoursRetry"));
     } finally {
       setAutoApproving(false);
     }
@@ -442,25 +518,41 @@ export function WeeklyTimesheet() {
   function selectCalendarDate(value: string) {
     if (!value) return;
     const selected = getIsoWeek(value);
-    setCopyMode("");
+    setCopyPanelOpen(false);
     void loadWeek(selected.isoYear, selected.isoWeek);
+  }
+
+  function previousWeek(firstDate: string) {
+    const previous = new Date(`${firstDate}T12:00:00Z`);
+    previous.setUTCDate(previous.getUTCDate() - 7);
+    return getIsoWeek(previous);
   }
 
   function copyPrevious() {
     if (!data) return;
-    const previous = new Date(`${data.dates[0]}T12:00:00Z`);
-    previous.setUTCDate(previous.getUTCDate() - 7);
-    const selected = getIsoWeek(previous);
+    const selected = previousWeek(data.dates[0]!);
+    setCopyPanelOpen(false);
     void loadWeek(data.sheet.isoYear, data.sheet.isoWeek, {
       year: selected.isoYear,
       week: selected.isoWeek,
     });
   }
 
+  function toggleCopyPanel() {
+    if (!data) return;
+    setCopyError("");
+    if (!copyPanelOpen) {
+      const selected = previousWeek(data.dates[0]!);
+      setCopyYear(selected.isoYear);
+      setCopyWeek(selected.isoWeek);
+    }
+    setCopyPanelOpen(!copyPanelOpen);
+  }
+
   function goToNextWeek() {
     if (!data) return;
     setWeekMode("number");
-    setCopyMode("");
+    setCopyPanelOpen(false);
     setSuccess("");
     if (data.part < data.partCount) {
       void loadWeek(
@@ -480,7 +572,7 @@ export function WeeklyTimesheet() {
   function goToPreviousWeek() {
     if (!data) return;
     setWeekMode("number");
-    setCopyMode("");
+    setCopyPanelOpen(false);
     setSuccess("");
     if (data.part > 1) {
       void loadWeek(
@@ -491,9 +583,7 @@ export function WeeklyTimesheet() {
       );
       return;
     }
-    const previous = new Date(`${data.dates[0]}T12:00:00Z`);
-    previous.setUTCDate(previous.getUTCDate() - 7);
-    const selected = getIsoWeek(previous);
+    const selected = previousWeek(data.dates[0]!);
     const previousPartCount = splitWeekByMonth(
       getIsoWeekDates(selected.isoYear, selected.isoWeek),
     ).length;
@@ -516,19 +606,19 @@ export function WeeklyTimesheet() {
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Time reporting</div>
-          <h1>Report time</h1>
-          <p className="muted page-description">
-            Choose a reporting period, enter hours by time code and review the
-            report before submitting it for approval.
-          </p>
+          <div className="eyebrow">{t("timeReporting")}</div>
+          <h1>{t("reportTimeTitle")}</h1>
+          <p className="muted page-description">{t("reportTimeDescription")}</p>
         </div>
       </div>
       {success && (
         <div className="toast toast-success" role="status">
           <span className="toast-icon">✓</span>
           <span>{success}</span>
-          <button aria-label="Dismiss" onClick={() => setSuccess("")}>
+          <button
+            aria-label={t("dismissMessage")}
+            onClick={() => setSuccess("")}
+          >
             ×
           </button>
         </div>
@@ -536,38 +626,45 @@ export function WeeklyTimesheet() {
       <section className="card timesheet-controls">
         {data.latestReported && (
           <p className="latest-report-hint">
-            <span>Latest submitted report</span>
+            <span>{t("latestSubmittedReport")}</span>
             <strong>
-              Week {data.latestReported.isoWeek}:{" "}
-              {data.latestReported.periodStart.replaceAll("-", "/")} to{" "}
-              {data.latestReported.periodEnd.replaceAll("-", "/")}
+              {t("latestSubmittedWeek")
+                .replace("{week}", String(data.latestReported.isoWeek))
+                .replace(
+                  "{start}",
+                  data.latestReported.periodStart.replaceAll("-", "/"),
+                )
+                .replace(
+                  "{end}",
+                  data.latestReported.periodEnd.replaceAll("-", "/"),
+                )}
             </strong>
           </p>
         )}
         <div>
           <label className="reporting-week-selector">
-            <strong>Reporting week</strong>
+            <strong>{t("reportingWeekLabel")}</strong>
             <select
               className="field"
               value={weekMode}
-              aria-label="Choose how to select a reporting week"
+              aria-label={t("reportingWeekModeLabel")}
               onChange={(event) => {
                 const mode = event.target.value as
                   "current" | "number" | "date";
                 setWeekMode(mode);
-                setCopyMode("");
+                setCopyPanelOpen(false);
                 if (mode === "current") void loadWeek();
               }}
             >
-              <option value="current">Current or next available week</option>
-              <option value="number">Week number</option>
-              <option value="date">Calendar date</option>
+              <option value="current">{t("reportingWeekCurrent")}</option>
+              <option value="number">{t("reportingWeekNumber")}</option>
+              <option value="date">{t("reportingWeekDate")}</option>
             </select>
           </label>
           {weekMode === "number" && (
             <div className="actions selection-panel">
               <label>
-                Year
+                {t("year")}
                 <input
                   className="field compact-field"
                   type="number"
@@ -576,7 +673,7 @@ export function WeeklyTimesheet() {
                 />
               </label>
               <label>
-                Week
+                {t("week")}
                 <input
                   className="field compact-field"
                   type="number"
@@ -590,28 +687,69 @@ export function WeeklyTimesheet() {
                 className="button secondary"
                 onClick={() => void loadWeek(yearInput, weekInput)}
               >
-                Open week
+                {t("openWeek")}
               </button>
             </div>
           )}
           {weekMode === "date" && (
             <div className="selection-panel">
               <label>
-                Choose any date in the week
+                {t("chooseDateInWeek")}
                 <DateInput
                   className="field"
                   onChange={(event) => selectCalendarDate(event.target.value)}
                 />
               </label>
-              <small className="muted">
-                The full Monday to Sunday week opens automatically.
-              </small>
+              <small className="muted">{t("fullWeekOpensAutomatically")}</small>
             </div>
           )}
         </div>
       </section>
-      {data.sheet.rejectionReason && (
-        <p className="notice">Rejected: {data.sheet.rejectionReason}</p>
+      {(data.sheet.status === "rejected" || otherRejected.length > 0) && (
+        <div
+          className="notice notice-warning rejected-report-notice"
+          role="status"
+        >
+          {data.sheet.status === "rejected" && (
+            <span>
+              <strong>
+                {t("rejectedWithReason").replace(
+                  "{reason}",
+                  data.sheet.rejectionReason ?? "",
+                )}
+              </strong>
+              {editable && <small>{t("rejectedReportHint")}</small>}
+            </span>
+          )}
+          {otherRejected.length > 0 && (
+            <span className="rejected-report-links">
+              {t("otherRejectedReports")}
+              {otherRejected.map((report) => (
+                <button
+                  className="button secondary"
+                  type="button"
+                  key={report.id}
+                  title={report.reason}
+                  onClick={() => {
+                    setWeekMode("number");
+                    setCopyPanelOpen(false);
+                    void loadWeek(
+                      report.isoYear,
+                      report.isoWeek,
+                      undefined,
+                      report.part,
+                    );
+                  }}
+                >
+                  {t("week")} {report.isoWeek}
+                  {report.partCount > 1
+                    ? `-${String(report.part).padStart(2, "0")}`
+                    : ""}
+                </button>
+              ))}
+            </span>
+          )}
+        </div>
       )}
       {periodClosed && (
         <p className="notice notice-warning">
@@ -623,115 +761,140 @@ export function WeeklyTimesheet() {
       )}
       <section className="metrics">
         <div className="metric">
-          <span>Expected</span>
+          <span>{t("expected")}</span>
           <strong>{formatDuration(data.sheet.expectedMinutes)}</strong>
         </div>
         <div className="metric">
-          <span>Reported</span>
+          <span>{t("reported")}</span>
           <strong>{formatDuration(reported)}</strong>
         </div>
       </section>
-      <div className="timesheet-table-actions">
-        <button className="button secondary" onClick={goToPreviousWeek}>
-          Previous week
-        </button>
-        <button className="button secondary" onClick={goToNextWeek}>
-          Next week
-        </button>
-      </div>
       <section className="card table-wrap">
         <div className="timesheet-table-header">
           <div>
-            <span className="eyebrow">Reporting period</span>
-            <strong>
-              Week {data.sheet.isoWeek}
-              {data.partCount > 1
-                ? `-${String(data.part).padStart(2, "0")}`
-                : ""}
-            </strong>
+            <span className="eyebrow">{t("reportingPeriodLabel")}</span>
+            <div className="timesheet-week-nav">
+              <button
+                className="timesheet-week-arrow"
+                type="button"
+                aria-label={t("previousWeek")}
+                title={t("previousWeek")}
+                onClick={goToPreviousWeek}
+              >
+                <ActionIcon type="previous" />
+              </button>
+              <strong>
+                {t("week")} {data.sheet.isoWeek}
+                {data.partCount > 1
+                  ? `-${String(data.part).padStart(2, "0")}`
+                  : ""}
+              </strong>
+              <button
+                className="timesheet-week-arrow"
+                type="button"
+                aria-label={t("nextWeek")}
+                title={t("nextWeek")}
+                onClick={goToNextWeek}
+              >
+                <ActionIcon type="next" />
+              </button>
+            </div>
           </div>
           <span>
-            From {data.dates[0]?.replaceAll("-", "/")} to{" "}
-            {data.dates.at(-1)?.replaceAll("-", "/")}
+            {t("periodFromTo")
+              .replace("{start}", data.dates[0]!.replaceAll("-", "/"))
+              .replace("{end}", data.dates.at(-1)!.replaceAll("-", "/"))}
           </span>
         </div>
-        <div className="copy-from-control">
-          <div className="actions copy-from-row">
-            <strong>Copy from</strong>
-            <select
-              className="field copy-from-select"
-              value={copyMode}
-              onChange={(event) => {
-                setCopyMode(event.target.value);
-                if (event.target.value === "previous") copyPrevious();
-              }}
-            >
-              <option value="">Enter manually</option>
-              <option value="previous">Previous week</option>
-              <option value="custom">Choose week number</option>
-            </select>
-            {copyMode === "custom" && (
-              <>
-                <input
-                  className="field compact-field"
-                  type="number"
-                  value={copyYear}
-                  onChange={(event) => setCopyYear(Number(event.target.value))}
-                  aria-label="Copy year"
-                />
-                <input
-                  className="field compact-field"
-                  type="number"
-                  min="1"
-                  max="53"
-                  value={copyWeek}
-                  onChange={(event) => setCopyWeek(Number(event.target.value))}
-                  aria-label="Copy week"
-                />
-                <button
-                  className="button secondary"
-                  onClick={() =>
-                    void loadWeek(data.sheet.isoYear, data.sheet.isoWeek, {
-                      year: copyYear,
-                      week: copyWeek,
-                    })
-                  }
-                >
-                  Copy
-                </button>
-              </>
-            )}
-            <label className="checkbox-line">
-              <input
-                type="checkbox"
-                checked={workedAllDays}
-                disabled={!editable}
-                onChange={(event) => toggleWorkedAllDays(event.target.checked)}
-              />
-              Worked all days
-            </label>
-          </div>
+        <div
+          className="timesheet-quick-actions"
+          role="group"
+          aria-label={t("fillWeekActions")}
+        >
+          <button
+            className="button secondary"
+            type="button"
+            aria-pressed={workedAllDays}
+            disabled={!editable || !hasWorkCode || !rows.length}
+            onClick={() => toggleWorkedAllDays(!workedAllDays)}
+          >
+            {t("workedAllDays")}
+          </button>
+          <button
+            className="button secondary"
+            type="button"
+            disabled={!editable}
+            onClick={copyPrevious}
+          >
+            {t("copyLastWeek")}
+          </button>
+          <button
+            className="button secondary"
+            type="button"
+            aria-expanded={copyPanelOpen}
+            disabled={!editable}
+            onClick={toggleCopyPanel}
+          >
+            {t("chooseWeekNumber")}
+          </button>
         </div>
+        {copyError && (
+          <p className="notice notice-error" role="alert">
+            {copyError}
+          </p>
+        )}
+        {copyPanelOpen && editable && (
+          <div className="actions selection-panel timesheet-copy-panel">
+            <label>
+              {t("year")}
+              <input
+                className="field compact-field"
+                type="number"
+                value={copyYear}
+                onChange={(event) => setCopyYear(Number(event.target.value))}
+              />
+            </label>
+            <label>
+              {t("week")}
+              <input
+                className="field compact-field"
+                type="number"
+                min="1"
+                max="53"
+                value={copyWeek}
+                onChange={(event) => setCopyWeek(Number(event.target.value))}
+              />
+            </label>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() =>
+                void loadWeek(data.sheet.isoYear, data.sheet.isoWeek, {
+                  year: copyYear,
+                  week: copyWeek,
+                })
+              }
+            >
+              {t("copyAction")}
+            </button>
+          </div>
+        )}
         <table className="timesheet-grid">
           <thead>
             <tr>
-              <th>Time code</th>
+              <th>{t("code")}</th>
               {data.dates.map((date, day) => (
                 <th
                   key={date}
                   className={data.redDays[day]?.isRed ? "red-day" : ""}
                 >
-                  {
-                    dayNames[
-                      (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7
-                    ]
-                  }
+                  {formatDayName(date)}
                   <small>{date.slice(8, 10)}</small>
                 </th>
               ))}
-              <th>Total</th>
+              <th>{t("total")}</th>
               <th>
-                <span className="sr-only">Remove</span>
+                <span className="sr-only">{t("remove")}</span>
               </th>
             </tr>
           </thead>
@@ -780,7 +943,10 @@ export function WeeklyTimesheet() {
                           data.codes.find((code) => code.id === row.timeCodeId)
                             ?.countsAsWorkedTime !== true)
                       }
-                      aria-label={`${data.dates[day]} hours`}
+                      aria-label={t("hoursOnDate").replace(
+                        "{date}",
+                        data.dates[day]!,
+                      )}
                       onChange={(event) =>
                         changeMinutes(row, day, Number(event.target.value))
                       }
@@ -798,12 +964,13 @@ export function WeeklyTimesheet() {
                   <button
                     className="icon-button"
                     disabled={!editable}
-                    aria-label="Remove row"
-                    onClick={() =>
+                    aria-label={t("removeRow")}
+                    onClick={() => {
+                      setWorkedAllDays(false);
                       setRows((current) =>
                         current.filter((item) => item.key !== row.key),
-                      )
-                    }
+                      );
+                    }}
                   >
                     ×
                   </button>
@@ -819,8 +986,20 @@ export function WeeklyTimesheet() {
               disabled={!data.codes.length}
               onClick={addRow}
             >
-              Add row
+              {t("addRow")}
             </button>
+          </div>
+        )}
+        <TimesheetAttachments
+          key={data.id}
+          timesheetId={data.id}
+          files={pendingFiles}
+          onFilesChange={setPendingFiles}
+          uploadOnSubmit={Boolean(editable)}
+          refreshKey={attachmentsVersion}
+        />
+        {editable && (
+          <div className="actions timesheet-actions">
             <span className="actions-spacer" />
             <button
               className="button"
@@ -837,16 +1016,18 @@ export function WeeklyTimesheet() {
                 } else void performSubmit();
               }}
             >
-              Submit
+              {t("timesheetSubmit")}
             </button>
           </div>
         )}
         {!editable && (
           <div className="actions timesheet-actions">
             <span className="actions-spacer" />
-            <span title={periodClosed ? undefined : "Already submitted"}>
+            <span
+              title={periodClosed ? undefined : t("timesheetAlreadySubmitted")}
+            >
               <button className="button" disabled>
-                Submit
+                {t("timesheetSubmit")}
               </button>
             </span>
           </div>
@@ -867,12 +1048,11 @@ export function WeeklyTimesheet() {
           >
             <header className="modal-header">
               <div>
-                <span className="eyebrow danger-text">Review warnings</span>
-                <h2 id="submit-warning-title">Submit this time report?</h2>
-                <p>
-                  Please review the unusual reporting conditions before
-                  continuing.
-                </p>
+                <span className="eyebrow danger-text">
+                  {t("reviewWarnings")}
+                </span>
+                <h2 id="submit-warning-title">{t("submitReportQuestion")}</h2>
+                <p>{t("reviewWarningsDescription")}</p>
               </div>
             </header>
             <ul className="warning-list">
@@ -886,7 +1066,9 @@ export function WeeklyTimesheet() {
               </p>
             )}
             <label>
-              Type <strong>I am sure</strong> to submit
+              {t("typeToSubmit").split("{phrase}")[0]}
+              <strong>{t("attachmentDeleteConfirmationPhrase")}</strong>
+              {t("typeToSubmit").split("{phrase}")[1]}
               <input
                 className="field"
                 value={confirmation}
@@ -899,20 +1081,23 @@ export function WeeklyTimesheet() {
                 className="button secondary"
                 onClick={() => setConfirmOpen(false)}
               >
-                Review report
+                {t("reviewReport")}
               </button>
               <button
                 className="button danger"
-                disabled={confirmation !== "I am sure" || submitting}
+                disabled={
+                  confirmation !== t("attachmentDeleteConfirmationPhrase") ||
+                  submitting
+                }
                 onClick={() => void performSubmit()}
               >
-                {submitting ? "Submitting..." : "Submit anyway"}
+                {submitting ? t("timesheetSubmitting") : t("submitAnyway")}
               </button>
             </footer>
           </section>
         </div>
       )}
-      {nonWorkingOpen && data.sheet.status === "draft" && (
+      {nonWorkingOpen && editable && (
         <div className="modal-backdrop">
           <section
             className="modal modal-small"
@@ -922,22 +1107,15 @@ export function WeeklyTimesheet() {
           >
             <header className="modal-header">
               <div>
-                <span className="eyebrow">Non-working period</span>
-                <h2 id="non-working-title">
-                  This week has only non-working days
-                </h2>
-                <p>Days to report in {periodLabel}:</p>
+                <span className="eyebrow">{t("nonWorkingPeriod")}</span>
+                <h2 id="non-working-title">{t("nonWorkingTitle")}</h2>
+                <p>{t("nonWorkingDaysIn").replace("{period}", periodLabel)}</p>
                 <ul className="reporting-day-list">
                   {data.dates.map((date) => (
                     <li key={date}>{formatReportingDay(date)}</li>
                   ))}
                 </ul>
-                <p>
-                  Would you like to report 0 working hours? The report will be
-                  approved automatically and will not require manager review.
-                  Select No if you worked on one of these red days and need to
-                  enter working time.
-                </p>
+                <p>{t("nonWorkingQuestion")}</p>
               </div>
             </header>
             {submitError && (
@@ -952,14 +1130,14 @@ export function WeeklyTimesheet() {
                   setNonWorkingOpen(false);
                 }}
               >
-                No
+                {t("no")}
               </button>
               <button
                 className="button"
                 disabled={autoApproving}
                 onClick={() => void approveNonWorkingPeriod()}
               >
-                {autoApproving ? "Reporting..." : "Yes, report 0 hours"}
+                {autoApproving ? t("reportingZeroHours") : t("reportZeroHours")}
               </button>
             </footer>
           </section>

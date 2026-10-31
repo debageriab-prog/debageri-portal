@@ -9,7 +9,7 @@ import {
   timesheetPartId,
 } from "@/lib/dates/iso-week";
 import { verifySession } from "@/server/auth/session";
-import { isAfterEmployment } from "@/domain/timesheets/rules";
+import { isAfterEmployment, isEditable } from "@/domain/timesheets/rules";
 import type { TimeCode, Timesheet } from "@/domain/types";
 
 const saveSchema = z.object({
@@ -42,24 +42,46 @@ async function loadCurrent(request: Request) {
   let current = getIsoWeek(today);
   const url = new URL(request.url);
   const query = weekQuerySchema.safeParse(Object.fromEntries(url.searchParams));
-  if (!query.success) return { user, error: "Invalid week selection." };
+  if (!query.success) return { user, error: "invalidWeek" };
   const existingSheets = await db
     .collection("timesheets")
     .where("userId", "==", user.id)
     .get();
   const latest = existingSheets.docs
     .map((doc) => doc.data())
-    .filter((sheet) => sheet.status !== "draft")
+    .filter((sheet) => !["draft", "rejected"].includes(sheet.status))
     .sort((a, b) => String(b.periodEnd).localeCompare(String(a.periodEnd)))[0];
+  const rejectedReports = existingSheets.docs
+    .filter((doc) => doc.data().status === "rejected")
+    .map((doc) => {
+      const sheet = doc.data();
+      return {
+        id: doc.id,
+        isoYear: Number(sheet.isoYear),
+        isoWeek: Number(sheet.isoWeek),
+        part: Number(sheet.part ?? 1),
+        partCount: Number(sheet.partCount ?? 1),
+        periodStart: String(sheet.periodStart),
+        reason: String(sheet.rejectionReason ?? ""),
+      };
+    })
+    .sort((a, b) => a.periodStart.localeCompare(b.periodStart));
+  let defaultPart: number | undefined;
   if (!query.data.year && !query.data.week) {
-    if (latest) {
-      const next = new Date(`${latest.periodEnd}T12:00:00Z`);
-      next.setUTCDate(next.getUTCDate() + 1);
-      current = getIsoWeek(next);
+    const oldestRejected = rejectedReports[0];
+    if (oldestRejected) {
+      current = getIsoWeek(oldestRejected.periodStart);
+      defaultPart = oldestRejected.part;
+    } else {
+      if (latest) {
+        const next = new Date(`${latest.periodEnd}T12:00:00Z`);
+        next.setUTCDate(next.getUTCDate() + 1);
+        current = getIsoWeek(next);
+      }
+      const firstDay = getIsoWeekDates(current.isoYear, current.isoWeek)[0]!;
+      if (isAfterEmployment(firstDay, user.employmentEndDate))
+        current = getIsoWeek(user.employmentEndDate!);
     }
-    const firstDay = getIsoWeekDates(current.isoYear, current.isoWeek)[0]!;
-    if (isAfterEmployment(firstDay, user.employmentEndDate))
-      current = getIsoWeek(user.employmentEndDate!);
   }
   const isoYear = query.data.year ?? current.isoYear;
   const isoWeek = query.data.week ?? current.isoWeek;
@@ -67,7 +89,7 @@ async function loadCurrent(request: Request) {
   try {
     fullDates = getIsoWeekDates(isoYear, isoWeek);
   } catch {
-    return { user, error: "The selected ISO week does not exist." };
+    return { user, error: "weekNotFound" };
   }
   const parts = splitWeekByMonth(fullDates);
   const partDocs = await db.getAll(
@@ -91,17 +113,17 @@ async function loadCurrent(request: Request) {
   ).length;
   const selectedPart =
     query.data.part ??
+    defaultPart ??
     Math.min(
       Math.max(1, partsInEmployment),
       Math.max(
         1,
         partDocs.findIndex(
-          (doc) => !doc.exists || doc.data()?.status === "draft",
+          (doc) => !doc.exists || isEditable(doc.data()?.status),
         ) + 1 || parts.length,
       ),
     );
-  if (selectedPart > parts.length)
-    return { user, error: "The selected week part does not exist." };
+  if (selectedPart > parts.length) return { user, error: "weekPartNotFound" };
   const dates = parts[selectedPart - 1]!;
   const id = timesheetPartId(
     user.organizationId,
@@ -169,8 +191,9 @@ async function loadCurrent(request: Request) {
       version: 0,
     };
   } else if (
-    sheet?.status === "draft" &&
-    sheet?.expectedMinutes !== expectedMinutes
+    sheet &&
+    isEditable(sheet.status) &&
+    sheet.expectedMinutes !== expectedMinutes
   ) {
     sheet = { ...sheet!, expectedMinutes };
   }
@@ -227,7 +250,7 @@ async function loadCurrent(request: Request) {
             !isAfterEmployment(String(entry.date), user.employmentEndDate),
         );
     } catch {
-      return { user, error: "The copy-from week does not exist." };
+      return { user, error: "copyWeekNotFound" };
     }
   }
   return {
@@ -252,6 +275,7 @@ async function loadCurrent(request: Request) {
     entries: entryDocs.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
     copyEntries,
     codes,
+    rejectedReports,
     latestReported: latest
       ? {
           isoYear: Number(latest.isoYear),
@@ -266,10 +290,7 @@ async function loadCurrent(request: Request) {
 export async function GET(request: Request) {
   const data = await loadCurrent(request);
   if (!data)
-    return NextResponse.json(
-      { error: "Authentication required" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   if ("error" in data)
     return NextResponse.json({ error: data.error }, { status: 409 });
   return NextResponse.json({ data });
@@ -278,26 +299,14 @@ export async function GET(request: Request) {
 async function saveCurrent(request: Request) {
   const loaded = await loadCurrent(request);
   if (!loaded)
-    return NextResponse.json(
-      { error: "Authentication required" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   if ("error" in loaded)
     return NextResponse.json({ error: loaded.error }, { status: 409 });
-  if (loaded.sheet.status !== "draft")
-    return NextResponse.json(
-      {
-        error:
-          "You already reported this week. Delete the existing draft if you want to report again, or edit that draft.",
-      },
-      { status: 409 },
-    );
+  if (!isEditable(loaded.sheet.status ?? "draft"))
+    return NextResponse.json({ error: "alreadyReported" }, { status: 409 });
   const parsed = saveSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success)
-    return NextResponse.json(
-      { error: "Invalid time entries." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "invalidEntries" }, { status: 400 });
   const employmentEndDate = loaded.user.employmentEndDate;
   if (
     isAfterEmployment(loaded.dates[0]!, employmentEndDate) ||
@@ -305,21 +314,13 @@ async function saveCurrent(request: Request) {
       isAfterEmployment(entry.date, employmentEndDate),
     )
   )
-    return NextResponse.json(
-      { error: "Time cannot be reported after the employment end date." },
-      { status: 409 },
-    );
+    return NextResponse.json({ error: "afterEmploymentEnd" }, { status: 409 });
   if (
     loaded.sheet.expectedMinutes === 0 &&
     parsed.data.autoApproveNonWorking === true
   ) {
     if (parsed.data.entries.length > 0)
-      return NextResponse.json(
-        {
-          error: "A zero-hour report cannot contain time entries.",
-        },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "zeroHourEntries" }, { status: 400 });
 
     const { db } = getAdminServices();
     const existing = await db
@@ -366,7 +367,7 @@ async function saveCurrent(request: Request) {
       timesheetId: loaded.id,
       userId: loaded.user.id,
       action: "approved",
-      fromStatus: "draft",
+      fromStatus: loaded.sheet.status,
       toStatus: "approved",
       comment: "Automatically approved because the period has no working days.",
       performedBy: loaded.user.id,
@@ -390,13 +391,7 @@ async function saveCurrent(request: Request) {
     return NextResponse.json({ ok: true, status: "approved" });
   }
   if (loaded.sheet.expectedMinutes === 0 && parsed.data.entries.length === 0)
-    return NextResponse.json(
-      {
-        error:
-          "This period contains only non-working days. Confirm reporting 0 hours to continue.",
-      },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "confirmZeroHours" }, { status: 400 });
   const dateSet = new Set(loaded.dates);
   const codeMap = new Map(loaded.codes.map((code) => [String(code.id), code]));
   if (
@@ -405,7 +400,7 @@ async function saveCurrent(request: Request) {
     )
   )
     return NextResponse.json(
-      { error: "An entry contains an invalid date or time code." },
+      { error: "invalidEntryDateOrCode" },
       { status: 400 },
     );
   const redDateSet = new Set(
@@ -418,13 +413,7 @@ async function saveCurrent(request: Request) {
         codeMap.get(entry.timeCodeId)?.countsAsWorkedTime !== true,
     )
   )
-    return NextResponse.json(
-      {
-        error:
-          "Only working-time codes can be reported on red or non-working days.",
-      },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "redDayNeedsWorkCode" }, { status: 400 });
 
   const { db } = getAdminServices();
   const existing = await db
@@ -511,12 +500,6 @@ export async function PUT(request: Request) {
     return await saveCurrent(request);
   } catch (error) {
     console.error("Saving time report failed", error);
-    return NextResponse.json(
-      {
-        error:
-          "The time report could not be saved. Please try again. If the problem continues, contact an administrator.",
-      },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "saveFailed" }, { status: 500 });
   }
 }

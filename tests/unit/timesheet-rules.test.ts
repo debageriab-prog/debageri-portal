@@ -4,6 +4,7 @@ import {
   assertTransition,
   calculateTotals,
   canReview,
+  hasSameEntries,
   isAfterEmployment,
   validateEntry,
 } from "@/domain/timesheets/rules";
@@ -134,5 +135,38 @@ describe("employment end date", () => {
     expect(isAfterEmployment("2026-07-16", "2026-07-15")).toBe(true);
     expect(isAfterEmployment("2026-07-16", null)).toBe(false);
     expect(isAfterEmployment("2026-07-16", undefined)).toBe(false);
+  });
+});
+
+describe("hasSameEntries", () => {
+  const entry = (date: string, minutes: number, timeCodeId = "work") => ({
+    date,
+    minutes,
+    timeCodeId,
+  });
+
+  it("ignores order and adds rows for the same date and code", () => {
+    expect(
+      hasSameEntries(
+        [entry("2026-10-26", 480), entry("2026-10-27", 420)],
+        [entry("2026-10-27", 420), entry("2026-10-26", 480)],
+      ),
+    ).toBe(true);
+    expect(
+      hasSameEntries(
+        [entry("2026-10-26", 480)],
+        [entry("2026-10-26", 240), entry("2026-10-26", 240)],
+      ),
+    ).toBe(true);
+  });
+
+  it("notices changed hours, codes, dates and removed rows", () => {
+    const stored = [entry("2026-10-26", 480)];
+    expect(hasSameEntries(stored, [entry("2026-10-26", 420)])).toBe(false);
+    expect(hasSameEntries(stored, [entry("2026-10-26", 480, "sick")])).toBe(
+      false,
+    );
+    expect(hasSameEntries(stored, [entry("2026-10-27", 480)])).toBe(false);
+    expect(hasSameEntries(stored, [])).toBe(false);
   });
 });

@@ -21,15 +21,11 @@ export async function POST(
 ) {
   const { id, action } = await context.params;
   const target = actions[action];
-  if (!target)
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!target) return NextResponse.json({ error: "notFound" }, { status: 404 });
   try {
     const actor = await verifySession();
     if (!actor)
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
     const body = (await request.json().catch(() => ({}))) as {
       reason?: unknown;
     };
@@ -49,12 +45,14 @@ export async function POST(
       {
         error:
           code === "ALREADY_REPORTED"
-            ? "You already reported this week. Delete the existing draft if you want to report again, or edit that draft."
+            ? "alreadyReported"
             : code === "AFTER_EMPLOYMENT_END"
-              ? "Time cannot be reported after the employment end date."
-              : status === 409
-                ? "The operation could not be completed"
-                : code,
+              ? "afterEmploymentEnd"
+              : code === "FORBIDDEN"
+                ? "forbidden"
+                : code === "NOT_FOUND"
+                  ? "notFound"
+                  : "operationFailed",
       },
       { status },
     );

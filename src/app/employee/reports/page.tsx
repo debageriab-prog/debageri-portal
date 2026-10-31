@@ -1,8 +1,11 @@
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
+import { getTranslator } from "@/lib/localization/server";
+
 export default async function ReportsPage() {
   const user = (await verifySession())!;
+  const t = await getTranslator();
   const { db } = getAdminServices();
   const snapshot = await db
     .collection("timeEntries")
@@ -18,23 +21,22 @@ export default async function ReportsPage() {
     <>
       <div className="topbar">
         <div>
-          <div className="eyebrow">Reports</div>
-          <h1>My reported time</h1>
+          <div className="eyebrow">{t("myReportsEyebrow")}</div>
+          <h1>{t("myReportedTime")}</h1>
           <p className="muted page-description">
-            Understand how your submitted time is distributed across work and
-            absence categories.
+            {t("myReportedTimeDescription")}
           </p>
         </div>
       </div>
       <section className="card table-wrap">
         {totals.size === 0 ? (
-          <p>No reported time yet.</p>
+          <p>{t("noReportedTime")}</p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>Code</th>
-                <th>Time</th>
+                <th>{t("code")}</th>
+                <th>{t("time")}</th>
               </tr>
             </thead>
             <tbody>

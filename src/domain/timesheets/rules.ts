@@ -34,6 +34,27 @@ export function isEditable(status: TimesheetStatus): boolean {
   return status === "draft" || status === "rejected" || status === "reopened";
 }
 
+/** True when both lists report the same minutes per date and time code. */
+export function hasSameEntries(
+  left: Array<Pick<TimeEntry, "date" | "timeCodeId" | "minutes">>,
+  right: Array<Pick<TimeEntry, "date" | "timeCodeId" | "minutes">>,
+): boolean {
+  const totals = (entries: typeof left) => {
+    const minutes = new Map<string, number>();
+    for (const entry of entries) {
+      const key = `${entry.date}|${entry.timeCodeId}`;
+      minutes.set(key, (minutes.get(key) ?? 0) + entry.minutes);
+    }
+    return minutes;
+  };
+  const leftTotals = totals(left);
+  const rightTotals = totals(right);
+  return (
+    leftTotals.size === rightTotals.size &&
+    [...leftTotals].every(([key, value]) => rightTotals.get(key) === value)
+  );
+}
+
 /** The end date is the last day of employment, so it can still be reported. */
 export function isAfterEmployment(
   date: string,

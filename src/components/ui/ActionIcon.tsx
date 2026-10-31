@@ -1,7 +1,34 @@
 export type ActionIconType =
-  "edit" | "delete" | "password" | "reverse" | "mfa" | "copy" | "copied";
+  | "edit"
+  | "delete"
+  | "password"
+  | "reverse"
+  | "mfa"
+  | "copy"
+  | "copied"
+  | "attach"
+  | "previous"
+  | "next";
 
 export function ActionIcon({ type }: { type: ActionIconType }) {
+  if (type === "previous")
+    return (
+      <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <path d="m15 5-7 7 7 7" />
+      </svg>
+    );
+  if (type === "next")
+    return (
+      <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <path d="m9 5 7 7-7 7" />
+      </svg>
+    );
+  if (type === "attach")
+    return (
+      <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <path d="m20 11.5-8 8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.3 8.3a1.7 1.7 0 0 1-2.4-2.4l7.5-7.5" />
+      </svg>
+    );
   if (type === "edit")
     return (
       <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">

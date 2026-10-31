@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { timesheetErrorMessage } from "@/lib/localization/timesheets";
 
 export function ReviewActions({
   id,
@@ -29,7 +30,7 @@ export function ReviewActions({
     );
     const result = await response.json();
     setBusy(false);
-    if (!response.ok) return setError(result.error);
+    if (!response.ok) return setError(timesheetErrorMessage(t, result.error));
     router.push(returnTo);
     router.refresh();
   }

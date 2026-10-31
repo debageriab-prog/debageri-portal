@@ -71,6 +71,9 @@ service cloud.firestore {
       allow read: if sameOrg(resource.data) && (own(resource.data.userId) || isManagerFor(resource.data.userId));
       allow write: if false;
     }
+    match /timesheetAttachments/{attachmentId} {
+      allow read, write: if false;
+    }
     match /auditLogs/{logId} {
       allow read: if isAdmin() && sameOrg(resource.data);
       allow write: if false;

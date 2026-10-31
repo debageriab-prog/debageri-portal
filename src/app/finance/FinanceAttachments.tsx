@@ -117,14 +117,14 @@ export async function saveFinanceAttachmentChanges(
   return uploadFinanceAttachments(entityType, entityId, files);
 }
 
-type PreviewTarget = {
+export type PreviewTarget = {
   name: string;
   contentType: string;
   fileUrl?: string;
   blob?: Blob;
 };
 
-function canPreview(contentType: string) {
+export function canPreview(contentType: string) {
   return contentType === "application/pdf" || contentType.startsWith("image/");
 }
 
@@ -136,7 +136,13 @@ function attachmentUrl(
   return `/api/finance/attachments/${entityType}/${encodeURIComponent(entityId)}/${encodeURIComponent(attachmentId)}`;
 }
 
-function PreviewButton({ name, onClick }: { name: string; onClick(): void }) {
+export function PreviewButton({
+  name,
+  onClick,
+}: {
+  name: string;
+  onClick(): void;
+}) {
   const { t } = useLocale();
   const label = t("previewAttachment").replace("{name}", name);
   return (
@@ -152,7 +158,7 @@ function PreviewButton({ name, onClick }: { name: string; onClick(): void }) {
   );
 }
 
-function AttachmentPreviewModal({
+export function AttachmentPreviewModal({
   target,
   onClose,
 }: {
