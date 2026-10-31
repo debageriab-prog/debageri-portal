@@ -143,6 +143,8 @@ export function WeeklyTimesheet() {
     data !== null && isAfterEmployment(data.dates[0]!, data.employmentEndDate);
   const editable = data && isEditable(data.sheet.status) && !periodClosed;
   const hasWorkCode = data?.codes.some((code) => code.category === "work");
+  const otherRejected =
+    data?.rejectedReports.filter((report) => report.id !== data.id) ?? [];
   const periodLabel = data
     ? `${t("week")} ${data.sheet.isoWeek}${
         data.partCount > 1 ? `-${String(data.part).padStart(2, "0")}` : ""
@@ -640,45 +642,25 @@ export function WeeklyTimesheet() {
           </p>
         )}
         <div>
-          <div className="reporting-week-row">
-            <label className="reporting-week-selector">
-              <strong>{t("reportingWeekLabel")}</strong>
-              <select
-                className="field"
-                value={weekMode}
-                aria-label={t("reportingWeekModeLabel")}
-                onChange={(event) => {
-                  const mode = event.target.value as
-                    "current" | "number" | "date";
-                  setWeekMode(mode);
-                  setCopyPanelOpen(false);
-                  if (mode === "current") void loadWeek();
-                }}
-              >
-                <option value="current">{t("reportingWeekCurrent")}</option>
-                <option value="number">{t("reportingWeekNumber")}</option>
-                <option value="date">{t("reportingWeekDate")}</option>
-              </select>
-            </label>
-            <button
-              className="reporting-week-arrow"
-              type="button"
-              aria-label={t("previousWeek")}
-              title={t("previousWeek")}
-              onClick={goToPreviousWeek}
+          <label className="reporting-week-selector">
+            <strong>{t("reportingWeekLabel")}</strong>
+            <select
+              className="field"
+              value={weekMode}
+              aria-label={t("reportingWeekModeLabel")}
+              onChange={(event) => {
+                const mode = event.target.value as
+                  "current" | "number" | "date";
+                setWeekMode(mode);
+                setCopyPanelOpen(false);
+                if (mode === "current") void loadWeek();
+              }}
             >
-              <ActionIcon type="previous" />
-            </button>
-            <button
-              className="reporting-week-arrow"
-              type="button"
-              aria-label={t("nextWeek")}
-              title={t("nextWeek")}
-              onClick={goToNextWeek}
-            >
-              <ActionIcon type="next" />
-            </button>
-          </div>
+              <option value="current">{t("reportingWeekCurrent")}</option>
+              <option value="number">{t("reportingWeekNumber")}</option>
+              <option value="date">{t("reportingWeekDate")}</option>
+            </select>
+          </label>
           {weekMode === "number" && (
             <div className="actions selection-panel">
               <label>
@@ -723,59 +705,52 @@ export function WeeklyTimesheet() {
           )}
         </div>
       </section>
-      {data.sheet.status === "rejected" && (
+      {(data.sheet.status === "rejected" || otherRejected.length > 0) && (
         <div
           className="notice notice-warning rejected-report-notice"
           role="status"
         >
-          <span>
-            <strong>
-              {t("rejectedWithReason").replace(
-                "{reason}",
-                data.sheet.rejectionReason ?? "",
-              )}
-            </strong>
-            {editable && <small>{t("rejectedReportHint")}</small>}
-          </span>
+          {data.sheet.status === "rejected" && (
+            <span>
+              <strong>
+                {t("rejectedWithReason").replace(
+                  "{reason}",
+                  data.sheet.rejectionReason ?? "",
+                )}
+              </strong>
+              {editable && <small>{t("rejectedReportHint")}</small>}
+            </span>
+          )}
+          {otherRejected.length > 0 && (
+            <span className="rejected-report-links">
+              {t("otherRejectedReports")}
+              {otherRejected.map((report) => (
+                <button
+                  className="button secondary"
+                  type="button"
+                  key={report.id}
+                  title={report.reason}
+                  onClick={() => {
+                    setWeekMode("number");
+                    setCopyPanelOpen(false);
+                    void loadWeek(
+                      report.isoYear,
+                      report.isoWeek,
+                      undefined,
+                      report.part,
+                    );
+                  }}
+                >
+                  {t("week")} {report.isoWeek}
+                  {report.partCount > 1
+                    ? `-${String(report.part).padStart(2, "0")}`
+                    : ""}
+                </button>
+              ))}
+            </span>
+          )}
         </div>
       )}
-      {data.rejectedReports
-        .filter((report) => report.id !== data.id)
-        .map((report) => (
-          <div
-            className="notice notice-warning rejected-report-notice"
-            key={report.id}
-          >
-            <span>
-              {t("rejectedWeekNotice")
-                .replace(
-                  "{period}",
-                  `${t("week")} ${report.isoWeek}${
-                    report.partCount > 1
-                      ? `-${String(report.part).padStart(2, "0")}`
-                      : ""
-                  }`,
-                )
-                .replace("{reason}", report.reason)}
-            </span>
-            <button
-              className="button secondary"
-              type="button"
-              onClick={() => {
-                setWeekMode("number");
-                setCopyPanelOpen(false);
-                void loadWeek(
-                  report.isoYear,
-                  report.isoWeek,
-                  undefined,
-                  report.part,
-                );
-              }}
-            >
-              {t("openReport")}
-            </button>
-          </div>
-        ))}
       {periodClosed && (
         <p className="notice notice-warning">
           {t("reportingClosedAfterEndDate").replace(
@@ -798,12 +773,32 @@ export function WeeklyTimesheet() {
         <div className="timesheet-table-header">
           <div>
             <span className="eyebrow">{t("reportingPeriodLabel")}</span>
-            <strong>
-              {t("week")} {data.sheet.isoWeek}
-              {data.partCount > 1
-                ? `-${String(data.part).padStart(2, "0")}`
-                : ""}
-            </strong>
+            <div className="timesheet-week-nav">
+              <button
+                className="timesheet-week-arrow"
+                type="button"
+                aria-label={t("previousWeek")}
+                title={t("previousWeek")}
+                onClick={goToPreviousWeek}
+              >
+                <ActionIcon type="previous" />
+              </button>
+              <strong>
+                {t("week")} {data.sheet.isoWeek}
+                {data.partCount > 1
+                  ? `-${String(data.part).padStart(2, "0")}`
+                  : ""}
+              </strong>
+              <button
+                className="timesheet-week-arrow"
+                type="button"
+                aria-label={t("nextWeek")}
+                title={t("nextWeek")}
+                onClick={goToNextWeek}
+              >
+                <ActionIcon type="next" />
+              </button>
+            </div>
           </div>
           <span>
             {t("periodFromTo")

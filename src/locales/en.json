@@ -1171,8 +1171,7 @@
   "timesheetError_deleteProtected": "Only draft or submitted time reports can be deleted. Approved and rejected reports are protected.",
   "timesheetError_confirmationRequired": "Type \"I am sure\" to confirm deletion.",
   "rejectedReportHint": "Change the rows if needed and submit the report again.",
-  "rejectedWeekNotice": "{period} was rejected: {reason}",
-  "openReport": "Open report",
+  "otherRejectedReports": "Other rejected reports:",
   "copyWeekEmpty": "Nothing to copy: week {week} has no reported time for these days.",
   "warningResubmitUnchanged": "This report was rejected. Are you sure you want to submit the same as before?"
 }

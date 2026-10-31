@@ -1171,8 +1171,7 @@
   "timesheetError_deleteProtected": "Endast utkast och inskickade tidrapporter kan tas bort. Godkända och avvisade rapporter är skyddade.",
   "timesheetError_confirmationRequired": "Skriv \"I am sure\" för att bekräfta borttagningen.",
   "rejectedReportHint": "Ändra raderna vid behov och skicka in rapporten igen.",
-  "rejectedWeekNotice": "{period} avvisades: {reason}",
-  "openReport": "Öppna rapport",
+  "otherRejectedReports": "Andra avvisade rapporter:",
   "copyWeekEmpty": "Inget att kopiera: vecka {week} har ingen rapporterad tid för de här dagarna.",
   "warningResubmitUnchanged": "Den här rapporten avvisades. Är du säker på att du vill skicka in samma sak som tidigare?"
 }

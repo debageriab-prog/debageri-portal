@@ -2180,38 +2180,42 @@ th.actions-heading {
   gap: 8px;
 }
 
-.reporting-week-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
 .reporting-week-selector {
   width: fit-content;
+  margin-bottom: 12px;
   flex-wrap: wrap;
 }
 
-.reporting-week-arrow {
+.timesheet-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.timesheet-week-nav strong {
+  margin-top: 0;
+}
+
+.timesheet-week-arrow {
   display: inline-grid;
-  min-width: 46px;
-  min-height: 46px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   place-items: center;
   border: 1px solid #c4a98e;
-  border-radius: 14px;
+  border-radius: 10px;
   background: transparent;
   color: #3d3027;
   cursor: pointer;
 }
 
-.reporting-week-arrow:hover,
-.reporting-week-arrow:focus-visible {
+.timesheet-week-arrow:hover,
+.timesheet-week-arrow:focus-visible {
   background: var(--accent-soft);
 }
 
-.reporting-week-arrow .action-icon-svg {
+.timesheet-week-arrow .action-icon-svg {
   width: 20px;
   height: 20px;
   stroke-width: 2.4;
@@ -2229,6 +2233,13 @@ th.actions-heading {
 .rejected-report-notice small {
   display: block;
   margin-top: 3px;
+}
+
+.rejected-report-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .reporting-week-selector .field {
