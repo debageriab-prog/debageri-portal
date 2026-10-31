@@ -3,6 +3,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
 import { getTranslator } from "@/lib/localization/server";
+import { dateRangeLabel } from "@/lib/localization/timesheets";
 import { aggregateReportedBreakdown } from "@/domain/reports/aggregate";
 
 export default async function ApprovalsPage() {
@@ -91,7 +92,7 @@ export default async function ApprovalsPage() {
                         : ""}
                     </td>
                     <td>
-                      {sheet.periodStart} to {sheet.periodEnd}
+                      {dateRangeLabel(t, sheet.periodStart, sheet.periodEnd)}
                     </td>
                     <td>{formatDuration(sheet.expectedMinutes)}</td>
                     <td>

@@ -4,6 +4,10 @@ import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
 import Link from "next/link";
 import { getTranslator } from "@/lib/localization/server";
+import {
+  dateRangeLabel,
+  timesheetStatusLabel,
+} from "@/lib/localization/timesheets";
 import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
 
 export default async function TimeReportPage({
@@ -42,10 +46,12 @@ export default async function TimeReportPage({
           <div className="eyebrow">{t("timeReport")}</div>
           <h1>{String(user.displayName ?? user.email)}</h1>
           <p className="muted">
-            {sheet.periodStart} to {sheet.periodEnd}
+            {dateRangeLabel(t, sheet.periodStart, sheet.periodEnd)}
           </p>
         </div>
-        <span className={`status status-${sheet.status}`}>{sheet.status}</span>
+        <span className={`status status-${sheet.status}`}>
+          {timesheetStatusLabel(t, sheet.status)}
+        </span>
       </div>
       <div className="grid-2">
         <section className="card">
