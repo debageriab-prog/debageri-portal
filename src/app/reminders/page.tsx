@@ -4,6 +4,7 @@ import { verifySession } from "@/server/auth/session";
 import { getTranslator } from "@/lib/localization/server";
 import {
   findMissingWeeks,
+  listedInReminderOverview,
   receivesReminders,
   toReportedWeek,
 } from "@/domain/reminders/missing-weeks";
@@ -65,38 +66,43 @@ export default async function RemindersPage({
     .sort((a, b) => b.sentDate.localeCompare(a.sentDate));
   const rows: ReminderRow[] = usersSnapshot.docs
     .filter((doc) => receivesReminders(doc.data()))
-    .map((doc) => {
+    .flatMap((doc) => {
       const data = doc.data();
       const reports = sheets
         .filter((sheet) => sheet.userId === doc.id)
         .map(toReportedWeek)
         .sort((a, b) => b.isoYear - a.isoYear || b.isoWeek - a.isoWeek);
       const sent = reminders.filter((reminder) => reminder.userId === doc.id);
-      return {
-        id: doc.id,
-        displayName: String(data.displayName ?? data.email),
-        email: String(data.email),
-        missing: findMissingWeeks(
-          String(data.reportingStartDate ?? data.employmentStartDate ?? today),
-          today,
-          reports,
-          {
-            employmentEndDate: data.employmentEndDate ?? null,
-            includeCurrentWeek,
-          },
-        ),
-        latestReport: reports[0]
-          ? {
-              isoYear: reports[0].isoYear,
-              isoWeek: reports[0].isoWeek,
-              status: reports[0].status,
-            }
-          : null,
-        latestReminder: sent[0]
-          ? { sentDate: sent[0].sentDate, sentByRole: sent[0].sentByRole }
-          : null,
-        alreadySentToday: sent.some((item) => item.sentDate === today),
-      };
+      const missing = findMissingWeeks(
+        String(data.reportingStartDate ?? data.employmentStartDate ?? today),
+        today,
+        reports,
+        {
+          employmentEndDate: data.employmentEndDate ?? null,
+          includeCurrentWeek,
+        },
+      );
+      if (!listedInReminderOverview(data.employmentEndDate, today, missing))
+        return [];
+      return [
+        {
+          id: doc.id,
+          displayName: String(data.displayName ?? data.email),
+          email: String(data.email),
+          missing,
+          latestReport: reports[0]
+            ? {
+                isoYear: reports[0].isoYear,
+                isoWeek: reports[0].isoWeek,
+                status: reports[0].status,
+              }
+            : null,
+          latestReminder: sent[0]
+            ? { sentDate: sent[0].sentDate, sentByRole: sent[0].sentByRole }
+            : null,
+          alreadySentToday: sent.some((item) => item.sentDate === today),
+        },
+      ];
     })
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
   const settingsConfigured = Boolean(settingsDoc.data()?.encryptedPassword);

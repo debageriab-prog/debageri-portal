@@ -4,6 +4,7 @@ import {
   assertTransition,
   calculateTotals,
   canReview,
+  isAfterEmployment,
   validateEntry,
 } from "@/domain/timesheets/rules";
 
@@ -124,5 +125,14 @@ describe("timesheet rules", () => {
         },
       ),
     ).toBe(true);
+  });
+});
+
+describe("employment end date", () => {
+  it("allows reporting through the last day of employment", () => {
+    expect(isAfterEmployment("2026-07-15", "2026-07-15")).toBe(false);
+    expect(isAfterEmployment("2026-07-16", "2026-07-15")).toBe(true);
+    expect(isAfterEmployment("2026-07-16", null)).toBe(false);
+    expect(isAfterEmployment("2026-07-16", undefined)).toBe(false);
   });
 });

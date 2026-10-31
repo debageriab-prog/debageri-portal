@@ -9,6 +9,7 @@ import {
   documentAccessMatchesRole,
   documentAccessSchema,
   emailPreferencesSchema,
+  employmentDatesValid,
 } from "@/server/validators/user-access";
 
 const updateSchema = z
@@ -36,6 +37,13 @@ const updateSchema = z
       context.addIssue({
         code: "custom",
         message: "Document access does not match the role",
+      });
+    if (
+      !employmentDatesValid(value.employmentStartDate, value.employmentEndDate)
+    )
+      context.addIssue({
+        code: "custom",
+        message: "The employment end date cannot be before the start date",
       });
   });
 
@@ -77,7 +85,8 @@ export async function PATCH(
       parsed.data.reportsTime !==
         (current.reportsTime ??
           ["employee", "consultant"].includes(String(current.role))) ||
-      parsed.data.status !== current.status
+      parsed.data.status !== current.status ||
+      parsed.data.employmentEndDate !== (current.employmentEndDate ?? null)
     )
       return NextResponse.json(
         { error: "You can only change your own full name and email." },
@@ -130,6 +139,9 @@ export async function PATCH(
       metadata: {
         role: parsed.data.role,
         status: parsed.data.status,
+        employmentStartDate: parsed.data.employmentStartDate,
+        employmentEndDate: parsed.data.employmentEndDate,
+        reportingStartDate: parsed.data.reportingStartDate,
         financeAccess: parsed.data.financeAccess,
         documentAccess: parsed.data.documentAccess,
         ...(parsed.data.emailPreferences

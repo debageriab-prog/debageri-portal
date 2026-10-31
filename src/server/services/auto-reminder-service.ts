@@ -62,12 +62,7 @@ export async function runAutoReminders(portalUrl: string, now = new Date()) {
       const user = userDoc.data();
       const reportingStart =
         user.reportingStartDate ?? user.employmentStartDate;
-      if (
-        !receivesReminders(user) ||
-        !reportingStart ||
-        (user.employmentEndDate && user.employmentEndDate < date)
-      )
-        continue;
+      if (!receivesReminders(user) || !reportingStart) continue;
       const missing = findMissingWeeks(
         String(reportingStart),
         date,

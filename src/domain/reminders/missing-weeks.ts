@@ -1,3 +1,4 @@
+import { isAfterEmployment } from "@/domain/timesheets/rules";
 import {
   getIsoWeek,
   getIsoWeekDates,
@@ -36,11 +37,22 @@ export function receivesReminders(user: Record<string, unknown>) {
   );
 }
 
+/** A consultant whose employment has ended stays listed only while weeks are missing. */
+export function listedInReminderOverview(
+  employmentEndDate: string | null | undefined,
+  today: string,
+  missing: MissingWeek[],
+) {
+  return missing.length > 0 || !isAfterEmployment(today, employmentEndDate);
+}
+
 /**
  * Lists the weeks the consultant still has to report. A week that spans two
  * months has one timesheet per month, so every part that falls inside the
  * employment and has started must be submitted. The current week is left out
- * unless `includeCurrentWeek` is set, which the end-of-period reminders use.
+ * unless `includeCurrentWeek` is set, which the end-of-period reminders use,
+ * or the employment has already ended, so that week can no longer be in
+ * progress.
  */
 export function findMissingWeeks(
   reportingStartDate: string,
@@ -55,8 +67,8 @@ export function findMissingWeeks(
   const submitted = reports.filter((report) =>
     ["submitted", "approved"].includes(report.status),
   );
-  const lastExpectedDate =
-    employmentEndDate && employmentEndDate < today ? employmentEndDate : today;
+  const employmentEnded = isAfterEmployment(today, employmentEndDate);
+  const lastExpectedDate = employmentEnded ? employmentEndDate! : today;
   const cursor = new Date(`${reportingStartDate}T12:00:00Z`);
   const weekday = cursor.getUTCDay() || 7;
   cursor.setUTCDate(cursor.getUTCDate() - weekday + 1);
@@ -78,7 +90,8 @@ export function findMissingWeeks(
             ((report.partCount ?? 1) <= 1 || report.part === index + 1),
         ),
     );
-    if ((!isCurrent || includeCurrentWeek) && unreported) missing.push(week);
+    if ((!isCurrent || includeCurrentWeek || employmentEnded) && unreported)
+      missing.push(week);
     cursor.setUTCDate(cursor.getUTCDate() + 7);
   }
   return missing;

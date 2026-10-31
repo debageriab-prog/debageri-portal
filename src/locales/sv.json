@@ -196,6 +196,7 @@
   "keepReport": "Behåll rapport",
   "deleteReport": "Ta bort rapport",
   "timeReportDetails": "Detaljer för tidrapport",
+  "reportingClosedAfterEndDate": "Den här perioden ligger efter anställningens slutdatum ({date}) och kan inte rapporteras.",
   "closeTimeReportDetails": "Stäng detaljer för tidrapport",
   "description": "Beskrivning",
   "remove": "Ta bort",

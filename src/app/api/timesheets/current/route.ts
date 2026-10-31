@@ -9,6 +9,7 @@ import {
   timesheetPartId,
 } from "@/lib/dates/iso-week";
 import { verifySession } from "@/server/auth/session";
+import { isAfterEmployment } from "@/domain/timesheets/rules";
 import type { TimeCode, Timesheet } from "@/domain/types";
 
 const saveSchema = z.object({
@@ -56,6 +57,9 @@ async function loadCurrent(request: Request) {
       next.setUTCDate(next.getUTCDate() + 1);
       current = getIsoWeek(next);
     }
+    const firstDay = getIsoWeekDates(current.isoYear, current.isoWeek)[0]!;
+    if (isAfterEmployment(firstDay, user.employmentEndDate))
+      current = getIsoWeek(user.employmentEndDate!);
   }
   const isoYear = query.data.year ?? current.isoYear;
   const isoWeek = query.data.week ?? current.isoWeek;
@@ -82,13 +86,19 @@ async function loadCurrent(request: Request) {
         ),
     ),
   );
+  const partsInEmployment = parts.filter(
+    (part) => !isAfterEmployment(part[0]!, user.employmentEndDate),
+  ).length;
   const selectedPart =
     query.data.part ??
-    Math.max(
-      1,
-      partDocs.findIndex(
-        (doc) => !doc.exists || doc.data()?.status === "draft",
-      ) + 1 || parts.length,
+    Math.min(
+      Math.max(1, partsInEmployment),
+      Math.max(
+        1,
+        partDocs.findIndex(
+          (doc) => !doc.exists || doc.data()?.status === "draft",
+        ) + 1 || parts.length,
+      ),
     );
   if (selectedPart > parts.length)
     return { user, error: "The selected week part does not exist." };
@@ -211,7 +221,10 @@ async function loadCurrent(request: Request) {
           date: fullDates[copyDates.indexOf(String(entry.date))],
         }))
         .filter(
-          (entry) => Boolean(entry.date) && dates.includes(String(entry.date)),
+          (entry) =>
+            Boolean(entry.date) &&
+            dates.includes(String(entry.date)) &&
+            !isAfterEmployment(String(entry.date), user.employmentEndDate),
         );
     } catch {
       return { user, error: "The copy-from week does not exist." };
@@ -235,6 +248,7 @@ async function loadCurrent(request: Request) {
       sunday: 0,
     },
     sheet: { id, ...sheet },
+    employmentEndDate: user.employmentEndDate,
     entries: entryDocs.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
     copyEntries,
     codes,
@@ -283,6 +297,17 @@ async function saveCurrent(request: Request) {
     return NextResponse.json(
       { error: "Invalid time entries." },
       { status: 400 },
+    );
+  const employmentEndDate = loaded.user.employmentEndDate;
+  if (
+    isAfterEmployment(loaded.dates[0]!, employmentEndDate) ||
+    parsed.data.entries.some((entry) =>
+      isAfterEmployment(entry.date, employmentEndDate),
+    )
+  )
+    return NextResponse.json(
+      { error: "Time cannot be reported after the employment end date." },
+      { status: 409 },
     );
   if (
     loaded.sheet.expectedMinutes === 0 &&
