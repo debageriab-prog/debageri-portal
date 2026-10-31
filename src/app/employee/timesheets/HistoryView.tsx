@@ -7,6 +7,7 @@ import { formatDuration } from "@/lib/durations/duration";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { aggregateReportedDays } from "@/domain/reports/aggregate";
 
@@ -430,18 +431,27 @@ export function HistoryView({
                     {t("view")}
                   </button>
                 ) : (
-                  ["draft", "submitted"].includes(sheet.status) && (
-                    <div className="row-actions">
-                      {sheet.status === "draft" && (
-                        <Link
-                          className="table-action icon-action"
-                          aria-label={t("edit")}
-                          title={t("edit")}
-                          href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
-                        >
-                          <ActionIcon type="edit" />
-                        </Link>
-                      )}
+                  <div className="row-actions">
+                    {sheet.status === "draft" ? (
+                      <Link
+                        className="table-action icon-action"
+                        aria-label={t("edit")}
+                        title={t("edit")}
+                        href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
+                      >
+                        <ActionIcon type="edit" />
+                      </Link>
+                    ) : (
+                      <Link
+                        className="table-action icon-action"
+                        aria-label={t("attachments")}
+                        title={t("attachments")}
+                        href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
+                      >
+                        <ActionIcon type="attach" />
+                      </Link>
+                    )}
+                    {["draft", "submitted"].includes(sheet.status) && (
                       <button
                         className="table-action table-action-danger icon-action"
                         aria-label={t("delete")}
@@ -454,8 +464,8 @@ export function HistoryView({
                       >
                         <ActionIcon type="delete" />
                       </button>
-                    </div>
-                  )
+                    )}
+                  </div>
                 )}
               </td>
             </tr>
@@ -701,6 +711,7 @@ export function HistoryView({
                 </tbody>
               </table>
             </div>
+            <TimesheetAttachments timesheetId={viewing.id} />
             <footer className="modal-actions">
               <button
                 className="button secondary"

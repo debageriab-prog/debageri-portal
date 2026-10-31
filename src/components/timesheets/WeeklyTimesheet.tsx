@@ -1,6 +1,11 @@
 "use client";
 
 import { useLocale } from "@/components/localization/LocaleProvider";
+import {
+  TimesheetAttachments,
+  timesheetAttachmentMessage,
+  uploadTimesheetAttachments,
+} from "@/components/timesheets/TimesheetAttachments";
 import { DateInput } from "@/components/ui/DateInput";
 import { isAfterEmployment } from "@/domain/timesheets/rules";
 import { useEffect, useMemo, useState } from "react";
@@ -86,7 +91,7 @@ export function WeeklyTimesheet() {
   const [message, setMessage] = useState("Loading...");
   const [yearInput, setYearInput] = useState(new Date().getUTCFullYear());
   const [weekInput, setWeekInput] = useState(1);
-  const [copyMode, setCopyMode] = useState("");
+  const [copyPanelOpen, setCopyPanelOpen] = useState(false);
   const [copyYear, setCopyYear] = useState(new Date().getUTCFullYear());
   const [copyWeek, setCopyWeek] = useState(1);
   const [weekMode, setWeekMode] = useState<"current" | "number" | "date">(
@@ -100,6 +105,8 @@ export function WeeklyTimesheet() {
   const [nonWorkingOpen, setNonWorkingOpen] = useState(false);
   const [autoApproving, setAutoApproving] = useState(false);
   const [workedAllDays, setWorkedAllDays] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [attachmentsVersion, setAttachmentsVersion] = useState(0);
   const periodClosed =
     data !== null && isAfterEmployment(data.dates[0]!, data.employmentEndDate);
   const editable = data && data.sheet.status === "draft" && !periodClosed;
@@ -139,17 +146,14 @@ export function WeeklyTimesheet() {
         entriesToRows(loaded, copy ? loaded.copyEntries : loaded.entries),
       );
       setWorkedAllDays(false);
+      if (!copy) setPendingFiles([]);
       setNonWorkingOpen(
         loaded.sheet.status === "draft" &&
           loaded.sheet.expectedMinutes === 0 &&
           !isAfterEmployment(loaded.dates[0]!, loaded.employmentEndDate) &&
           !copy,
       );
-      setMessage(
-        copy
-          ? "Copied entries are ready. Review, save and submit when finished."
-          : "",
-      );
+      setMessage(copy ? t("copiedEntriesReady") : "");
     } catch {
       setMessage("The time report could not be loaded.");
     }
@@ -339,11 +343,29 @@ export function WeeklyTimesheet() {
     }
   }
 
+  async function uploadPendingFiles(timesheetId: string) {
+    const { uploaded, error } = await uploadTimesheetAttachments(
+      timesheetId,
+      pendingFiles,
+    );
+    if (uploaded) {
+      setPendingFiles((current) => current.slice(uploaded));
+      setAttachmentsVersion((version) => version + 1);
+    }
+    return error ? timesheetAttachmentMessage(t, error) : null;
+  }
+
   async function performSubmit() {
     setSubmitting(true);
     setSubmitError("");
     try {
       if (!(await save()) || !data) return;
+      const uploadError = await uploadPendingFiles(data.id);
+      if (uploadError) {
+        setMessage(uploadError);
+        setSubmitError(uploadError);
+        return;
+      }
       const response = await appCheckFetch(
         `/api/timesheets/${data.id}/submit`,
         {
@@ -414,6 +436,7 @@ export function WeeklyTimesheet() {
         );
         return;
       }
+      const uploadError = await uploadPendingFiles(data.id);
       setNonWorkingOpen(false);
       setSuccess("0 hours reported and approved successfully");
       setWeekMode("number");
@@ -430,6 +453,7 @@ export function WeeklyTimesheet() {
         const selected = getIsoWeek(next);
         await loadWeek(selected.isoYear, selected.isoWeek);
       }
+      if (uploadError) setMessage(uploadError);
     } catch {
       setSubmitError(
         "The zero-hour report could not be created. Please try again.",
@@ -442,25 +466,40 @@ export function WeeklyTimesheet() {
   function selectCalendarDate(value: string) {
     if (!value) return;
     const selected = getIsoWeek(value);
-    setCopyMode("");
+    setCopyPanelOpen(false);
     void loadWeek(selected.isoYear, selected.isoWeek);
+  }
+
+  function previousWeek(firstDate: string) {
+    const previous = new Date(`${firstDate}T12:00:00Z`);
+    previous.setUTCDate(previous.getUTCDate() - 7);
+    return getIsoWeek(previous);
   }
 
   function copyPrevious() {
     if (!data) return;
-    const previous = new Date(`${data.dates[0]}T12:00:00Z`);
-    previous.setUTCDate(previous.getUTCDate() - 7);
-    const selected = getIsoWeek(previous);
+    const selected = previousWeek(data.dates[0]!);
+    setCopyPanelOpen(false);
     void loadWeek(data.sheet.isoYear, data.sheet.isoWeek, {
       year: selected.isoYear,
       week: selected.isoWeek,
     });
   }
 
+  function toggleCopyPanel() {
+    if (!data) return;
+    if (!copyPanelOpen) {
+      const selected = previousWeek(data.dates[0]!);
+      setCopyYear(selected.isoYear);
+      setCopyWeek(selected.isoWeek);
+    }
+    setCopyPanelOpen(!copyPanelOpen);
+  }
+
   function goToNextWeek() {
     if (!data) return;
     setWeekMode("number");
-    setCopyMode("");
+    setCopyPanelOpen(false);
     setSuccess("");
     if (data.part < data.partCount) {
       void loadWeek(
@@ -480,7 +519,7 @@ export function WeeklyTimesheet() {
   function goToPreviousWeek() {
     if (!data) return;
     setWeekMode("number");
-    setCopyMode("");
+    setCopyPanelOpen(false);
     setSuccess("");
     if (data.part > 1) {
       void loadWeek(
@@ -491,9 +530,7 @@ export function WeeklyTimesheet() {
       );
       return;
     }
-    const previous = new Date(`${data.dates[0]}T12:00:00Z`);
-    previous.setUTCDate(previous.getUTCDate() - 7);
-    const selected = getIsoWeek(previous);
+    const selected = previousWeek(data.dates[0]!);
     const previousPartCount = splitWeekByMonth(
       getIsoWeekDates(selected.isoYear, selected.isoWeek),
     ).length;
@@ -555,7 +592,7 @@ export function WeeklyTimesheet() {
                 const mode = event.target.value as
                   "current" | "number" | "date";
                 setWeekMode(mode);
-                setCopyMode("");
+                setCopyPanelOpen(false);
                 if (mode === "current") void loadWeek();
               }}
             >
@@ -655,63 +692,74 @@ export function WeeklyTimesheet() {
             {data.dates.at(-1)?.replaceAll("-", "/")}
           </span>
         </div>
-        <div className="copy-from-control">
-          <div className="actions copy-from-row">
-            <strong>Copy from</strong>
-            <select
-              className="field copy-from-select"
-              value={copyMode}
-              onChange={(event) => {
-                setCopyMode(event.target.value);
-                if (event.target.value === "previous") copyPrevious();
-              }}
-            >
-              <option value="">Enter manually</option>
-              <option value="previous">Previous week</option>
-              <option value="custom">Choose week number</option>
-            </select>
-            {copyMode === "custom" && (
-              <>
-                <input
-                  className="field compact-field"
-                  type="number"
-                  value={copyYear}
-                  onChange={(event) => setCopyYear(Number(event.target.value))}
-                  aria-label="Copy year"
-                />
-                <input
-                  className="field compact-field"
-                  type="number"
-                  min="1"
-                  max="53"
-                  value={copyWeek}
-                  onChange={(event) => setCopyWeek(Number(event.target.value))}
-                  aria-label="Copy week"
-                />
-                <button
-                  className="button secondary"
-                  onClick={() =>
-                    void loadWeek(data.sheet.isoYear, data.sheet.isoWeek, {
-                      year: copyYear,
-                      week: copyWeek,
-                    })
-                  }
-                >
-                  Copy
-                </button>
-              </>
-            )}
-            <label className="checkbox-line">
-              <input
-                type="checkbox"
-                checked={workedAllDays}
-                disabled={!editable}
-                onChange={(event) => toggleWorkedAllDays(event.target.checked)}
-              />
-              Worked all days
-            </label>
-          </div>
+        <div
+          className="timesheet-quick-actions"
+          role="group"
+          aria-label={t("fillWeekActions")}
+        >
+          <button
+            className="button secondary"
+            type="button"
+            aria-pressed={workedAllDays}
+            disabled={!editable}
+            onClick={() => toggleWorkedAllDays(!workedAllDays)}
+          >
+            {t("workedAllDays")}
+          </button>
+          <button
+            className="button secondary"
+            type="button"
+            disabled={!editable}
+            onClick={copyPrevious}
+          >
+            {t("copyLastWeek")}
+          </button>
+          <button
+            className="button secondary"
+            type="button"
+            aria-expanded={copyPanelOpen}
+            disabled={!editable}
+            onClick={toggleCopyPanel}
+          >
+            {t("chooseWeekNumber")}
+          </button>
         </div>
+        {copyPanelOpen && editable && (
+          <div className="actions selection-panel timesheet-copy-panel">
+            <label>
+              {t("year")}
+              <input
+                className="field compact-field"
+                type="number"
+                value={copyYear}
+                onChange={(event) => setCopyYear(Number(event.target.value))}
+              />
+            </label>
+            <label>
+              {t("week")}
+              <input
+                className="field compact-field"
+                type="number"
+                min="1"
+                max="53"
+                value={copyWeek}
+                onChange={(event) => setCopyWeek(Number(event.target.value))}
+              />
+            </label>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() =>
+                void loadWeek(data.sheet.isoYear, data.sheet.isoWeek, {
+                  year: copyYear,
+                  week: copyWeek,
+                })
+              }
+            >
+              {t("copyAction")}
+            </button>
+          </div>
+        )}
         <table className="timesheet-grid">
           <thead>
             <tr>
@@ -821,6 +869,18 @@ export function WeeklyTimesheet() {
             >
               Add row
             </button>
+          </div>
+        )}
+        <TimesheetAttachments
+          key={data.id}
+          timesheetId={data.id}
+          files={pendingFiles}
+          onFilesChange={setPendingFiles}
+          uploadOnSubmit={Boolean(editable)}
+          refreshKey={attachmentsVersion}
+        />
+        {editable && (
+          <div className="actions timesheet-actions">
             <span className="actions-spacer" />
             <button
               className="button"

@@ -5,6 +5,7 @@ import { formatDuration } from "@/lib/durations/duration";
 import { ReviewActions } from "./ReviewActions";
 import { getTranslator } from "@/lib/localization/server";
 import { aggregateReportedBreakdown } from "@/domain/reports/aggregate";
+import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
 
 export default async function ReviewPage({
   params,
@@ -73,6 +74,7 @@ export default async function ReviewPage({
                 );
               })
           )}
+          <TimesheetAttachments timesheetId={id} />
         </section>
         <aside className="card">
           <h2>{t("summary")}</h2>

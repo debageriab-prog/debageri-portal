@@ -4,6 +4,7 @@ import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
 import Link from "next/link";
 import { getTranslator } from "@/lib/localization/server";
+import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
 
 export default async function TimeReportPage({
   params,
@@ -66,6 +67,7 @@ export default async function TimeReportPage({
                 );
               })
           )}
+          <TimesheetAttachments timesheetId={id} />
         </section>
         <aside className="card">
           <h2>{t("summary")}</h2>

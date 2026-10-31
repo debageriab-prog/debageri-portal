@@ -6,7 +6,7 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { readFileSync } from "node:fs";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 
 let env: RulesTestEnvironment;
 beforeAll(async () => {
@@ -205,6 +205,18 @@ describe("Firestore rules", () => {
         status: "approved",
       }),
     );
+  });
+  it("keeps time report files server-only, even for their owner", async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "timesheetAttachments/f1"), {
+        organizationId: "debageri",
+        userId: "u1",
+        timesheetId: "t1",
+      });
+    });
+    const consultant = env.authenticatedContext("u1").firestore();
+    await assertFails(getDoc(doc(consultant, "timesheetAttachments/f1")));
+    await assertFails(deleteDoc(doc(consultant, "timesheetAttachments/f1")));
   });
   it("keeps pay slips server-only, even for their owner", async () => {
     await env.withSecurityRulesDisabled(async (context) => {
