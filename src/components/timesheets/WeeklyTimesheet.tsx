@@ -1,6 +1,8 @@
 "use client";
 
+import { useLocale } from "@/components/localization/LocaleProvider";
 import { DateInput } from "@/components/ui/DateInput";
+import { isAfterEmployment } from "@/domain/timesheets/rules";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
@@ -35,6 +37,7 @@ type Data = {
     expectedMinutes: number;
     rejectionReason?: string | null;
   };
+  employmentEndDate: string | null;
   codes: Code[];
   entries: StoredEntry[];
   copyEntries: StoredEntry[];
@@ -76,6 +79,7 @@ function entriesToRows(data: Data, entries: StoredEntry[]): Row[] {
 }
 
 export function WeeklyTimesheet() {
+  const { t } = useLocale();
   const router = useRouter();
   const [data, setData] = useState<Data | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
@@ -96,7 +100,9 @@ export function WeeklyTimesheet() {
   const [nonWorkingOpen, setNonWorkingOpen] = useState(false);
   const [autoApproving, setAutoApproving] = useState(false);
   const [workedAllDays, setWorkedAllDays] = useState(false);
-  const editable = data && data.sheet.status === "draft";
+  const periodClosed =
+    data !== null && isAfterEmployment(data.dates[0]!, data.employmentEndDate);
+  const editable = data && data.sheet.status === "draft" && !periodClosed;
   const periodLabel = data
     ? `Week ${data.sheet.isoWeek}${
         data.partCount > 1 ? `-${String(data.part).padStart(2, "0")}` : ""
@@ -136,6 +142,7 @@ export function WeeklyTimesheet() {
       setNonWorkingOpen(
         loaded.sheet.status === "draft" &&
           loaded.sheet.expectedMinutes === 0 &&
+          !isAfterEmployment(loaded.dates[0]!, loaded.employmentEndDate) &&
           !copy,
       );
       setMessage(
@@ -198,7 +205,8 @@ export function WeeklyTimesheet() {
           return checked &&
             weekday >= 1 &&
             weekday <= 5 &&
-            !data.redDays[day]?.isRed
+            !data.redDays[day]?.isRed &&
+            !isAfterEmployment(date, data.employmentEndDate)
             ? 480
             : 0;
         }),
@@ -605,6 +613,14 @@ export function WeeklyTimesheet() {
       {data.sheet.rejectionReason && (
         <p className="notice">Rejected: {data.sheet.rejectionReason}</p>
       )}
+      {periodClosed && (
+        <p className="notice notice-warning">
+          {t("reportingClosedAfterEndDate").replace(
+            "{date}",
+            data.employmentEndDate!,
+          )}
+        </p>
+      )}
       <section className="metrics">
         <div className="metric">
           <span>Expected</span>
@@ -755,6 +771,11 @@ export function WeeklyTimesheet() {
                       placeholder="0"
                       disabled={
                         !editable ||
+                        (!minutes &&
+                          isAfterEmployment(
+                            data.dates[day]!,
+                            data.employmentEndDate,
+                          )) ||
                         (data.redDays[day]?.isRed &&
                           data.codes.find((code) => code.id === row.timeCodeId)
                             ?.countsAsWorkedTime !== true)
@@ -823,7 +844,7 @@ export function WeeklyTimesheet() {
         {!editable && (
           <div className="actions timesheet-actions">
             <span className="actions-spacer" />
-            <span title="Already submitted">
+            <span title={periodClosed ? undefined : "Already submitted"}>
               <button className="button" disabled>
                 Submit
               </button>

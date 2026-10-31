@@ -34,6 +34,14 @@ export function isEditable(status: TimesheetStatus): boolean {
   return status === "draft" || status === "rejected" || status === "reopened";
 }
 
+/** The end date is the last day of employment, so it can still be reported. */
+export function isAfterEmployment(
+  date: string,
+  employmentEndDate: string | null | undefined,
+): boolean {
+  return Boolean(employmentEndDate) && date > employmentEndDate!;
+}
+
 export function validateEntry(entry: TimeEntry, code: TimeCode): void {
   if (!Number.isInteger(entry.minutes) || entry.minutes <= 0)
     throw new Error("Minutes must be positive integers");

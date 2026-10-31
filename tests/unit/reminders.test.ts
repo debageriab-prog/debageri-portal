@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   findMissingWeeks,
+  listedInReminderOverview,
   receivesReminders,
 } from "@/domain/reminders/missing-weeks";
 import {
@@ -37,6 +38,52 @@ describe("time report reminders", () => {
       { isoYear: 2026, isoWeek: 28 },
       { isoYear: 2026, isoWeek: 29 },
     ]);
+  });
+
+  it("counts the final week once the employment ended earlier this week", () => {
+    // Week 29 of 2026 runs from 13 to 19 July.
+    expect(
+      findMissingWeeks("2026-07-13", "2026-07-16", [], {
+        employmentEndDate: "2026-07-15",
+      }),
+    ).toEqual([{ isoYear: 2026, isoWeek: 29 }]);
+    expect(
+      findMissingWeeks("2026-07-13", "2026-07-15", [], {
+        employmentEndDate: "2026-07-15",
+      }),
+    ).toEqual([]);
+  });
+
+  it("does not expect a month part that starts after the end date", () => {
+    // Week 31 of 2026 runs from 27 July to 2 August.
+    expect(
+      findMissingWeeks(
+        "2026-07-27",
+        "2026-08-20",
+        [
+          {
+            isoYear: 2026,
+            isoWeek: 31,
+            status: "approved",
+            part: 1,
+            partCount: 2,
+          },
+        ],
+        { employmentEndDate: "2026-07-31" },
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps a former consultant listed only while weeks are missing", () => {
+    const week = { isoYear: 2026, isoWeek: 29 };
+    expect(listedInReminderOverview("2026-07-15", "2026-08-01", [])).toBe(
+      false,
+    );
+    expect(listedInReminderOverview("2026-07-15", "2026-08-01", [week])).toBe(
+      true,
+    );
+    expect(listedInReminderOverview("2026-08-01", "2026-08-01", [])).toBe(true);
+    expect(listedInReminderOverview(null, "2026-08-01", [])).toBe(true);
   });
 
   it("includes the current week for end-of-period reminders", () => {

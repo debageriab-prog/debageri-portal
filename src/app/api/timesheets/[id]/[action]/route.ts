@@ -50,9 +50,11 @@ export async function POST(
         error:
           code === "ALREADY_REPORTED"
             ? "You already reported this week. Delete the existing draft if you want to report again, or edit that draft."
-            : status === 409
-              ? "The operation could not be completed"
-              : code,
+            : code === "AFTER_EMPLOYMENT_END"
+              ? "Time cannot be reported after the employment end date."
+              : status === 409
+                ? "The operation could not be completed"
+                : code,
       },
       { status },
     );

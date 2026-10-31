@@ -196,6 +196,7 @@
   "keepReport": "Keep report",
   "deleteReport": "Delete report",
   "timeReportDetails": "Time report details",
+  "reportingClosedAfterEndDate": "This period is after your employment end date ({date}), so it cannot be reported.",
   "closeTimeReportDetails": "Close time report details",
   "description": "Description",
   "remove": "Remove",

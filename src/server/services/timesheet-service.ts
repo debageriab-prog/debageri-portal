@@ -1,11 +1,17 @@
 import "server-only";
 
 import { FieldValue } from "firebase-admin/firestore";
-import type { PortalUser, Timesheet, TimesheetStatus } from "@/domain/types";
+import type {
+  PortalUser,
+  TimeEntry,
+  Timesheet,
+  TimesheetStatus,
+} from "@/domain/types";
 import {
   assertTransition,
   calculateTotals,
   canReview,
+  isAfterEmployment,
 } from "@/domain/timesheets/rules";
 import { getAdminServices } from "@/lib/firebase/admin";
 
@@ -56,6 +62,14 @@ export async function transitionTimesheet(
       id: doc.id,
       ...doc.data(),
     }));
+    if (
+      employeeAction &&
+      (isAfterEmployment(sheet.periodStart, subject.employmentEndDate) ||
+        (entries as unknown as TimeEntry[]).some((entry) =>
+          isAfterEmployment(entry.date, subject.employmentEndDate),
+        ))
+    )
+      throw new Error("AFTER_EMPLOYMENT_END");
     const totals = calculateTotals(entries as never[], sheet.expectedMinutes);
     const version = sheet.version + 1;
     const now = FieldValue.serverTimestamp();

@@ -4,6 +4,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
 import { canManagePayslips } from "@/server/services/payslip-service";
+import { receivesDocuments } from "@/server/validators/user-access";
 import { PayslipUploadForm } from "./PayslipUploadForm";
 
 export default async function UploadPayslipsPage({
@@ -21,7 +22,7 @@ export default async function UploadPayslipsPage({
     .where("role", "in", ["employee", "consultant", "manager"])
     .get();
   const recipients = users.docs
-    .filter((doc) => doc.data().status === "active")
+    .filter((doc) => receivesDocuments(doc.data()))
     .map((doc) => ({
       id: doc.id,
       name: String(doc.data().displayName),

@@ -10,6 +10,7 @@ import {
   payslipId,
   payslipPeriod,
 } from "@/domain/payslips";
+import { receivesDocuments } from "@/server/validators/user-access";
 
 export class PayslipError extends Error {
   constructor(
@@ -58,10 +59,10 @@ export async function uploadPayslip(
   const recipient = await db.collection("users").doc(input.userId).get();
   const recipientData = recipient.data();
   if (
-    !recipient.exists ||
-    recipientData?.organizationId !== actor.organizationId ||
-    recipientData?.status !== "active" ||
-    !recipientRoles.includes(String(recipientData?.role))
+    !recipientData ||
+    recipientData.organizationId !== actor.organizationId ||
+    !receivesDocuments(recipientData) ||
+    !recipientRoles.includes(String(recipientData.role))
   )
     throw new PayslipError("invalidRecipient");
   const period = payslipPeriod(input.year, input.month);
