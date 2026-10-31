@@ -1,8 +1,45 @@
 import { describe, expect, it } from "vitest";
 import {
+  COMPENSATION_END_CONFIRMATION,
   compensationInput,
   defaultCompensationValues,
+  previousDay,
 } from "@/domain/finance/compensation";
+import { compensationSchema } from "@/server/validators/finance";
+
+describe("compensation end confirmation", () => {
+  const input = {
+    action: "setCompensation",
+    userId: "user-1",
+    model: "flexible",
+    validFrom: "2026-11-01",
+    shareBps: 9000,
+    fixedMonthlySalaryMinor: null,
+  };
+
+  it("accepts only the exact phrase", () => {
+    expect(
+      compensationSchema.safeParse({
+        ...input,
+        confirmation: COMPENSATION_END_CONFIRMATION,
+      }).success,
+    ).toBe(true);
+    expect(
+      compensationSchema.safeParse({ ...input, confirmation: "i am sure" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("is optional when no period is open-ended", () => {
+    expect(compensationSchema.safeParse(input).success).toBe(true);
+  });
+
+  it("ends the current period the day before the new one", () => {
+    expect(previousDay("2026-11-01")).toBe("2026-10-31");
+    expect(previousDay("2027-01-01")).toBe("2026-12-31");
+    expect(previousDay("2028-03-01")).toBe("2028-02-29");
+  });
+});
 
 describe("compensation input", () => {
   const defaults = defaultCompensationValues("2026-11-01");

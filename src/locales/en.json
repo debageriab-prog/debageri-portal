@@ -1178,5 +1178,8 @@
   "employeeCompensationConsultantsOnly": "Only consultants can have compensation.",
   "employeeCompensationSaveRoleFirst": "Save the consultant role before adding compensation.",
   "employeeCompensationSaveFailed": "The employee was created, but the compensation could not be saved. Add it here.",
-  "backToEmployee": "Back to {name}"
+  "backToEmployee": "Back to {name}",
+  "financeError_compensationConfirmationRequired": "The current compensation period has no end date. Reload the page and confirm that it should end.",
+  "endCurrentCompensationTitle": "End the current compensation?",
+  "endCurrentCompensationExplanation": "The current compensation, valid from {validFrom}, has no end date. Saving the new one will automatically set its valid to date to {validTo}."
 }

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MAX_ROUNDING_MINOR } from "@/domain/finance/calculations";
+import { COMPENSATION_END_CONFIRMATION } from "@/domain/finance/compensation";
 
 const date = z.iso.date();
 const minor = z.number().int().min(0).max(10_000_000_000);
@@ -20,6 +21,7 @@ export const compensationSchema = z.object({
   validTo: date.nullable().default(null),
   shareBps: z.number().int().min(0).max(10_000),
   fixedMonthlySalaryMinor: minor.nullable(),
+  confirmation: z.literal(COMPENSATION_END_CONFIRMATION).optional(),
 });
 
 export const setCompensationValidToSchema = z.object({

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
-import { financeEnabled } from "../../../user-data";
+import { compensationHistory, financeEnabled } from "../../../user-data";
 import { CompensationForm } from "./CompensationForm";
 
 export default async function NewCompensationPage({
@@ -26,6 +26,7 @@ export default async function NewCompensationPage({
   )
     redirect(editHref);
   const name = String(data.displayName);
+  const agreements = await compensationHistory(db, actor.organizationId, id);
   return (
     <>
       <div className="topbar">
@@ -39,7 +40,12 @@ export default async function NewCompensationPage({
           </p>
         </div>
       </div>
-      <CompensationForm employeeId={id} />
+      <CompensationForm
+        employeeId={id}
+        openAgreement={
+          agreements.find((agreement) => agreement.validTo === null) ?? null
+        }
+      />
     </>
   );
 }

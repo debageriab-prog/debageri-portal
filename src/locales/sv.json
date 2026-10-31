@@ -1178,5 +1178,8 @@
   "employeeCompensationConsultantsOnly": "Endast konsulter kan ha ersättning.",
   "employeeCompensationSaveRoleFirst": "Spara konsultrollen innan du lägger till ersättning.",
   "employeeCompensationSaveFailed": "Den anställda har skapats, men ersättningen kunde inte sparas. Lägg till den här.",
-  "backToEmployee": "Tillbaka till {name}"
+  "backToEmployee": "Tillbaka till {name}",
+  "financeError_compensationConfirmationRequired": "Den aktuella ersättningsperioden saknar slutdatum. Ladda om sidan och bekräfta att den ska avslutas.",
+  "endCurrentCompensationTitle": "Avsluta den aktuella ersättningen?",
+  "endCurrentCompensationExplanation": "Den aktuella ersättningen, som gäller från {validFrom}, saknar slutdatum. Om du sparar den nya ersättningen sätts dess slutdatum automatiskt till {validTo}."
 }
