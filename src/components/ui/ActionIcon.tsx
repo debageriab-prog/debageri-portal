@@ -6,9 +6,23 @@ export type ActionIconType =
   | "mfa"
   | "copy"
   | "copied"
-  | "attach";
+  | "attach"
+  | "previous"
+  | "next";
 
 export function ActionIcon({ type }: { type: ActionIconType }) {
+  if (type === "previous")
+    return (
+      <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <path d="m15 5-7 7 7 7" />
+      </svg>
+    );
+  if (type === "next")
+    return (
+      <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <path d="m9 5 7 7-7 7" />
+      </svg>
+    );
   if (type === "attach")
     return (
       <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">

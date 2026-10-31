@@ -7,7 +7,13 @@ import {
   uploadTimesheetAttachments,
 } from "@/components/timesheets/TimesheetAttachments";
 import { DateInput } from "@/components/ui/DateInput";
-import { isAfterEmployment } from "@/domain/timesheets/rules";
+import { ActionIcon } from "@/components/ui/ActionIcon";
+import {
+  hasSameEntries,
+  isAfterEmployment,
+  isEditable,
+} from "@/domain/timesheets/rules";
+import type { TimesheetStatus } from "@/domain/types";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
@@ -39,7 +45,7 @@ type Data = {
   sheet: {
     isoYear: number;
     isoWeek: number;
-    status: string;
+    status: TimesheetStatus;
     expectedMinutes: number;
     rejectionReason?: string | null;
   };
@@ -49,6 +55,14 @@ type Data = {
   copyEntries: StoredEntry[];
   part: number;
   partCount: number;
+  rejectedReports: Array<{
+    id: string;
+    isoYear: number;
+    isoWeek: number;
+    part: number;
+    partCount: number;
+    reason: string;
+  }>;
   latestReported: {
     isoYear: number;
     isoWeek: number;
@@ -83,6 +97,23 @@ function entriesToRows(data: Data, entries: StoredEntry[]): Row[] {
   );
 }
 
+function rowsToEntries(data: Data, rows: Row[]) {
+  return rows.flatMap((row) =>
+    row.minutes.flatMap((minutes, day) =>
+      minutes > 0
+        ? [
+            {
+              date: data.dates[day]!,
+              timeCodeId: row.timeCodeId,
+              minutes,
+              comment: null,
+            },
+          ]
+        : [],
+    ),
+  );
+}
+
 export function WeeklyTimesheet() {
   const { locale, t } = useLocale();
   const router = useRouter();
@@ -92,6 +123,7 @@ export function WeeklyTimesheet() {
   const [yearInput, setYearInput] = useState(new Date().getUTCFullYear());
   const [weekInput, setWeekInput] = useState(1);
   const [copyPanelOpen, setCopyPanelOpen] = useState(false);
+  const [copyError, setCopyError] = useState("");
   const [copyYear, setCopyYear] = useState(new Date().getUTCFullYear());
   const [copyWeek, setCopyWeek] = useState(1);
   const [weekMode, setWeekMode] = useState<"current" | "number" | "date">(
@@ -109,7 +141,8 @@ export function WeeklyTimesheet() {
   const [attachmentsVersion, setAttachmentsVersion] = useState(0);
   const periodClosed =
     data !== null && isAfterEmployment(data.dates[0]!, data.employmentEndDate);
-  const editable = data && data.sheet.status === "draft" && !periodClosed;
+  const editable = data && isEditable(data.sheet.status) && !periodClosed;
+  const hasWorkCode = data?.codes.some((code) => code.category === "work");
   const periodLabel = data
     ? `${t("week")} ${data.sheet.isoWeek}${
         data.partCount > 1 ? `-${String(data.part).padStart(2, "0")}` : ""
@@ -123,6 +156,7 @@ export function WeeklyTimesheet() {
     part?: number,
   ) {
     setMessage(t("loading"));
+    setCopyError("");
     const query = new URLSearchParams();
     if (year && week) {
       query.set("year", String(year));
@@ -137,11 +171,22 @@ export function WeeklyTimesheet() {
       const response = await appCheckFetch(`/api/timesheets/current?${query}`);
       if (response.status === 401) return router.replace("/auth/login");
       const result = await response.json();
-      if (!response.ok)
-        return setMessage(
-          timesheetErrorMessage(t, result.error, "timesheetLoadFailed"),
+      if (!response.ok) {
+        const feedback = timesheetErrorMessage(
+          t,
+          result.error,
+          "timesheetLoadFailed",
         );
+        setMessage(copy ? "" : feedback);
+        setCopyError(copy ? feedback : "");
+        return;
+      }
       const loaded = result.data as Data;
+      if (copy && !loaded.copyEntries.length) {
+        setMessage("");
+        setCopyError(t("copyWeekEmpty").replace("{week}", String(copy.week)));
+        return;
+      }
       setData(loaded);
       setYearInput(loaded.sheet.isoYear);
       setWeekInput(loaded.sheet.isoWeek);
@@ -197,6 +242,7 @@ export function WeeklyTimesheet() {
     if (!data) return;
     const workCode = data.codes.find((code) => code.category === "work");
     if (!workCode) return;
+    setCopyError("");
     setWorkedAllDays(checked);
     setRows((current) => {
       const existing = current.find((row) => row.timeCodeId === workCode.id);
@@ -247,6 +293,11 @@ export function WeeklyTimesheet() {
       : []),
     ...(reported > 2400 ? [t("warningOver40Hours")] : []),
     ...(futureDates.length ? [t("warningFutureDates")] : []),
+    ...(data?.sheet.status === "rejected" &&
+    !pendingFiles.length &&
+    hasSameEntries(data.entries, rowsToEntries(data, rows))
+      ? [t("warningResubmitUnchanged")]
+      : []),
   ];
 
   function addRow() {
@@ -317,20 +368,7 @@ export function WeeklyTimesheet() {
     if (!data) return false;
     setMessage(t("timesheetSaving"));
     try {
-      const entries = rows.flatMap((row) =>
-        row.minutes.flatMap((minutes, day) =>
-          minutes > 0
-            ? [
-                {
-                  date: data.dates[day],
-                  timeCodeId: row.timeCodeId,
-                  minutes,
-                  comment: null,
-                },
-              ]
-            : [],
-        ),
-      );
+      const entries = rowsToEntries(data, rows);
       const query = new URLSearchParams({
         year: String(data.sheet.isoYear),
         week: String(data.sheet.isoWeek),
@@ -500,6 +538,7 @@ export function WeeklyTimesheet() {
 
   function toggleCopyPanel() {
     if (!data) return;
+    setCopyError("");
     if (!copyPanelOpen) {
       const selected = previousWeek(data.dates[0]!);
       setCopyYear(selected.isoYear);
@@ -601,25 +640,45 @@ export function WeeklyTimesheet() {
           </p>
         )}
         <div>
-          <label className="reporting-week-selector">
-            <strong>{t("reportingWeekLabel")}</strong>
-            <select
-              className="field"
-              value={weekMode}
-              aria-label={t("reportingWeekModeLabel")}
-              onChange={(event) => {
-                const mode = event.target.value as
-                  "current" | "number" | "date";
-                setWeekMode(mode);
-                setCopyPanelOpen(false);
-                if (mode === "current") void loadWeek();
-              }}
+          <div className="reporting-week-row">
+            <label className="reporting-week-selector">
+              <strong>{t("reportingWeekLabel")}</strong>
+              <select
+                className="field"
+                value={weekMode}
+                aria-label={t("reportingWeekModeLabel")}
+                onChange={(event) => {
+                  const mode = event.target.value as
+                    "current" | "number" | "date";
+                  setWeekMode(mode);
+                  setCopyPanelOpen(false);
+                  if (mode === "current") void loadWeek();
+                }}
+              >
+                <option value="current">{t("reportingWeekCurrent")}</option>
+                <option value="number">{t("reportingWeekNumber")}</option>
+                <option value="date">{t("reportingWeekDate")}</option>
+              </select>
+            </label>
+            <button
+              className="reporting-week-arrow"
+              type="button"
+              aria-label={t("previousWeek")}
+              title={t("previousWeek")}
+              onClick={goToPreviousWeek}
             >
-              <option value="current">{t("reportingWeekCurrent")}</option>
-              <option value="number">{t("reportingWeekNumber")}</option>
-              <option value="date">{t("reportingWeekDate")}</option>
-            </select>
-          </label>
+              <ActionIcon type="previous" />
+            </button>
+            <button
+              className="reporting-week-arrow"
+              type="button"
+              aria-label={t("nextWeek")}
+              title={t("nextWeek")}
+              onClick={goToNextWeek}
+            >
+              <ActionIcon type="next" />
+            </button>
+          </div>
           {weekMode === "number" && (
             <div className="actions selection-panel">
               <label>
@@ -664,14 +723,59 @@ export function WeeklyTimesheet() {
           )}
         </div>
       </section>
-      {data.sheet.rejectionReason && (
-        <p className="notice">
-          {t("rejectedWithReason").replace(
-            "{reason}",
-            data.sheet.rejectionReason,
-          )}
-        </p>
+      {data.sheet.status === "rejected" && (
+        <div
+          className="notice notice-warning rejected-report-notice"
+          role="status"
+        >
+          <span>
+            <strong>
+              {t("rejectedWithReason").replace(
+                "{reason}",
+                data.sheet.rejectionReason ?? "",
+              )}
+            </strong>
+            {editable && <small>{t("rejectedReportHint")}</small>}
+          </span>
+        </div>
       )}
+      {data.rejectedReports
+        .filter((report) => report.id !== data.id)
+        .map((report) => (
+          <div
+            className="notice notice-warning rejected-report-notice"
+            key={report.id}
+          >
+            <span>
+              {t("rejectedWeekNotice")
+                .replace(
+                  "{period}",
+                  `${t("week")} ${report.isoWeek}${
+                    report.partCount > 1
+                      ? `-${String(report.part).padStart(2, "0")}`
+                      : ""
+                  }`,
+                )
+                .replace("{reason}", report.reason)}
+            </span>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => {
+                setWeekMode("number");
+                setCopyPanelOpen(false);
+                void loadWeek(
+                  report.isoYear,
+                  report.isoWeek,
+                  undefined,
+                  report.part,
+                );
+              }}
+            >
+              {t("openReport")}
+            </button>
+          </div>
+        ))}
       {periodClosed && (
         <p className="notice notice-warning">
           {t("reportingClosedAfterEndDate").replace(
@@ -690,14 +794,6 @@ export function WeeklyTimesheet() {
           <strong>{formatDuration(reported)}</strong>
         </div>
       </section>
-      <div className="timesheet-table-actions">
-        <button className="button secondary" onClick={goToPreviousWeek}>
-          {t("previousWeek")}
-        </button>
-        <button className="button secondary" onClick={goToNextWeek}>
-          {t("nextWeek")}
-        </button>
-      </div>
       <section className="card table-wrap">
         <div className="timesheet-table-header">
           <div>
@@ -724,7 +820,7 @@ export function WeeklyTimesheet() {
             className="button secondary"
             type="button"
             aria-pressed={workedAllDays}
-            disabled={!editable}
+            disabled={!editable || !hasWorkCode || !rows.length}
             onClick={() => toggleWorkedAllDays(!workedAllDays)}
           >
             {t("workedAllDays")}
@@ -747,6 +843,11 @@ export function WeeklyTimesheet() {
             {t("chooseWeekNumber")}
           </button>
         </div>
+        {copyError && (
+          <p className="notice notice-error" role="alert">
+            {copyError}
+          </p>
+        )}
         {copyPanelOpen && editable && (
           <div className="actions selection-panel timesheet-copy-panel">
             <label>
@@ -869,11 +970,12 @@ export function WeeklyTimesheet() {
                     className="icon-button"
                     disabled={!editable}
                     aria-label={t("removeRow")}
-                    onClick={() =>
+                    onClick={() => {
+                      setWorkedAllDays(false);
                       setRows((current) =>
                         current.filter((item) => item.key !== row.key),
-                      )
-                    }
+                      );
+                    }}
                   >
                     ×
                   </button>
@@ -1000,7 +1102,7 @@ export function WeeklyTimesheet() {
           </section>
         </div>
       )}
-      {nonWorkingOpen && data.sheet.status === "draft" && (
+      {nonWorkingOpen && editable && (
         <div className="modal-backdrop">
           <section
             className="modal modal-small"

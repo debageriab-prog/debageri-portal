@@ -3,6 +3,7 @@ import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
 import {
+  isUnsentTimesheetAttachment,
   TIMESHEET_ATTACHMENT_MAX_FILES,
   timesheetAttachmentAccess,
   timesheetAttachmentFileError,
@@ -70,9 +71,12 @@ export async function listTimesheetAttachments(
     throw new TimesheetAttachmentError("notFound", 404);
   // Deleting a report keeps its files, so they still name their owner.
   const ownerId = sheetData?.userId ?? files.docs[0]?.data().userId;
-  if (!ownerId) return { attachments: [], canAdd: false, canRemove: false };
+  if (!ownerId) return { attachments: [], canAdd: false };
   const access = await accessFor(db, actor, String(ownerId));
   if (!access.canView) throw new TimesheetAttachmentError("forbidden", 403);
+  const removable = (file: FirebaseFirestore.DocumentData) =>
+    access.canRemove ||
+    (access.canAdd && isUnsentTimesheetAttachment(file, sheetData?.status));
   return {
     attachments: files.docs
       .sort(
@@ -85,9 +89,9 @@ export async function listTimesheetAttachments(
         name: String(file.data().name),
         size: Number(file.data().size),
         contentType: String(file.data().contentType),
+        canRemove: removable(file.data()),
       })),
     canAdd: access.canAdd && sheet.exists,
-    canRemove: access.canRemove,
   };
 }
 
@@ -190,7 +194,12 @@ export async function removeTimesheetAttachment(
     timesheetId,
     attachmentId,
   );
-  if (!access.canRemove) throw new TimesheetAttachmentError("forbidden", 403);
+  const sheet = await db.collection("timesheets").doc(timesheetId).get();
+  if (
+    !access.canRemove &&
+    !(access.canAdd && isUnsentTimesheetAttachment(data, sheet.data()?.status))
+  )
+    throw new TimesheetAttachmentError("forbidden", 403);
   await storage
     .bucket()
     .file(String(data.storagePath))

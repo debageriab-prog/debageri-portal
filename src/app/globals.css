@@ -2180,10 +2180,55 @@ th.actions-heading {
   gap: 8px;
 }
 
+.reporting-week-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .reporting-week-selector {
   width: fit-content;
-  margin-bottom: 12px;
   flex-wrap: wrap;
+}
+
+.reporting-week-arrow {
+  display: inline-grid;
+  min-width: 46px;
+  min-height: 46px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #c4a98e;
+  border-radius: 14px;
+  background: transparent;
+  color: #3d3027;
+  cursor: pointer;
+}
+
+.reporting-week-arrow:hover,
+.reporting-week-arrow:focus-visible {
+  background: var(--accent-soft);
+}
+
+.reporting-week-arrow .action-icon-svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.4;
+}
+
+.rejected-report-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.rejected-report-notice small {
+  display: block;
+  margin-top: 3px;
 }
 
 .reporting-week-selector .field {
@@ -2913,12 +2958,6 @@ th.actions-heading {
   border-bottom: 1px solid var(--border);
   border-radius: 20px 20px 0 0;
   background: linear-gradient(135deg, #f5ece4, #fbf8f5);
-}
-
-.timesheet-table-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
 }
 
 .timesheet-table-header strong,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isUnsentTimesheetAttachment,
   TIMESHEET_ATTACHMENT_MAX_BYTES,
   timesheetAttachmentAccess,
   timesheetAttachmentFileError,
@@ -82,6 +83,22 @@ describe("timesheet attachment access", () => {
           owner("consultant"),
         ),
       ).toEqual({ canAdd: false, canRemove: false, canView: false });
+  });
+});
+
+describe("unsent timesheet attachments", () => {
+  it("covers drafts and a deleted draft only", () => {
+    expect(isUnsentTimesheetAttachment({}, "draft")).toBe(true);
+    expect(isUnsentTimesheetAttachment({}, undefined)).toBe(true);
+    for (const status of ["submitted", "approved", "rejected", "reopened"])
+      expect(isUnsentTimesheetAttachment({}, status)).toBe(false);
+  });
+
+  it("stays locked after a sent report is deleted and reported again", () => {
+    expect(isUnsentTimesheetAttachment({ locked: true }, undefined)).toBe(
+      false,
+    );
+    expect(isUnsentTimesheetAttachment({ locked: true }, "draft")).toBe(false);
   });
 });
 

@@ -28,11 +28,11 @@ type Attachment = {
   name: string;
   size: number;
   contentType: string;
+  canRemove: boolean;
 };
 type Listing = {
   attachments: Attachment[];
   canAdd: boolean;
-  canRemove: boolean;
 };
 
 function attachmentsUrl(timesheetId: string) {
@@ -251,7 +251,7 @@ export function TimesheetAttachments({
                 >
                   <FileDownloadIcon />
                 </button>
-                {listing?.canRemove && (
+                {attachment.canRemove && (
                   <button
                     className="attachment-remove"
                     type="button"

@@ -1079,7 +1079,7 @@
   "copyAction": "Kopiera",
   "copiedEntriesReady": "De kopierade raderna är klara. Granska, spara och skicka in när du är klar.",
   "addTimesheetAttachments": "Lägg till filer",
-  "timesheetAttachmentsHelp": "Valfritt. Lägg till till exempel en skärmbild från kundens tidrapporteringssystem eller en PDF som visar att kundens chef har godkänt din tid. PDF, JPG, PNG eller WebP, högst 5 MB per fil och 3 filer per rapport. Du kan lägga till filer när du skickar in eller senare, men bara en chef eller administratör kan ta bort dem.",
+  "timesheetAttachmentsHelp": "Valfritt. Lägg till till exempel en skärmbild från kundens tidrapporteringssystem eller en PDF som visar att kundens chef har godkänt din tid. PDF, JPG, PNG eller WebP, högst 5 MB per fil och 3 filer per rapport. Du kan lägga till filer när du skickar in eller senare. Du kan ta bort en fil tills rapporten är inskickad, därefter kan bara en chef eller administratör ta bort den.",
   "timesheetAttachmentsOnSubmit": "Filerna läggs till när du skickar in rapporten.",
   "removeTimesheetAttachmentDescription": "{name} tas bort permanent från den här tidrapporten.",
   "timesheetAttachmentError_attachmentRequired": "Välj en fil som inte är tom.",
@@ -1169,5 +1169,10 @@
   "timesheetError_redDayNeedsWorkCode": "Endast arbetstidskoder kan rapporteras på röda eller arbetsfria dagar.",
   "timesheetError_saveFailed": "Tidrapporten kunde inte sparas. Försök igen. Kontakta en administratör om problemet kvarstår.",
   "timesheetError_deleteProtected": "Endast utkast och inskickade tidrapporter kan tas bort. Godkända och avvisade rapporter är skyddade.",
-  "timesheetError_confirmationRequired": "Skriv \"I am sure\" för att bekräfta borttagningen."
+  "timesheetError_confirmationRequired": "Skriv \"I am sure\" för att bekräfta borttagningen.",
+  "rejectedReportHint": "Ändra raderna vid behov och skicka in rapporten igen.",
+  "rejectedWeekNotice": "{period} avvisades: {reason}",
+  "openReport": "Öppna rapport",
+  "copyWeekEmpty": "Inget att kopiera: vecka {week} har ingen rapporterad tid för de här dagarna.",
+  "warningResubmitUnchanged": "Den här rapporten avvisades. Är du säker på att du vill skicka in samma sak som tidigare?"
 }

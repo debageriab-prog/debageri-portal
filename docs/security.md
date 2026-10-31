@@ -13,8 +13,9 @@ them through session-authenticated portal API routes; no public object URL or
 download token is created. Uploads accept JPEG, PNG, and WebP images up to 2 MB.
 Time report files are private Storage objects served the same way. Uploads
 accept PDF, JPEG, PNG, and WebP files up to 5 MB, and only the reporter can add
-them. Removal requires a reviewer of that report (admin or manager) and the
-typed confirmation, is audited, and is the only way a file leaves a report.
+them. The reporter can remove a file only before the report is first sent.
+After that, removal requires a reviewer of that report (admin or manager). Every
+removal requires the typed confirmation and is audited.
 Password changes require the current password and Firebase reauthentication.
 Administrators can reset another employee's password without seeing the old
 password. A reset revokes the employee's existing Firebase sessions and creates

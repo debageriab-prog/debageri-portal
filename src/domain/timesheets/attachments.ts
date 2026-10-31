@@ -28,8 +28,23 @@ export function timesheetAttachmentFileError(file: {
 }
 
 /**
- * The person who reported the time adds and views files. Only someone who may
- * review the report removes them, so a manager's own report needs an admin.
+ * A file nobody has reviewed yet: its report is still an unsent draft, or that
+ * draft was deleted. Deleting a sent report locks its files.
+ */
+export function isUnsentTimesheetAttachment(
+  file: { locked?: boolean },
+  sheetStatus: string | undefined,
+) {
+  return (
+    file.locked !== true &&
+    (sheetStatus === undefined || sheetStatus === "draft")
+  );
+}
+
+/**
+ * The person who reported the time adds and views files, and removes them only
+ * before sending. After that, only someone who may review the report removes
+ * them, so a manager's own report needs an admin.
  */
 export function timesheetAttachmentAccess(
   actor: { id: string; role: UserRole; organizationId: string },

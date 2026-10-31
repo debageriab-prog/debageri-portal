@@ -29,6 +29,15 @@ export async function DELETE(
     .where("timesheetId", "==", id)
     .get();
   const batch = db.batch();
+  // Files a manager could already see stay locked if the week is reported again.
+  if (sheet.data()?.status === "submitted") {
+    const files = await db
+      .collection("timesheetAttachments")
+      .where("organizationId", "==", user.organizationId)
+      .where("timesheetId", "==", id)
+      .get();
+    files.docs.forEach((file) => batch.update(file.ref, { locked: true }));
+  }
   entries.docs.forEach((entry) => batch.delete(entry.ref));
   batch.delete(sheet.ref);
   await batch.commit();

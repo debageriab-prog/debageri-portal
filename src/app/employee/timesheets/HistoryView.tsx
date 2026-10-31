@@ -10,6 +10,8 @@ import { useLocale } from "@/components/localization/LocaleProvider";
 import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { aggregateReportedDays } from "@/domain/reports/aggregate";
+import { isEditable } from "@/domain/timesheets/rules";
+import type { TimesheetStatus } from "@/domain/types";
 import {
   dateRangeLabel,
   timesheetErrorMessage,
@@ -437,7 +439,7 @@ export function HistoryView({
                   </button>
                 ) : (
                   <div className="row-actions">
-                    {sheet.status === "draft" ? (
+                    {isEditable(sheet.status as TimesheetStatus) ? (
                       <Link
                         className="table-action icon-action"
                         aria-label={t("edit")}

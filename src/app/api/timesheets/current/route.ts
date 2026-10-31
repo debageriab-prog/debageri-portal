@@ -9,7 +9,7 @@ import {
   timesheetPartId,
 } from "@/lib/dates/iso-week";
 import { verifySession } from "@/server/auth/session";
-import { isAfterEmployment } from "@/domain/timesheets/rules";
+import { isAfterEmployment, isEditable } from "@/domain/timesheets/rules";
 import type { TimeCode, Timesheet } from "@/domain/types";
 
 const saveSchema = z.object({
@@ -49,17 +49,39 @@ async function loadCurrent(request: Request) {
     .get();
   const latest = existingSheets.docs
     .map((doc) => doc.data())
-    .filter((sheet) => sheet.status !== "draft")
+    .filter((sheet) => !["draft", "rejected"].includes(sheet.status))
     .sort((a, b) => String(b.periodEnd).localeCompare(String(a.periodEnd)))[0];
+  const rejectedReports = existingSheets.docs
+    .filter((doc) => doc.data().status === "rejected")
+    .map((doc) => {
+      const sheet = doc.data();
+      return {
+        id: doc.id,
+        isoYear: Number(sheet.isoYear),
+        isoWeek: Number(sheet.isoWeek),
+        part: Number(sheet.part ?? 1),
+        partCount: Number(sheet.partCount ?? 1),
+        periodStart: String(sheet.periodStart),
+        reason: String(sheet.rejectionReason ?? ""),
+      };
+    })
+    .sort((a, b) => a.periodStart.localeCompare(b.periodStart));
+  let defaultPart: number | undefined;
   if (!query.data.year && !query.data.week) {
-    if (latest) {
-      const next = new Date(`${latest.periodEnd}T12:00:00Z`);
-      next.setUTCDate(next.getUTCDate() + 1);
-      current = getIsoWeek(next);
+    const oldestRejected = rejectedReports[0];
+    if (oldestRejected) {
+      current = getIsoWeek(oldestRejected.periodStart);
+      defaultPart = oldestRejected.part;
+    } else {
+      if (latest) {
+        const next = new Date(`${latest.periodEnd}T12:00:00Z`);
+        next.setUTCDate(next.getUTCDate() + 1);
+        current = getIsoWeek(next);
+      }
+      const firstDay = getIsoWeekDates(current.isoYear, current.isoWeek)[0]!;
+      if (isAfterEmployment(firstDay, user.employmentEndDate))
+        current = getIsoWeek(user.employmentEndDate!);
     }
-    const firstDay = getIsoWeekDates(current.isoYear, current.isoWeek)[0]!;
-    if (isAfterEmployment(firstDay, user.employmentEndDate))
-      current = getIsoWeek(user.employmentEndDate!);
   }
   const isoYear = query.data.year ?? current.isoYear;
   const isoWeek = query.data.week ?? current.isoWeek;
@@ -91,12 +113,13 @@ async function loadCurrent(request: Request) {
   ).length;
   const selectedPart =
     query.data.part ??
+    defaultPart ??
     Math.min(
       Math.max(1, partsInEmployment),
       Math.max(
         1,
         partDocs.findIndex(
-          (doc) => !doc.exists || doc.data()?.status === "draft",
+          (doc) => !doc.exists || isEditable(doc.data()?.status),
         ) + 1 || parts.length,
       ),
     );
@@ -168,8 +191,9 @@ async function loadCurrent(request: Request) {
       version: 0,
     };
   } else if (
-    sheet?.status === "draft" &&
-    sheet?.expectedMinutes !== expectedMinutes
+    sheet &&
+    isEditable(sheet.status) &&
+    sheet.expectedMinutes !== expectedMinutes
   ) {
     sheet = { ...sheet!, expectedMinutes };
   }
@@ -251,6 +275,7 @@ async function loadCurrent(request: Request) {
     entries: entryDocs.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
     copyEntries,
     codes,
+    rejectedReports,
     latestReported: latest
       ? {
           isoYear: Number(latest.isoYear),
@@ -277,7 +302,7 @@ async function saveCurrent(request: Request) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   if ("error" in loaded)
     return NextResponse.json({ error: loaded.error }, { status: 409 });
-  if (loaded.sheet.status !== "draft")
+  if (!isEditable(loaded.sheet.status ?? "draft"))
     return NextResponse.json({ error: "alreadyReported" }, { status: 409 });
   const parsed = saveSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success)
@@ -342,7 +367,7 @@ async function saveCurrent(request: Request) {
       timesheetId: loaded.id,
       userId: loaded.user.id,
       action: "approved",
-      fromStatus: "draft",
+      fromStatus: loaded.sheet.status,
       toStatus: "approved",
       comment: "Automatically approved because the period has no working days.",
       performedBy: loaded.user.id,

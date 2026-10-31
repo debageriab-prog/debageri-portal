@@ -12,6 +12,7 @@ import {
   calculateTotals,
   canReview,
   isAfterEmployment,
+  isEditable,
 } from "@/domain/timesheets/rules";
 import { getAdminServices } from "@/lib/firebase/admin";
 
@@ -32,7 +33,7 @@ export async function transitionTimesheet(
     if (
       toStatus === "submitted" &&
       sheet.userId === actor.id &&
-      sheet.status !== "draft"
+      !isEditable(sheet.status)
     )
       throw new Error("ALREADY_REPORTED");
     const subjectSnapshot = await transaction.get(

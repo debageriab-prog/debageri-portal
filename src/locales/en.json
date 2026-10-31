@@ -1079,7 +1079,7 @@
   "copyAction": "Copy",
   "copiedEntriesReady": "Copied entries are ready. Review, save and submit when finished.",
   "addTimesheetAttachments": "Add files",
-  "timesheetAttachmentsHelp": "Optional. Add for example a screenshot from your client's time reporting system or a PDF showing that your client's manager approved your time. PDF, JPG, PNG or WebP, up to 5 MB each and 3 files per report. You can add files when submitting or later, but only a manager or admin can remove them.",
+  "timesheetAttachmentsHelp": "Optional. Add for example a screenshot from your client's time reporting system or a PDF showing that your client's manager approved your time. PDF, JPG, PNG or WebP, up to 5 MB each and 3 files per report. You can add files when submitting or later. You can remove a file until the report is submitted; after that only a manager or admin can remove it.",
   "timesheetAttachmentsOnSubmit": "These files are added when you submit the report.",
   "removeTimesheetAttachmentDescription": "{name} will be permanently removed from this time report.",
   "timesheetAttachmentError_attachmentRequired": "Choose a file that is not empty.",
@@ -1169,5 +1169,10 @@
   "timesheetError_redDayNeedsWorkCode": "Only working-time codes can be reported on red or non-working days.",
   "timesheetError_saveFailed": "The time report could not be saved. Please try again. If the problem continues, contact an administrator.",
   "timesheetError_deleteProtected": "Only draft or submitted time reports can be deleted. Approved and rejected reports are protected.",
-  "timesheetError_confirmationRequired": "Type \"I am sure\" to confirm deletion."
+  "timesheetError_confirmationRequired": "Type \"I am sure\" to confirm deletion.",
+  "rejectedReportHint": "Change the rows if needed and submit the report again.",
+  "rejectedWeekNotice": "{period} was rejected: {reason}",
+  "openReport": "Open report",
+  "copyWeekEmpty": "Nothing to copy: week {week} has no reported time for these days.",
+  "warningResubmitUnchanged": "This report was rejected. Are you sure you want to submit the same as before?"
 }
