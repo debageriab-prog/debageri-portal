@@ -11,7 +11,6 @@ function millis(value: unknown) {
 
 const financeSections = [
   "overview",
-  "compensation",
   "invoices",
   "categories",
   "transactions",
@@ -50,7 +49,6 @@ export default async function FinancePage({
     categoriesSnapshot,
     invoicesSnapshot,
     transactionsSnapshot,
-    agreementsSnapshot,
     customersSnapshot,
     vatSettlementsSnapshot,
     financeAttachmentsSnapshot,
@@ -75,12 +73,6 @@ export default async function FinancePage({
     manager || actor.financeAccess.myFinance
       ? db
           .collection("financialTransactions")
-          .where("organizationId", "==", organizationId)
-          .get()
-      : Promise.resolve(null),
-    manager
-      ? db
-          .collection("compensationAgreements")
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
@@ -203,19 +195,6 @@ export default async function FinancePage({
     })
     .filter((transaction) => manager || transaction.consultantId === actor.id)
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
-  const agreements: FinancePageData["agreements"] = (
-    agreementsSnapshot?.docs ?? []
-  )
-    .map((document) => ({
-      id: document.id,
-      userId: String(document.data().userId),
-      model: document.data().model as "flexible" | "fixed",
-      validFrom: String(document.data().validFrom),
-      validTo: document.data().validTo ?? null,
-      shareBps: Number(document.data().shareBps ?? 0),
-      fixedMonthlySalaryMinor: document.data().fixedMonthlySalaryMinor ?? null,
-    }))
-    .sort((a, b) => b.validFrom.localeCompare(a.validFrom));
   const customers: FinancePageData["customers"] = (
     customersSnapshot?.docs ?? []
   )
@@ -244,7 +223,6 @@ export default async function FinancePage({
         categories,
         invoices,
         transactions,
-        agreements,
         vatSettlements,
       }}
       actor={{ id: actor.id, role: actor.role, locale: actor.locale }}

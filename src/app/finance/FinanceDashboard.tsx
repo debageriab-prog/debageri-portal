@@ -112,15 +112,6 @@ export interface FinancePageData {
     createdAt: number;
     attachments: Array<{ id: string; name: string }>;
   }>;
-  agreements: Array<{
-    id: string;
-    userId: string;
-    model: "flexible" | "fixed";
-    validFrom: string;
-    validTo: string | null;
-    shareBps: number;
-    fixedMonthlySalaryMinor: number | null;
-  }>;
   vatSettlements: Array<{
     id: string;
     amountMinor: number;
@@ -131,12 +122,7 @@ export interface FinancePageData {
 
 type Actor = { id: string; role: string; locale: "sv-SE" | "en-SE" };
 type FinanceSection =
-  | "overview"
-  | "compensation"
-  | "invoices"
-  | "categories"
-  | "transactions"
-  | "customers";
+  "overview" | "invoices" | "categories" | "transactions" | "customers";
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -1306,9 +1292,6 @@ export function FinanceDashboard({
     if (value && transactionRangeFrom && value < transactionRangeFrom)
       setTransactionRangeFrom(value);
   };
-  const [endingAgreement, setEndingAgreement] = useState<
-    FinancePageData["agreements"][number] | null
-  >(null);
   const [deletingTransaction, setDeletingTransaction] = useState<
     FinancePageData["transactions"][number] | null
   >(null);
@@ -1730,7 +1713,6 @@ export function FinanceDashboard({
 
   const title = {
     overview: manager ? t("financialOverview") : t("myFinances"),
-    compensation: t("compensationManagement"),
     invoices: manager ? t("invoiceManagement") : t("myInvoices"),
     categories: t("categoryManagement"),
     transactions: t("incomeExpenseManagement"),
@@ -2076,70 +2058,6 @@ export function FinanceDashboard({
             </section>
           )}
         </>
-      )}
-
-      {manager && section === "compensation" && (
-        <section className="card table-wrap">
-          <div className="week-head">
-            <h2>{t("currentCompensation")}</h2>
-            {admin && (
-              <Link className="button" href="/finance/compensation/new">
-                {t("addCompensation")}
-              </Link>
-            )}
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>{t("consultant")}</th>
-                <th>{t("compensationModel")}</th>
-                <th>{t("validFrom")}</th>
-                <th>{t("validTo")}</th>
-                <th>{t("compensationTerms")}</th>
-                {admin && (
-                  <th>
-                    <span className="sr-only">{t("actions")}</span>
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {data.agreements.map((agreement) => (
-                <tr key={agreement.id}>
-                  <td>{consultantName(agreement.userId)}</td>
-                  <td>
-                    {t(
-                      agreement.model === "flexible"
-                        ? "flexible"
-                        : "fixedSalary",
-                    )}
-                  </td>
-                  <td>{agreement.validFrom}</td>
-                  <td>{agreement.validTo ?? "—"}</td>
-                  <td>
-                    {agreement.model === "flexible"
-                      ? `${t("invoiceSharePercent")}: ${agreement.shareBps / 100}%`
-                      : agreement.fixedMonthlySalaryMinor !== null
-                        ? `${t("monthlySalary")}: ${formatSek(agreement.fixedMonthlySalaryMinor, locale)}`
-                        : "—"}
-                  </td>
-                  {admin && (
-                    <td>
-                      {agreement.validTo === null && (
-                        <button
-                          className="table-action"
-                          onClick={() => setEndingAgreement(agreement)}
-                        >
-                          {t("setValidTo")}
-                        </button>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
       )}
 
       {manager && section === "customers" && (
@@ -3008,58 +2926,6 @@ export function FinanceDashboard({
               </button>
               <button className="button" disabled={busy}>
                 {t("markAsPaid")}
-              </button>
-            </footer>
-          </form>
-        </div>
-      )}
-      {endingAgreement && (
-        <div className="modal-backdrop" role="presentation">
-          <form
-            className="modal modal-small"
-            role="alertdialog"
-            aria-modal="true"
-            onSubmit={(event: FormEvent<HTMLFormElement>) => {
-              event.preventDefault();
-              const form = new FormData(event.currentTarget);
-              void post(
-                {
-                  action: "setCompensationValidTo",
-                  agreementId: endingAgreement.id,
-                  validTo: form.get("validTo"),
-                },
-                "validToSaved",
-              ).then((ok) => {
-                if (ok) setEndingAgreement(null);
-              });
-            }}
-          >
-            <header className="modal-header">
-              <div>
-                <h2>{t("setValidToTitle")}</h2>
-                <p>{t("setValidToExplanation")}</p>
-              </div>
-            </header>
-            <label>
-              {t("validTo")}
-              <DateInput
-                className="field"
-                name="validTo"
-                min={endingAgreement.validFrom}
-                defaultValue={today()}
-                required
-              />
-            </label>
-            <footer className="modal-actions">
-              <button
-                className="button secondary"
-                type="button"
-                onClick={() => setEndingAgreement(null)}
-              >
-                {t("cancel")}
-              </button>
-              <button className="button" disabled={busy}>
-                {t("confirmSetValidTo")}
               </button>
             </footer>
           </form>
