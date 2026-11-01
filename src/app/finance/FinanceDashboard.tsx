@@ -2266,9 +2266,11 @@ export function FinanceDashboard({
                     {manager ? t("totalIncludingVat") : t("myInvoiceShare")}
                   </th>
                   <th>{t("status")}</th>
-                  <th>
-                    <span className="sr-only">{t("actions")}</span>
-                  </th>
+                  {manager && (
+                    <th>
+                      <span className="sr-only">{t("actions")}</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -2294,18 +2296,18 @@ export function FinanceDashboard({
                           }).format(invoice.shareBps / 100)}%)`}
                     </td>
                     <td>{t(invoice.status)}</td>
-                    <td>
-                      <div className="row-actions">
-                        <button
-                          className="icon-button"
-                          type="button"
-                          aria-label={t("viewDetails")}
-                          title={t("viewDetails")}
-                          onClick={() => setViewingInvoice(invoice)}
-                        >
-                          i
-                        </button>
-                        {manager && (
+                    {manager && (
+                      <td>
+                        <div className="row-actions">
+                          <button
+                            className="icon-button"
+                            type="button"
+                            aria-label={t("viewDetails")}
+                            title={t("viewDetails")}
+                            onClick={() => setViewingInvoice(invoice)}
+                          >
+                            i
+                          </button>
                           <Link
                             className="table-action icon-action"
                             href={`/finance/invoices/${encodeURIComponent(invoice.id)}/attachments`}
@@ -2314,18 +2316,18 @@ export function FinanceDashboard({
                           >
                             <ActionIcon type="edit" />
                           </Link>
-                        )}
-                        {manager && invoice.status === "issued" && (
-                          <button
-                            className="table-action"
-                            type="button"
-                            onClick={() => setPayingInvoice(invoice)}
-                          >
-                            {t("markAsPaid")}
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                          {invoice.status === "issued" && (
+                            <button
+                              className="table-action"
+                              type="button"
+                              onClick={() => setPayingInvoice(invoice)}
+                            >
+                              {t("markAsPaid")}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -2879,19 +2881,15 @@ export function FinanceDashboard({
                 <dt>{t("description")}</dt>
                 <dd>{viewingInvoice.visibleDescription || "\u2014"}</dd>
               </div>
-              {manager && (
-                <div>
-                  <dt>{t("internalNote")}</dt>
-                  <dd>{viewingInvoice.internalNote || "\u2014"}</dd>
-                </div>
-              )}
+              <div>
+                <dt>{t("internalNote")}</dt>
+                <dd>{viewingInvoice.internalNote || "\u2014"}</dd>
+              </div>
             </dl>
-            {manager && (
-              <AttachmentDownloads
-                entityType="invoice"
-                entityId={viewingInvoice.id}
-              />
-            )}
+            <AttachmentDownloads
+              entityType="invoice"
+              entityId={viewingInvoice.id}
+            />
             <footer className="modal-actions">
               <button
                 className="button secondary"

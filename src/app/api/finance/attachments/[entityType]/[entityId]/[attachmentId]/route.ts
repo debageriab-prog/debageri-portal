@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canViewMyFinance } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 
@@ -42,7 +43,7 @@ async function authorized(
     !write &&
     entityData?.consultantId === actor.id &&
     entityType === "transaction" &&
-    actor.financeAccess.myFinance;
+    canViewMyFinance(actor);
   if (
     !entity.exists ||
     entityData?.organizationId !== actor.organizationId ||

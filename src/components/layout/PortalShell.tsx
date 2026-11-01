@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { canViewMyFinance } from "@/domain/finance/calculations";
 import type { PortalUser } from "@/domain/types";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { BrandLogo } from "@/components/brand/BrandLogo";
@@ -268,14 +269,14 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
   ];
   if (
     user.financeAccess.enabled &&
-    (user.financeAccess.myFinance || user.financeAccess.myInvoices)
+    (canViewMyFinance(user) || user.financeAccess.myInvoices)
   )
     groups.push({
       id: "finance",
       label: t("finance"),
       icon: "finance",
       items: [
-        ...(user.financeAccess.myFinance
+        ...(canViewMyFinance(user)
           ? [{ label: t("myFinances"), href: "/finance" }]
           : []),
         ...(user.financeAccess.myInvoices

@@ -1,4 +1,8 @@
-import type { CompensationModel, FinancialTransaction } from "@/domain/types";
+import type {
+  CompensationModel,
+  FinancialTransaction,
+  PortalUser,
+} from "@/domain/types";
 
 const salaryExpenseCodes = new Set(["salary", "salary_tax", "employer_tax"]);
 
@@ -61,6 +65,13 @@ export function calculateTransactionAmounts(
 /** Models where paid invoices credit the consultant's balance. */
 export function earnsInvoiceShare(model: CompensationModel | null | undefined) {
   return model === "flexible" || model === "hybrid";
+}
+
+/** Fixed-salary consultants have no personal balance to show in My finances. */
+export function canViewMyFinance(
+  user: Pick<PortalUser, "compensationModel" | "financeAccess">,
+) {
+  return user.financeAccess.myFinance && user.compensationModel !== "fixed";
 }
 
 export function calculateShareMinor(netMinor: number, shareBps: number) {

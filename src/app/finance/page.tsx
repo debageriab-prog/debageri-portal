@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { canViewMyFinance } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { FinanceDashboard, type FinancePageData } from "./FinanceDashboard";
@@ -30,10 +31,11 @@ export default async function FinancePage({
     : "overview";
   const actor = (await verifySession())!;
   const manager = ["admin", "accountant"].includes(actor.role);
+  const myFinance = canViewMyFinance(actor);
   if (
     !manager &&
     ((section === "invoices" && !actor.financeAccess.myInvoices) ||
-      (section !== "invoices" && !actor.financeAccess.myFinance))
+      (section !== "invoices" && !myFinance))
   )
     redirect("/unauthorized");
   const visibleSection = manager
@@ -71,7 +73,7 @@ export default async function FinancePage({
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
-    manager || actor.financeAccess.myFinance
+    manager || myFinance
       ? db
           .collection("financialTransactions")
           .where("organizationId", "==", organizationId)
@@ -89,7 +91,7 @@ export default async function FinancePage({
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
-    manager || actor.financeAccess.myFinance
+    manager || myFinance
       ? db
           .collection("financeAttachments")
           .where("organizationId", "==", organizationId)
@@ -147,8 +149,12 @@ export default async function FinancePage({
         consultantId: data.consultantId ?? null,
         compensationModel: data.compensationModel ?? null,
         customerName: String(data.customerName),
-        customerContactPerson: String(data.customerContactPerson ?? ""),
-        customerFinanceEmail: String(data.customerFinanceEmail ?? ""),
+        customerContactPerson: manager
+          ? String(data.customerContactPerson ?? "")
+          : "",
+        customerFinanceEmail: manager
+          ? String(data.customerFinanceEmail ?? "")
+          : "",
         visibleDescription: String(data.visibleDescription ?? ""),
         internalNote: manager ? String(data.internalNote ?? "") : "",
         vatRateBps: Number(data.vatRateBps ?? 0),

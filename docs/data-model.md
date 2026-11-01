@@ -34,8 +34,10 @@ personal balance. Hybrid consultants have a fixed monthly salary plus an
 invoice share: the share follows the flexible balance rules, and the salary is
 booked as a company-funded expense so it never touches the balance. VAT is
 stored separately from net revenue and cost. Internal
-notes never pass through consultant-facing responses. A consultant's access to
-My finances and My invoices comes from `financeAccess` alone, whatever their
-compensation model.
+notes and customer contact details never pass through consultant-facing
+responses, and consultants see neither invoice details nor invoice files. A
+consultant's access to My invoices comes from `financeAccess`, whatever their
+compensation model. My finances also comes from `financeAccess`, but is never
+shown to fixed-salary consultants because they have no personal balance.
 
 Indexes in `firestore.indexes.json` serve user date/week entry queries, user sheet history, and manager status queues. Future `leaveBalances`, `payslips`, `employeeDocuments`, `projects`, and `reportSummaries` retain organization isolation and server ownership. The portal database is separate because candidate recruitment data has a different purpose, access population, retention policy, and threat boundary.
