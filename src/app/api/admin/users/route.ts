@@ -9,6 +9,7 @@ import {
   documentAccessMatchesRole,
   documentAccessSchema,
   emailPreferencesSchema,
+  localeSchema,
 } from "@/server/validators/user-access";
 
 const inputSchema = z
@@ -24,6 +25,7 @@ const inputSchema = z
     financeAccess: financeAccessSchema,
     documentAccess: documentAccessSchema,
     emailPreferences: emailPreferencesSchema.optional(),
+    locale: localeSchema,
   })
   .superRefine((value, context) => {
     const expectedReportsTime =
@@ -94,7 +96,7 @@ export async function POST(request: Request) {
       status: "active",
       managerId: null,
       timezone: actor.timezone,
-      locale: actor.locale,
+      locale: parsed.data.locale,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -110,6 +112,7 @@ export async function POST(request: Request) {
         reportsTime: parsed.data.reportsTime,
         financeAccess: parsed.data.financeAccess,
         documentAccess: parsed.data.documentAccess,
+        locale: parsed.data.locale,
       },
     });
     await batch.commit();

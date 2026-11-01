@@ -6,6 +6,7 @@ import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { defaultLocale, type Locale } from "@/lib/localization/locale";
 import type { DocumentAccess, FinanceAccess } from "@/domain/types";
 import {
   NOTIFICATION_TOPICS,
@@ -115,6 +116,9 @@ export function EmployeeEditor({
       timesheets: true,
     },
   );
+  const [language, setLanguage] = useState<Locale>(
+    employee?.locale ?? defaultLocale,
+  );
   const [addCompensation, setAddCompensation] = useState(false);
   const [compensation, setCompensation] = useState(() =>
     defaultCompensationValues(today()),
@@ -175,6 +179,7 @@ export function EmployeeEditor({
       financeAccess: isConsultant ? financeAccess : noFinance,
       documentAccess: documentAccessForRole(role, documentAccess),
       emailPreferences,
+      locale: language,
       ...(creating
         ? { password: values.password }
         : {
@@ -331,8 +336,21 @@ export function EmployeeEditor({
                 </span>
               </label>
             )}
+            <label>
+              {t("language")}
+              <select
+                className="field"
+                value={language}
+                onChange={(event) => setLanguage(event.target.value as Locale)}
+                disabled={isSelf}
+              >
+                <option value="en-SE">English</option>
+                <option value="sv-SE">Svenska</option>
+              </select>
+              <small>{t("employeeLanguageHelp")}</small>
+            </label>
             {creating ? (
-              <label className="form-wide">
+              <label>
                 {t("temporaryPassword")}
                 <input
                   className="field"
@@ -348,7 +366,7 @@ export function EmployeeEditor({
                 <small>{t("temporaryPasswordHelp")}</small>
               </label>
             ) : (
-              <label className="form-wide">
+              <label>
                 {t("accountStatus")}
                 <select
                   className="field"

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { supportedLocales } from "@/lib/localization/locale";
 
 export const financeAccessSchema = z
   .object({
@@ -50,6 +51,8 @@ export const emailPreferencesSchema = z.object({
   payslips: z.boolean(),
   timesheets: z.boolean(),
 });
+
+export const localeSchema = z.enum(supportedLocales);
 
 export const documentAccessSchema = z.object({
   contracts: z.boolean(),

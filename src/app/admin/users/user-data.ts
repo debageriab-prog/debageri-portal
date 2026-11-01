@@ -1,6 +1,9 @@
 import "server-only";
 
-import { emailPreferencesFrom } from "@/domain/notifications";
+import {
+  emailPreferencesFrom,
+  notificationLocale,
+} from "@/domain/notifications";
 import type { CompensationRecord } from "@/domain/finance/compensation";
 import type { ManagedUser } from "./UserManagement";
 
@@ -66,5 +69,6 @@ export function toManagedUser(
       receipts: data.documentAccess?.receipts === true,
     },
     emailPreferences: emailPreferencesFrom(data.emailPreferences),
+    locale: notificationLocale(data.locale),
   };
 }

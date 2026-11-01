@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import type { Locale } from "@/lib/localization/locale";
 import type { DocumentAccess, FinanceAccess } from "@/domain/types";
 import type { EmailPreferences } from "@/domain/notifications";
 import { ActionIcon } from "@/components/ui/ActionIcon";
@@ -24,6 +25,7 @@ export interface ManagedUser {
   financeAccess: FinanceAccess;
   documentAccess: DocumentAccess;
   emailPreferences: EmailPreferences;
+  locale: Locale;
 }
 
 export function UserManagement({

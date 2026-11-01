@@ -68,6 +68,15 @@ export function AccountMenu({ user }: { user: PortalUser }) {
     }
   }
 
+  function changeLanguage(next: Locale) {
+    setLocale(next);
+    void appCheckFetch("/api/account/locale", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ locale: next }),
+    }).catch(() => undefined);
+  }
+
   async function logout() {
     setBusy(true);
     await appCheckFetch("/api/auth/session", { method: "DELETE" });
@@ -256,7 +265,9 @@ export function AccountMenu({ user }: { user: PortalUser }) {
                 <select
                   aria-label={t("language")}
                   value={locale}
-                  onChange={(event) => setLocale(event.target.value as Locale)}
+                  onChange={(event) =>
+                    changeLanguage(event.target.value as Locale)
+                  }
                 >
                   <option value="en-SE">English</option>
                   <option value="sv-SE">Svenska</option>
