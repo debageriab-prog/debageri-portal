@@ -2164,7 +2164,7 @@ export function FinanceDashboard({
           <table>
             <thead>
               <tr>
-                <th>{t("code")}</th>
+                <th>{t("categoryCode")}</th>
                 <th>{t("englishName")}</th>
                 <th>{t("swedishName")}</th>
                 <th>{t("type")}</th>
