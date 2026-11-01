@@ -57,20 +57,18 @@ export function WarningTriangleIcon() {
   );
 }
 
-export function IncomeArrowIcon() {
+export function IncomePlusIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22">
-      <circle cx="12" cy="12" r="11" />
-      <path d="M12 6v12m0 0 5-5m-5 5-5-5" />
+      <path d="M12 4v16M4 12h16" />
     </svg>
   );
 }
 
-export function ExpenseArrowIcon() {
+export function ExpenseMinusIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22">
-      <circle cx="12" cy="12" r="11" />
-      <path d="M12 18V6m0 0 5 5m-5-5-5 5" />
+      <path d="M4 12h16" />
     </svg>
   );
 }

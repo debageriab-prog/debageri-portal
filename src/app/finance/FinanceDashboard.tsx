@@ -19,8 +19,8 @@ import {
 import type { CompensationModel } from "@/domain/types";
 import { InfoTip } from "@/components/ui/InfoTip";
 import {
-  ExpenseArrowIcon,
-  IncomeArrowIcon,
+  ExpenseMinusIcon,
+  IncomePlusIcon,
 } from "@/components/ui/FileActionIcons";
 import {
   abbreviateText,
@@ -2572,9 +2572,9 @@ export function FinanceDashboard({
                       title={t(transaction.direction)}
                     >
                       {transaction.direction === "income" ? (
-                        <IncomeArrowIcon />
+                        <IncomePlusIcon />
                       ) : (
-                        <ExpenseArrowIcon />
+                        <ExpenseMinusIcon />
                       )}
                     </span>
                   </td>

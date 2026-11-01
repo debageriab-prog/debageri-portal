@@ -2017,16 +2017,11 @@ th.actions-heading {
   color: var(--expense);
 }
 
-.direction-icon svg circle {
-  fill: currentColor;
-}
-
-.direction-icon svg path {
+.direction-icon svg {
   fill: none;
-  stroke: white;
+  stroke: currentColor;
   stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2.6;
+  stroke-width: 4;
 }
 
 .stored-attachment {
