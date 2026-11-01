@@ -59,16 +59,18 @@ export function WarningTriangleIcon() {
 
 export function IncomeArrowIcon() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
-      <path d="M18 6 6 18m0 0h9m-9 0V9" />
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22">
+      <circle cx="12" cy="12" r="11" />
+      <path d="M12 6v12m0 0 5-5m-5 5-5-5" />
     </svg>
   );
 }
 
 export function ExpenseArrowIcon() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
-      <path d="M6 18 18 6m0 0H9m9 0v9" />
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22">
+      <circle cx="12" cy="12" r="11" />
+      <path d="M12 18V6m0 0 5 5m-5-5-5 5" />
     </svg>
   );
 }

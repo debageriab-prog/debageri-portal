@@ -16,6 +16,8 @@
   --warning-bg: #f8ead5;
   --danger: #933b36;
   --danger-bg: #f8e4e1;
+  --income: #2e9e5b;
+  --expense: #d43d31;
 }
 
 * {
@@ -2008,19 +2010,23 @@ th.actions-heading {
 }
 
 .direction-income {
-  color: var(--success);
+  color: var(--income);
 }
 
 .direction-expense {
-  color: var(--danger);
+  color: var(--expense);
 }
 
-.direction-icon svg {
+.direction-icon svg circle {
+  fill: currentColor;
+}
+
+.direction-icon svg path {
   fill: none;
-  stroke: currentColor;
+  stroke: white;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 2.4;
+  stroke-width: 2.6;
 }
 
 .stored-attachment {
