@@ -27,6 +27,8 @@ import {
   missingHeaders,
   parseFinanceCsv,
   transactionCsvHeaders,
+  transactionExportCsvHeaders,
+  transactionImportCsvHeaders,
 } from "@/domain/finance/csv";
 import { financeActionSchema } from "@/server/validators/finance";
 
@@ -617,6 +619,11 @@ describe("finance CSV", () => {
     expect(row).toEqual({ import_key: "a1", description: 'Laptop, 14"' });
   });
 
+  it("keeps older transaction exports importable without share_percent", () => {
+    expect(transactionExportCsvHeaders).toContain("share_percent");
+    expect(transactionImportCsvHeaders).not.toContain("share_percent");
+  });
+
   it("reports missing template headers", () => {
     const [row] = parseFinanceCsv("import_key,date\na1,2026-01-01");
     expect(missingHeaders(row!, transactionCsvHeaders)).toContain(
@@ -644,6 +651,29 @@ describe("finance deletion confirmation", () => {
         internalNote: "Corrected total",
       }).success,
     ).toBe(true);
+  });
+
+  it("accepts a share override on income within 0-100%", () => {
+    const income = {
+      action: "createTransaction",
+      direction: "income",
+      categoryId: "category-1",
+      consultantId: "consultant-1",
+      date: "2026-08-02",
+      amountMode: "net",
+      amountMinor: 1_000_00,
+      vatRateBps: 0,
+      funding: null,
+      applyConsultantShare: true,
+    };
+    const parsed = (shareBpsOverride?: number) =>
+      financeActionSchema.safeParse({ ...income, shareBpsOverride });
+    expect(parsed().data).toMatchObject({ shareBpsOverride: null });
+    expect(parsed(10_000).data).toMatchObject({ shareBpsOverride: 10_000 });
+    expect(parsed(0).data).toMatchObject({ shareBpsOverride: 0 });
+    expect(parsed(10_001).success).toBe(false);
+    expect(parsed(-1).success).toBe(false);
+    expect(calculateShareMinor(1_000_00, 10_000)).toBe(1_000_00);
   });
 
   it("requires the exact permanent-deletion phrase", () => {

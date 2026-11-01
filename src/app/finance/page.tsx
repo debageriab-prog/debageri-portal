@@ -204,6 +204,7 @@ export default async function FinancePage({
         visibleDescription: String(data.visibleDescription ?? ""),
         internalNote: manager ? String(data.internalNote ?? "") : "",
         applyConsultantShare: data.applyConsultantShare === true,
+        shareBpsOverride: manager ? (data.shareBpsOverride ?? null) : null,
         status: data.status as "posted" | "reversal",
         reversedByTransactionId: data.reversedByTransactionId ?? null,
         createdAt: millis(data.createdAt),

@@ -115,6 +115,7 @@ export interface FinancePageData {
     visibleDescription: string;
     internalNote: string;
     applyConsultantShare: boolean;
+    shareBpsOverride: number | null;
     status: "posted" | "reversal";
     reversedByTransactionId: string | null;
     createdAt: number;
@@ -1608,6 +1609,10 @@ export function FinanceDashboard({
         apply_share: transaction.applyConsultantShare ? "true" : "false",
         description: transaction.visibleDescription,
         internal_note: transaction.internalNote,
+        share_percent:
+          transaction.shareBpsOverride === null
+            ? ""
+            : (transaction.shareBpsOverride / 100).toFixed(2),
       })),
     );
     const url = URL.createObjectURL(

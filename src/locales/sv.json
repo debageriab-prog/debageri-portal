@@ -462,6 +462,7 @@
   "issueDateTip": "Fakturadatum. Det avgör konsultens ersättningsavtal och momsperioden.",
   "dueDateTip": "Sista dagen för kunden att betala. Det kan inte vara före fakturadatum.",
   "shareOverrideTip": "Valfritt. Ersätter konsultens avtalade andel för just den här fakturan. Endast vid ersättning med fakturaandel.",
+  "transactionShareOverrideTip": "Valfritt. Ersätter konsultens avtalade andel för just den här intäkten. Ange 100 för att kreditera hela nettobeloppet, till exempel när pengar som konsulten redan betalat kommer tillbaka.",
   "vatPaymentDateTip": "Dagen då momsen betalades till skattekontot. AI använder förfallodatumet när filen inte visar någon betalning.",
   "vatPaymentAmountTip": "Momsen som betalats till Skatteverket (Moms att betala). Den kan inte vara högre än momsen att betala just nu.",
   "vatPeriodFromTip": "Första dagen i redovisningsperioden, till exempel 2026-04-01 för april - juni.",

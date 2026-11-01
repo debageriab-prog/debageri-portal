@@ -49,6 +49,7 @@ export default async function EditTransactionPage({
     roundingMinor: Number(data.roundingMinor ?? 0),
     funding: data.funding ?? null,
     applyConsultantShare: data.applyConsultantShare === true,
+    shareBpsOverride: data.shareBpsOverride ?? null,
     visibleDescription: String(data.visibleDescription ?? ""),
     internalNote: String(data.internalNote ?? ""),
   };
