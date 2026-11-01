@@ -40,11 +40,35 @@ export function FileViewIcon() {
   );
 }
 
+export function FileAttachmentIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
+      <path d="m20.5 11.5-8.6 8.6a5.3 5.3 0 0 1-7.5-7.5l8.6-8.6a3.5 3.5 0 0 1 5 5l-8.6 8.6a1.8 1.8 0 0 1-2.5-2.5l8-8" />
+    </svg>
+  );
+}
+
 export function WarningTriangleIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22">
       <path d="M10.3 3.9 2.2 18a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
       <path d="M12 9v4.5M12 17.2v.3" />
+    </svg>
+  );
+}
+
+export function IncomeArrowIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
+      <path d="M18 6 6 18m0 0h9m-9 0V9" />
+    </svg>
+  );
+}
+
+export function ExpenseArrowIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
+      <path d="M6 18 18 6m0 0H9m9 0v9" />
     </svg>
   );
 }

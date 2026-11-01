@@ -19,6 +19,11 @@ import {
 import type { CompensationModel } from "@/domain/types";
 import { InfoTip } from "@/components/ui/InfoTip";
 import {
+  ExpenseArrowIcon,
+  IncomeArrowIcon,
+} from "@/components/ui/FileActionIcons";
+import {
+  abbreviateText,
   belongsToCompany,
   belongsToConsultant,
   belongsToFixedConsultantResult,
@@ -33,6 +38,7 @@ import {
   flexibleConsultantBalanceHistory,
   flexibleConsultantRetainedResultHistory,
   formatSek,
+  formatSekCompact,
   isSalaryRelatedExpenseCode,
   transactionTableDescription,
   transactionFinanceHistory,
@@ -43,10 +49,7 @@ import {
   transactionListHref,
   transactionListState,
 } from "./transaction-navigation";
-import {
-  AttachmentDownloadLink,
-  AttachmentDownloads,
-} from "./FinanceAttachments";
+import { AttachmentClip, AttachmentDownloads } from "./FinanceAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import {
   createFinanceCsv,
@@ -119,7 +122,7 @@ export interface FinancePageData {
     status: "posted" | "reversal";
     reversedByTransactionId: string | null;
     createdAt: number;
-    attachments: Array<{ id: string; name: string }>;
+    attachments: Array<{ id: string; name: string; contentType: string }>;
   }>;
   agreements: CompensationRecord[];
   vatSettlements: Array<{
@@ -2561,16 +2564,32 @@ export function FinanceDashboard({
               ).map((transaction) => (
                 <tr key={transaction.id}>
                   <td>{transaction.date}</td>
-                  <td>{t(transaction.direction)}</td>
+                  <td>
+                    <span
+                      className={`direction-icon direction-${transaction.direction}`}
+                      role="img"
+                      aria-label={t(transaction.direction)}
+                      title={t(transaction.direction)}
+                    >
+                      {transaction.direction === "income" ? (
+                        <IncomeArrowIcon />
+                      ) : (
+                        <ExpenseArrowIcon />
+                      )}
+                    </span>
+                  </td>
                   <td>{categoryName(transaction.categoryId)}</td>
                   {manager && (
                     <td>{consultantName(transaction.consultantId)}</td>
                   )}
-                  <td>{transactionTableDescription(transaction) || "—"}</td>
-                  <td>{formatSek(transaction.netMinor, locale)}</td>
-                  <td>{formatSek(transaction.grossMinor, locale)}</td>
+                  <td title={transactionTableDescription(transaction)}>
+                    {abbreviateText(transactionTableDescription(transaction)) ||
+                      "—"}
+                  </td>
+                  <td>{formatSekCompact(transaction.netMinor, locale)}</td>
+                  <td>{formatSekCompact(transaction.grossMinor, locale)}</td>
                   <td>
-                    {formatSek(
+                    {formatSekCompact(
                       manager && transactionConsultantFilter === "company"
                         ? companyBalanceDeltaMinor(transaction)
                         : transaction.consultantBalanceDeltaMinor,
@@ -2579,18 +2598,16 @@ export function FinanceDashboard({
                   </td>
                   <td>
                     {transaction.attachments.length ? (
-                      <ul className="table-attachment-list">
+                      <div className="table-attachment-clips">
                         {transaction.attachments.map((attachment) => (
-                          <li key={attachment.id}>
-                            <AttachmentDownloadLink
-                              entityType="transaction"
-                              entityId={transaction.id}
-                              attachmentId={attachment.id}
-                              name={attachment.name}
-                            />
-                          </li>
+                          <AttachmentClip
+                            key={attachment.id}
+                            entityType="transaction"
+                            entityId={transaction.id}
+                            attachment={attachment}
+                          />
                         ))}
-                      </ul>
+                      </div>
                     ) : (
                       "-"
                     )}
