@@ -77,7 +77,8 @@ export async function uploadTimesheetAttachments(
  * With it, the reporter picks files, which wait in `files` and are uploaded by
  * the parent on submit when `uploadOnSubmit` is set, or by the Add files button
  * on a report that has already been sent. Its dialogs render on the body so
- * they cover the page when this sits inside another modal.
+ * they cover the page when this sits inside another modal. `onStoredChange`
+ * runs after stored files were added or removed here.
  */
 export function TimesheetAttachments({
   timesheetId,
@@ -85,12 +86,14 @@ export function TimesheetAttachments({
   onFilesChange,
   uploadOnSubmit = false,
   refreshKey = 0,
+  onStoredChange,
 }: {
   timesheetId: string;
   files?: File[];
   onFilesChange?(files: File[]): void;
   uploadOnSubmit?: boolean;
   refreshKey?: number;
+  onStoredChange?(): void;
 }) {
   const { t } = useLocale();
   const [listing, setListing] = useState<Listing | null>(null);
@@ -161,6 +164,7 @@ export function TimesheetAttachments({
     onFilesChange?.(files.slice(result.uploaded));
     if (result.error) setError(timesheetAttachmentMessage(t, result.error));
     setReloads((value) => value + 1);
+    if (result.uploaded > 0) onStoredChange?.();
   }
 
   async function remove() {
@@ -190,6 +194,7 @@ export function TimesheetAttachments({
       }
       setRemoving(null);
       setReloads((value) => value + 1);
+      onStoredChange?.();
     } catch {
       setRemoveError(timesheetAttachmentMessage(t, "attachmentRemoveFailed"));
     } finally {
