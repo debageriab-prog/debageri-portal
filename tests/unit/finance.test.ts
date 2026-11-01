@@ -116,10 +116,12 @@ describe("finance calculations", () => {
       {
         id: "consultant-expense",
         consultantId: "consultant-1",
+        invoiceId: null,
         direction: "expense" as const,
         funding: "consultant" as const,
         date: "2026-01-15",
         netMinor: 20_000,
+        consultantBalanceDeltaMinor: -20_000,
         categoryId: "travel",
         visibleDescription: "Train",
         internalNote: "",
@@ -127,10 +129,12 @@ describe("finance calculations", () => {
       {
         id: "company-expense",
         consultantId: "consultant-1",
+        invoiceId: null,
         direction: "expense" as const,
         funding: "company" as const,
         date: "2026-01-20",
         netMinor: 8_000,
+        consultantBalanceDeltaMinor: 0,
         categoryId: "software",
         visibleDescription: "",
         internalNote: "License",
@@ -156,6 +160,103 @@ describe("finance calculations", () => {
       30_000, -8_000,
     ]);
     expect(retained.at(-1)?.runningTotalMinor).toBe(22_000);
+  });
+
+  it("includes manual income credits and their reversals in the balance", () => {
+    const income = {
+      consultantId: "consultant-1",
+      invoiceId: null,
+      direction: "income" as const,
+      funding: null,
+      netMinor: 165_000,
+      categoryId: "return",
+      visibleDescription: "",
+      internalNote: "",
+    };
+    const history = flexibleConsultantBalanceHistory(
+      [],
+      [
+        {
+          ...income,
+          id: "return",
+          date: "2026-11-01",
+          consultantBalanceDeltaMinor: 165_000,
+          visibleDescription: "Returned deposit",
+        },
+        {
+          ...income,
+          id: "voided",
+          date: "2026-11-02",
+          consultantBalanceDeltaMinor: 40_000,
+        },
+        {
+          ...income,
+          id: "voided-reversal",
+          date: "2026-11-03",
+          netMinor: -165_000,
+          consultantBalanceDeltaMinor: -40_000,
+        },
+        {
+          ...income,
+          id: "uncredited",
+          date: "2026-11-04",
+          consultantBalanceDeltaMinor: 0,
+        },
+        {
+          ...income,
+          id: "other-consultant",
+          consultantId: "consultant-2",
+          date: "2026-11-05",
+          consultantBalanceDeltaMinor: 10_000,
+        },
+      ],
+      "consultant-1",
+    );
+
+    expect(history.map((entry) => entry.changeMinor)).toEqual([
+      165_000, 40_000, -40_000,
+    ]);
+    expect(history[0]).toMatchObject({
+      kind: "income",
+      description: "Returned deposit",
+    });
+    expect(history.at(-1)?.runningTotalMinor).toBe(165_000);
+  });
+
+  it("counts paid invoices once, not again through their ledger entries", () => {
+    const history = flexibleConsultantBalanceHistory(
+      [
+        {
+          id: "paid",
+          invoiceNumber: "INV-1",
+          customerName: "Customer A",
+          consultantId: "consultant-1",
+          compensationModel: "flexible",
+          status: "paid",
+          paidDate: "2026-01-10",
+          netMinor: 100_000,
+          shareBps: 7_000,
+        },
+      ],
+      [
+        {
+          id: "invoice-share",
+          consultantId: "consultant-1",
+          invoiceId: "paid",
+          direction: "income",
+          funding: null,
+          date: "2026-01-10",
+          netMinor: 70_000,
+          consultantBalanceDeltaMinor: 70_000,
+          categoryId: "consulting",
+          visibleDescription: "",
+          internalNote: "",
+        },
+      ],
+      "consultant-1",
+    );
+
+    expect(history.map((entry) => entry.changeMinor)).toEqual([70_000]);
   });
 
   it("builds fixed consultant retained result from paid invoices and expenses", () => {

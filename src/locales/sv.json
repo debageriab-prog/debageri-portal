@@ -390,7 +390,7 @@
   "invoice": "Faktura",
   "runningTotal": "Löpande saldo",
   "noFinancialHistory": "Det finns ingen historik ännu.",
-  "consultantBalanceHistoryDescription": "Konsultens andel av betalda fakturor minus konsultfinansierade kostnader, i datumordning.",
+  "consultantBalanceHistoryDescription": "Konsultens andel av betalda fakturor och krediterade intäkter, minus konsultfinansierade kostnader, i datumordning.",
   "retainedResultHistoryDescription": "Företagets andel av betalda fakturor minus företagsfinansierade kostnader för konsulten, i datumordning.",
   "fixedRetainedResultHistoryDescription": "Intäkter från betalda fakturor minus kostnader kopplade till konsulten, i datumordning.",
   "netIncomeHistoryDescription": "Nettointäktsposter som ingår i det här urvalet, i datumordning.",
