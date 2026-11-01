@@ -441,6 +441,13 @@ export function transactionTableDescription(
   return "";
 }
 
+/** The first `maxLength` characters followed by "..." when the text is longer. */
+export function abbreviateText(text: string, maxLength = 15) {
+  return text.length > maxLength
+    ? `${text.slice(0, maxLength).trimEnd()}...`
+    : text;
+}
+
 export function allocateInvoiceIncome(
   netMinor: number,
   compensationModel: CompensationModel | null,
@@ -543,6 +550,16 @@ export function formatSek(minor: number, locale: "sv-SE" | "en-SE") {
     style: "currency",
     currency: "SEK",
     minimumFractionDigits: 2,
+  }).format(minor / 100);
+}
+
+/** Like `formatSek` but leaves out the decimals of a whole krona amount. */
+export function formatSekCompact(minor: number, locale: "sv-SE" | "en-SE") {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "SEK",
+    minimumFractionDigits: minor % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: minor % 100 === 0 ? 0 : 2,
   }).format(minor / 100);
 }
 

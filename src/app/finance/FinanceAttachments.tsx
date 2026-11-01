@@ -5,6 +5,7 @@ import { useLocale } from "@/components/localization/LocaleProvider";
 import { appCheckFetch } from "@/lib/firebase/client";
 import {
   FileAiIcon,
+  FileAttachmentIcon,
   FileDownloadIcon,
   FileRemoveIcon,
   FileViewIcon,
@@ -603,6 +604,59 @@ export function StoredAttachment({
         />
       )}
     </span>
+  );
+}
+
+/**
+ * A stored attachment as one paper clip icon for tight table cells: hovering
+ * shows the file name and clicking opens the preview popup, or downloads the
+ * file when its type cannot be previewed.
+ */
+export function AttachmentClip({
+  entityType,
+  entityId,
+  attachment,
+}: {
+  entityType: FinanceEntityType;
+  entityId: string;
+  attachment: { id: string; name: string; contentType: string };
+}) {
+  const { t } = useLocale();
+  const [previewing, setPreviewing] = useState(false);
+  if (!canPreview(attachment.contentType))
+    return (
+      <AttachmentDownloadLink
+        className="attachment-view"
+        entityType={entityType}
+        entityId={entityId}
+        attachmentId={attachment.id}
+        name={attachment.name}
+      >
+        <FileAttachmentIcon />
+      </AttachmentDownloadLink>
+    );
+  return (
+    <>
+      <button
+        className="attachment-view"
+        type="button"
+        aria-label={t("previewAttachment").replace("{name}", attachment.name)}
+        title={attachment.name}
+        onClick={() => setPreviewing(true)}
+      >
+        <FileAttachmentIcon />
+      </button>
+      {previewing && (
+        <AttachmentPreviewModal
+          target={{
+            name: attachment.name,
+            contentType: attachment.contentType,
+            fileUrl: attachmentUrl(entityType, entityId, attachment.id),
+          }}
+          onClose={() => setPreviewing(false)}
+        />
+      )}
+    </>
   );
 }
 

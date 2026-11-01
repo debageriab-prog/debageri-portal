@@ -111,13 +111,17 @@ export default async function FinancePage({
 
   const transactionAttachments = new Map<
     string,
-    Array<{ id: string; name: string }>
+    Array<{ id: string; name: string; contentType: string }>
   >();
   for (const document of financeAttachmentsSnapshot?.docs ?? []) {
     const data = document.data();
     if (data.entityType !== "transaction") continue;
     const attachments = transactionAttachments.get(String(data.entityId)) ?? [];
-    attachments.push({ id: document.id, name: String(data.name) });
+    attachments.push({
+      id: document.id,
+      name: String(data.name),
+      contentType: String(data.contentType),
+    });
     transactionAttachments.set(String(data.entityId), attachments);
   }
 
