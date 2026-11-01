@@ -1,6 +1,7 @@
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { getIsoWeek } from "@/lib/dates/iso-week";
+import { compensationHistory } from "@/app/admin/users/user-data";
 import { HistoryView } from "./HistoryView";
 
 export default async function HistoryPage() {
@@ -71,6 +72,17 @@ export default async function HistoryPage() {
       (a, b) =>
         b.isoYear - a.isoYear || b.isoWeek - a.isoWeek || b.part - a.part,
     );
+  const incomeAgreements =
+    user.role === "consultant"
+      ? (await compensationHistory(db, user.organizationId, user.id)).map(
+          ({ model, validFrom, validTo, shareBps }) => ({
+            model,
+            validFrom,
+            validTo,
+            shareBps,
+          }),
+        )
+      : undefined;
   const today = new Date().toISOString().slice(0, 10);
   const current = getIsoWeek(today);
   return (
@@ -84,6 +96,7 @@ export default async function HistoryPage() {
       employmentEndDate={user.employmentEndDate}
       holidayDates={holidaySnapshot.docs.map((doc) => String(doc.data().date))}
       showEstimatedIncome={["consultant", "manager"].includes(user.role)}
+      incomeAgreements={incomeAgreements}
       hourlyRate={hourlyRate}
     />
   );

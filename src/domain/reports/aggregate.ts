@@ -67,6 +67,69 @@ export function aggregateReportedBreakdown(
     );
 }
 
+export interface ReportedTotals {
+  worked: number;
+  unreported: number;
+  byCode: Map<string, number>;
+  total: number;
+  reported: number;
+}
+
+export function aggregateReportedMinutes(
+  entries: Array<{
+    minutes: number;
+    name: string;
+    countsAsWorkedTime: boolean;
+  }>,
+  expectedMinutes: number,
+): ReportedTotals {
+  let worked = 0;
+  let reported = 0;
+  const byCode = new Map<string, number>();
+  for (const entry of entries) {
+    reported += entry.minutes;
+    if (entry.countsAsWorkedTime) worked += entry.minutes;
+    else byCode.set(entry.name, (byCode.get(entry.name) ?? 0) + entry.minutes);
+  }
+
+  return {
+    worked,
+    unreported: Math.max(0, expectedMinutes - reported),
+    byCode,
+    total: Math.max(expectedMinutes, reported, 1),
+    reported,
+  };
+}
+
+/**
+ * Adds up totals that were calculated per person. They must not be calculated
+ * from everyone's entries at once: the daily cap applies to each person, and
+ * one person's extra time must not hide what another has not reported.
+ */
+export function combineReportedTotals(
+  totals: ReportedTotals[],
+): ReportedTotals {
+  let worked = 0;
+  let unreported = 0;
+  let reported = 0;
+  const byCode = new Map<string, number>();
+  for (const item of totals) {
+    worked += item.worked;
+    unreported += item.unreported;
+    reported += item.reported;
+    for (const [name, minutes] of item.byCode)
+      byCode.set(name, (byCode.get(name) ?? 0) + minutes);
+  }
+
+  return {
+    worked,
+    unreported,
+    byCode,
+    total: Math.max(reported + unreported, 1),
+    reported,
+  };
+}
+
 export function aggregateReportedDays(
   entries: Array<{
     date: string;
@@ -75,7 +138,7 @@ export function aggregateReportedDays(
     countsAsWorkedTime: boolean;
   }>,
   expectedMinutes: number,
-) {
+): ReportedTotals {
   const entriesByDate = new Map<string, typeof entries>();
   for (const entry of entries) {
     const dateEntries = entriesByDate.get(entry.date) ?? [];

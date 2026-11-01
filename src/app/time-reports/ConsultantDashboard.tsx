@@ -5,7 +5,13 @@ import { formatDuration } from "@/lib/durations/duration";
 import { getIsoWeekDates } from "@/lib/dates/iso-week";
 import { ConsultantAvatar } from "./ConsultantAvatar";
 import { useLocale } from "@/components/localization/LocaleProvider";
-import { aggregateReportedDays } from "@/domain/reports/aggregate";
+import {
+  aggregateReportedDays,
+  aggregateReportedMinutes,
+  combineReportedTotals,
+  type ReportedTotals,
+} from "@/domain/reports/aggregate";
+import { isAfterEmployment } from "@/domain/timesheets/rules";
 
 type Consultant = {
   id: string;
@@ -23,6 +29,12 @@ type DashboardEntry = {
   name: string;
   countsAsWorkedTime: boolean;
   hourlyRate: number;
+};
+
+type PeriodSummary = {
+  hours: ReportedTotals;
+  days: ReportedTotals;
+  income: { worked: number; notReached: number } | null;
 };
 
 const colors = ["#35634a", "#a56f4e", "#b88b5d", "#8a7186", "#668a91"];
@@ -83,55 +95,21 @@ export function ConsultantDashboard({
     return expected;
   }
 
-  function charts(consultant: Consultant) {
+  function summarize(consultant: Consultant): PeriodSummary {
     const selected = entries.filter(
       (entry) =>
         entry.userId === consultant.id &&
         entry.date >= start &&
         entry.date <= end,
     );
-    const byCode = new Map<string, number>();
-    let worked = 0;
-    for (const entry of selected) {
-      if (entry.countsAsWorkedTime) worked += entry.minutes;
-      else
-        byCode.set(entry.name, (byCode.get(entry.name) ?? 0) + entry.minutes);
-    }
-    const reported = selected.reduce((sum, entry) => sum + entry.minutes, 0);
     const expected = expectedMinutes(consultant);
-    const hourSegments = [
-      { label: t("worked"), value: worked, color: colors[0]! },
-      ...[...byCode].map(([label, value], index) => ({
-        label,
-        value,
-        color: colors[(index % (colors.length - 1)) + 1]!,
-      })),
-      {
-        label: t("notReported"),
-        value: Math.max(0, expected - reported),
-        color: "#ddd3ca",
-      },
-    ].filter((segment) => segment.value > 0);
-    const dayTotals = aggregateReportedDays(selected, expected);
-    const daySegments = [
-      { label: t("worked"), value: dayTotals.worked, color: colors[0]! },
-      ...[...dayTotals.byCode].map(([label, value], index) => ({
-        label,
-        value,
-        color: colors[(index % (colors.length - 1)) + 1]!,
-      })),
-      {
-        label: t("notReported"),
-        value: dayTotals.unreported,
-        color: "#ddd3ca",
-      },
-    ].filter((segment) => segment.value > 0);
-    const formatDays = (minutes: number) => {
-      const days = minutes / 480;
-      return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? t("day") : t("days")}`;
+    const time = {
+      hours: aggregateReportedMinutes(selected, expected),
+      days: aggregateReportedDays(selected, expected),
     };
-    const formatIncome = (amount: number) =>
-      `${new Intl.NumberFormat("en-SE", { maximumFractionDigits: 0 }).format(amount)} SEK`;
+    if (!showEstimatedIncome || consultant.role === "employee")
+      return { ...time, income: null };
+
     const workedIncome = selected
       .filter((entry) => entry.countsAsWorkedTime)
       .reduce(
@@ -141,14 +119,61 @@ export function ConsultantDashboard({
         0,
       );
     const possibleIncome = (expected / 60) * consultant.hourlyRate;
-    const notReached = Math.max(0, possibleIncome - workedIncome);
-    const totalIncome = Math.max(workedIncome + notReached, 1);
-    const reachedDegrees = (workedIncome / totalIncome) * 360;
+    return {
+      ...time,
+      income: {
+        worked: workedIncome,
+        notReached: Math.max(0, possibleIncome - workedIncome),
+      },
+    };
+  }
+
+  function combine(summaries: PeriodSummary[]): PeriodSummary {
+    const incomes = summaries.flatMap((summary) =>
+      summary.income ? [summary.income] : [],
+    );
+    return {
+      hours: combineReportedTotals(summaries.map((summary) => summary.hours)),
+      days: combineReportedTotals(summaries.map((summary) => summary.days)),
+      income:
+        incomes.length > 0
+          ? {
+              worked: incomes.reduce((sum, item) => sum + item.worked, 0),
+              notReached: incomes.reduce(
+                (sum, item) => sum + item.notReached,
+                0,
+              ),
+            }
+          : null,
+    };
+  }
+
+  function charts({ hours, days, income }: PeriodSummary) {
+    const segmentsFor = (totals: ReportedTotals) =>
+      [
+        { label: t("worked"), value: totals.worked, color: colors[0]! },
+        ...[...totals.byCode].map(([label, value], index) => ({
+          label,
+          value,
+          color: colors[(index % (colors.length - 1)) + 1]!,
+        })),
+        {
+          label: t("notReported"),
+          value: totals.unreported,
+          color: "#ddd3ca",
+        },
+      ].filter((segment) => segment.value > 0);
+    const formatDays = (minutes: number) => {
+      const days = minutes / 480;
+      return `${Number.isInteger(days) ? days : days.toFixed(1)} ${days === 1 ? t("day") : t("days")}`;
+    };
+    const formatIncome = (amount: number) =>
+      `${new Intl.NumberFormat("en-SE", { maximumFractionDigits: 0 }).format(amount)} SEK`;
 
     const timeCharts = (["hours", "days"] as const).map((unit) => {
-      const segments = unit === "hours" ? hourSegments : daySegments;
-      const total =
-        unit === "hours" ? Math.max(expected, reported, 1) : dayTotals.total;
+      const totals = unit === "hours" ? hours : days;
+      const segments = segmentsFor(totals);
+      const total = totals.total;
       let cursor = 0;
       const gradient = segments
         .map((segment) => {
@@ -168,8 +193,8 @@ export function ConsultantDashboard({
             <div>
               <strong>
                 {unit === "hours"
-                  ? formatDuration(reported)
-                  : formatDays(dayTotals.reported)}
+                  ? formatDuration(totals.reported)
+                  : formatDays(totals.reported)}
               </strong>
               <span>
                 {t("reported")} {unit === "hours" ? t("hours") : t("days")}
@@ -194,8 +219,12 @@ export function ConsultantDashboard({
         </div>
       );
     });
-    if (!showEstimatedIncome || consultant.role === "employee")
-      return timeCharts;
+    if (!income) return timeCharts;
+
+    const workedIncome = income.worked;
+    const notReached = income.notReached;
+    const totalIncome = Math.max(workedIncome + notReached, 1);
+    const reachedDegrees = (workedIncome / totalIncome) * 360;
 
     return [
       ...timeCharts,
@@ -229,6 +258,24 @@ export function ConsultantDashboard({
       </div>,
     ];
   }
+
+  function chartGrid(summary: PeriodSummary) {
+    return (
+      <div
+        className={`consultant-chart-grid${
+          summary.income ? " income-chart-grid" : ""
+        }`}
+      >
+        {charts(summary)}
+      </div>
+    );
+  }
+
+  const reports = consultants
+    .filter(
+      (consultant) => !isAfterEmployment(start, consultant.employmentEndDate),
+    )
+    .map((consultant) => ({ consultant, summary: summarize(consultant) }));
 
   return (
     <>
@@ -286,7 +333,15 @@ export function ConsultantDashboard({
         )}
       </section>
       <section className="consultant-dashboard">
-        {consultants.map((consultant) => (
+        {reports.length > 1 && (
+          <article className="card consultant-report-card">
+            <header>
+              <h2>{t("allConsultantsTotal")}</h2>
+            </header>
+            {chartGrid(combine(reports.map((report) => report.summary)))}
+          </article>
+        )}
+        {reports.map(({ consultant, summary }) => (
           <article className="card consultant-report-card" key={consultant.id}>
             <header>
               <ConsultantAvatar
@@ -295,15 +350,7 @@ export function ConsultantDashboard({
               />
               <h2>{consultant.displayName}</h2>
             </header>
-            <div
-              className={`consultant-chart-grid${
-                showEstimatedIncome && consultant.role !== "employee"
-                  ? " income-chart-grid"
-                  : ""
-              }`}
-            >
-              {charts(consultant)}
-            </div>
+            {chartGrid(summary)}
           </article>
         ))}
       </section>

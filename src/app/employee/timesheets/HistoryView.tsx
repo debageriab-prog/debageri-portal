@@ -10,8 +10,14 @@ import { useLocale } from "@/components/localization/LocaleProvider";
 import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { aggregateReportedDays } from "@/domain/reports/aggregate";
+import {
+  consultantIncome,
+  type EstimatedIncome,
+  type IncomeAgreement,
+} from "@/domain/reports/income";
 import { isEditable } from "@/domain/timesheets/rules";
 import type { TimesheetStatus } from "@/domain/types";
+import { getIsoWeekDates } from "@/lib/dates/iso-week";
 import {
   dateRangeLabel,
   timesheetErrorMessage,
@@ -39,6 +45,40 @@ type HistoryEntry = {
   hourlyRate?: number;
 };
 
+function monthBounds(month: string): [string, string] {
+  const [monthYear, monthNumber] = month.split("-").map(Number);
+  const daysInMonth = new Date(
+    Date.UTC(monthYear!, monthNumber!, 0),
+  ).getUTCDate();
+  return [`${month}-01`, `${month}-${String(daysInMonth).padStart(2, "0")}`];
+}
+
+function workingDates(
+  start: string,
+  end: string,
+  holidayDates: string[],
+  reportingStartDate: string | null,
+  employmentEndDate: string | null,
+) {
+  const dates: string[] = [];
+  const cursor = new Date(`${start}T12:00:00Z`);
+  const last = new Date(`${end}T12:00:00Z`);
+  while (cursor <= last) {
+    const date = cursor.toISOString().slice(0, 10);
+    const weekday = cursor.getUTCDay();
+    if (
+      weekday >= 1 &&
+      weekday <= 5 &&
+      !holidayDates.includes(date) &&
+      (!reportingStartDate || date >= reportingStartDate) &&
+      (!employmentEndDate || date <= employmentEndDate)
+    )
+      dates.push(date);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
 function periodTotals(
   periodEntries: HistoryEntry[],
   start: string,
@@ -53,22 +93,14 @@ function periodTotals(
     if (entry.countsAsWorkedTime) worked += entry.minutes;
     else byCode.set(entry.name, (byCode.get(entry.name) ?? 0) + entry.minutes);
   }
-  let expected = 0;
-  const cursor = new Date(`${start}T12:00:00Z`);
-  const last = new Date(`${end}T12:00:00Z`);
-  while (cursor <= last) {
-    const date = cursor.toISOString().slice(0, 10);
-    const weekday = cursor.getUTCDay();
-    if (
-      weekday >= 1 &&
-      weekday <= 5 &&
-      !holidayDates.includes(date) &&
-      (!reportingStartDate || date >= reportingStartDate) &&
-      (!employmentEndDate || date <= employmentEndDate)
-    )
-      expected += 480;
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
+  const expected =
+    workingDates(
+      start,
+      end,
+      holidayDates,
+      reportingStartDate,
+      employmentEndDate,
+    ).length * 480;
   const reported = periodEntries.reduce((sum, entry) => sum + entry.minutes, 0);
   return {
     worked,
@@ -94,6 +126,7 @@ export function HistoryView({
   initialMode = "latest",
   avatarUserId,
   showEstimatedIncome = false,
+  incomeAgreements,
   hourlyRate = 0,
 }: {
   sheets: HistorySheet[];
@@ -110,6 +143,8 @@ export function HistoryView({
   initialMode?: "latest" | "year" | "month" | "week";
   avatarUserId?: string;
   showEstimatedIncome?: boolean;
+  /** Set for a consultant's own view; limits income to these agreements. */
+  incomeAgreements?: IncomeAgreement[];
   hourlyRate?: number;
 }) {
   const { t } = useLocale();
@@ -143,14 +178,11 @@ export function HistoryView({
     sheet.periodStart.startsWith(`${year}-`),
   );
   const monthTotals = useMemo(() => {
-    const [monthYear, monthNumber] = month.split("-").map(Number);
-    const daysInMonth = new Date(
-      Date.UTC(monthYear!, monthNumber!, 0),
-    ).getUTCDate();
+    const [start, end] = monthBounds(month);
     return periodTotals(
       monthEntries,
-      `${month}-01`,
-      `${month}-${String(daysInMonth).padStart(2, "0")}`,
+      start,
+      end,
       holidayDates,
       reportingStartDate,
       employmentEndDate,
@@ -310,8 +342,35 @@ export function HistoryView({
     );
   }
 
-  function incomeChart() {
-    const workedIncome = selectedEntries
+  function selectedWorkingDates() {
+    if (mode === "week" && !(Number.isInteger(week) && week >= 1 && week <= 53))
+      return [];
+    const weekDates = mode === "week" ? getIsoWeekDates(year, week) : [];
+    const [start, end] =
+      mode === "year"
+        ? [`${year}-01-01`, `${year}-12-31`]
+        : mode === "week"
+          ? [weekDates[0]!, weekDates[6]!]
+          : monthBounds(month);
+    return workingDates(
+      start,
+      end,
+      holidayDates,
+      reportingStartDate,
+      employmentEndDate,
+    );
+  }
+
+  function estimatedIncome(): EstimatedIncome | null {
+    if (!showEstimatedIncome || mode === "latest") return null;
+    if (incomeAgreements)
+      return consultantIncome(
+        selectedEntries,
+        selectedWorkingDates(),
+        hourlyRate,
+        incomeAgreements,
+      );
+    const worked = selectedEntries
       .filter((entry) => entry.countsAsWorkedTime)
       .reduce(
         (sum, entry) =>
@@ -319,11 +378,24 @@ export function HistoryView({
         0,
       );
     const possibleIncome = (chartTotals.expected / 60) * hourlyRate;
-    const notReached = Math.max(0, possibleIncome - workedIncome);
+    return {
+      worked,
+      notReached: Math.max(0, possibleIncome - worked),
+      label: "estimatedIncome",
+    };
+  }
+
+  const income = estimatedIncome();
+
+  function incomeChart({
+    worked: workedIncome,
+    notReached,
+    label,
+  }: EstimatedIncome) {
     const totalIncome = Math.max(workedIncome + notReached, 1);
     const reachedDegrees = (workedIncome / totalIncome) * 360;
     const incomeSegments = [
-      { label: t("estimatedIncome"), value: workedIncome, color: "#3b6f9c" },
+      { label: t(label), value: workedIncome, color: "#3b6f9c" },
       { label: t("notReached"), value: notReached, color: "#f3dadd" },
     ];
 
@@ -337,7 +409,7 @@ export function HistoryView({
         >
           <div>
             <strong>{formatIncome(workedIncome)}</strong>
-            <span>{t("estimatedIncome").toLowerCase()}</span>
+            <span>{t(label).toLowerCase()}</span>
           </div>
         </div>
         <div className="chart-legend">
@@ -575,11 +647,11 @@ export function HistoryView({
       </section>
       {mode !== "latest" && (
         <section
-          className={`card month-summary year-summary${showEstimatedIncome ? " income-summary" : ""}`}
+          className={`card month-summary year-summary${income ? " income-summary" : ""}`}
         >
           {summaryChart("hours")}
           {summaryChart("days")}
-          {showEstimatedIncome && incomeChart()}
+          {income && incomeChart(income)}
         </section>
       )}
       <section className="card table-wrap">
