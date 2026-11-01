@@ -263,7 +263,7 @@ export function flexibleConsultantBalanceHistory(
 
 export function flexibleConsultantRetainedResultHistory(
   invoices: FlexibleInvoiceHistoryInput[],
-  transactions: FlexibleExpenseHistoryInput[],
+  transactions: FlexibleBalanceTransactionInput[],
   consultantId: string,
 ) {
   return withRunningTotals([
@@ -283,6 +283,25 @@ export function flexibleConsultantRetainedResultHistory(
         categoryId: null,
         description: invoice.customerName,
         changeMinor: companyOutstandingInvoiceShareMinor(invoice),
+      })),
+    // The company keeps what manual income did not credit to the consultant.
+    ...transactions
+      .filter(
+        (transaction) =>
+          transaction.consultantId === consultantId &&
+          transaction.direction === "income" &&
+          transaction.invoiceId === null &&
+          transaction.netMinor !== transaction.consultantBalanceDeltaMinor,
+      )
+      .map((transaction) => ({
+        id: `income:${transaction.id}`,
+        date: transaction.date,
+        kind: "income" as const,
+        reference: "",
+        categoryId: transaction.categoryId,
+        description: transaction.visibleDescription || transaction.internalNote,
+        changeMinor:
+          transaction.netMinor - transaction.consultantBalanceDeltaMinor,
       })),
     ...transactions
       .filter(

@@ -391,7 +391,7 @@
   "runningTotal": "Running total",
   "noFinancialHistory": "No history is available yet.",
   "consultantBalanceHistoryDescription": "Consultant share of paid invoices and credited income, minus consultant-funded expenses, in date order.",
-  "retainedResultHistoryDescription": "Company share of paid invoices minus company-funded expenses for this consultant, in date order.",
+  "retainedResultHistoryDescription": "Company share of paid invoices and manual income, minus company-funded expenses for this consultant, in date order.",
   "fixedRetainedResultHistoryDescription": "Paid invoice income minus expenses attributed to this consultant, in date order.",
   "netIncomeHistoryDescription": "Net income entries included in this selection, in date order.",
   "companyRetainedResultHistoryDescription": "Company net income minus company expenses, in date order.",

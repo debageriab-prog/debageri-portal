@@ -223,6 +223,78 @@ describe("finance calculations", () => {
     expect(history.at(-1)?.runningTotalMinor).toBe(165_000);
   });
 
+  it("keeps the uncredited part of manual income in the retained result", () => {
+    const income = {
+      consultantId: "consultant-1",
+      invoiceId: null,
+      direction: "income" as const,
+      funding: null,
+      categoryId: "other",
+      visibleDescription: "",
+      internalNote: "",
+    };
+    const history = flexibleConsultantRetainedResultHistory(
+      [],
+      [
+        {
+          ...income,
+          id: "partly-credited",
+          date: "2026-11-01",
+          netMinor: 100_000,
+          consultantBalanceDeltaMinor: 90_000,
+          internalNote: "Agreed share",
+        },
+        {
+          ...income,
+          id: "uncredited",
+          date: "2026-11-02",
+          netMinor: 50_000,
+          consultantBalanceDeltaMinor: 0,
+        },
+        {
+          ...income,
+          id: "full-return",
+          date: "2026-11-03",
+          netMinor: 165_000,
+          consultantBalanceDeltaMinor: 165_000,
+        },
+        {
+          ...income,
+          id: "partly-credited-reversal",
+          date: "2026-11-04",
+          netMinor: -100_000,
+          consultantBalanceDeltaMinor: -90_000,
+        },
+        {
+          ...income,
+          id: "other-consultant",
+          consultantId: "consultant-2",
+          date: "2026-11-05",
+          netMinor: 10_000,
+          consultantBalanceDeltaMinor: 0,
+        },
+        {
+          ...income,
+          id: "invoice-share",
+          invoiceId: "paid",
+          date: "2026-11-06",
+          netMinor: 70_000,
+          consultantBalanceDeltaMinor: 0,
+        },
+      ],
+      "consultant-1",
+    );
+
+    expect(history.map((entry) => entry.changeMinor)).toEqual([
+      10_000, 50_000, -10_000,
+    ]);
+    expect(history[0]).toMatchObject({
+      kind: "income",
+      description: "Agreed share",
+    });
+    expect(history.at(-1)?.runningTotalMinor).toBe(50_000);
+  });
+
   it("counts paid invoices once, not again through their ledger entries", () => {
     const history = flexibleConsultantBalanceHistory(
       [
