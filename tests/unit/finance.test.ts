@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  abbreviateText,
   allocateInvoiceIncome,
   belongsToCompany,
   belongsToConsultant,
@@ -16,6 +17,8 @@ import {
   fixedConsultantRetainedResultHistory,
   flexibleConsultantBalanceHistory,
   flexibleConsultantRetainedResultHistory,
+  formatSek,
+  formatSekCompact,
   isSalaryRelatedExpenseCode,
   paidFlexibleCompanyResultMinor,
   parseSek,
@@ -54,6 +57,27 @@ describe("consultant finance access", () => {
 });
 
 describe("finance calculations", () => {
+  it("abbreviates text longer than the limit", () => {
+    expect(abbreviateText("iPad and Apple Pencil")).toBe("iPad and Apple...");
+    expect(abbreviateText("Exactly 15 char")).toBe("Exactly 15 char");
+    expect(abbreviateText("")).toBe("");
+  });
+
+  it("leaves out decimals only for whole krona amounts", () => {
+    const normalize = (value: string) => value.replace(/\s/g, " ");
+    expect(normalize(formatSekCompact(165_000, "sv-SE"))).toBe("1 650 kr");
+    expect(normalize(formatSekCompact(-165_000, "sv-SE"))).toBe(
+      normalize(formatSek(-165_000, "sv-SE")).replace(",00", ""),
+    );
+    expect(formatSekCompact(165_050, "sv-SE")).toBe(
+      formatSek(165_050, "sv-SE"),
+    );
+    expect(formatSekCompact(165_005, "en-SE")).toBe(
+      formatSek(165_005, "en-SE"),
+    );
+    expect(normalize(formatSekCompact(0, "sv-SE"))).toBe("0 kr");
+  });
+
   it("builds income and result histories that reconcile to their totals", () => {
     const transactions = [
       {

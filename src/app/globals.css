@@ -1997,6 +1997,32 @@ th.actions-heading {
   overflow-wrap: anywhere;
 }
 
+.table-attachment-clips {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.direction-icon {
+  display: inline-grid;
+  place-items: center;
+}
+
+.direction-income {
+  color: var(--success);
+}
+
+.direction-expense {
+  color: var(--danger);
+}
+
+.direction-icon svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
+}
+
 .stored-attachment {
   display: inline-flex;
   align-items: center;
