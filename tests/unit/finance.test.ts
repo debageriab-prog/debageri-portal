@@ -3,6 +3,7 @@ import {
   allocateInvoiceIncome,
   belongsToCompany,
   belongsToConsultant,
+  canViewMyFinance,
   belongsToFixedConsultantResult,
   calculateShareMinor,
   calculateTransactionAmounts,
@@ -28,6 +29,27 @@ import {
   transactionCsvHeaders,
 } from "@/domain/finance/csv";
 import { financeActionSchema } from "@/server/validators/finance";
+
+describe("consultant finance access", () => {
+  const financeAccess = { enabled: true, myFinance: true, myInvoices: true };
+
+  it("shows My finances to every model except fixed salary", () => {
+    for (const compensationModel of ["flexible", "hybrid", null] as const)
+      expect(canViewMyFinance({ compensationModel, financeAccess })).toBe(true);
+    expect(
+      canViewMyFinance({ compensationModel: "fixed", financeAccess }),
+    ).toBe(false);
+  });
+
+  it("still requires the My finances access flag", () => {
+    expect(
+      canViewMyFinance({
+        compensationModel: "flexible",
+        financeAccess: { ...financeAccess, myFinance: false },
+      }),
+    ).toBe(false);
+  });
+});
 
 describe("finance calculations", () => {
   it("builds income and result histories that reconcile to their totals", () => {

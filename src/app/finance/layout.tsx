@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { PortalShell } from "@/components/layout/PortalShell";
+import { canViewMyFinance } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 
@@ -19,7 +20,7 @@ export default async function FinanceLayout({
   const allowedConsultant =
     user.role === "consultant" &&
     user.financeAccess.enabled &&
-    (user.financeAccess.myFinance || user.financeAccess.myInvoices);
+    (canViewMyFinance(user) || user.financeAccess.myInvoices);
   if (
     (!organization.data()?.financeEnabled && !allowedManager) ||
     (!allowedManager && !allowedConsultant)
