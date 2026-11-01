@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { PortalShell } from "@/components/layout/PortalShell";
-import { earnsInvoiceShare } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 
@@ -19,7 +18,6 @@ export default async function FinanceLayout({
   const allowedManager = ["admin", "accountant"].includes(user.role);
   const allowedConsultant =
     user.role === "consultant" &&
-    earnsInvoiceShare(user.compensationModel) &&
     user.financeAccess.enabled &&
     (user.financeAccess.myFinance || user.financeAccess.myInvoices);
   if (

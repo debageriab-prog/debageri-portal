@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { earnsInvoiceShare } from "@/domain/finance/calculations";
 import type { PortalUser } from "@/domain/types";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { BrandLogo } from "@/components/brand/BrandLogo";
@@ -268,7 +267,6 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
     },
   ];
   if (
-    earnsInvoiceShare(user.compensationModel) &&
     user.financeAccess.enabled &&
     (user.financeAccess.myFinance || user.financeAccess.myInvoices)
   )
