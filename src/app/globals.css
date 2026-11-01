@@ -1050,6 +1050,9 @@ th {
   gap: 4px;
   white-space: nowrap;
 }
+.modal .report-details-table {
+  min-width: 0;
+}
 .modal-close {
   width: 38px;
   height: 38px;

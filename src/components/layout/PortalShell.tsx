@@ -156,7 +156,7 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
   const reporting: NavItem[] = user.reportsTime
     ? [
         {
-          label: t("currentTimesheet"),
+          label: t("reportTimeTitle"),
           href: "/employee/timesheets/current",
         },
         { label: t("history"), href: "/employee/timesheets" },

@@ -5,6 +5,11 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
 import { appCheckFetch } from "@/lib/firebase/client";
+import {
+  AttachmentPreviewModal,
+  PreviewButton,
+  type PreviewTarget,
+} from "@/app/finance/FinanceAttachments";
 import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
@@ -35,6 +40,13 @@ type HistorySheet = {
   reportedMinutes: number;
   expectedMinutes: number;
   status: string;
+  rejectionReason?: string | null;
+};
+type HistoryAttachment = {
+  id: string;
+  timesheetId: string;
+  name: string;
+  contentType: string;
 };
 type HistoryEntry = {
   timesheetId: string;
@@ -114,6 +126,7 @@ function periodTotals(
 export function HistoryView({
   sheets,
   entries,
+  attachments,
   currentYear,
   currentWeek,
   currentMonth,
@@ -131,6 +144,8 @@ export function HistoryView({
 }: {
   sheets: HistorySheet[];
   entries: HistoryEntry[];
+  /** Set for a reporter's own view; adds the files column. */
+  attachments?: HistoryAttachment[];
   currentYear: number;
   currentWeek: number;
   currentMonth: string;
@@ -162,6 +177,8 @@ export function HistoryView({
   const [error, setError] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [viewing, setViewing] = useState<HistorySheet | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [previewing, setPreviewing] = useState<PreviewTarget | null>(null);
 
   const weeklySheets = sheets.filter(
     (sheet) => sheet.isoYear === year && sheet.isoWeek === week,
@@ -463,6 +480,39 @@ export function HistoryView({
     router.refresh();
   }
 
+  function closeDetails() {
+    setViewing(null);
+    setPendingFiles([]);
+  }
+
+  function sheetFiles(sheet: HistorySheet) {
+    const files = (attachments ?? []).filter(
+      (attachment) => attachment.timesheetId === sheet.id,
+    );
+    if (!files.length) return "-";
+    return (
+      <ul className="table-attachment-list">
+        {files.map((file) => (
+          <li key={file.id}>
+            <span className="stored-attachment">
+              <span className="stored-attachment-name">{file.name}</span>
+              <PreviewButton
+                name={file.name}
+                onClick={() =>
+                  setPreviewing({
+                    name: file.name,
+                    contentType: file.contentType,
+                    fileUrl: `/api/timesheets/${encodeURIComponent(sheet.id)}/attachments/${encodeURIComponent(file.id)}`,
+                  })
+                }
+              />
+            </span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
   function table(selected: HistorySheet[]) {
     return selected.length ? (
       <table>
@@ -472,6 +522,7 @@ export function HistoryView({
             <th>{t("period")}</th>
             <th>{t("reported")}</th>
             <th>{t("status")}</th>
+            {attachments && <th>{t("attachments")}</th>}
             <th>
               <span className="sr-only">{t("actions")}</span>
             </th>
@@ -501,6 +552,7 @@ export function HistoryView({
                   {timesheetStatusLabel(t, sheet.status)}
                 </span>
               </td>
+              {attachments && <td>{sheetFiles(sheet)}</td>}
               <td>
                 {readOnly ? (
                   <button
@@ -511,7 +563,16 @@ export function HistoryView({
                   </button>
                 ) : (
                   <div className="row-actions">
-                    {isEditable(sheet.status as TimesheetStatus) ? (
+                    <button
+                      className="icon-button"
+                      type="button"
+                      aria-label={t("viewDetails")}
+                      title={t("viewDetails")}
+                      onClick={() => setViewing(sheet)}
+                    >
+                      i
+                    </button>
+                    {isEditable(sheet.status as TimesheetStatus) && (
                       <Link
                         className="table-action icon-action"
                         aria-label={t("edit")}
@@ -519,15 +580,6 @@ export function HistoryView({
                         href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
                       >
                         <ActionIcon type="edit" />
-                      </Link>
-                    ) : (
-                      <Link
-                        className="table-action icon-action"
-                        aria-label={t("attachments")}
-                        title={t("attachments")}
-                        href={`/employee/timesheets/current?year=${sheet.isoYear}&week=${sheet.isoWeek}&part=${sheet.part}`}
-                      >
-                        <ActionIcon type="attach" />
                       </Link>
                     )}
                     {["draft", "submitted"].includes(sheet.status) && (
@@ -740,7 +792,7 @@ export function HistoryView({
         </div>
       )}
       {viewing && (
-        <div className="modal-backdrop" onMouseDown={() => setViewing(null)}>
+        <div className="modal-backdrop" onMouseDown={closeDetails}>
           <section
             className="modal"
             role="dialog"
@@ -763,17 +815,26 @@ export function HistoryView({
                 <p>
                   {dateRangeLabel(t, viewing.periodStart, viewing.periodEnd)}
                 </p>
+                <span className={`status status-${viewing.status}`}>
+                  {timesheetStatusLabel(t, viewing.status)}
+                </span>
               </div>
               <button
                 className="modal-close"
                 aria-label={t("closeTimeReportDetails")}
-                onClick={() => setViewing(null)}
+                onClick={closeDetails}
               >
                 ×
               </button>
             </header>
+            {viewing.status === "rejected" && viewing.rejectionReason && (
+              <p className="notice notice-warning">
+                <strong>{t("rejectionReason")}:</strong>{" "}
+                {viewing.rejectionReason}
+              </p>
+            )}
             <div className="table-wrap">
-              <table>
+              <table className="report-details-table">
                 <thead>
                   <tr>
                     <th>{t("date")}</th>
@@ -797,17 +858,29 @@ export function HistoryView({
                 </tbody>
               </table>
             </div>
-            <TimesheetAttachments timesheetId={viewing.id} />
+            {readOnly ? (
+              <TimesheetAttachments timesheetId={viewing.id} />
+            ) : (
+              <TimesheetAttachments
+                timesheetId={viewing.id}
+                files={pendingFiles}
+                onFilesChange={setPendingFiles}
+                onStoredChange={() => router.refresh()}
+              />
+            )}
             <footer className="modal-actions">
-              <button
-                className="button secondary"
-                onClick={() => setViewing(null)}
-              >
+              <button className="button secondary" onClick={closeDetails}>
                 {t("close")}
               </button>
             </footer>
           </section>
         </div>
+      )}
+      {previewing && (
+        <AttachmentPreviewModal
+          target={previewing}
+          onClose={() => setPreviewing(null)}
+        />
       )}
     </>
   );

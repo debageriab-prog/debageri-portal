@@ -7,19 +7,29 @@ import { HistoryView } from "./HistoryView";
 export default async function HistoryPage() {
   const user = (await verifySession())!;
   const { db } = getAdminServices();
-  const [sheetSnapshot, entrySnapshot, holidaySnapshot, timeCodeSnapshot] =
-    await Promise.all([
-      db.collection("timesheets").where("userId", "==", user.id).get(),
-      db.collection("timeEntries").where("userId", "==", user.id).get(),
-      db
-        .collection("holidays")
-        .where("organizationId", "==", user.organizationId)
-        .get(),
-      db
-        .collection("timeCodes")
-        .where("organizationId", "==", user.organizationId)
-        .get(),
-    ]);
+  const [
+    sheetSnapshot,
+    entrySnapshot,
+    holidaySnapshot,
+    timeCodeSnapshot,
+    attachmentSnapshot,
+  ] = await Promise.all([
+    db.collection("timesheets").where("userId", "==", user.id).get(),
+    db.collection("timeEntries").where("userId", "==", user.id).get(),
+    db
+      .collection("holidays")
+      .where("organizationId", "==", user.organizationId)
+      .get(),
+    db
+      .collection("timeCodes")
+      .where("organizationId", "==", user.organizationId)
+      .get(),
+    db
+      .collection("timesheetAttachments")
+      .where("organizationId", "==", user.organizationId)
+      .where("userId", "==", user.id)
+      .get(),
+  ]);
   const workedCodes = timeCodeSnapshot.docs
     .map((doc) => doc.data())
     .filter(
@@ -66,12 +76,27 @@ export default async function HistoryPage() {
         reportedMinutes: entryTotals.get(doc.id) ?? 0,
         expectedMinutes: Number(data.expectedMinutes ?? 0),
         status: String(data.status),
+        rejectionReason: data.rejectionReason
+          ? String(data.rejectionReason)
+          : null,
       };
     })
     .sort(
       (a, b) =>
         b.isoYear - a.isoYear || b.isoWeek - a.isoWeek || b.part - a.part,
     );
+  const attachments = attachmentSnapshot.docs
+    .sort(
+      (a, b) =>
+        Number(a.data().createdAt?.toMillis?.() ?? 0) -
+        Number(b.data().createdAt?.toMillis?.() ?? 0),
+    )
+    .map((doc) => ({
+      id: doc.id,
+      timesheetId: String(doc.data().timesheetId),
+      name: String(doc.data().name),
+      contentType: String(doc.data().contentType),
+    }));
   const incomeAgreements =
     user.role === "consultant"
       ? (await compensationHistory(db, user.organizationId, user.id)).map(
@@ -89,6 +114,7 @@ export default async function HistoryPage() {
     <HistoryView
       sheets={sheets}
       entries={entries}
+      attachments={attachments}
       currentYear={current.isoYear}
       currentWeek={current.isoWeek}
       currentMonth={today.slice(0, 7)}
