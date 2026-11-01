@@ -157,6 +157,7 @@
   "edit": "Edit",
   "delete": "Delete",
   "estimatedIncome": "Estimated income",
+  "estimatedExtraIncome": "Estimated extra income",
   "notReached": "Not reached",
   "avatarUpdateFailed": "The avatar could not be updated.",
   "avatarUpdated": "Your avatar was updated successfully.",
