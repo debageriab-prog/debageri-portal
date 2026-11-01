@@ -761,7 +761,7 @@ export function CategoryForm({
       <form className="form-grid" onSubmit={onSubmit}>
         {!category && (
           <label>
-            {t("code")}
+            {t("categoryCode")}
             <input
               className="field"
               name="code"
