@@ -90,9 +90,15 @@ export const transactionCsvHeaders = [
   "internal_note",
 ] as const;
 
-export const transactionExportCsvHeaders = [
+export const transactionImportCsvHeaders = [
   "direction",
   ...transactionCsvHeaders,
+] as const;
+
+/** `share_percent` is optional on import so older exports stay importable. */
+export const transactionExportCsvHeaders = [
+  ...transactionImportCsvHeaders,
+  "share_percent",
 ] as const;
 
 export function missingHeaders(row: CsvRow, required: readonly string[]) {

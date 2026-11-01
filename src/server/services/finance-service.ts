@@ -646,10 +646,19 @@ type FinancialTransactionInput = {
   grossMinor?: number;
   funding: "company" | "consultant" | null;
   applyConsultantShare: boolean;
+  /** Replaces the agreed share for this income, e.g. 100% for a refund. */
+  shareBpsOverride?: number | null;
   visibleDescription: string;
   internalNote: string;
   importKey: string | null;
 };
+
+/** An override only means something on income that credits the consultant. */
+function storedShareBpsOverride(input: FinancialTransactionInput) {
+  return input.direction === "income" && input.applyConsultantShare
+    ? (input.shareBpsOverride ?? null)
+    : null;
+}
 
 async function validateFinancialTransaction(
   db: Firestore,
@@ -693,7 +702,10 @@ async function validateFinancialTransaction(
     );
     if (earnsInvoiceShare(agreement.model)) {
       if (input.direction === "income" && input.applyConsultantShare)
-        balanceDelta = calculateShareMinor(input.netMinor, agreement.shareBps);
+        balanceDelta = calculateShareMinor(
+          input.netMinor,
+          input.shareBpsOverride ?? agreement.shareBps,
+        );
       if (input.direction === "expense" && input.funding === "consultant")
         balanceDelta = -input.netMinor;
     }
@@ -723,6 +735,7 @@ export async function createFinancialTransaction(
   batch.create(ref, {
     organizationId: actor.organizationId,
     ...input,
+    shareBpsOverride: storedShareBpsOverride(input),
     currency: "SEK",
     vatMinor,
     roundingMinor,
@@ -790,6 +803,7 @@ export async function updateFinancialTransaction(
     grossMinor,
     funding: input.funding,
     applyConsultantShare: input.applyConsultantShare,
+    shareBpsOverride: storedShareBpsOverride(input),
     visibleDescription: input.visibleDescription,
     internalNote: input.internalNote,
     consultantBalanceDeltaMinor: balanceDelta,

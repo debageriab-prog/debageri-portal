@@ -66,6 +66,7 @@ export type EditableTransaction = {
   roundingMinor: number;
   funding: "company" | "consultant" | null;
   applyConsultantShare: boolean;
+  shareBpsOverride: number | null;
   visibleDescription: string;
   internalNote: string;
 };
@@ -796,7 +797,7 @@ export function CategoryForm({
             </select>
           </label>
         ) : (
-          <label className="checkbox">
+          <label className="checkbox-row">
             <input
               type="checkbox"
               name="active"
@@ -904,6 +905,14 @@ export function TransactionForm({
     transaction?.funding ?? "",
   );
   const [vatPercent, setVatPercent] = useState(String(initialVatRateBps / 100));
+  const [applyShare, setApplyShare] = useState(
+    transaction?.applyConsultantShare ?? false,
+  );
+  const [sharePercent, setSharePercent] = useState(
+    transaction?.shareBpsOverride != null
+      ? String(transaction.shareBpsOverride / 100)
+      : "",
+  );
   const [pendingMonthMismatch, setPendingMonthMismatch] = useState<{
     payload: Record<string, unknown>;
     viewMonth: string;
@@ -1150,6 +1159,8 @@ export function TransactionForm({
       return;
     }
     const form = new FormData(event.currentTarget);
+    const creditsConsultant =
+      hasConsultant && direction === "income" && applyShare;
     const payload = {
       action: transaction ? "updateTransaction" : "createTransaction",
       ...(transaction ? { transactionId: transaction.id } : {}),
@@ -1164,8 +1175,11 @@ export function TransactionForm({
       vatRateBps,
       funding:
         direction === "expense" ? (hasConsultant ? funding : "company") : null,
-      applyConsultantShare:
-        hasConsultant && form.get("applyConsultantShare") === "on",
+      applyConsultantShare: creditsConsultant,
+      shareBpsOverride:
+        creditsConsultant && sharePercent
+          ? Math.round(Number(sharePercent) * 100)
+          : null,
       visibleDescription: hasConsultant ? visibleDescription : "",
       internalNote: form.get("internalNote"),
       ...(receipt && !transaction ? { receiptId: receipt.id } : {}),
@@ -1428,16 +1442,32 @@ export function TransactionForm({
             <FieldError message={fieldErrors.funding} />
           </label>
         ) : hasConsultant ? (
-          <label className="checkbox">
+          <label className="checkbox-row">
             <input
               type="checkbox"
               name="applyConsultantShare"
-              defaultChecked={transaction?.applyConsultantShare ?? false}
+              checked={applyShare}
+              onChange={(event) => setApplyShare(event.target.checked)}
             />
             {t("applyConsultantShare")}
             <InfoTip text={t("applyConsultantShareTip")} />
           </label>
         ) : null}
+        {direction !== "expense" && hasConsultant && applyShare && (
+          <label>
+            {t("shareOverride")}
+            <InfoTip text={t("transactionShareOverrideTip")} />
+            <input
+              className="field"
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={sharePercent}
+              onChange={(event) => setSharePercent(event.target.value)}
+            />
+          </label>
+        )}
         {hasConsultant && (
           <label>
             {t("consultantDescription")}

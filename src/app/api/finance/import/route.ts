@@ -7,7 +7,7 @@ import {
   invoiceCsvHeaders,
   missingHeaders,
   parseFinanceCsv,
-  transactionExportCsvHeaders,
+  transactionImportCsvHeaders,
   transactionCsvHeaders,
 } from "@/domain/finance/csv";
 import { parseSek } from "@/domain/finance/calculations";
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       parsedRequest.data.kind === "invoices"
         ? invoiceCsvHeaders
         : parsedRequest.data.kind === "transactions"
-          ? transactionExportCsvHeaders
+          ? transactionImportCsvHeaders
           : transactionCsvHeaders;
     const missing = missingHeaders(rows[0]!, required);
     if (missing.length)
@@ -245,6 +245,16 @@ export async function POST(request: Request) {
               row: rowNumber,
               message: "importRowFundingInvalid",
             });
+          const shareBpsOverride = value("share_percent")
+            ? Math.round(Number(value("share_percent")) * 100)
+            : null;
+          if (
+            shareBpsOverride !== null &&
+            (!Number.isInteger(shareBpsOverride) ||
+              shareBpsOverride < 0 ||
+              shareBpsOverride > 10_000)
+          )
+            throw new Error();
           prepared.push({
             importKey,
             direction,
@@ -257,6 +267,7 @@ export async function POST(request: Request) {
             applyConsultantShare:
               direction === "income" &&
               ["true", "yes", "1"].includes(value("apply_share").toLowerCase()),
+            shareBpsOverride,
             visibleDescription: value("description"),
             internalNote: value("internal_note"),
           });

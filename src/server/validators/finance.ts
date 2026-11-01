@@ -110,6 +110,13 @@ const transactionFields = {
   vatRateBps,
   funding: z.enum(["company", "consultant"]).nullable(),
   applyConsultantShare: z.boolean().default(false),
+  shareBpsOverride: z
+    .number()
+    .int()
+    .min(0)
+    .max(10_000)
+    .nullable()
+    .default(null),
   visibleDescription: z.string().trim().max(300).default(""),
   internalNote: z.string().trim().max(1_000).default(""),
 };
