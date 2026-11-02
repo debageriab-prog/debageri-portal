@@ -24,7 +24,7 @@ export async function GET(
     user.organizationId === actor.organizationId &&
     (["employee", "consultant"].includes(role) ||
       (actor.role === "admin" &&
-        role === "manager" &&
+        ["manager", "accountant"].includes(role) &&
         user.reportsTime === true));
   if (!visible) return Response.json({ error: "Forbidden" }, { status: 403 });
 

@@ -1,75 +1,87 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { cache } from "react";
 import type { PortalUser } from "@/domain/types";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { hasSecondFactor, isMfaRequired } from "@/server/auth/mfa";
+import { permissionsOf } from "@/server/auth/permissions";
 
 export const SESSION_COOKIE = "__session";
 export const SESSION_DURATION_MS = 5 * 24 * 60 * 60 * 1_000;
 
-export async function verifySession(): Promise<PortalUser | null> {
-  const value = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!value) return null;
-  try {
-    const { auth, db } = getAdminServices();
-    const token = await auth.verifySessionCookie(value, true);
-    if (isMfaRequired() && !hasSecondFactor(token)) return null;
-    const snapshot = await db.collection("users").doc(token.uid).get();
-    const data = snapshot.data();
-    if (!snapshot.exists || data?.status !== "active") return null;
-    let compensationModel = data.compensationModel ?? null;
-    if (data.role === "consultant") {
-      const currentDate = new Date().toISOString().slice(0, 10);
-      const agreement = await db
-        .collection("compensationAgreements")
-        .where("organizationId", "==", data.organizationId)
-        .where("userId", "==", token.uid)
-        .where("validFrom", "<=", currentDate)
-        .orderBy("validFrom", "desc")
-        .limit(1)
-        .get();
-      const current = agreement.docs[0]?.data();
-      compensationModel =
-        current && (!current.validTo || current.validTo >= currentDate)
-          ? current.model
-          : null;
+export const verifySession = cache(
+  async function verifySession(): Promise<PortalUser | null> {
+    const value = (await cookies()).get(SESSION_COOKIE)?.value;
+    if (!value) return null;
+    try {
+      const { auth, db } = getAdminServices();
+      const token = await auth.verifySessionCookie(value, true);
+      if (isMfaRequired() && !hasSecondFactor(token)) return null;
+      const snapshot = await db.collection("users").doc(token.uid).get();
+      const data = snapshot.data();
+      if (!snapshot.exists || data?.status !== "active") return null;
+      let compensationModel = data.compensationModel ?? null;
+      if (data.role === "consultant") {
+        const currentDate = new Date().toISOString().slice(0, 10);
+        const agreement = await db
+          .collection("compensationAgreements")
+          .where("organizationId", "==", data.organizationId)
+          .where("userId", "==", token.uid)
+          .where("validFrom", "<=", currentDate)
+          .orderBy("validFrom", "desc")
+          .limit(1)
+          .get();
+        const current = agreement.docs[0]?.data();
+        compensationModel =
+          current && (!current.validTo || current.validTo >= currentDate)
+            ? current.model
+            : null;
+      }
+      return {
+        id: token.uid,
+        organizationId: data.organizationId,
+        employeeNumber: data.employeeNumber,
+        email: data.email,
+        displayName: data.displayName,
+        role: data.role,
+        status: data.status,
+        managerId: data.managerId ?? null,
+        reportsTime:
+          data.reportsTime ??
+          ["employee", "consultant"].includes(String(data.role)),
+        employmentStartDate: data.employmentStartDate ?? null,
+        employmentEndDate: data.employmentEndDate ?? null,
+        reportingStartDate: data.reportingStartDate ?? null,
+        timezone: data.timezone,
+        locale: data.locale,
+        compensationModel,
+        financeAccess: {
+          enabled: data.financeAccess?.enabled === true,
+          myFinance: data.financeAccess?.myFinance === true,
+          myInvoices: data.financeAccess?.myInvoices === true,
+        },
+        emailPreferences: {
+          receipts: data.emailPreferences?.receipts !== false,
+          payslips: data.emailPreferences?.payslips !== false,
+          timesheets: data.emailPreferences?.timesheets !== false,
+        },
+        documentAccess: {
+          contracts: data.documentAccess?.contracts === true,
+          payslips: data.documentAccess?.payslips === true,
+          receipts: data.documentAccess?.receipts === true,
+        },
+        accessProfileId: data.accessProfileId ?? null,
+        permissions: await permissionsOf(db, {
+          role: data.role,
+          organizationId: data.organizationId,
+          accessProfileId: data.accessProfileId,
+          financeAccess: data.financeAccess,
+          documentAccess: data.documentAccess,
+        }),
+      } as PortalUser;
+    } catch {
+      return null;
     }
-    return {
-      id: token.uid,
-      organizationId: data.organizationId,
-      employeeNumber: data.employeeNumber,
-      email: data.email,
-      displayName: data.displayName,
-      role: data.role,
-      status: data.status,
-      managerId: data.managerId ?? null,
-      reportsTime:
-        data.reportsTime ??
-        ["employee", "consultant"].includes(String(data.role)),
-      employmentStartDate: data.employmentStartDate ?? null,
-      employmentEndDate: data.employmentEndDate ?? null,
-      reportingStartDate: data.reportingStartDate ?? null,
-      timezone: data.timezone,
-      locale: data.locale,
-      compensationModel,
-      financeAccess: {
-        enabled: data.financeAccess?.enabled === true,
-        myFinance: data.financeAccess?.myFinance === true,
-        myInvoices: data.financeAccess?.myInvoices === true,
-      },
-      emailPreferences: {
-        receipts: data.emailPreferences?.receipts !== false,
-        payslips: data.emailPreferences?.payslips !== false,
-        timesheets: data.emailPreferences?.timesheets !== false,
-      },
-      documentAccess: {
-        contracts: data.documentAccess?.contracts === true,
-        payslips: data.documentAccess?.payslips === true,
-        receipts: data.documentAccess?.receipts === true,
-      },
-    } as PortalUser;
-  } catch {
-    return null;
-  }
-}
+  },
+);

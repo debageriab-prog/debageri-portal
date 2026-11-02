@@ -23,11 +23,15 @@ export type ContractItem = {
 
 export function ContractList({
   contracts,
-  canManage,
+  canAdd,
+  canEdit,
+  canDelete,
   viewerIsConsultant,
 }: {
   contracts: ContractItem[];
-  canManage: boolean;
+  canAdd: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
   viewerIsConsultant: boolean;
 }) {
   const { t } = useLocale();
@@ -107,7 +111,7 @@ export function ContractList({
           <h1>{t("contracts")}</h1>
           <p className="muted page-description">{t("contractsDescription")}</p>
         </div>
-        {canManage && (
+        {canAdd && (
           <Link className="button" href="/documents/contracts/new">
             {t("addContract")}
           </Link>
@@ -201,28 +205,28 @@ export function ContractList({
                       >
                         <span aria-hidden="true">i</span>
                       </button>
-                      {canManage && (
-                        <>
-                          <Link
-                            className="table-action icon-action"
-                            aria-label={t("edit")}
-                            title={t("edit")}
-                            href={`/documents/contracts/${contract.id}/edit`}
-                          >
-                            <ActionIcon type="edit" />
-                          </Link>
-                          <button
-                            className="table-action table-action-danger icon-action"
-                            aria-label={t("delete")}
-                            title={t("delete")}
-                            onClick={() => {
-                              setDeleting(contract);
-                              setConfirmation("");
-                            }}
-                          >
-                            <ActionIcon type="delete" />
-                          </button>
-                        </>
+                      {canEdit && (
+                        <Link
+                          className="table-action icon-action"
+                          aria-label={t("edit")}
+                          title={t("edit")}
+                          href={`/documents/contracts/${contract.id}/edit`}
+                        >
+                          <ActionIcon type="edit" />
+                        </Link>
+                      )}
+                      {canDelete && (
+                        <button
+                          className="table-action table-action-danger icon-action"
+                          aria-label={t("delete")}
+                          title={t("delete")}
+                          onClick={() => {
+                            setDeleting(contract);
+                            setConfirmation("");
+                          }}
+                        >
+                          <ActionIcon type="delete" />
+                        </button>
                       )}
                     </div>
                   </td>

@@ -1,4 +1,6 @@
 import { getAdminServices } from "@/lib/firebase/admin";
+import { redirect } from "next/navigation";
+import { can, canViewOwnHistory } from "@/domain/access/permissions";
 import { verifySession } from "@/server/auth/session";
 import { getIsoWeek } from "@/lib/dates/iso-week";
 import { compensationHistory } from "@/app/admin/users/user-data";
@@ -6,6 +8,8 @@ import { HistoryView } from "./HistoryView";
 
 export default async function HistoryPage() {
   const user = (await verifySession())!;
+  if (!canViewOwnHistory(user)) redirect("/");
+  const showIncome = can(user, "my.time.income");
   const { db } = getAdminServices();
   const [
     sheetSnapshot,
@@ -59,7 +63,9 @@ export default async function HistoryPage() {
           data.timeCodeId,
       ),
       countsAsWorkedTime: Boolean(data.timeCodeSnapshot?.countsAsWorkedTime),
-      hourlyRate: Number(data.timeCodeSnapshot?.hourlyRate ?? hourlyRate),
+      hourlyRate: showIncome
+        ? Number(data.timeCodeSnapshot?.hourlyRate ?? hourlyRate)
+        : 0,
     };
   });
   const sheets = sheetSnapshot.docs
@@ -98,7 +104,7 @@ export default async function HistoryPage() {
       contentType: String(doc.data().contentType),
     }));
   const incomeAgreements =
-    user.role === "consultant"
+    showIncome && user.role === "consultant"
       ? (await compensationHistory(db, user.organizationId, user.id)).map(
           ({ model, validFrom, validTo, shareBps }) => ({
             model,
@@ -121,9 +127,9 @@ export default async function HistoryPage() {
       reportingStartDate={user.reportingStartDate ?? user.employmentStartDate}
       employmentEndDate={user.employmentEndDate}
       holidayDates={holidaySnapshot.docs.map((doc) => String(doc.data().date))}
-      showEstimatedIncome={["consultant", "manager"].includes(user.role)}
+      showEstimatedIncome={showIncome}
       incomeAgreements={incomeAgreements}
-      hourlyRate={hourlyRate}
+      hourlyRate={showIncome ? hourlyRate : 0}
     />
   );
 }

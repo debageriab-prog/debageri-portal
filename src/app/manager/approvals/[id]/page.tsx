@@ -31,9 +31,11 @@ export default async function ReviewPage({
   const consultant = ["employee", "consultant"].includes(String(user?.role));
   const allowed =
     sheet.organizationId === actor.organizationId &&
-    (actor.role === "manager"
-      ? consultant
-      : consultant || (user?.role === "manager" && user?.reportsTime === true));
+    (actor.role === "admin"
+      ? consultant ||
+        (["manager", "accountant"].includes(String(user?.role)) &&
+          user?.reportsTime === true)
+      : consultant);
   if (!allowed) redirect("/unauthorized");
   const reportedBreakdown = aggregateReportedBreakdown(
     entries.docs.map((entryDoc) => entryDoc.data()),

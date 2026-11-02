@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
+import { financeIsEnabled } from "@/server/services/finance-service";
+import { can } from "@/domain/access/permissions";
 import type { AiExtractionPurpose } from "@/domain/ai";
 import { financeAttachmentReferenceSchema } from "@/server/validators/ai";
 import {
@@ -25,9 +27,11 @@ export async function POST(request: Request) {
   const actor = await verifySession();
   if (!actor)
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  if (!["admin", "accountant"].includes(actor.role))
+  if (!can(actor, "finance.aiExtraction"))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const { db, storage } = getAdminServices();
+  if (!(await financeIsEnabled(db, actor.organizationId)))
+    return NextResponse.json({ error: "financeDisabled" }, { status: 409 });
 
   let file: ExtractionFile;
   let purpose: AiExtractionPurpose = "transaction";

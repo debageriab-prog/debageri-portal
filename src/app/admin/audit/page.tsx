@@ -19,6 +19,7 @@ export default async function AuditPage() {
           action?: string;
           entityType?: string;
           entityId?: string;
+          metadata?: { name?: string };
         },
     )
     .sort(
@@ -85,6 +86,9 @@ export default async function AuditPage() {
     "timesheet.attachment_added": "Added time report file",
     "timesheet.attachment_removed": "Removed time report file",
     "reminders.auto_updated": "Updated automatic reminders",
+    "accessProfile.created": "Created access profile",
+    "accessProfile.updated": "Updated access profile",
+    "accessProfile.deleted": "Deleted access profile",
   };
   return (
     <>
@@ -122,7 +126,9 @@ export default async function AuditPage() {
                       ? userNames.get(String(log.entityId))
                       : log.entityType === "timesheet"
                         ? timesheetNames.get(String(log.entityId))
-                        : String(log.entityId)}
+                        : log.entityType === "accessProfile"
+                          ? String(log.metadata?.name ?? log.entityId)
+                          : String(log.entityId)}
                   </td>
                 </tr>
               ))}

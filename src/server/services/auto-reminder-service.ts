@@ -1,5 +1,6 @@
 import "server-only";
 
+import { permissionResolver } from "@/server/auth/permissions";
 import {
   findMissingWeeks,
   receivesReminders,
@@ -58,11 +59,23 @@ export async function runAutoReminders(portalUrl: string, now = new Date()) {
       db.collection("organizations").doc(organizationId).get(),
     ]);
 
+    const permissionsFor = await permissionResolver(db, organizationId);
     for (const userDoc of users.docs) {
       const user = userDoc.data();
       const reportingStart =
         user.reportingStartDate ?? user.employmentStartDate;
-      if (!receivesReminders(user) || !reportingStart) continue;
+      if (
+        !receivesReminders(user) ||
+        !reportingStart ||
+        !permissionsFor({
+          role: String(user.role),
+          organizationId: String(user.organizationId),
+          accessProfileId: user.accessProfileId,
+          financeAccess: user.financeAccess,
+          documentAccess: user.documentAccess,
+        }).includes("my.time.report")
+      )
+        continue;
       const missing = findMissingWeeks(
         String(reportingStart),
         date,

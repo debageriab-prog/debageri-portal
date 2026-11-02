@@ -7,15 +7,6 @@ service cloud.firestore {
     function org() { return userDoc().data.organizationId; }
     function sameOrg(data) { return active() && data.organizationId == org(); }
     function isAdmin() { return active() && userDoc().data.role == "admin"; }
-    function isManagerFor(userId) {
-      let target = get(/databases/$(database)/documents/users/$(userId)).data;
-      return active() &&
-        (isAdmin() ||
-          (userDoc().data.role == "manager" &&
-           target.role in ["employee", "consultant"]) ||
-          (userDoc().data.role == "accountant" &&
-           target.role in ["employee", "consultant"]));
-    }
     function own(userId) { return active() && request.auth.uid == userId; }
     function editableTimesheet(timesheetId) {
       let sheet = get(/databases/$(database)/documents/timesheets/$(timesheetId));
@@ -29,7 +20,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /users/{userId} {
-      allow read: if sameOrg(resource.data) && (own(userId) || isManagerFor(userId) || isAdmin());
+      allow read: if sameOrg(resource.data) && (own(userId) || isAdmin());
       allow write: if false;
     }
     match /timeCodes/{codeId} {
@@ -37,7 +28,7 @@ service cloud.firestore {
       allow write: if false;
     }
     match /timesheets/{timesheetId} {
-      allow read: if sameOrg(resource.data) && (own(resource.data.userId) || isManagerFor(resource.data.userId));
+      allow read: if sameOrg(resource.data) && (own(resource.data.userId) || isAdmin());
       allow create: if active() && request.resource.data.userId == request.auth.uid &&
         (userDoc().data.reportsTime == true || userDoc().data.role == "employee") &&
         request.resource.data.organizationId == org() &&
@@ -48,7 +39,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     match /timeEntries/{entryId} {
-      allow read: if sameOrg(resource.data) && (own(resource.data.userId) || isManagerFor(resource.data.userId));
+      allow read: if sameOrg(resource.data) && (own(resource.data.userId) || isAdmin());
       allow create: if active() &&
         (userDoc().data.reportsTime == true || userDoc().data.role == "employee") &&
         request.resource.data.organizationId == org() &&
@@ -68,7 +59,7 @@ service cloud.firestore {
         editableTimesheet(resource.data.timesheetId);
     }
     match /approvalEvents/{eventId} {
-      allow read: if sameOrg(resource.data) && (own(resource.data.userId) || isManagerFor(resource.data.userId));
+      allow read: if sameOrg(resource.data) && (own(resource.data.userId) || isAdmin());
       allow write: if false;
     }
     match /timesheetAttachments/{attachmentId} {
@@ -101,6 +92,9 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /financeImportJobs/{importId} {
+      allow read, write: if false;
+    }
+    match /accessProfiles/{profileId} {
       allow read, write: if false;
     }
     match /{document=**} { allow read, write: if false; }

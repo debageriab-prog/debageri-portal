@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { expensableReceipt } from "@/server/services/receipt-service";
-import { isAiFeatureEnabled } from "@/server/services/ai-service";
-import { accountingRecipientLabels } from "@/server/services/accounting-email-service";
+import { aiExtractionEnabledFor } from "@/server/services/ai-service";
+import { accountingRecipientsFor } from "@/server/services/accounting-email-service";
 import { type ExpenseReceipt, TransactionForm } from "../../FinanceForms";
 import { financeFormContext, financeUsers } from "../../form-data";
 import {
@@ -15,7 +15,7 @@ export default async function NewTransactionPage({
   searchParams: Promise<{ returnTo?: string; receiptId?: string }>;
 }) {
   const params = await searchParams;
-  const { actor, db } = await financeFormContext();
+  const { actor, db } = await financeFormContext("finance.ledger.add");
   let receipt: ExpenseReceipt | undefined;
   if (params.receiptId) {
     const data = await expensableReceipt(db, actor, params.receiptId).catch(
@@ -55,16 +55,12 @@ export default async function NewTransactionPage({
       categories={categories}
       returnHref={returnHref}
       receipt={receipt}
-      accountingRecipients={await accountingRecipientLabels(
+      accountingRecipients={await accountingRecipientsFor(
+        actor,
         db,
-        actor.organizationId,
         "transactions",
       )}
-      aiEnabled={await isAiFeatureEnabled(
-        db,
-        actor.organizationId,
-        "financeAttachments",
-      )}
+      aiEnabled={await aiExtractionEnabledFor(actor, db, "financeAttachments")}
       defaultDate={transactionDefaultDate(
         returnHref,
         new Date().toISOString().slice(0, 10),

@@ -2,7 +2,11 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { isReceiptStatus } from "@/domain/receipts";
 import { verifySession } from "@/server/auth/session";
 import {
+  canBookReceipts,
   canReviewReceipts,
+  canSubmitReceipts,
+  canViewOwnReceipts,
+  SUBMITTER_ROLES,
   receiptVisible,
 } from "@/server/services/receipt-service";
 import { MyReceipts } from "./MyReceipts";
@@ -38,7 +42,7 @@ const newestFirst = (a: ReceiptItem, b: ReceiptItem) =>
 export default async function ReceiptsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ submitted?: string }>;
+  searchParams: Promise<{ submitted?: string; mine?: string }>;
 }) {
   const actor = (await verifySession())!;
   const { db } = getAdminServices();
@@ -50,7 +54,11 @@ export default async function ReceiptsPage({
   const scoped = db
     .collection("receipts")
     .where("organizationId", "==", actor.organizationId);
-  if (!canReviewReceipts(actor)) {
+  const params = await searchParams;
+  if (
+    !canReviewReceipts(actor) ||
+    (params.mine === "1" && canViewOwnReceipts(actor))
+  ) {
     const snapshot = await scoped.where("userId", "==", actor.id).get();
     const receipts = snapshot.docs
       .filter((doc) => receiptVisible(actor, doc.data()))
@@ -60,7 +68,8 @@ export default async function ReceiptsPage({
       <MyReceipts
         receipts={receipts}
         currentPeriod={currentPeriod}
-        submitted={(await searchParams).submitted === "1"}
+        submitted={params.submitted === "1"}
+        canUpload={canSubmitReceipts(actor)}
       />
     );
   }
@@ -69,7 +78,7 @@ export default async function ReceiptsPage({
     db
       .collection("users")
       .where("organizationId", "==", actor.organizationId)
-      .where("role", "in", ["employee", "consultant", "manager"])
+      .where("role", "in", SUBMITTER_ROLES)
       .get(),
   ]);
   const receipts = snapshot.docs.map(toItem).sort(newestFirst);
@@ -92,6 +101,7 @@ export default async function ReceiptsPage({
     <ReceiptReview
       receipts={receipts}
       currentPeriod={currentPeriod}
+      canBook={canBookReceipts(actor)}
       people={Array.from(people, ([id, person]) => ({ id, ...person })).sort(
         (a, b) => a.name.localeCompare(b.name),
       )}

@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
-import { canManageContracts } from "@/server/services/contract-service";
+import { canEditContracts } from "@/server/services/contract-service";
 import { ContractForm } from "../../ContractForm";
 
 export default async function EditContractPage({
@@ -11,7 +11,7 @@ export default async function EditContractPage({
   params: Promise<{ id: string }>;
 }) {
   const actor = (await verifySession())!;
-  if (!canManageContracts(actor)) redirect("/unauthorized");
+  if (!canEditContracts(actor)) redirect("/unauthorized");
   const { id } = await params;
   const t = await getTranslator();
   const { db } = getAdminServices();

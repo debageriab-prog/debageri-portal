@@ -42,6 +42,7 @@ export async function compensationHistory(
 
 export function toManagedUser(
   doc: FirebaseFirestore.DocumentSnapshot,
+  profileNames: ReadonlyMap<string, string> = new Map(),
 ): ManagedUser {
   const data = doc.data() ?? {};
   return {
@@ -58,16 +59,8 @@ export function toManagedUser(
     employmentStartDate: String(data.employmentStartDate ?? ""),
     employmentEndDate: String(data.employmentEndDate ?? ""),
     reportingStartDate: String(data.reportingStartDate ?? ""),
-    financeAccess: {
-      enabled: data.financeAccess?.enabled === true,
-      myFinance: data.financeAccess?.myFinance === true,
-      myInvoices: data.financeAccess?.myInvoices === true,
-    },
-    documentAccess: {
-      contracts: data.documentAccess?.contracts === true,
-      payslips: data.documentAccess?.payslips === true,
-      receipts: data.documentAccess?.receipts === true,
-    },
+    accessProfileId: data.accessProfileId ?? null,
+    accessProfileName: profileNames.get(data.accessProfileId) ?? null,
     emailPreferences: emailPreferencesFrom(data.emailPreferences),
     locale: notificationLocale(data.locale),
   };

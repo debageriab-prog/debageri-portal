@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { canViewOwnHistory } from "@/domain/access/permissions";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { formatDuration } from "@/lib/durations/duration";
@@ -5,6 +7,7 @@ import { getTranslator } from "@/lib/localization/server";
 
 export default async function ReportsPage() {
   const user = (await verifySession())!;
+  if (!canViewOwnHistory(user)) redirect("/");
   const t = await getTranslator();
   const { db } = getAdminServices();
   const snapshot = await db

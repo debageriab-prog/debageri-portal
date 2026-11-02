@@ -1,5 +1,7 @@
 import { getAdminServices } from "@/lib/firebase/admin";
+import { can } from "@/domain/access/permissions";
 import { stockholmDateTime } from "@/lib/dates/stockholm";
+import { permissionResolver } from "@/server/auth/permissions";
 import { verifySession } from "@/server/auth/session";
 import { getTranslator } from "@/lib/localization/server";
 import {
@@ -25,6 +27,7 @@ export default async function RemindersPage({
   const t = await getTranslator();
   const { tab } = await searchParams;
   const { db } = getAdminServices();
+  const permissionsFor = await permissionResolver(db, actor.organizationId);
   const [
     usersSnapshot,
     settingsDoc,
@@ -65,7 +68,19 @@ export default async function RemindersPage({
     }))
     .sort((a, b) => b.sentDate.localeCompare(a.sentDate));
   const rows: ReminderRow[] = usersSnapshot.docs
-    .filter((doc) => receivesReminders(doc.data()))
+    .filter((doc) => {
+      const data = doc.data();
+      return (
+        receivesReminders(data) &&
+        permissionsFor({
+          role: String(data.role),
+          organizationId: String(data.organizationId),
+          accessProfileId: data.accessProfileId,
+          financeAccess: data.financeAccess,
+          documentAccess: data.documentAccess,
+        }).includes("my.time.report")
+      );
+    })
     .flatMap((doc) => {
       const data = doc.data();
       const reports = sheets
@@ -123,16 +138,17 @@ export default async function RemindersPage({
             <ReminderOverview
               rows={rows}
               settingsConfigured={settingsConfigured}
+              canSend={can(actor, "time.reminders.send")}
             />
           ),
-          auto: (
+          auto: can(actor, "time.reminders.schedule") ? (
             <AutoReminderForm
               autoReminders={normalizeAutoReminders(
                 settingsDoc.data()?.autoReminders,
               )}
               settingsConfigured={settingsConfigured}
             />
-          ),
+          ) : undefined,
         }}
       />
     </>

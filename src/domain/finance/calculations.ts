@@ -69,9 +69,12 @@ export function earnsInvoiceShare(model: CompensationModel | null | undefined) {
 
 /** Fixed-salary consultants have no personal balance to show in My finances. */
 export function canViewMyFinance(
-  user: Pick<PortalUser, "compensationModel" | "financeAccess">,
+  user: Pick<PortalUser, "compensationModel" | "permissions">,
 ) {
-  return user.financeAccess.myFinance && user.compensationModel !== "fixed";
+  return (
+    user.permissions.includes("my.finance") &&
+    user.compensationModel !== "fixed"
+  );
 }
 
 export function calculateShareMinor(netMinor: number, shareBps: number) {

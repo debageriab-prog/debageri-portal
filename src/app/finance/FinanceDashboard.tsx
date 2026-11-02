@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  can,
+  hasOrganizationFinance,
+  type PermissionKey,
+} from "@/domain/access/permissions";
 import { DateInput } from "@/components/ui/DateInput";
 import Link from "next/link";
 import {
@@ -107,6 +112,7 @@ export interface FinancePageData {
     categoryId: string;
     consultantId: string | null;
     invoiceId: string | null;
+    invoiceConsultantId: string | null;
     funding: "company" | "consultant" | null;
     date: string;
     netMinor: number;
@@ -133,7 +139,12 @@ export interface FinancePageData {
   }>;
 }
 
-type Actor = { id: string; role: string; locale: "sv-SE" | "en-SE" };
+type Actor = {
+  id: string;
+  role: string;
+  locale: "sv-SE" | "en-SE";
+  permissions: PermissionKey[];
+};
 type FinanceSection =
   "overview" | "invoices" | "categories" | "transactions" | "customers";
 function today() {
@@ -1241,8 +1252,14 @@ export function FinanceDashboard({
   const { t, locale } = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const manager = ["admin", "accountant"].includes(actor.role);
+  const manager = hasOrganizationFinance(actor);
   const admin = actor.role === "admin";
+  const canAddLedger = can(actor, "finance.ledger.add");
+  const canEditLedger = can(actor, "finance.ledger.edit");
+  const canDeleteLedger = can(actor, "finance.ledger.delete");
+  const canEditInvoices = can(actor, "finance.invoices.edit");
+  const canEditCustomers = can(actor, "finance.customers.edit");
+  const canEditCategories = can(actor, "finance.categories.edit");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -1331,9 +1348,11 @@ export function FinanceDashboard({
   const invoiceConsultantIds = useMemo(
     () =>
       new Map(
-        data.invoices.map((invoice) => [invoice.id, invoice.consultantId]),
+        data.transactions
+          .filter((item) => item.invoiceId)
+          .map((item) => [item.invoiceId!, item.invoiceConsultantId]),
       ),
-    [data.invoices],
+    [data.transactions],
   );
   const visibleTransactions = useMemo(
     () =>
@@ -1844,13 +1863,16 @@ export function FinanceDashboard({
             )}
             {manager && (
               <>
-                {(selectedConsultant === "all" ||
-                  selectedConsultant === "company") && (
-                  <div className="metric">
-                    <span>{t("vatPayable")}</span>
-                    <strong>{formatSek(organizationVatPayable, locale)}</strong>
-                  </div>
-                )}
+                {can(actor, "finance.vat.view") &&
+                  (selectedConsultant === "all" ||
+                    selectedConsultant === "company") && (
+                    <div className="metric">
+                      <span>{t("vatPayable")}</span>
+                      <strong>
+                        {formatSek(organizationVatPayable, locale)}
+                      </strong>
+                    </div>
+                  )}
                 <div className="metric">
                   {(selectedModel &&
                     selectedConsultant !== "all" &&
@@ -1872,16 +1894,18 @@ export function FinanceDashboard({
                     </>
                   )}
                 </div>
-                <div className="metric">
-                  <span>
-                    {t(
-                      selectedConsultant === "company"
-                        ? "companyOutstandingInvoiceShare"
-                        : "outstandingInvoices",
-                    )}
-                  </span>
-                  <strong>{formatSek(outstandingInvoices, locale)}</strong>
-                </div>
+                {can(actor, "finance.invoices.view") && (
+                  <div className="metric">
+                    <span>
+                      {t(
+                        selectedConsultant === "company"
+                          ? "companyOutstandingInvoiceShare"
+                          : "outstandingInvoices",
+                      )}
+                    </span>
+                    <strong>{formatSek(outstandingInvoices, locale)}</strong>
+                  </div>
+                )}
               </>
             )}
           </section>
@@ -2116,9 +2140,11 @@ export function FinanceDashboard({
         <section className="card table-wrap">
           <div className="week-head">
             <h2>{t("currentCustomers")}</h2>
-            <Link className="button" href="/finance/customers/new">
-              {t("addCustomer")}
-            </Link>
+            {can(actor, "finance.customers.add") && (
+              <Link className="button" href="/finance/customers/new">
+                {t("addCustomer")}
+              </Link>
+            )}
           </div>
           <table>
             <thead>
@@ -2138,14 +2164,16 @@ export function FinanceDashboard({
                   <td>{customer.contactPerson}</td>
                   <td>{customer.financeEmail}</td>
                   <td>
-                    <Link
-                      className="table-action icon-action"
-                      aria-label={t("edit")}
-                      title={t("edit")}
-                      href={`/finance/customers/${customer.id}/edit`}
-                    >
-                      <ActionIcon type="edit" />
-                    </Link>
+                    {canEditCustomers && (
+                      <Link
+                        className="table-action icon-action"
+                        aria-label={t("edit")}
+                        title={t("edit")}
+                        href={`/finance/customers/${customer.id}/edit`}
+                      >
+                        <ActionIcon type="edit" />
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -2158,7 +2186,7 @@ export function FinanceDashboard({
         <section className="card table-wrap">
           <div className="week-head">
             <h2>{t("currentCategories")}</h2>
-            {admin && (
+            {can(actor, "finance.categories.add") && (
               <Link className="button" href="/finance/categories/new">
                 {t("addCategory")}
               </Link>
@@ -2172,7 +2200,7 @@ export function FinanceDashboard({
                 <th>{t("swedishName")}</th>
                 <th>{t("type")}</th>
                 <th>{t("status")}</th>
-                {admin && (
+                {canEditCategories && (
                   <th>
                     <span className="sr-only">{t("actions")}</span>
                   </th>
@@ -2187,7 +2215,7 @@ export function FinanceDashboard({
                   <td>{category.name.sv}</td>
                   <td>{t(category.direction)}</td>
                   <td>{t(category.active ? "active" : "inactive")}</td>
-                  {admin && (
+                  {canEditCategories && (
                     <td>
                       <Link
                         className="table-action icon-action"
@@ -2213,15 +2241,19 @@ export function FinanceDashboard({
               <div className="week-head">
                 <h2>{t("invoices")}</h2>
                 <div className="actions">
-                  <Link
-                    className="button secondary"
-                    href="/finance/invoices/import"
-                  >
-                    {t("csvImport")}
-                  </Link>
-                  <Link className="button" href="/finance/invoices/new">
-                    {t("addInvoice")}
-                  </Link>
+                  {can(actor, "finance.invoices.import") && (
+                    <Link
+                      className="button secondary"
+                      href="/finance/invoices/import"
+                    >
+                      {t("csvImport")}
+                    </Link>
+                  )}
+                  {can(actor, "finance.invoices.add") && (
+                    <Link className="button" href="/finance/invoices/new">
+                      {t("addInvoice")}
+                    </Link>
+                  )}
                 </div>
               </div>
               <div className="finance-filter-bar">
@@ -2316,15 +2348,17 @@ export function FinanceDashboard({
                           >
                             i
                           </button>
-                          <Link
-                            className="table-action icon-action"
-                            href={`/finance/invoices/${encodeURIComponent(invoice.id)}/attachments`}
-                            aria-label={t("editInvoiceAttachments")}
-                            title={t("editInvoiceAttachments")}
-                          >
-                            <ActionIcon type="edit" />
-                          </Link>
-                          {invoice.status === "issued" && (
+                          {canEditInvoices && (
+                            <Link
+                              className="table-action icon-action"
+                              href={`/finance/invoices/${encodeURIComponent(invoice.id)}/attachments`}
+                              aria-label={t("editInvoiceAttachments")}
+                              title={t("editInvoiceAttachments")}
+                            >
+                              <ActionIcon type="edit" />
+                            </Link>
+                          )}
+                          {canEditInvoices && invoice.status === "issued" && (
                             <button
                               className="table-action"
                               type="button"
@@ -2347,38 +2381,48 @@ export function FinanceDashboard({
       {manager && section === "transactions" && (
         <>
           <div className="actions finance-page-actions">
-            <button
-              className="button secondary"
-              type="button"
-              onClick={downloadTransactionCsv}
-            >
-              {t("exportCsv")}
-            </button>
-            <button
-              className="button secondary"
-              type="button"
-              onClick={printTransactionPdf}
-            >
-              {t("exportPdf")}
-            </button>
-            <Link
-              className="button secondary"
-              href="/finance/transactions/copy-expenses"
-            >
-              {t("copyExpensesButton")}
-            </Link>
-            <Link
-              className="button secondary"
-              href="/finance/transactions/import"
-            >
-              {t("csvImport")}
-            </Link>
-            <Link
-              className="button"
-              href={transactionFormHref("/finance/transactions/new")}
-            >
-              {t("addTransaction")}
-            </Link>
+            {can(actor, "finance.ledger.export") && (
+              <>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={downloadTransactionCsv}
+                >
+                  {t("exportCsv")}
+                </button>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={printTransactionPdf}
+                >
+                  {t("exportPdf")}
+                </button>
+              </>
+            )}
+            {canAddLedger && (
+              <Link
+                className="button secondary"
+                href="/finance/transactions/copy-expenses"
+              >
+                {t("copyExpensesButton")}
+              </Link>
+            )}
+            {can(actor, "finance.ledger.import") && (
+              <Link
+                className="button secondary"
+                href="/finance/transactions/import"
+              >
+                {t("csvImport")}
+              </Link>
+            )}
+            {canAddLedger && (
+              <Link
+                className="button"
+                href={transactionFormHref("/finance/transactions/new")}
+              >
+                {t("addTransaction")}
+              </Link>
+            )}
           </div>
           <section className="card finance-filter-bar finance-filter-bar-wide">
             <label>
@@ -2623,52 +2667,57 @@ export function FinanceDashboard({
                       >
                         i
                       </button>
-                      {manager && (
+                      {(canEditLedger || canDeleteLedger) && (
                         <>
-                          {!transactionDeleteProtection(transaction) && (
-                            <Link
-                              className="table-action icon-action"
-                              aria-label={t("edit")}
-                              title={t("edit")}
-                              href={transactionFormHref(
-                                `/finance/transactions/${encodeURIComponent(transaction.id)}/edit`,
-                              )}
-                            >
-                              <ActionIcon type="edit" />
-                            </Link>
-                          )}
-                          <div
-                            className="protected-action"
-                            tabIndex={
-                              transactionDeleteProtection(transaction) ? 0 : -1
-                            }
-                          >
-                            <button
-                              className="table-action table-action-danger icon-action"
-                              aria-label={t("delete")}
-                              title={t("delete")}
-                              disabled={
-                                busy ||
-                                Boolean(
-                                  transactionDeleteProtection(transaction),
-                                )
-                              }
-                              onClick={() => {
-                                setDeletingTransaction(transaction);
-                                setDeleteConfirmation("");
-                              }}
-                            >
-                              <ActionIcon type="delete" />
-                            </button>
-                            {transactionDeleteProtection(transaction) && (
-                              <span
-                                className="protected-action-tooltip"
-                                role="tooltip"
+                          {canEditLedger &&
+                            !transactionDeleteProtection(transaction) && (
+                              <Link
+                                className="table-action icon-action"
+                                aria-label={t("edit")}
+                                title={t("edit")}
+                                href={transactionFormHref(
+                                  `/finance/transactions/${encodeURIComponent(transaction.id)}/edit`,
+                                )}
                               >
-                                {transactionDeleteProtection(transaction)}
-                              </span>
+                                <ActionIcon type="edit" />
+                              </Link>
                             )}
-                          </div>
+                          {canDeleteLedger && (
+                            <div
+                              className="protected-action"
+                              tabIndex={
+                                transactionDeleteProtection(transaction)
+                                  ? 0
+                                  : -1
+                              }
+                            >
+                              <button
+                                className="table-action table-action-danger icon-action"
+                                aria-label={t("delete")}
+                                title={t("delete")}
+                                disabled={
+                                  busy ||
+                                  Boolean(
+                                    transactionDeleteProtection(transaction),
+                                  )
+                                }
+                                onClick={() => {
+                                  setDeletingTransaction(transaction);
+                                  setDeleteConfirmation("");
+                                }}
+                              >
+                                <ActionIcon type="delete" />
+                              </button>
+                              {transactionDeleteProtection(transaction) && (
+                                <span
+                                  className="protected-action-tooltip"
+                                  role="tooltip"
+                                >
+                                  {transactionDeleteProtection(transaction)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </>
                       )}
                     </div>

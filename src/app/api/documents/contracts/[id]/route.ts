@@ -5,7 +5,8 @@ import { verifySession } from "@/server/auth/session";
 import { parseContractForm } from "@/server/validators/contracts";
 import {
   assertConsultant,
-  canManageContracts,
+  canDeleteContracts,
+  canEditContracts,
   ContractError,
   contractVisible,
   removeContractFiles,
@@ -36,7 +37,7 @@ export async function PATCH(
   const { id } = await params;
   const value = await load(id);
   if ("error" in value) return value.error;
-  if (!canManageContracts(value.actor))
+  if (!canEditContracts(value.actor))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const form = await request.formData();
   const parsed = parseContractForm(form);
@@ -111,7 +112,7 @@ export async function DELETE(
   const { id } = await params;
   const value = await load(id);
   if ("error" in value) return value.error;
-  if (!canManageContracts(value.actor))
+  if (!canDeleteContracts(value.actor))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const body = (await request.json().catch(() => null)) as {
     confirmation?: unknown;

@@ -14,8 +14,10 @@ import {
   type InAppNotificationKind,
   type NotificationParams,
 } from "@/domain/notifications";
+import type { PermissionKey } from "@/domain/access/permissions";
 import { resolvePortalUrl } from "@/lib/config/portal-url";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { permissionResolver, permissionsOf } from "@/server/auth/permissions";
 import { decryptPassword } from "@/server/services/reminder-service";
 
 type Recipient = { id: string; data: FirebaseFirestore.DocumentData };
@@ -157,17 +159,26 @@ async function loadUser(db: Firestore, id: string): Promise<Recipient | null> {
   return snapshot.exists ? { id: snapshot.id, data: snapshot.data()! } : null;
 }
 
-async function usersWithRoles(
+async function usersWhoCan(
   db: Firestore,
   organizationId: string,
-  roles: string[],
+  key: PermissionKey,
 ): Promise<Recipient[]> {
-  const snapshot = await db
-    .collection("users")
-    .where("organizationId", "==", organizationId)
-    .where("role", "in", roles)
-    .get();
-  return snapshot.docs.map((doc) => ({ id: doc.id, data: doc.data() }));
+  const [snapshot, permissionsFor] = await Promise.all([
+    db.collection("users").where("organizationId", "==", organizationId).get(),
+    permissionResolver(db, organizationId),
+  ]);
+  return snapshot.docs
+    .map((doc) => ({ id: doc.id, data: doc.data() }))
+    .filter(({ data }) =>
+      permissionsFor({
+        role: String(data.role),
+        organizationId: String(data.organizationId),
+        accessProfileId: data.accessProfileId,
+        financeAccess: data.financeAccess,
+        documentAccess: data.documentAccess,
+      }).includes(key),
+    );
 }
 
 function receiptParams(
@@ -198,7 +209,7 @@ export function notifyReceiptSubmitted(receiptId: string, portalUrl: string) {
       "/receipts",
       portalUrl,
       receiptParams(receipt),
-      await usersWithRoles(db, organizationId, ["admin", "accountant"]),
+      await usersWhoCan(db, organizationId, "documents.receipts.review"),
     );
   });
 }
@@ -234,7 +245,15 @@ export function notifyPayslipPublished(payslipId: string, portalUrl: string) {
     if (!payslip) return;
     const owner = await loadUser(db, payslip.userId);
     // People without pay slip access cannot open it, so they are not told.
-    if (!owner || owner.data.documentAccess?.payslips !== true) return;
+    if (!owner) return;
+    const ownerPermissions = await permissionsOf(db, {
+      role: String(owner.data.role),
+      organizationId: String(owner.data.organizationId),
+      accessProfileId: owner.data.accessProfileId,
+      financeAccess: owner.data.financeAccess,
+      documentAccess: owner.data.documentAccess,
+    });
+    if (!ownerPermissions.includes("my.payslips")) return;
     await deliver(
       db,
       String(payslip.organizationId),
@@ -262,10 +281,12 @@ export function notifyTimesheetSubmitted(
     if (!owner) return;
     const organizationId = String(sheet.organizationId);
     // Managers review consultants' reports; admins review managers' reports.
-    const reviewers = await usersWithRoles(
-      db,
-      organizationId,
-      owner.data.role === "manager" ? ["admin"] : ["manager"],
+    const reviewers = (
+      await usersWhoCan(db, organizationId, "time.approvals.review")
+    ).filter(
+      (reviewer) =>
+        (reviewer.data.role === "admin") ===
+        ["manager", "accountant"].includes(String(owner.data.role)),
     );
     await deliver(
       db,

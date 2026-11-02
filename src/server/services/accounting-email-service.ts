@@ -11,6 +11,7 @@ import {
   type AccountingEmailPurpose,
   type AccountingEntityType,
 } from "@/domain/accounting-email";
+import { can } from "@/domain/access/permissions";
 import type { PortalUser } from "@/domain/types";
 import { formatSek } from "@/domain/finance/calculations";
 import {
@@ -86,6 +87,17 @@ async function smtpSettings(db: Firestore, organizationId: string) {
  * Who a record of this kind would be emailed to, as "Name <email>". Empty
  * when nobody is chosen or email is not set up, so forms do not ask.
  */
+/** Nobody is offered to send what they may not send. */
+export async function accountingRecipientsFor(
+  actor: PortalUser,
+  db: Firestore,
+  purpose: AccountingEmailPurpose,
+) {
+  return can(actor, "finance.accountingEmail")
+    ? accountingRecipientLabels(db, actor.organizationId, purpose)
+    : [];
+}
+
 export async function accountingRecipientLabels(
   db: Firestore,
   organizationId: string,

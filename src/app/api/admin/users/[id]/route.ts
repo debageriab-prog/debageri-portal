@@ -4,10 +4,11 @@ import { z } from "zod";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import {
-  financeAccessMatchesRole,
-  financeAccessSchema,
-  documentAccessMatchesRole,
-  documentAccessSchema,
+  AccessProfileError,
+  assertProfileFitsRole,
+} from "@/server/services/access-profile-service";
+import { accessProfileIdSchema } from "@/server/validators/access-profile";
+import {
   emailPreferencesSchema,
   employmentDatesValid,
   localeSchema,
@@ -24,22 +25,11 @@ const updateSchema = z
     employmentStartDate: z.iso.date().nullable(),
     employmentEndDate: z.iso.date().nullable(),
     reportingStartDate: z.iso.date().nullable(),
-    financeAccess: financeAccessSchema,
-    documentAccess: documentAccessSchema,
+    accessProfileId: accessProfileIdSchema.nullable(),
     emailPreferences: emailPreferencesSchema.optional(),
     locale: localeSchema,
   })
   .superRefine((value, context) => {
-    if (!financeAccessMatchesRole(value.role, value.financeAccess))
-      context.addIssue({
-        code: "custom",
-        message: "Finance access is only available to consultants",
-      });
-    if (!documentAccessMatchesRole(value.role, value.documentAccess))
-      context.addIssue({
-        code: "custom",
-        message: "Document access does not match the role",
-      });
     if (
       !employmentDatesValid(value.employmentStartDate, value.employmentEndDate)
     )
@@ -97,6 +87,12 @@ export async function PATCH(
   }
 
   try {
+    await assertProfileFitsRole(
+      loaded.db,
+      loaded.actor.organizationId,
+      parsed.data.role,
+      parsed.data.accessProfileId,
+    );
     await loaded.auth.updateUser(id, {
       email: parsed.data.email,
       displayName: parsed.data.displayName,
@@ -107,7 +103,8 @@ export async function PATCH(
       reportsTime:
         parsed.data.role === "consultant" ||
         parsed.data.role === "employee" ||
-        (parsed.data.role === "manager" && parsed.data.reportsTime),
+        (["manager", "accountant"].includes(parsed.data.role) &&
+          parsed.data.reportsTime),
       organizationId: loaded.actor.organizationId,
     });
     const batch = loaded.db.batch();
@@ -119,13 +116,13 @@ export async function PATCH(
       reportsTime:
         parsed.data.role === "consultant" ||
         parsed.data.role === "employee" ||
-        (parsed.data.role === "manager" && parsed.data.reportsTime),
+        (["manager", "accountant"].includes(parsed.data.role) &&
+          parsed.data.reportsTime),
       status: parsed.data.status,
       employmentStartDate: parsed.data.employmentStartDate,
       employmentEndDate: parsed.data.employmentEndDate,
       reportingStartDate: parsed.data.reportingStartDate,
-      financeAccess: parsed.data.financeAccess,
-      documentAccess: parsed.data.documentAccess,
+      accessProfileId: parsed.data.accessProfileId,
       ...(parsed.data.emailPreferences
         ? { emailPreferences: parsed.data.emailPreferences }
         : {}),
@@ -145,8 +142,7 @@ export async function PATCH(
         employmentStartDate: parsed.data.employmentStartDate,
         employmentEndDate: parsed.data.employmentEndDate,
         reportingStartDate: parsed.data.reportingStartDate,
-        financeAccess: parsed.data.financeAccess,
-        documentAccess: parsed.data.documentAccess,
+        accessProfileId: parsed.data.accessProfileId,
         ...(parsed.data.emailPreferences
           ? { emailPreferences: parsed.data.emailPreferences }
           : {}),
@@ -156,6 +152,8 @@ export async function PATCH(
     await batch.commit();
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof AccessProfileError)
+      return NextResponse.json({ error: error.code }, { status: error.status });
     const code =
       typeof error === "object" && error && "code" in error
         ? String(error.code)

@@ -96,16 +96,9 @@ export default function LoginPage() {
     });
     const result = (await response.json().catch(() => ({}))) as {
       error?: string;
-      role?: string;
     };
     if (!response.ok) throw new SessionError(result.error ?? "accessDenied");
-    const destination =
-      result.role === "admin" || result.role === "manager"
-        ? "/manager/approvals"
-        : result.role === "accountant"
-          ? "/time-reports"
-          : "/employee/timesheets/current";
-    window.location.assign(destination);
+    window.location.assign("/");
   }
 
   async function beginEnrollment(user: User) {

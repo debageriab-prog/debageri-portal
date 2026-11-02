@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
+import { listAccessProfiles } from "@/server/services/access-profile-service";
 import { EmployeeEditor } from "../../EmployeeEditor";
 import {
   compensationHistory,
@@ -29,10 +30,13 @@ export default async function EditEmployeePage({
   )
     notFound();
   const employee = toManagedUser(snapshot);
-  const [canManageCompensation, agreements] = await Promise.all([
-    financeEnabled(db, actor.organizationId),
-    compensationHistory(db, actor.organizationId, id),
-  ]);
+  const [canManageCompensation, agreements, accessProfiles] = await Promise.all(
+    [
+      financeEnabled(db, actor.organizationId),
+      compensationHistory(db, actor.organizationId, id),
+      listAccessProfiles(db, actor.organizationId),
+    ],
+  );
   return (
     <>
       <div className="topbar">
@@ -50,6 +54,7 @@ export default async function EditEmployeePage({
         employee={employee}
         isSelf={employee.id === actor.id}
         financeEnabled={canManageCompensation}
+        accessProfiles={accessProfiles}
         agreements={agreements}
         initialTab={tab === "compensation" ? "compensation" : undefined}
         compensationFailed={Boolean(compensationFailed)}

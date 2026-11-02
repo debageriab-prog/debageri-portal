@@ -36,21 +36,21 @@ import {
 import { financeActionSchema } from "@/server/validators/finance";
 
 describe("consultant finance access", () => {
-  const financeAccess = { enabled: true, myFinance: true, myInvoices: true };
+  const permissions = ["my.finance" as const];
 
   it("shows My finances to every model except fixed salary", () => {
     for (const compensationModel of ["flexible", "hybrid", null] as const)
-      expect(canViewMyFinance({ compensationModel, financeAccess })).toBe(true);
-    expect(
-      canViewMyFinance({ compensationModel: "fixed", financeAccess }),
-    ).toBe(false);
+      expect(canViewMyFinance({ compensationModel, permissions })).toBe(true);
+    expect(canViewMyFinance({ compensationModel: "fixed", permissions })).toBe(
+      false,
+    );
   });
 
   it("still requires the My finances access flag", () => {
     expect(
       canViewMyFinance({
         compensationModel: "flexible",
-        financeAccess: { ...financeAccess, myFinance: false },
+        permissions: [],
       }),
     ).toBe(false);
   });

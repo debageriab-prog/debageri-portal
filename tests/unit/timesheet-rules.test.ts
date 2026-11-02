@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { TimeCode, TimeEntry } from "@/domain/types";
+import { legacyPermissions } from "@/domain/access/permissions";
+import type { TimeCode, TimeEntry, UserRole } from "@/domain/types";
 import {
   assertTransition,
   calculateTotals,
@@ -52,6 +53,13 @@ const entry = (
   ...override,
 });
 
+const reviewer = (id: string, role: UserRole, organizationId = "debageri") => ({
+  id,
+  role,
+  organizationId,
+  permissions: legacyPermissions(role),
+});
+
 describe("timesheet rules", () => {
   it("allows only supported transitions", () => {
     expect(() => assertTransition("draft", "submitted")).not.toThrow();
@@ -87,45 +95,66 @@ describe("timesheet rules", () => {
   });
   it("enforces manager assignment and organization isolation", () => {
     expect(
+      canReview(reviewer("m1", "manager"), {
+        id: "c1",
+        role: "consultant",
+        reportsTime: true,
+        organizationId: "debageri",
+      }),
+    ).toBe(true);
+    expect(
+      canReview(reviewer("accountant", "accountant"), {
+        id: "c1",
+        role: "consultant",
+        reportsTime: true,
+        organizationId: "debageri",
+      }),
+    ).toBe(false);
+    expect(
+      canReview(reviewer("admin", "admin", "other"), {
+        id: "c1",
+        role: "consultant",
+        reportsTime: true,
+        organizationId: "debageri",
+      }),
+    ).toBe(false);
+    expect(
+      canReview(reviewer("admin", "admin"), {
+        id: "m1",
+        role: "manager",
+        reportsTime: true,
+        organizationId: "debageri",
+      }),
+    ).toBe(true);
+  });
+  it("follows the profile but never lets anyone review themselves", () => {
+    const consultant = {
+      id: "c1",
+      role: "consultant" as const,
+      reportsTime: true,
+      organizationId: "debageri",
+    };
+    const manager = reviewer("m1", "manager");
+    const accountant = reviewer("a1", "accountant");
+    expect(canReview({ ...manager, permissions: [] }, consultant)).toBe(false);
+    expect(
       canReview(
-        { id: "m1", role: "manager", organizationId: "debageri" },
-        {
-          role: "consultant",
-          reportsTime: true,
-          organizationId: "debageri",
-        },
+        { ...accountant, permissions: ["time.approvals.review"] },
+        consultant,
       ),
     ).toBe(true);
     expect(
-      canReview(
-        { id: "accountant", role: "accountant", organizationId: "debageri" },
-        {
-          role: "consultant",
-          reportsTime: true,
-          organizationId: "debageri",
-        },
-      ),
+      canReview(manager, { ...consultant, id: "m1", role: "manager" }),
     ).toBe(false);
     expect(
       canReview(
-        { id: "admin", role: "admin", organizationId: "other" },
         {
-          role: "consultant",
-          reportsTime: true,
-          organizationId: "debageri",
+          ...reviewer("c2", "consultant"),
+          permissions: ["time.approvals.review"],
         },
+        { ...consultant, id: "c2" },
       ),
     ).toBe(false);
-    expect(
-      canReview(
-        { id: "admin", role: "admin", organizationId: "debageri" },
-        {
-          role: "manager",
-          reportsTime: true,
-          organizationId: "debageri",
-        },
-      ),
-    ).toBe(true);
   });
 });
 

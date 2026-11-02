@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import {
-  canManagePayslips,
+  canDeletePayslips,
   deletePayslip,
   PayslipError,
 } from "@/server/services/payslip-service";
@@ -13,7 +13,7 @@ export async function DELETE(
 ) {
   const { id } = await params;
   const actor = await verifySession();
-  if (!actor || !canManagePayslips(actor))
+  if (!actor || !canDeletePayslips(actor))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const body = (await request.json().catch(() => null)) as {
     confirmation?: unknown;

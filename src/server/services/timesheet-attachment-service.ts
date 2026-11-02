@@ -8,6 +8,7 @@ import {
   timesheetAttachmentAccess,
   timesheetAttachmentFileError,
 } from "@/domain/timesheets/attachments";
+import { can } from "@/domain/access/permissions";
 import type { PortalUser } from "@/domain/types";
 
 export class TimesheetAttachmentError extends Error {
@@ -107,7 +108,7 @@ export async function addTimesheetAttachment(
   ).data();
   if (!sheet || sheet.organizationId !== actor.organizationId)
     throw new TimesheetAttachmentError("notFound", 404);
-  if (sheet.userId !== actor.id)
+  if (sheet.userId !== actor.id || !can(actor, "my.time.report"))
     throw new TimesheetAttachmentError("forbidden", 403);
   const fileError = timesheetAttachmentFileError(file);
   if (fileError) throw new TimesheetAttachmentError(fileError);

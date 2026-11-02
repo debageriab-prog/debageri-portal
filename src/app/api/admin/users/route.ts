@@ -4,10 +4,11 @@ import { z } from "zod";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import {
-  financeAccessMatchesRole,
-  financeAccessSchema,
-  documentAccessMatchesRole,
-  documentAccessSchema,
+  AccessProfileError,
+  assertProfileFitsRole,
+} from "@/server/services/access-profile-service";
+import { accessProfileIdSchema } from "@/server/validators/access-profile";
+import {
   emailPreferencesSchema,
   localeSchema,
 } from "@/server/validators/user-access";
@@ -22,15 +23,14 @@ const inputSchema = z
     reportsTime: z.boolean(),
     employmentStartDate: z.iso.date(),
     reportingStartDate: z.iso.date().nullable(),
-    financeAccess: financeAccessSchema,
-    documentAccess: documentAccessSchema,
+    accessProfileId: accessProfileIdSchema.nullable(),
     emailPreferences: emailPreferencesSchema.optional(),
     locale: localeSchema,
   })
   .superRefine((value, context) => {
     const expectedReportsTime =
       value.role === "consultant" ||
-      (value.role === "manager" && value.reportsTime);
+      (["manager", "accountant"].includes(value.role) && value.reportsTime);
     if (value.reportsTime !== expectedReportsTime)
       context.addIssue({
         code: "custom",
@@ -40,16 +40,6 @@ const inputSchema = z
       context.addIssue({
         code: "custom",
         message: "Reporting details are required",
-      });
-    if (!financeAccessMatchesRole(value.role, value.financeAccess))
-      context.addIssue({
-        code: "custom",
-        message: "Finance access is only available to consultants",
-      });
-    if (!documentAccessMatchesRole(value.role, value.documentAccess))
-      context.addIssue({
-        code: "custom",
-        message: "Document access does not match the role",
       });
   });
 
@@ -67,6 +57,12 @@ export async function POST(request: Request) {
   const { auth, db } = getAdminServices();
   let uid: string | null = null;
   try {
+    await assertProfileFitsRole(
+      db,
+      actor.organizationId,
+      parsed.data.role,
+      parsed.data.accessProfileId,
+    );
     const created = await auth.createUser({
       email: parsed.data.email,
       password: parsed.data.password,
@@ -88,8 +84,7 @@ export async function POST(request: Request) {
       employmentStartDate: parsed.data.employmentStartDate,
       employmentEndDate: null,
       reportingStartDate: parsed.data.reportingStartDate,
-      financeAccess: parsed.data.financeAccess,
-      documentAccess: parsed.data.documentAccess,
+      accessProfileId: parsed.data.accessProfileId,
       ...(parsed.data.emailPreferences
         ? { emailPreferences: parsed.data.emailPreferences }
         : {}),
@@ -110,14 +105,15 @@ export async function POST(request: Request) {
       metadata: {
         role: parsed.data.role,
         reportsTime: parsed.data.reportsTime,
-        financeAccess: parsed.data.financeAccess,
-        documentAccess: parsed.data.documentAccess,
+        accessProfileId: parsed.data.accessProfileId,
         locale: parsed.data.locale,
       },
     });
     await batch.commit();
     return NextResponse.json({ id: uid }, { status: 201 });
   } catch (error) {
+    if (error instanceof AccessProfileError)
+      return NextResponse.json({ error: error.code }, { status: error.status });
     if (uid) await auth.deleteUser(uid).catch(() => undefined);
     const code =
       typeof error === "object" && error && "code" in error

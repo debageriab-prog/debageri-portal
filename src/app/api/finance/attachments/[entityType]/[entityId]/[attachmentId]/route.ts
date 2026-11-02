@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { canViewMyFinance } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
+import { financeIsEnabled } from "@/server/services/finance-service";
+import { can, FINANCE_ENTITY_PERMISSIONS } from "@/domain/access/permissions";
 
 async function authorized(
   entityType: string,
@@ -38,7 +40,15 @@ async function authorized(
     fileData?.organizationId === actor.organizationId &&
     fileData?.entityType === entityType &&
     fileData?.entityId === entityId;
-  const manager = ["admin", "accountant"].includes(actor.role);
+  if (!(await financeIsEnabled(db, actor.organizationId)))
+    return {
+      error: NextResponse.json({ error: "financeDisabled" }, { status: 409 }),
+    };
+  const permissions =
+    FINANCE_ENTITY_PERMISSIONS[
+      entityType as "transaction" | "invoice" | "vatSettlement"
+    ];
+  const manager = can(actor, write ? permissions.edit : permissions.view);
   const consultantCanRead =
     !write &&
     entityData?.consultantId === actor.id &&

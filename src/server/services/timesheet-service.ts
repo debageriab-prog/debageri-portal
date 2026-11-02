@@ -1,4 +1,5 @@
 import "server-only";
+import { can } from "@/domain/access/permissions";
 
 import { FieldValue } from "firebase-admin/firestore";
 import type {
@@ -42,10 +43,13 @@ export async function transitionTimesheet(
     if (!subjectSnapshot.exists) throw new Error("NOT_FOUND");
     const subject = subjectSnapshot.data()!;
     const employeeAction =
-      toStatus === "submitted" && sheet.userId === actor.id;
+      toStatus === "submitted" &&
+      sheet.userId === actor.id &&
+      can(actor, "my.time.report");
     const reviewerAction =
       ["approved", "rejected", "reopened"].includes(toStatus) &&
       canReview(actor, {
+        id: sheet.userId,
         role: subject.role,
         reportsTime:
           subject.reportsTime ??

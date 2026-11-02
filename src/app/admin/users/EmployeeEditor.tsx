@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { defaultLocale, type Locale } from "@/lib/localization/locale";
-import type { DocumentAccess, FinanceAccess } from "@/domain/types";
+import { audienceForRole } from "@/domain/access/permissions";
 import {
   NOTIFICATION_TOPICS,
   type EmailPreferences,
@@ -27,6 +27,11 @@ import {
   EndCompensationDialog,
 } from "./CompensationHistory";
 import type { ManagedUser } from "./UserManagement";
+import type { AccessProfile } from "@/server/services/access-profile-service";
+import { PermissionSummary } from "../access-profiles/PermissionTree";
+import { accessProfileError } from "../access-profiles/AccessProfileForm";
+
+const staffRoles = ["manager", "accountant"];
 
 type Tab =
   "general" | "employment" | "compensation" | "access" | "notifications";
@@ -38,38 +43,21 @@ const TABS: Tab[] = [
   "notifications",
 ];
 
-const noFinance: FinanceAccess = {
-  enabled: false,
-  myFinance: false,
-  myInvoices: false,
-};
-
 function today() {
   return new Date().toISOString().slice(0, 10);
-}
-
-/** Access flags a role can hold; the server enforces the same rules. */
-function documentAccessForRole(
-  role: string,
-  access: DocumentAccess,
-): DocumentAccess {
-  const reportsToCompany = ["consultant", "manager"].includes(role);
-  return {
-    contracts: role === "consultant" && access.contracts,
-    payslips: reportsToCompany && access.payslips,
-    receipts: reportsToCompany && access.receipts,
-  };
 }
 
 export function EmployeeEditor({
   employee,
   isSelf = false,
   financeEnabled,
+  accessProfiles,
   agreements = [],
   initialTab = "general",
   compensationFailed = false,
 }: {
   employee?: ManagedUser;
+  accessProfiles: AccessProfile[];
   isSelf?: boolean;
   financeEnabled: boolean;
   agreements?: CompensationRecord[];
@@ -97,17 +85,16 @@ export function EmployeeEditor({
       : (employee?.role ?? "consultant"),
   );
   const [managerReportsTime, setManagerReportsTime] = useState(
-    employee?.role === "manager" ? employee.reportsTime : false,
+    employee && staffRoles.includes(employee.role)
+      ? employee.reportsTime
+      : false,
   );
-  const [financeAccess, setFinanceAccess] = useState<FinanceAccess>(
-    employee?.financeAccess ?? noFinance,
-  );
-  const [documentAccess, setDocumentAccess] = useState<DocumentAccess>(
-    employee?.documentAccess ?? {
-      contracts: false,
-      payslips: false,
-      receipts: false,
-    },
+  const defaultProfileFor = (nextRole: string) =>
+    accessProfiles.find((profile) => profile.defaultForRole === nextRole)?.id ??
+    "";
+  const [accessProfileId, setAccessProfileId] = useState(
+    employee?.accessProfileId ??
+      (employee ? "" : defaultProfileFor("consultant")),
   );
   const [emailPreferences, setEmailPreferences] = useState<EmailPreferences>(
     employee?.emailPreferences ?? {
@@ -132,9 +119,15 @@ export function EmployeeEditor({
   );
   const [message, setMessage] = useState("");
   const reportsTime =
-    role === "consultant" || (role === "manager" && managerReportsTime);
+    role === "consultant" || (staffRoles.includes(role) && managerReportsTime);
   const isConsultant = role === "consultant";
-  const hasDocumentAccess = ["consultant", "manager"].includes(role);
+  const audience = audienceForRole(role);
+  const availableProfiles = accessProfiles.filter(
+    (profile) => profile.audience === audience,
+  );
+  const selectedProfile = availableProfiles.find(
+    (profile) => profile.id === accessProfileId,
+  );
   // Agreements attach to the stored role, so a role change must be saved first.
   const canAddCompensation =
     financeEnabled && isConsultant && employee?.role === "consultant";
@@ -145,9 +138,8 @@ export function EmployeeEditor({
 
   function changeRole(nextRole: string) {
     setRole(nextRole);
-    if (nextRole !== "manager") setManagerReportsTime(false);
-    if (nextRole !== "consultant") setFinanceAccess(noFinance);
-    setDocumentAccess((current) => documentAccessForRole(nextRole, current));
+    if (!staffRoles.includes(nextRole)) setManagerReportsTime(false);
+    setAccessProfileId(defaultProfileFor(nextRole));
   }
 
   /** Shows the tab holding the first invalid field, then explains it. */
@@ -176,8 +168,7 @@ export function EmployeeEditor({
       reportsTime,
       employmentStartDate: values.employmentStartDate || null,
       reportingStartDate: reportsTime ? values.reportingStartDate : null,
-      financeAccess: isConsultant ? financeAccess : noFinance,
-      documentAccess: documentAccessForRole(role, documentAccess),
+      accessProfileId: audience ? accessProfileId : null,
       emailPreferences,
       locale: language,
       ...(creating
@@ -204,7 +195,11 @@ export function EmployeeEditor({
         id?: string;
       };
       if (!response.ok) {
-        setError(result.error ?? t("employeeSaveFailed"));
+        setError(
+          result.error?.startsWith("profile")
+            ? t(accessProfileError(result.error))
+            : (result.error ?? t("employeeSaveFailed")),
+        );
         return;
       }
       createdId = result.id;
@@ -320,7 +315,7 @@ export function EmployeeEditor({
                 <option value="admin">{t("administrator")}</option>
               </select>
             </label>
-            {role === "manager" && (
+            {staffRoles.includes(role) && (
               <label className="checkbox-row form-wide">
                 <input
                   type="checkbox"
@@ -530,96 +525,43 @@ export function EmployeeEditor({
           <p className="muted editor-panel-intro">
             {t("employeeTabIntro_access")}
           </p>
-          {!isConsultant && !hasDocumentAccess ? (
+          {!audience ? (
             <p className="notice">{t("employeeAccessByRole")}</p>
           ) : (
-            <div className="editor-access-groups">
-              {isConsultant && (
-                <fieldset className="access-section">
-                  <legend>{t("finance")}</legend>
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={financeAccess.enabled}
-                      onChange={(event) =>
-                        setFinanceAccess({
-                          enabled: event.target.checked,
-                          myFinance: event.target.checked,
-                          myInvoices: event.target.checked,
-                        })
-                      }
-                    />
-                    <span>
-                      <strong>{t("finance")}</strong>
-                    </span>
-                  </label>
-                  <div className="access-children">
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={financeAccess.myFinance}
-                        disabled={!financeAccess.enabled}
-                        onChange={(event) =>
-                          setFinanceAccess((current) => ({
-                            ...current,
-                            enabled: event.target.checked || current.myInvoices,
-                            myFinance: event.target.checked,
-                          }))
-                        }
-                      />
-                      <span>
-                        <strong>{t("myFinanceAccess")}</strong>
-                      </span>
-                    </label>
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={financeAccess.myInvoices}
-                        disabled={!financeAccess.enabled}
-                        onChange={(event) =>
-                          setFinanceAccess((current) => ({
-                            ...current,
-                            enabled: current.myFinance || event.target.checked,
-                            myInvoices: event.target.checked,
-                          }))
-                        }
-                      />
-                      <span>
-                        <strong>{t("myInvoices")}</strong>
-                      </span>
-                    </label>
-                  </div>
-                </fieldset>
+            <>
+              {!accessProfileId && (
+                <p className="notice notice-warning">
+                  {t("employeeNeedsProfile")}
+                </p>
               )}
-              {hasDocumentAccess && (
-                <fieldset className="access-section">
-                  <legend>{t("documents")}</legend>
-                  {(
-                    [
-                      ...(isConsultant ? (["contracts"] as const) : []),
-                      "payslips",
-                      "receipts",
-                    ] as const
-                  ).map((key) => (
-                    <label className="checkbox-row" key={key}>
-                      <input
-                        type="checkbox"
-                        checked={documentAccess[key]}
-                        onChange={(event) =>
-                          setDocumentAccess((current) => ({
-                            ...current,
-                            [key]: event.target.checked,
-                          }))
-                        }
-                      />
-                      <span>
-                        <strong>{t(`${key}Access`)}</strong>
-                      </span>
-                    </label>
+              <label>
+                {t("accessProfile")}
+                <select
+                  className="field"
+                  required
+                  value={accessProfileId}
+                  onChange={(event) => setAccessProfileId(event.target.value)}
+                >
+                  <option value="">{t("chooseAccessProfile")}</option>
+                  {availableProfiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name}
+                    </option>
                   ))}
-                </fieldset>
+                </select>
+              </label>
+              {selectedProfile && (
+                <PermissionSummary
+                  audience={selectedProfile.audience}
+                  permissions={selectedProfile.permissions}
+                />
               )}
-            </div>
+              <p>
+                <Link className="text-link" href="/admin/access-profiles">
+                  {t("manageAccessProfiles")}
+                </Link>
+              </p>
+            </>
           )}
         </section>
 

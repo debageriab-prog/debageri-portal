@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { can } from "@/domain/access/permissions";
 import { resolvePortalUrl } from "@/lib/config/portal-url";
 import { stockholmDateTime } from "@/lib/dates/stockholm";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { permissionResolver } from "@/server/auth/permissions";
 import { verifySession } from "@/server/auth/session";
 import { sendReminderSchema } from "@/server/validators/reminder";
 import {
@@ -18,7 +20,7 @@ import { deliverReminder } from "@/server/services/reminder-service";
  */
 export async function POST(request: Request) {
   const actor = await verifySession();
-  if (!actor || !["admin", "manager", "accountant"].includes(actor.role))
+  if (!actor || !can(actor, "time.reminders.send"))
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   const parsed = sendReminderSchema.safeParse(
     await request.json().catch(() => null),
@@ -51,6 +53,7 @@ export async function POST(request: Request) {
   const summary = { sent: 0, skipped: 0, failed: 0, error: "" };
 
   for (const userId of new Set(parsed.data.userIds)) {
+    const permissionsFor = await permissionResolver(db, actor.organizationId);
     const [userDoc, sheets] = await Promise.all([
       db.collection("users").doc(userId).get(),
       db.collection("timesheets").where("userId", "==", userId).get(),
@@ -59,7 +62,14 @@ export async function POST(request: Request) {
     if (
       !user ||
       user.organizationId !== actor.organizationId ||
-      !receivesReminders(user)
+      !receivesReminders(user) ||
+      !permissionsFor({
+        role: String(user.role),
+        organizationId: String(user.organizationId),
+        accessProfileId: user.accessProfileId,
+        financeAccess: user.financeAccess,
+        documentAccess: user.documentAccess,
+      }).includes("my.time.report")
     ) {
       summary.skipped += 1;
       continue;
