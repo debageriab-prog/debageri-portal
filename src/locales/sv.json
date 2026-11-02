@@ -1256,6 +1256,7 @@
   "permission_documents_receipts_review": "Granska kvitton",
   "permission_documents_receipts_book": "Bokföra kvitton som kostnader",
   "permission_my_finance": "Min ekonomi",
+  "permission_my_transactions": "Intäkter och kostnader",
   "permission_my_invoices": "Mina fakturor",
   "permission_my_contracts": "Mina avtal",
   "permission_my_payslips": "Mina lönebesked",

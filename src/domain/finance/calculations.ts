@@ -77,6 +77,16 @@ export function canViewMyFinance(
   );
 }
 
+/** Income and expenses follows the same rule with its own permission. */
+export function canViewMyTransactions(
+  user: Pick<PortalUser, "compensationModel" | "permissions">,
+) {
+  return (
+    user.permissions.includes("my.transactions") &&
+    user.compensationModel !== "fixed"
+  );
+}
+
 export function calculateShareMinor(netMinor: number, shareBps: number) {
   return Math.round((netMinor * shareBps) / 10_000);
 }

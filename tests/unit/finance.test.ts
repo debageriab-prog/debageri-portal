@@ -5,6 +5,7 @@ import {
   belongsToCompany,
   belongsToConsultant,
   canViewMyFinance,
+  canViewMyTransactions,
   belongsToFixedConsultantResult,
   calculateShareMinor,
   calculateTransactionAmounts,
@@ -45,6 +46,22 @@ describe("consultant finance access", () => {
     expect(canViewMyFinance({ compensationModel: "fixed", permissions })).toBe(
       false,
     );
+  });
+
+  it("shows Income and expenses by its own permission, never for fixed salary", () => {
+    const permissions = ["my.transactions" as const];
+    expect(
+      canViewMyTransactions({ compensationModel: "hybrid", permissions }),
+    ).toBe(true);
+    expect(
+      canViewMyTransactions({ compensationModel: "fixed", permissions }),
+    ).toBe(false);
+    expect(
+      canViewMyTransactions({
+        compensationModel: "flexible",
+        permissions: ["my.finance"],
+      }),
+    ).toBe(false);
   });
 
   it("still requires the My finances access flag", () => {

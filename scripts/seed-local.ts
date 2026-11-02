@@ -93,6 +93,7 @@ const sampleProfiles: Array<{
       "my.time.report",
       "my.time.history",
       "my.finance",
+      "my.transactions",
       "my.contracts",
       "my.payslips",
       "my.receipts",

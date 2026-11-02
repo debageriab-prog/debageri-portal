@@ -38,7 +38,8 @@ notes and customer contact details never pass through consultant-facing
 responses, and consultants see neither invoice details nor invoice files. A
 consultant's access to My invoices comes from their access profile, whatever
 their compensation model. My finances also comes from the profile, but is never
-shown to fixed-salary consultants because they have no personal balance.
+shown to fixed-salary consultants because they have no personal balance. The
+same goes for their Income and expenses page, which has its own permission.
 
 `accessProfiles` holds `organizationId`, `name`, `description`, `audience`
 (`consultant` or `staff`), `permissions` and `defaultForRole`. It is server-only:

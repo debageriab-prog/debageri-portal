@@ -1256,6 +1256,7 @@
   "permission_documents_receipts_review": "Review receipts",
   "permission_documents_receipts_book": "Book receipts as expenses",
   "permission_my_finance": "My finances",
+  "permission_my_transactions": "Income and expenses",
   "permission_my_invoices": "My invoices",
   "permission_my_contracts": "My contracts",
   "permission_my_payslips": "My pay slips",

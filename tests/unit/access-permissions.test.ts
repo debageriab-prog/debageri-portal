@@ -78,6 +78,7 @@ describe("permission catalogue", () => {
     const staff = permissionsForAudience("staff");
     expect(staff).toContain("my.payslips");
     expect(staff).not.toContain("my.finance");
+    expect(staff).not.toContain("my.transactions");
     expect(staff).not.toContain("my.contracts");
   });
 

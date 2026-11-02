@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { canViewMyFinance } from "@/domain/finance/calculations";
+import { canViewMyTransactions } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { financeIsEnabled } from "@/server/services/finance-service";
@@ -65,7 +65,7 @@ async function context(entityType: string, entityId: string, write: boolean) {
     !write &&
     data?.consultantId === actor.id &&
     entityType === "transaction" &&
-    canViewMyFinance(actor);
+    canViewMyTransactions(actor);
   if (!manager && !consultantCanRead)
     return {
       error: NextResponse.json({ error: "forbidden" }, { status: 403 }),
