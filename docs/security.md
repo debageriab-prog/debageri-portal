@@ -27,6 +27,11 @@ first use: whoever first signs in with an account's password enrolls its
 authenticator, so temporary passwords must still be shared securely and used
 promptly. Lost phones are handled by an audited admin reset of the factor.
 
+Admins can view the portal as another user. The view is read-only, limited to
+one hour, audited when it starts and ends, and shown by a permanent red bar.
+Since it exposes that person's records to the admin, include it in employee
+notices (see [authentication](authentication-and-authorization.md)).
+
 Enable Firestore PITR where available plus tested scheduled exports to a portal-only, retention-controlled bucket. Define audit/document retention and deletion policies with the organization. Employee records are personal and potentially sensitive; minimize access and collection.
 
 Security documentation is not a legal-compliance claim. Organizational/legal/privacy/payroll review is required for GDPR lawful basis, employee notice, access/erasure handling, retention, processor agreements, international transfers, audit access, payslip/document classification, backup deletion, union/employment rules, and incident response.

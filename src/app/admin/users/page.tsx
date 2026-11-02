@@ -30,6 +30,7 @@ export default async function UsersPage({
     <UserManagement
       users={users}
       currentUserId={actor.id}
+      canViewAs={!actor.impersonatedBy}
       saved={saved === "created" || saved === "updated" ? saved : null}
     />
   );

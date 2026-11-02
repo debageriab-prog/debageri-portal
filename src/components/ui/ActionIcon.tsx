@@ -4,6 +4,7 @@ export type ActionIconType =
   | "password"
   | "reverse"
   | "mfa"
+  | "viewAs"
   | "copy"
   | "copied"
   | "previous"
@@ -41,6 +42,13 @@ export function ActionIcon({ type }: { type: ActionIconType }) {
       <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
         <rect x="7" y="3" width="10" height="18" rx="2" />
         <path d="M11 18h2M10 10.5l1.5 1.5 3-3" />
+      </svg>
+    );
+  if (type === "viewAs")
+    return (
+      <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+        <circle cx="12" cy="12" r="2.75" />
       </svg>
     );
   if (type === "copy")

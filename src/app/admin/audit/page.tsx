@@ -76,6 +76,8 @@ export default async function AuditPage() {
     "user.password_reset": "Changed user password",
     "user.mfa_enrollment_started": "Started two-factor setup",
     "user.mfa_reset": "Reset two-factor login",
+    "user.impersonation_started": t("auditViewAsStarted"),
+    "user.impersonation_ended": t("auditViewAsEnded"),
     "timesheet.submitted": "Submitted time report",
     "timesheet.resubmitted": "Resubmitted time report",
     "timesheet.approved": "Approved time report",

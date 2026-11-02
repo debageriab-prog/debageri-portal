@@ -40,6 +40,8 @@ export interface PortalUser {
   accessProfileId: string | null;
   permissions: PermissionKey[];
   emailPreferences: Record<"receipts" | "payslips" | "timesheets", boolean>;
+  /** The admin behind a read-only view of this user, when there is one. */
+  impersonatedBy?: { id: string; displayName: string };
 }
 
 export interface ContractDocument {

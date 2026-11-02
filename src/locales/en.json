@@ -1272,5 +1272,16 @@
   "permission_finance_customers_add": "Add customers",
   "permission_finance_categories_add": "Add categories",
   "permission_finance_vat_add": "Record VAT payments",
-  "permission_finance_vat_delete": "Reverse VAT payments"
+  "permission_finance_vat_delete": "Reverse VAT payments",
+  "viewAsAction": "View as {name}",
+  "viewAsBar": "You are viewing the portal as {name}. You see what they see, and changes are turned off.",
+  "viewAsEnded": "This view has ended. Exit to get back to your own account.",
+  "viewAsExit": "Exit view",
+  "viewAsExitFailed": "The view could not be ended. Please try again.",
+  "viewAsPausedTitle": "Viewing as {name}",
+  "viewAsPausedDescription": "This browser now shows the portal as this person, in every tab. Exit the view to continue as yourself.",
+  "viewAsReadOnly": "You are viewing the portal as someone else, so changes are turned off.",
+  "viewAsStartFailed": "The view could not be started. Please try again.",
+  "auditViewAsStarted": "Started viewing as user",
+  "auditViewAsEnded": "Stopped viewing as user"
 }
