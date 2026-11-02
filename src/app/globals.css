@@ -2890,6 +2890,9 @@ th.actions-heading {
   gap: 12px;
   margin-bottom: 18px;
 }
+.transaction-period-summary-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .transaction-period-summary > div {
   display: grid;
   gap: 5px;

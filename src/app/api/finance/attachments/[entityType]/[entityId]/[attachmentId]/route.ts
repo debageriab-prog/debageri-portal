@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { canViewMyFinance } from "@/domain/finance/calculations";
+import { canViewMyTransactions } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { financeIsEnabled } from "@/server/services/finance-service";
@@ -53,7 +53,7 @@ async function authorized(
     !write &&
     entityData?.consultantId === actor.id &&
     entityType === "transaction" &&
-    canViewMyFinance(actor);
+    canViewMyTransactions(actor);
   if (
     !entity.exists ||
     entityData?.organizationId !== actor.organizationId ||

@@ -77,6 +77,16 @@ export function canViewMyFinance(
   );
 }
 
+/** Income and expenses follows the same rule with its own permission. */
+export function canViewMyTransactions(
+  user: Pick<PortalUser, "compensationModel" | "permissions">,
+) {
+  return (
+    user.permissions.includes("my.transactions") &&
+    user.compensationModel !== "fixed"
+  );
+}
+
 export function calculateShareMinor(netMinor: number, shareBps: number) {
   return Math.round((netMinor * shareBps) / 10_000);
 }
@@ -262,6 +272,39 @@ export function flexibleConsultantBalanceHistory(
         changeMinor: -transaction.netMinor,
       })),
   ]);
+}
+
+/** Reconciles to the Earned share and Spent from balance totals in My finances. */
+export function consultantBalanceMovementHistory(
+  transactions: Array<
+    Pick<
+      FlexibleBalanceTransactionInput,
+      | "id"
+      | "direction"
+      | "date"
+      | "categoryId"
+      | "visibleDescription"
+      | "consultantBalanceDeltaMinor"
+    >
+  >,
+  movement: "earned" | "spent",
+) {
+  const sign = movement === "earned" ? 1 : -1;
+  return withRunningTotals(
+    transactions
+      .filter(
+        (transaction) => sign * transaction.consultantBalanceDeltaMinor > 0,
+      )
+      .map((transaction) => ({
+        id: `transaction:${transaction.id}`,
+        date: transaction.date,
+        kind: transaction.direction,
+        reference: "",
+        categoryId: transaction.categoryId,
+        description: transaction.visibleDescription,
+        changeMinor: sign * transaction.consultantBalanceDeltaMinor,
+      })),
+  );
 }
 
 export function flexibleConsultantRetainedResultHistory(

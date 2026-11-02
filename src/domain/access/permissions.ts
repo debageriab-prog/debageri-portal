@@ -43,6 +43,7 @@ export const PERMISSION_KEYS = [
   "my.time.history",
   "my.time.income",
   "my.finance",
+  "my.transactions",
   "my.invoices",
   "my.contracts",
   "my.payslips",
@@ -89,6 +90,7 @@ export const PERMISSION_TREE: PermissionGroup[] = [
     id: "finance",
     nodes: [
       { key: "my.finance" },
+      { key: "my.transactions" },
       { key: "my.invoices" },
       {
         key: "finance.ledger.view",
@@ -181,6 +183,7 @@ PERMISSION_TREE.forEach((group) => indexParents(group.nodes));
 /** Finance and contract records of one's own only exist for consultants. */
 const consultantOnly: readonly PermissionKey[] = [
   "my.finance",
+  "my.transactions",
   "my.invoices",
   "my.contracts",
 ];
@@ -318,6 +321,7 @@ export const FINANCE_ENTITY_PERMISSIONS = {
 const FALLBACK_PAGES: Array<[PermissionKey, string]> = [
   ["my.time.history", "/employee/timesheets"],
   ["my.finance", "/finance"],
+  ["my.transactions", "/finance?section=transactions"],
   ["my.invoices", "/finance?section=invoices"],
   ["documents.contracts.view", "/documents/contracts"],
   ["my.contracts", "/documents/contracts"],

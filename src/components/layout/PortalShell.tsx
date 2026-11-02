@@ -10,7 +10,10 @@ import {
   hasOrganizationFinance,
   type PermissionKey,
 } from "@/domain/access/permissions";
-import { canViewMyFinance } from "@/domain/finance/calculations";
+import {
+  canViewMyFinance,
+  canViewMyTransactions,
+} from "@/domain/finance/calculations";
 import type { PortalUser } from "@/domain/types";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { BrandLogo } from "@/components/brand/BrandLogo";
@@ -146,6 +149,14 @@ function financeItems(user: PortalUser, t: Translate): NavItem[] {
   return [
     ...(canViewMyFinance(user)
       ? [{ label: t("myFinances"), href: "/finance" }]
+      : []),
+    ...(canViewMyTransactions(user)
+      ? [
+          {
+            label: t("incomeExpenseManagement"),
+            href: "/finance?section=transactions",
+          },
+        ]
       : []),
     ...(can(user, "my.invoices")
       ? [{ label: t("myInvoices"), href: "/finance?section=invoices" }]

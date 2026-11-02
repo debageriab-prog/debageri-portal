@@ -5,7 +5,10 @@ import {
   hasOrganizationFinance,
   type PermissionKey,
 } from "@/domain/access/permissions";
-import { canViewMyFinance } from "@/domain/finance/calculations";
+import {
+  canViewMyFinance,
+  canViewMyTransactions,
+} from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { FinanceDashboard, type FinancePageData } from "./FinanceDashboard";
@@ -49,21 +52,23 @@ export default async function FinancePage({
   const actor = (await verifySession())!;
   const manager = hasOrganizationFinance(actor);
   const myFinance = canViewMyFinance(actor);
+  const myTransactions = canViewMyTransactions(actor);
   const myInvoices = can(actor, "my.invoices");
   if (manager && !can(actor, sectionPermissions[section]))
     redirect(financeHome(actor)!);
   if (
     !manager &&
     ((section === "invoices" && !myInvoices) ||
-      (section !== "invoices" && !myFinance))
+      (section === "transactions" && !myTransactions) ||
+      (section !== "invoices" && section !== "transactions" && !myFinance))
   )
     redirect("/unauthorized");
   const organizationLedger = can(actor, "finance.ledger.view");
   const organizationInvoices = can(actor, "finance.invoices.view");
   const visibleSection = manager
     ? section
-    : section === "invoices"
-      ? "invoices"
+    : section === "invoices" || section === "transactions"
+      ? section
       : "overview";
   const { db } = getAdminServices();
   const organizationId = actor.organizationId;
@@ -95,7 +100,7 @@ export default async function FinancePage({
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
-    organizationLedger || myFinance
+    organizationLedger || myFinance || myTransactions
       ? db
           .collection("financialTransactions")
           .where("organizationId", "==", organizationId)
@@ -113,7 +118,7 @@ export default async function FinancePage({
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
-    organizationLedger || myFinance
+    organizationLedger || myFinance || myTransactions
       ? db
           .collection("financeAttachments")
           .where("organizationId", "==", organizationId)
