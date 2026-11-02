@@ -264,6 +264,39 @@ export function flexibleConsultantBalanceHistory(
   ]);
 }
 
+/** Reconciles to the Earned share and Spent from balance totals in My finances. */
+export function consultantBalanceMovementHistory(
+  transactions: Array<
+    Pick<
+      FlexibleBalanceTransactionInput,
+      | "id"
+      | "direction"
+      | "date"
+      | "categoryId"
+      | "visibleDescription"
+      | "consultantBalanceDeltaMinor"
+    >
+  >,
+  movement: "earned" | "spent",
+) {
+  const sign = movement === "earned" ? 1 : -1;
+  return withRunningTotals(
+    transactions
+      .filter(
+        (transaction) => sign * transaction.consultantBalanceDeltaMinor > 0,
+      )
+      .map((transaction) => ({
+        id: `transaction:${transaction.id}`,
+        date: transaction.date,
+        kind: transaction.direction,
+        reference: "",
+        categoryId: transaction.categoryId,
+        description: transaction.visibleDescription,
+        changeMinor: sign * transaction.consultantBalanceDeltaMinor,
+      })),
+  );
+}
+
 export function flexibleConsultantRetainedResultHistory(
   invoices: FlexibleInvoiceHistoryInput[],
   transactions: FlexibleBalanceTransactionInput[],

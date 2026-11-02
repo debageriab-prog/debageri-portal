@@ -12,6 +12,7 @@ import {
   calculateVatMinor,
   companyBalanceDeltaMinor,
   companyOutstandingInvoiceShareMinor,
+  consultantBalanceMovementHistory,
   expenseTotalsByCategory,
   financeTotals,
   fixedConsultantRetainedResultHistory,
@@ -109,6 +110,35 @@ describe("finance calculations", () => {
       100_000, -25_000,
     ]);
     expect(result.at(-1)?.runningTotalMinor).toBe(75_000);
+  });
+
+  it("splits consultant balance movements into earned and spent histories", () => {
+    const movement = (id: string, date: string, delta: number) => ({
+      id,
+      direction: delta < 0 ? ("expense" as const) : ("income" as const),
+      date,
+      categoryId: "category",
+      visibleDescription: id,
+      consultantBalanceDeltaMinor: delta,
+    });
+    const transactions = [
+      movement("second-share", "2026-02-01", 30_000),
+      movement("first-share", "2026-01-01", 70_000),
+      movement("train", "2026-01-15", -20_000),
+      movement("laptop", "2026-02-15", -5_000),
+      movement("company-funded", "2026-02-20", 0),
+    ];
+
+    const earned = consultantBalanceMovementHistory(transactions, "earned");
+    const spent = consultantBalanceMovementHistory(transactions, "spent");
+
+    expect(earned.map((entry) => entry.description)).toEqual([
+      "first-share",
+      "second-share",
+    ]);
+    expect(earned.at(-1)?.runningTotalMinor).toBe(100_000);
+    expect(spent.map((entry) => entry.changeMinor)).toEqual([20_000, 5_000]);
+    expect(spent.at(-1)?.runningTotalMinor).toBe(25_000);
   });
 
   it("builds flexible consultant balance and retained-result histories", () => {

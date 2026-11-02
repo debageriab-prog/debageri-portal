@@ -62,8 +62,8 @@ export default async function FinancePage({
   const organizationInvoices = can(actor, "finance.invoices.view");
   const visibleSection = manager
     ? section
-    : section === "invoices"
-      ? "invoices"
+    : section === "invoices" || section === "transactions"
+      ? section
       : "overview";
   const { db } = getAdminServices();
   const organizationId = actor.organizationId;

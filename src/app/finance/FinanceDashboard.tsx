@@ -35,6 +35,7 @@ import {
   calculateShareMinor,
   companyOutstandingInvoiceShareMinor,
   companyBalanceDeltaMinor,
+  consultantBalanceMovementHistory,
   earnsInvoiceShare,
   expenseTotalsByCategory,
   FinanceHistoryEntry,
@@ -1137,6 +1138,7 @@ function ExpenseCategoryChart({
 function FinanceHistoryModal({
   title,
   description,
+  changeLabel,
   entries,
   locale,
   categoryName,
@@ -1144,6 +1146,7 @@ function FinanceHistoryModal({
 }: {
   title: string;
   description: string;
+  changeLabel?: string;
   entries: FinanceHistoryEntry[];
   locale: Actor["locale"];
   categoryName: (id: string) => string;
@@ -1186,7 +1189,7 @@ function FinanceHistoryModal({
                   <th>{t("date")}</th>
                   <th>{t("source")}</th>
                   <th>{t("description")}</th>
-                  <th>{t("balanceChange")}</th>
+                  <th>{changeLabel ?? t("balanceChange")}</th>
                   <th>{t("runningTotal")}</th>
                 </tr>
               </thead>
@@ -1277,21 +1280,29 @@ export function FinanceDashboard({
   const [expenseFundingFilter, setExpenseFundingFilter] =
     useState<ExpenseFundingFilter>("all");
   const [financeHistory, setFinanceHistory] = useState<
-    "netIncome" | "consultantBalance" | "retainedResult" | null
+    | "netIncome"
+    | "consultantBalance"
+    | "retainedResult"
+    | "earnedShare"
+    | "spentFromBalance"
+    | null
   >(null);
   const [viewingInvoice, setViewingInvoice] = useState<
     FinancePageData["invoices"][number] | null
   >(null);
   const [invoiceConsultantFilter, setInvoiceConsultantFilter] = useState("all");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
+  const latestListedTransaction = manager
+    ? data.transactions[0]
+    : data.transactions.find((item) => belongsToConsultant(item, actor.id));
   const initialTransactionListState = transactionListState(
     searchParams,
-    data.transactions[0]?.date.slice(0, 7) ?? today().slice(0, 7),
+    latestListedTransaction?.date.slice(0, 7) ?? today().slice(0, 7),
   );
   const [transactionConsultantFilter, setTransactionConsultantFilter] =
-    useState(initialTransactionListState.scope);
+    useState(manager ? initialTransactionListState.scope : actor.id);
   const [transactionPeriod, setTransactionPeriod] = useState<FinancePeriod>(
-    initialTransactionListState.period,
+    manager ? initialTransactionListState.period : "month",
   );
   const [transactionPeriodAnchor, setTransactionPeriodAnchor] = useState(
     initialTransactionListState.anchor,
@@ -1446,14 +1457,17 @@ export function FinanceDashboard({
     data.transactions,
     data.vatSettlements,
   );
-  const earnedShare = summaryTransactions.reduce(
-    (sum, item) => sum + Math.max(0, item.consultantBalanceDeltaMinor),
-    0,
+  const earnedShareHistory = consultantBalanceMovementHistory(
+    summaryTransactions,
+    "earned",
   );
-  const spentFromBalance = summaryTransactions.reduce(
-    (sum, item) => sum + Math.max(0, -item.consultantBalanceDeltaMinor),
-    0,
+  const spentFromBalanceHistory = consultantBalanceMovementHistory(
+    summaryTransactions,
+    "spent",
   );
+  const earnedShare = earnedShareHistory.at(-1)?.runningTotalMinor ?? 0;
+  const spentFromBalance =
+    spentFromBalanceHistory.at(-1)?.runningTotalMinor ?? 0;
   const consultantLiability = manager
     ? data.users
         .filter((user) => earnsInvoiceShare(user.compensationModel))
@@ -1760,6 +1774,21 @@ export function FinanceDashboard({
     transactions: t("incomeExpenseManagement"),
     customers: t("customerManagement"),
   }[section];
+  const transactionTotalsSummary: Array<[Parameters<typeof t>[0], number]> =
+    manager
+      ? [
+          ["totalIncomeExcludingVat", transactionListTotals.incomeNetMinor],
+          ["totalIncomeIncludingVat", transactionListTotals.incomeGrossMinor],
+          ["totalExpensesExcludingVat", transactionListTotals.expenseNetMinor],
+          [
+            "totalExpensesIncludingVat",
+            transactionListTotals.expenseGrossMinor,
+          ],
+        ]
+      : [
+          ["totalIncome", transactionListTotals.incomeNetMinor],
+          ["totalExpenses", transactionListTotals.expenseNetMinor],
+        ];
   return (
     <>
       <div className="topbar">
@@ -1773,7 +1802,11 @@ export function FinanceDashboard({
                 : t("consultantFinanceDescription")
               : section === "invoices" && !manager
                 ? t("consultantInvoicesDescription")
-                : t(`${section}SectionDescription` as Parameters<typeof t>[0])}
+                : section === "transactions" && !manager
+                  ? t("consultantTransactionsDescription")
+                  : t(
+                      `${section}SectionDescription` as Parameters<typeof t>[0],
+                    )}
           </p>
         </div>
       </div>
@@ -1803,20 +1836,34 @@ export function FinanceDashboard({
                   <small>{t("viewHistory")}</small>
                 </button>
               ) : (
-                <>
+                <button
+                  className="metric-button"
+                  type="button"
+                  onClick={() => setFinanceHistory("earnedShare")}
+                >
                   <span>{t("earnedShare")}</span>
                   <strong>{formatSek(earnedShare, locale)}</strong>
-                </>
+                  <small>{t("viewHistory")}</small>
+                </button>
               )}
             </div>
             <div className="metric">
-              <span>{manager ? t("netExpenses") : t("spentFromBalance")}</span>
-              <strong>
-                {formatSek(
-                  manager ? totals.expenseMinor : spentFromBalance,
-                  locale,
-                )}
-              </strong>
+              {manager ? (
+                <>
+                  <span>{t("netExpenses")}</span>
+                  <strong>{formatSek(totals.expenseMinor, locale)}</strong>
+                </>
+              ) : (
+                <button
+                  className="metric-button"
+                  type="button"
+                  onClick={() => setFinanceHistory("spentFromBalance")}
+                >
+                  <span>{t("spentFromBalance")}</span>
+                  <strong>{formatSek(spentFromBalance, locale)}</strong>
+                  <small>{t("viewHistory")}</small>
+                </button>
+              )}
             </div>
             {(selectedConsultant === "all" ||
               (selectedConsultant !== "company" &&
@@ -2378,89 +2425,95 @@ export function FinanceDashboard({
         </>
       )}
 
-      {manager && section === "transactions" && (
+      {section === "transactions" && (
         <>
-          <div className="actions finance-page-actions">
-            {can(actor, "finance.ledger.export") && (
+          {manager && (
+            <div className="actions finance-page-actions">
+              {can(actor, "finance.ledger.export") && (
+                <>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={downloadTransactionCsv}
+                  >
+                    {t("exportCsv")}
+                  </button>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={printTransactionPdf}
+                  >
+                    {t("exportPdf")}
+                  </button>
+                </>
+              )}
+              {canAddLedger && (
+                <Link
+                  className="button secondary"
+                  href="/finance/transactions/copy-expenses"
+                >
+                  {t("copyExpensesButton")}
+                </Link>
+              )}
+              {can(actor, "finance.ledger.import") && (
+                <Link
+                  className="button secondary"
+                  href="/finance/transactions/import"
+                >
+                  {t("csvImport")}
+                </Link>
+              )}
+              {canAddLedger && (
+                <Link
+                  className="button"
+                  href={transactionFormHref("/finance/transactions/new")}
+                >
+                  {t("addTransaction")}
+                </Link>
+              )}
+            </div>
+          )}
+          <section className="card finance-filter-bar finance-filter-bar-wide">
+            {manager && (
               <>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={downloadTransactionCsv}
-                >
-                  {t("exportCsv")}
-                </button>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={printTransactionPdf}
-                >
-                  {t("exportPdf")}
-                </button>
+                <label>
+                  {t("showFinancialDataFor")}
+                  <select
+                    className="field"
+                    value={transactionConsultantFilter}
+                    onChange={(event) =>
+                      setTransactionConsultantFilter(event.target.value)
+                    }
+                  >
+                    <option value="all">{t("allConsultantsAndCompany")}</option>
+                    <option value="company">{t("companyOnly")}</option>
+                    {data.users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {t("periodType")}
+                  <select
+                    className="field"
+                    value={transactionPeriod}
+                    onChange={(event) =>
+                      setTransactionPeriod(event.target.value as FinancePeriod)
+                    }
+                  >
+                    <option value="month">{t("month")}</option>
+                    <option value="year">{t("year")}</option>
+                    <option value="all">{t("allTime")}</option>
+                    <option value="range">{t("customDateRange")}</option>
+                  </select>
+                </label>
               </>
             )}
-            {canAddLedger && (
-              <Link
-                className="button secondary"
-                href="/finance/transactions/copy-expenses"
-              >
-                {t("copyExpensesButton")}
-              </Link>
-            )}
-            {can(actor, "finance.ledger.import") && (
-              <Link
-                className="button secondary"
-                href="/finance/transactions/import"
-              >
-                {t("csvImport")}
-              </Link>
-            )}
-            {canAddLedger && (
-              <Link
-                className="button"
-                href={transactionFormHref("/finance/transactions/new")}
-              >
-                {t("addTransaction")}
-              </Link>
-            )}
-          </div>
-          <section className="card finance-filter-bar finance-filter-bar-wide">
-            <label>
-              {t("showFinancialDataFor")}
-              <select
-                className="field"
-                value={transactionConsultantFilter}
-                onChange={(event) =>
-                  setTransactionConsultantFilter(event.target.value)
-                }
-              >
-                <option value="all">{t("allConsultantsAndCompany")}</option>
-                <option value="company">{t("companyOnly")}</option>
-                {data.users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.displayName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              {t("periodType")}
-              <select
-                className="field"
-                value={transactionPeriod}
-                onChange={(event) =>
-                  setTransactionPeriod(event.target.value as FinancePeriod)
-                }
-              >
-                <option value="month">{t("month")}</option>
-                <option value="year">{t("year")}</option>
-                <option value="all">{t("allTime")}</option>
-                <option value="range">{t("customDateRange")}</option>
-              </select>
-            </label>
             {transactionPeriod === "month" && (
               <div className="finance-filter-control">
-                <span>{t("chartPeriod")}</span>
+                <span>{manager ? t("chartPeriod") : t("month")}</span>
                 <div className="month-stepper">
                   <button
                     className="button secondary month-step-button"
@@ -2550,38 +2603,19 @@ export function FinanceDashboard({
             </label>
           </section>
           <section
-            className="transaction-period-summary"
+            className={`transaction-period-summary${manager ? "" : " transaction-period-summary-pair"}`}
             aria-label={t("periodTotals")}
           >
-            <div>
-              <span>{t("totalIncomeExcludingVat")}</span>
-              <strong>
-                {formatSek(transactionListTotals.incomeNetMinor, locale)}
-              </strong>
-            </div>
-            <div>
-              <span>{t("totalIncomeIncludingVat")}</span>
-              <strong>
-                {formatSek(transactionListTotals.incomeGrossMinor, locale)}
-              </strong>
-            </div>
-            <div>
-              <span>{t("totalExpensesExcludingVat")}</span>
-              <strong>
-                {formatSek(transactionListTotals.expenseNetMinor, locale)}
-              </strong>
-            </div>
-            <div>
-              <span>{t("totalExpensesIncludingVat")}</span>
-              <strong>
-                {formatSek(transactionListTotals.expenseGrossMinor, locale)}
-              </strong>
-            </div>
+            {transactionTotalsSummary.map(([label, amountMinor]) => (
+              <div key={label}>
+                <span>{t(label)}</span>
+                <strong>{formatSek(amountMinor, locale)}</strong>
+              </div>
+            ))}
           </section>
         </>
       )}
-      {((manager && section === "transactions") ||
-        (!manager && section === "overview")) && (
+      {section === "transactions" && (
         <section className="card table-wrap">
           <h2>{t("transactions")}</h2>
           <table>
@@ -2602,10 +2636,7 @@ export function FinanceDashboard({
               </tr>
             </thead>
             <tbody>
-              {(manager && section === "transactions"
-                ? transactionListTransactions
-                : visibleOverviewTransactions
-              ).map((transaction) => (
+              {transactionListTransactions.map((transaction) => (
                 <tr key={transaction.id}>
                   <td>{transaction.date}</td>
                   <td>
@@ -3049,6 +3080,27 @@ export function FinanceDashboard({
           title={manager ? t("consultantLiability") : t("remainingBalance")}
           description={t("consultantBalanceHistoryDescription")}
           entries={consultantBalanceHistory}
+          locale={locale}
+          categoryName={categoryName}
+          close={() => setFinanceHistory(null)}
+        />
+      )}
+      {financeHistory === "earnedShare" && (
+        <FinanceHistoryModal
+          title={t("earnedShare")}
+          description={t("earnedShareHistoryDescription")}
+          entries={earnedShareHistory}
+          locale={locale}
+          categoryName={categoryName}
+          close={() => setFinanceHistory(null)}
+        />
+      )}
+      {financeHistory === "spentFromBalance" && (
+        <FinanceHistoryModal
+          title={t("spentFromBalance")}
+          description={t("spentFromBalanceHistoryDescription")}
+          changeLabel={t("amount")}
+          entries={spentFromBalanceHistory}
           locale={locale}
           categoryName={categoryName}
           close={() => setFinanceHistory(null)}

@@ -145,7 +145,13 @@ function financeItems(user: PortalUser, t: Translate): NavItem[] {
       .map(([, item]) => item);
   return [
     ...(canViewMyFinance(user)
-      ? [{ label: t("myFinances"), href: "/finance" }]
+      ? [
+          { label: t("myFinances"), href: "/finance" },
+          {
+            label: t("incomeExpenseManagement"),
+            href: "/finance?section=transactions",
+          },
+        ]
       : []),
     ...(can(user, "my.invoices")
       ? [{ label: t("myInvoices"), href: "/finance?section=invoices" }]
