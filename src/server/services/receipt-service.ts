@@ -21,16 +21,23 @@ export class ReceiptError extends Error {
   }
 }
 
-const submitterRoles = ["employee", "consultant", "manager"];
+export const SUBMITTER_ROLES = [
+  "employee",
+  "consultant",
+  "manager",
+  "accountant",
+];
 
 export const canReviewReceipts = (actor: PortalUser) =>
   can(actor, "documents.receipts.review");
 export const canBookReceipts = (actor: PortalUser) =>
   can(actor, "documents.receipts.book") && can(actor, "finance.ledger.edit");
+export const canViewOwnReceipts = (actor: PortalUser) =>
+  SUBMITTER_ROLES.includes(actor.role) && can(actor, "my.receipts");
 export const canSubmitReceipts = (actor: PortalUser) =>
-  submitterRoles.includes(actor.role) && can(actor, "my.receipts");
+  canViewOwnReceipts(actor) && can(actor, "my.receipts.upload");
 export const canUseReceipts = (actor: PortalUser) =>
-  canReviewReceipts(actor) || canSubmitReceipts(actor);
+  canReviewReceipts(actor) || canViewOwnReceipts(actor);
 
 export function receiptVisible(
   actor: PortalUser,
@@ -38,7 +45,7 @@ export function receiptVisible(
 ) {
   if (data.organizationId !== actor.organizationId) return false;
   if (canReviewReceipts(actor)) return true;
-  return canSubmitReceipts(actor) && data.userId === actor.id;
+  return canViewOwnReceipts(actor) && data.userId === actor.id;
 }
 
 async function audit(

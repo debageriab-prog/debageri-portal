@@ -119,10 +119,11 @@ export default async function FinancePage({
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
-    can(actor, "finance.compensation.view")
+    organizationLedger
       ? db
           .collection("compensationAgreements")
           .where("organizationId", "==", organizationId)
+          .where("model", "==", "hybrid")
           .get()
       : manager
         ? Promise.resolve(null)

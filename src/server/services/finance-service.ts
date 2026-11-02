@@ -154,7 +154,7 @@ export async function setCompensation(
     confirmation?: typeof COMPENSATION_END_CONFIRMATION;
   },
 ) {
-  requireFinancePermission(actor, "finance.compensation.edit");
+  if (actor.role !== "admin") throw new FinanceError("forbidden", 403);
   const user = await db.collection("users").doc(input.userId).get();
   if (
     !user.exists ||
@@ -245,7 +245,7 @@ export async function setCompensationValidTo(
   actor: PortalUser,
   input: { agreementId: string; validTo: string },
 ) {
-  requireFinancePermission(actor, "finance.compensation.edit");
+  if (actor.role !== "admin") throw new FinanceError("forbidden", 403);
   const reference = db
     .collection("compensationAgreements")
     .doc(input.agreementId);

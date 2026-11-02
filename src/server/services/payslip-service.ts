@@ -22,14 +22,21 @@ export class PayslipError extends Error {
   }
 }
 
-const recipientRoles = ["employee", "consultant", "manager"];
+export const RECIPIENT_ROLES = [
+  "employee",
+  "consultant",
+  "manager",
+  "accountant",
+];
 
-export const canManagePayslips = (actor: PortalUser) =>
-  can(actor, "documents.payslips.edit");
+export const canUploadPayslips = (actor: PortalUser) =>
+  can(actor, "documents.payslips.upload");
+export const canDeletePayslips = (actor: PortalUser) =>
+  can(actor, "documents.payslips.delete");
 export const canReadAllPayslips = (actor: PortalUser) =>
   can(actor, "documents.payslips.view");
 export const canViewOwnPayslips = (actor: PortalUser) =>
-  recipientRoles.includes(actor.role) && can(actor, "my.payslips");
+  RECIPIENT_ROLES.includes(actor.role) && can(actor, "my.payslips");
 export const canReadPayslips = (actor: PortalUser) =>
   canReadAllPayslips(actor) || canViewOwnPayslips(actor);
 
@@ -65,7 +72,7 @@ export async function uploadPayslip(
     !recipientData ||
     recipientData.organizationId !== actor.organizationId ||
     !receivesDocuments(recipientData) ||
-    !recipientRoles.includes(String(recipientData.role))
+    !RECIPIENT_ROLES.includes(String(recipientData.role))
   )
     throw new PayslipError("invalidRecipient");
   const period = payslipPeriod(input.year, input.month);

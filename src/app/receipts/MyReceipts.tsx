@@ -16,10 +16,12 @@ export function MyReceipts({
   receipts,
   currentPeriod,
   submitted,
+  canUpload,
 }: {
   receipts: ReceiptItem[];
   currentPeriod: string;
   submitted: boolean;
+  canUpload: boolean;
 }) {
   const { t, locale } = useLocale();
   const [period, setPeriod] = useState<string | null>(currentPeriod);
@@ -34,9 +36,11 @@ export function MyReceipts({
           <h1>{t("myReceipts")}</h1>
           <p className="muted page-description">{t("myReceiptsDescription")}</p>
         </div>
-        <Link className="button" href="/receipts/new">
-          {t("uploadReceipt")}
-        </Link>
+        {canUpload && (
+          <Link className="button" href="/receipts/new">
+            {t("uploadReceipt")}
+          </Link>
+        )}
       </div>
       {submitted && (
         <p className="notice notice-success" role="status">

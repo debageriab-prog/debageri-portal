@@ -15,8 +15,12 @@ export class ContractError extends Error {
   }
 }
 
-export const canManageContracts = (actor: PortalUser) =>
+export const canAddContracts = (actor: PortalUser) =>
+  can(actor, "documents.contracts.add");
+export const canEditContracts = (actor: PortalUser) =>
   can(actor, "documents.contracts.edit");
+export const canDeleteContracts = (actor: PortalUser) =>
+  can(actor, "documents.contracts.delete");
 export const canReadAllContracts = (actor: PortalUser) =>
   can(actor, "documents.contracts.view");
 export const canReadContracts = (actor: PortalUser) =>

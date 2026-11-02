@@ -31,7 +31,9 @@ export default async function TimeReportPage({
   const user = userDoc.data()!;
   const consultant = ["employee", "consultant"].includes(String(user.role));
   const adminVisible =
-    consultant || (user.role === "manager" && user.reportsTime === true);
+    consultant ||
+    (["manager", "accountant"].includes(String(user.role)) &&
+      user.reportsTime === true);
   if (
     (actor.role === "accountant" && !consultant) ||
     (actor.role === "manager" && !consultant) ||

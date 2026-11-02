@@ -129,6 +129,8 @@ export function canReview(
     return false;
   if (["employee", "consultant"].includes(subject.role)) return true;
   return (
-    actor.role === "admin" && subject.role === "manager" && subject.reportsTime
+    actor.role === "admin" &&
+    ["manager", "accountant"].includes(subject.role) &&
+    subject.reportsTime
   );
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { can } from "@/domain/access/permissions";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 
@@ -14,6 +15,8 @@ export async function DELETE(
   const sheet = await db.collection("timesheets").doc(id).get();
   if (!sheet.exists || sheet.data()?.userId !== user.id)
     return NextResponse.json({ error: "notFound" }, { status: 404 });
+  if (!can(user, "my.time.report"))
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   if (!["draft", "submitted"].includes(String(sheet.data()?.status)))
     return NextResponse.json({ error: "deleteProtected" }, { status: 409 });
   const body = (await request.json().catch(() => null)) as {

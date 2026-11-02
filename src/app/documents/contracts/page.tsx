@@ -1,6 +1,8 @@
 import { getAdminServices } from "@/lib/firebase/admin";
 import {
-  canManageContracts,
+  canAddContracts,
+  canDeleteContracts,
+  canEditContracts,
   canReadAllContracts,
 } from "@/server/services/contract-service";
 import { verifySession } from "@/server/auth/session";
@@ -52,7 +54,9 @@ export default async function ContractsPage() {
   return (
     <ContractList
       contracts={contracts}
-      canManage={canManageContracts(actor)}
+      canAdd={canAddContracts(actor)}
+      canEdit={canEditContracts(actor)}
+      canDelete={canDeleteContracts(actor)}
       viewerIsConsultant={!canReadAllContracts(actor)}
     />
   );

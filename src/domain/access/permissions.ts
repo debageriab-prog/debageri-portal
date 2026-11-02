@@ -14,8 +14,6 @@ export const PERMISSION_KEYS = [
   "finance.categories.edit",
   "finance.vat.view",
   "finance.vat.edit",
-  "finance.compensation.view",
-  "finance.compensation.edit",
   "finance.accountingEmail",
   "finance.aiExtraction",
   "time.reports.view",
@@ -25,16 +23,23 @@ export const PERMISSION_KEYS = [
   "time.reminders.send",
   "time.reminders.schedule",
   "documents.contracts.view",
+  "documents.contracts.add",
   "documents.contracts.edit",
+  "documents.contracts.delete",
   "documents.payslips.view",
-  "documents.payslips.edit",
+  "documents.payslips.upload",
+  "documents.payslips.delete",
   "documents.receipts.review",
   "documents.receipts.book",
+  "my.time.report",
+  "my.time.history",
+  "my.time.income",
   "my.finance",
   "my.invoices",
   "my.contracts",
   "my.payslips",
   "my.receipts",
+  "my.receipts.upload",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -43,50 +48,21 @@ export type PermissionNode = {
   children?: PermissionNode[];
 };
 export type PermissionGroup = {
-  id: "finance" | "time" | "documents" | "my";
+  id: "time" | "finance" | "documents" | "receipts";
   nodes: PermissionNode[];
 };
 export type ProfileAudience = "consultant" | "staff";
 
+/** Follows the portal's menu, so each group matches what people see. */
 export const PERMISSION_TREE: PermissionGroup[] = [
-  {
-    id: "finance",
-    nodes: [
-      {
-        key: "finance.ledger.view",
-        children: [
-          { key: "finance.ledger.edit" },
-          { key: "finance.ledger.import" },
-          { key: "finance.ledger.export" },
-        ],
-      },
-      {
-        key: "finance.invoices.view",
-        children: [
-          { key: "finance.invoices.edit" },
-          { key: "finance.invoices.import" },
-        ],
-      },
-      {
-        key: "finance.customers.view",
-        children: [{ key: "finance.customers.edit" }],
-      },
-      {
-        key: "finance.categories.view",
-        children: [{ key: "finance.categories.edit" }],
-      },
-      { key: "finance.vat.view", children: [{ key: "finance.vat.edit" }] },
-      {
-        key: "finance.compensation.view",
-        children: [{ key: "finance.compensation.edit" }],
-      },
-      { key: "finance.accountingEmail" },
-      { key: "finance.aiExtraction" },
-    ],
-  },
   {
     id: "time",
     nodes: [
+      { key: "my.time.report" },
+      {
+        key: "my.time.history",
+        children: [{ key: "my.time.income" }],
+      },
       {
         key: "time.reports.view",
         children: [{ key: "time.reports.viewIncome" }],
@@ -102,30 +78,68 @@ export const PERMISSION_TREE: PermissionGroup[] = [
     ],
   },
   {
+    id: "finance",
+    nodes: [
+      { key: "my.finance" },
+      { key: "my.invoices" },
+      {
+        key: "finance.ledger.view",
+        children: [
+          { key: "finance.ledger.edit" },
+          { key: "finance.ledger.import" },
+          { key: "finance.ledger.export" },
+        ],
+      },
+      {
+        key: "finance.invoices.view",
+        children: [
+          { key: "finance.invoices.edit" },
+          { key: "finance.invoices.import" },
+        ],
+      },
+      { key: "finance.vat.view", children: [{ key: "finance.vat.edit" }] },
+      {
+        key: "finance.categories.view",
+        children: [{ key: "finance.categories.edit" }],
+      },
+      {
+        key: "finance.customers.view",
+        children: [{ key: "finance.customers.edit" }],
+      },
+      { key: "finance.accountingEmail" },
+      { key: "finance.aiExtraction" },
+    ],
+  },
+  {
     id: "documents",
     nodes: [
+      { key: "my.contracts" },
+      { key: "my.payslips" },
       {
         key: "documents.contracts.view",
-        children: [{ key: "documents.contracts.edit" }],
+        children: [
+          { key: "documents.contracts.add" },
+          { key: "documents.contracts.edit" },
+          { key: "documents.contracts.delete" },
+        ],
       },
       {
         key: "documents.payslips.view",
-        children: [{ key: "documents.payslips.edit" }],
-      },
-      {
-        key: "documents.receipts.review",
-        children: [{ key: "documents.receipts.book" }],
+        children: [
+          { key: "documents.payslips.upload" },
+          { key: "documents.payslips.delete" },
+        ],
       },
     ],
   },
   {
-    id: "my",
+    id: "receipts",
     nodes: [
-      { key: "my.finance" },
-      { key: "my.invoices" },
-      { key: "my.contracts" },
-      { key: "my.payslips" },
-      { key: "my.receipts" },
+      { key: "my.receipts", children: [{ key: "my.receipts.upload" }] },
+      {
+        key: "documents.receipts.review",
+        children: [{ key: "documents.receipts.book" }],
+      },
     ],
   },
 ];
@@ -265,6 +279,7 @@ export const FINANCE_ENTITY_PERMISSIONS = {
 >;
 
 const FALLBACK_PAGES: Array<[PermissionKey, string]> = [
+  ["my.time.history", "/employee/timesheets"],
   ["my.finance", "/finance"],
   ["my.invoices", "/finance?section=invoices"],
   ["documents.contracts.view", "/documents/contracts"],
@@ -276,16 +291,33 @@ const FALLBACK_PAGES: Array<[PermissionKey, string]> = [
   ["time.reminders.view", "/reminders"],
 ];
 
-export function homePath(user: Holder & { reportsTime: boolean }) {
+type Reporter = Holder & { reportsTime: boolean };
+
+/** Being expected to report is set per person; the profile opens the pages. */
+export const canReportTime = (user: Reporter) =>
+  user.reportsTime && can(user, "my.time.report");
+export const canViewOwnHistory = (user: Reporter) =>
+  user.reportsTime && can(user, "my.time.history");
+
+export function homePath(user: Reporter) {
   if (can(user, "time.approvals.review")) return "/manager/approvals";
   if (can(user, "time.reports.view")) return "/time-reports";
-  if (user.reportsTime) return "/employee/timesheets/current";
+  if (canReportTime(user)) return "/employee/timesheets/current";
   return (
     financeHome(user) ??
-    FALLBACK_PAGES.find(([key]) => can(user, key))?.[1] ??
+    FALLBACK_PAGES.find(
+      ([key]) =>
+        can(user, key) && (!key.startsWith("my.time.") || user.reportsTime),
+    )?.[1] ??
     "/unauthorized"
   );
 }
+
+const ownTimePermissions: PermissionKey[] = [
+  "my.time.report",
+  "my.time.history",
+  "my.time.income",
+];
 
 const managerPermissions: PermissionKey[] = [
   "time.reports.view",
@@ -295,7 +327,10 @@ const managerPermissions: PermissionKey[] = [
   "time.reminders.send",
   "time.reminders.schedule",
   "documents.contracts.view",
+  "documents.contracts.add",
   "documents.contracts.edit",
+  "documents.contracts.delete",
+  ...ownTimePermissions,
 ];
 
 const accountantPermissions: PermissionKey[] = [
@@ -311,7 +346,6 @@ const accountantPermissions: PermissionKey[] = [
   "finance.categories.view",
   "finance.vat.view",
   "finance.vat.edit",
-  "finance.compensation.view",
   "finance.accountingEmail",
   "finance.aiExtraction",
   "time.reports.view",
@@ -321,10 +355,17 @@ const accountantPermissions: PermissionKey[] = [
   "time.reminders.schedule",
   "documents.contracts.view",
   "documents.payslips.view",
-  "documents.payslips.edit",
+  "documents.payslips.upload",
+  "documents.payslips.delete",
   "documents.receipts.review",
   "documents.receipts.book",
+  ...ownTimePermissions,
 ];
+
+/** Admins do everything for the company and have no own records to open. */
+const ADMIN_PERMISSIONS = PERMISSION_KEYS.filter(
+  (key) => !key.startsWith("my."),
+);
 
 /** The profiles that reproduce what each role could do before profiles. */
 export const DEFAULT_PROFILES = [
@@ -359,10 +400,14 @@ export function legacyPermissions(
   financeAccess?: Partial<FinanceAccess> | null,
   documentAccess?: Partial<DocumentAccess> | null,
 ): PermissionKey[] {
-  if (role === "admin") return [...PERMISSION_KEYS];
-  if (role === "accountant") return accountantPermissions;
+  if (role === "admin") return [...ADMIN_PERMISSIONS];
+  if (role === "accountant") return [...accountantPermissions];
   const keys: PermissionKey[] =
-    role === "manager" ? [...managerPermissions] : [];
+    role === "manager"
+      ? [...managerPermissions]
+      : ["consultant", "employee"].includes(role)
+        ? [...ownTimePermissions]
+        : [];
   if (role === "consultant") {
     if (financeAccess?.enabled && financeAccess.myFinance)
       keys.push("my.finance");
@@ -372,7 +417,8 @@ export function legacyPermissions(
   }
   if (["employee", "consultant", "manager"].includes(role)) {
     if (documentAccess?.payslips) keys.push("my.payslips");
-    if (documentAccess?.receipts) keys.push("my.receipts");
+    if (documentAccess?.receipts)
+      keys.push("my.receipts", "my.receipts.upload");
   }
   return keys;
 }
@@ -398,7 +444,7 @@ export function resolvePermissions(
   },
   profile: StoredProfile | null,
 ): PermissionKey[] {
-  if (user.role === "admin") return [...PERMISSION_KEYS];
+  if (user.role === "admin") return [...ADMIN_PERMISSIONS];
   if (!user.accessProfileId)
     return legacyPermissions(
       user.role,

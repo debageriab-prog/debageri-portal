@@ -9,6 +9,7 @@ import {
   timesheetPartId,
 } from "@/lib/dates/iso-week";
 import { verifySession } from "@/server/auth/session";
+import { canReportTime } from "@/domain/access/permissions";
 import { isAfterEmployment, isEditable } from "@/domain/timesheets/rules";
 import type { TimeCode, Timesheet } from "@/domain/types";
 
@@ -36,7 +37,7 @@ const weekQuerySchema = z.object({
 
 async function loadCurrent(request: Request) {
   const user = await verifySession();
-  if (!user || !user.reportsTime) return null;
+  if (!user || !canReportTime(user)) return null;
   const { db } = getAdminServices();
   const today = new Date().toISOString().slice(0, 10);
   let current = getIsoWeek(today);

@@ -30,7 +30,7 @@ const inputSchema = z
   .superRefine((value, context) => {
     const expectedReportsTime =
       value.role === "consultant" ||
-      (value.role === "manager" && value.reportsTime);
+      (["manager", "accountant"].includes(value.role) && value.reportsTime);
     if (value.reportsTime !== expectedReportsTime)
       context.addIssue({
         code: "custom",

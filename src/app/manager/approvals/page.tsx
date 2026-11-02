@@ -30,7 +30,9 @@ export default async function ApprovalsPage() {
     if (!user) return false;
     const consultant = ["employee", "consultant"].includes(String(user.role));
     return actor.role === "admin"
-      ? consultant || (user.role === "manager" && user.reportsTime === true)
+      ? consultant ||
+          (["manager", "accountant"].includes(String(user.role)) &&
+            user.reportsTime === true)
       : consultant;
   });
   const reportedBreakdowns = new Map<

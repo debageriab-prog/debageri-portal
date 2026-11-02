@@ -4,7 +4,10 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { permissionResolver } from "@/server/auth/permissions";
 import { verifySession } from "@/server/auth/session";
-import { canManagePayslips } from "@/server/services/payslip-service";
+import {
+  canUploadPayslips,
+  RECIPIENT_ROLES,
+} from "@/server/services/payslip-service";
 import { receivesDocuments } from "@/server/validators/user-access";
 import { PayslipUploadForm } from "./PayslipUploadForm";
 
@@ -14,14 +17,14 @@ export default async function UploadPayslipsPage({
   searchParams: Promise<{ period?: string }>;
 }) {
   const actor = (await verifySession())!;
-  if (!canManagePayslips(actor)) redirect("/unauthorized");
+  if (!canUploadPayslips(actor)) redirect("/unauthorized");
   const t = await getTranslator();
   const { db } = getAdminServices();
   const [users, permissionsFor] = await Promise.all([
     db
       .collection("users")
       .where("organizationId", "==", actor.organizationId)
-      .where("role", "in", ["employee", "consultant", "manager"])
+      .where("role", "in", RECIPIENT_ROLES)
       .get(),
     permissionResolver(db, actor.organizationId),
   ]);

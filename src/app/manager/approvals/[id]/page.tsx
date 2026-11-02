@@ -32,7 +32,9 @@ export default async function ReviewPage({
   const allowed =
     sheet.organizationId === actor.organizationId &&
     (actor.role === "admin"
-      ? consultant || (user?.role === "manager" && user?.reportsTime === true)
+      ? consultant ||
+        (["manager", "accountant"].includes(String(user?.role)) &&
+          user?.reportsTime === true)
       : consultant);
   if (!allowed) redirect("/unauthorized");
   const reportedBreakdown = aggregateReportedBreakdown(

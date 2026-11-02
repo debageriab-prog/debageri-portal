@@ -5,6 +5,8 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   can,
+  canReportTime,
+  canViewOwnHistory,
   hasOrganizationFinance,
   type PermissionKey,
 } from "@/domain/access/permissions";
@@ -156,19 +158,37 @@ function documentItems(user: PortalUser, t: Translate): NavItem[] {
     ...(can(user, "documents.contracts.view") || can(user, "my.contracts")
       ? [{ label: t("contracts"), href: "/documents/contracts" }]
       : []),
-    ...(can(user, "documents.payslips.view") || can(user, "my.payslips")
+    ...(can(user, "documents.payslips.view")
       ? [{ label: t("payslips"), href: "/documents/payslips" }]
+      : []),
+    ...(can(user, "my.payslips")
+      ? [
+          can(user, "documents.payslips.view")
+            ? {
+                label: t("permission_my_payslips"),
+                href: "/documents/payslips?mine=1",
+              }
+            : { label: t("payslips"), href: "/documents/payslips" },
+        ]
       : []),
   ];
 }
 
 function receiptItems(user: PortalUser, t: Translate): NavItem[] {
-  if (can(user, "documents.receipts.review"))
-    return [{ label: t("reviewReceipts"), href: "/receipts" }];
-  if (!can(user, "my.receipts")) return [];
+  const reviews = can(user, "documents.receipts.review");
   return [
-    { label: t("myReceipts"), href: "/receipts" },
-    { label: t("uploadReceipt"), href: "/receipts/new" },
+    ...(reviews ? [{ label: t("reviewReceipts"), href: "/receipts" }] : []),
+    ...(can(user, "my.receipts")
+      ? [
+          {
+            label: t("myReceipts"),
+            href: reviews ? "/receipts?mine=1" : "/receipts",
+          },
+        ]
+      : []),
+    ...(can(user, "my.receipts.upload")
+      ? [{ label: t("uploadReceipt"), href: "/receipts/new" }]
+      : []),
   ];
 }
 
@@ -199,15 +219,19 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
       id: "time-reporting",
       label: t("timeReport"),
       icon: "clock",
-      items: user.reportsTime
-        ? [
-            {
-              label: t("reportTimeTitle"),
-              href: "/employee/timesheets/current",
-            },
-            { label: t("history"), href: "/employee/timesheets" },
-          ]
-        : [],
+      items: [
+        ...(canReportTime(user)
+          ? [
+              {
+                label: t("reportTimeTitle"),
+                href: "/employee/timesheets/current",
+              },
+            ]
+          : []),
+        ...(canViewOwnHistory(user)
+          ? [{ label: t("history"), href: "/employee/timesheets" }]
+          : []),
+      ],
     },
     {
       id: "time-reports",
@@ -256,8 +280,11 @@ function itemMatchesRoute(
   item: NavItem,
   pathname: string,
   financeSection: string | null,
+  mine: string | null,
 ) {
   const [targetPath, targetQuery] = item.href.split("?");
+  if ((new URLSearchParams(targetQuery).get("mine") ?? null) !== mine)
+    return false;
   if (targetPath === "/finance") {
     const targetSection = new URLSearchParams(targetQuery).get("section");
     return pathname.startsWith("/finance") && financeSection === targetSection;
@@ -283,7 +310,14 @@ export function PortalShell({
   const financeSection = searchParams.get("section") ?? pathFinanceSection;
   const activeItemHref = groups
     .flatMap((group) => group.items)
-    .filter((item) => itemMatchesRoute(item, pathname, financeSection))
+    .filter((item) =>
+      itemMatchesRoute(
+        item,
+        pathname,
+        financeSection,
+        searchParams.get("mine"),
+      ),
+    )
     .sort((left, right) => right.href.length - left.href.length)[0]?.href;
   const activeGroupId = groups.find((group) =>
     group.items.some((item) => item.href === activeItemHref),

@@ -103,7 +103,8 @@ export async function PATCH(
       reportsTime:
         parsed.data.role === "consultant" ||
         parsed.data.role === "employee" ||
-        (parsed.data.role === "manager" && parsed.data.reportsTime),
+        (["manager", "accountant"].includes(parsed.data.role) &&
+          parsed.data.reportsTime),
       organizationId: loaded.actor.organizationId,
     });
     const batch = loaded.db.batch();
@@ -115,7 +116,8 @@ export async function PATCH(
       reportsTime:
         parsed.data.role === "consultant" ||
         parsed.data.role === "employee" ||
-        (parsed.data.role === "manager" && parsed.data.reportsTime),
+        (["manager", "accountant"].includes(parsed.data.role) &&
+          parsed.data.reportsTime),
       status: parsed.data.status,
       employmentStartDate: parsed.data.employmentStartDate,
       employmentEndDate: parsed.data.employmentEndDate,

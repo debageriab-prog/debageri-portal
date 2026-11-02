@@ -7,14 +7,14 @@ import {
 import { verifySession } from "@/server/auth/session";
 import { parsePayslipForm } from "@/server/validators/payslips";
 import {
-  canManagePayslips,
+  canUploadPayslips,
   PayslipError,
   uploadPayslip,
 } from "@/server/services/payslip-service";
 
 export async function POST(request: Request) {
   const actor = await verifySession();
-  if (!actor || !canManagePayslips(actor))
+  if (!actor || !canUploadPayslips(actor))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const form = await request.formData();
   const parsed = parsePayslipForm(form);

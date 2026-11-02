@@ -285,7 +285,8 @@ export function notifyTimesheetSubmitted(
       await usersWhoCan(db, organizationId, "time.approvals.review")
     ).filter(
       (reviewer) =>
-        (reviewer.data.role === "admin") === (owner.data.role === "manager"),
+        (reviewer.data.role === "admin") ===
+        ["manager", "accountant"].includes(String(owner.data.role)),
     );
     await deliver(
       db,

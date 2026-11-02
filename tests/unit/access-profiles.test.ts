@@ -6,11 +6,11 @@ import {
   type BackfillUser,
 } from "@/domain/access/backfill";
 import {
+  canReportTime,
   financeHome,
   homePath,
   legacyPermissions,
   PERMISSION_KEYS,
-  permissionsForAudience,
   permissionTreeFor,
   togglePermission,
   type PermissionKey,
@@ -89,20 +89,53 @@ describe("togglePermission", () => {
 });
 
 describe("permissionTreeFor", () => {
-  it("shows consultants only their own data", () => {
+  it("gives consultants the portal's menu with their own pages", () => {
     const tree = permissionTreeFor("consultant");
-    expect(tree.map((group) => group.id)).toEqual(["my"]);
-    expect(tree[0]!.nodes.map((node) => node.key)).toEqual(
-      permissionsForAudience("consultant"),
-    );
+    expect(tree.map((group) => group.id)).toEqual([
+      "time",
+      "finance",
+      "documents",
+      "receipts",
+    ]);
+    expect(tree[0]!.nodes).toEqual([
+      { key: "my.time.report" },
+      { key: "my.time.history", children: [{ key: "my.time.income" }] },
+    ]);
   });
 
-  it("keeps consultant-only rows out of the staff tree", () => {
-    const own = permissionTreeFor("staff").find((group) => group.id === "my");
-    expect(own?.nodes.map((node) => node.key)).toEqual([
-      "my.payslips",
-      "my.receipts",
-    ]);
+  it("keeps consultant-only rows out of the office staff tree", () => {
+    const keys = permissionTreeFor("staff").flatMap((group) =>
+      group.nodes.map((node) => node.key),
+    );
+    expect(keys).toContain("my.payslips");
+    expect(keys).toContain("my.receipts");
+    expect(keys).not.toContain("my.finance");
+    expect(keys).not.toContain("my.contracts");
+  });
+});
+
+describe("own time reporting", () => {
+  const history: PermissionKey[] = ["my.time.history"];
+
+  it("needs both the profile and being expected to report", () => {
+    expect(
+      canReportTime({ reportsTime: true, permissions: ["my.time.report"] }),
+    ).toBe(true);
+    expect(canReportTime({ reportsTime: true, permissions: history })).toBe(
+      false,
+    );
+    expect(
+      canReportTime({ reportsTime: false, permissions: ["my.time.report"] }),
+    ).toBe(false);
+  });
+
+  it("sends a history-only person to History", () => {
+    expect(homePath({ reportsTime: true, permissions: history })).toBe(
+      "/employee/timesheets",
+    );
+    expect(homePath({ reportsTime: false, permissions: history })).toBe(
+      "/unauthorized",
+    );
   });
 });
 
@@ -167,7 +200,13 @@ describe("planBackfill", () => {
     );
     const created = plan.newProfiles.filter((item) => !item.defaultForRole);
     expect(created).toHaveLength(1);
-    expect(created[0]!.permissions).toEqual(["my.finance", "my.contracts"]);
+    expect(created[0]!.permissions).toEqual([
+      "my.time.report",
+      "my.time.history",
+      "my.time.income",
+      "my.finance",
+      "my.contracts",
+    ]);
     expect(created[0]!.name).toBe("Consultant: my finances, contracts");
     expect(new Set(plan.assignments.map((item) => item.profileId)).size).toBe(
       1,
@@ -225,7 +264,7 @@ describe("permission labels", () => {
     const known = keys(messages);
     for (const key of PERMISSION_KEYS)
       expect(known.has(`permission_${key.replaceAll(".", "_")}`)).toBe(true);
-    for (const group of ["finance", "time", "documents", "my"])
+    for (const group of ["time", "finance", "documents", "receipts"])
       expect(known.has(`permissionGroup_${group}`)).toBe(true);
   });
 });

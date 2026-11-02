@@ -11,7 +11,9 @@ function visibleUser(actorRole: string, user: FirebaseFirestore.DocumentData) {
   const role = String(user.role);
   if (["employee", "consultant"].includes(role)) return true;
   return (
-    actorRole === "admin" && role === "manager" && user.reportsTime === true
+    actorRole === "admin" &&
+    ["manager", "accountant"].includes(role) &&
+    user.reportsTime === true
   );
 }
 

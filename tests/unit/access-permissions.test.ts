@@ -21,6 +21,7 @@ const allFlags = {
   finance: { enabled: true, myFinance: true, myInvoices: true },
   documents: { contracts: true, payslips: true, receipts: true },
 };
+const ownTime = ["my.time.report", "my.time.history", "my.time.income"];
 const orgWide = (role: string) =>
   legacyPermissions(role, noFlags.finance, noFlags.documents);
 
@@ -41,8 +42,6 @@ const matrix: Array<[PermissionKey, manager: boolean, accountant: boolean]> = [
   ["finance.aiExtraction", false, true],
   ["finance.categories.view", false, true],
   ["finance.categories.edit", false, false],
-  ["finance.compensation.view", false, true],
-  ["finance.compensation.edit", false, false],
   ["time.reports.view", true, true],
   ["time.reports.viewIncome", true, true],
   ["time.approvals.review", true, false],
@@ -50,9 +49,12 @@ const matrix: Array<[PermissionKey, manager: boolean, accountant: boolean]> = [
   ["time.reminders.send", true, true],
   ["time.reminders.schedule", true, true],
   ["documents.contracts.view", true, true],
+  ["documents.contracts.add", true, false],
   ["documents.contracts.edit", true, false],
+  ["documents.contracts.delete", true, false],
   ["documents.payslips.view", false, true],
-  ["documents.payslips.edit", false, true],
+  ["documents.payslips.upload", false, true],
+  ["documents.payslips.delete", false, true],
   ["documents.receipts.review", false, true],
   ["documents.receipts.book", false, true],
 ];
@@ -68,13 +70,12 @@ describe("permission catalogue", () => {
   });
 
   it("limits consultants to their own data", () => {
-    expect(permissionsForAudience("consultant")).toEqual([
-      "my.finance",
-      "my.invoices",
-      "my.contracts",
-      "my.payslips",
-      "my.receipts",
-    ]);
+    expect(
+      permissionsForAudience("consultant").every((key) =>
+        key.startsWith("my."),
+      ),
+    ).toBe(true);
+    expect(permissionsForAudience("consultant")).toContain("my.time.income");
   });
 
   it("keeps consultant-only records away from staff", () => {
@@ -112,10 +113,7 @@ describe("normalizePermissions", () => {
 
   it("strips organization-wide keys from consultant profiles", () => {
     expect(
-      normalizePermissions(
-        ["finance.compensation.edit", "my.payslips"],
-        "consultant",
-      ),
+      normalizePermissions(["finance.vat.edit", "my.payslips"], "consultant"),
     ).toEqual(["my.payslips"]);
   });
 });
@@ -132,15 +130,23 @@ describe("legacy behaviour", () => {
     );
   });
 
-  it("gives admins everything", () => {
-    expect(orgWide("admin")).toEqual([...PERMISSION_KEYS]);
+  it("gives admins all company permissions and no own records", () => {
+    expect(orgWide("admin")).toEqual(
+      PERMISSION_KEYS.filter((key) => !key.startsWith("my.")),
+    );
   });
 
   it("gives a consultant only what their flags allow", () => {
-    expect(orgWide("consultant")).toEqual([]);
+    expect(orgWide("consultant")).toEqual(ownTime);
     expect(
-      legacyPermissions("consultant", allFlags.finance, allFlags.documents),
-    ).toEqual(permissionsForAudience("consultant"));
+      [
+        ...legacyPermissions(
+          "consultant",
+          allFlags.finance,
+          allFlags.documents,
+        ),
+      ].sort(),
+    ).toEqual([...permissionsForAudience("consultant")].sort());
   });
 
   it("ignores finance page flags when finance is not enabled", () => {
@@ -150,7 +156,7 @@ describe("legacy behaviour", () => {
         { enabled: false, myFinance: true, myInvoices: true },
         noFlags.documents,
       ),
-    ).toEqual([]);
+    ).toEqual(ownTime);
   });
 
   it("keeps a manager's own pay slip and receipt flags", () => {
@@ -170,10 +176,10 @@ describe("legacy behaviour", () => {
     ).toEqual(orgWide("accountant"));
   });
 
-  it("treats a legacy employee as document-only", () => {
+  it("gives a legacy employee time reporting and documents only", () => {
     expect(
       legacyPermissions("employee", allFlags.finance, allFlags.documents),
-    ).toEqual(["my.payslips", "my.receipts"]);
+    ).toEqual([...ownTime, "my.payslips", "my.receipts", "my.receipts.upload"]);
   });
 });
 
@@ -260,8 +266,8 @@ describe("resolvePermissions", () => {
   });
 
   it("keeps admins on everything regardless of any profile", () => {
-    expect(resolvePermissions({ ...manager, role: "admin" }, profile)).toEqual([
-      ...PERMISSION_KEYS,
-    ]);
+    expect(resolvePermissions({ ...manager, role: "admin" }, profile)).toEqual(
+      orgWide("admin"),
+    );
   });
 });

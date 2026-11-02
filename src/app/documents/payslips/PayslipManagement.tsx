@@ -17,13 +17,15 @@ import { MonthStepper } from "@/components/ui/MonthStepper";
 
 export function PayslipManagement({
   payslips,
-  canManage,
+  canUpload,
+  canDelete,
   view,
   period,
   year,
   people,
 }: {
-  canManage: boolean;
+  canUpload: boolean;
+  canDelete: boolean;
   payslips: PayslipItem[];
   view: "month" | "year";
   period: string;
@@ -87,7 +89,7 @@ export function PayslipManagement({
           <h1>{t("payslips")}</h1>
           <p className="muted page-description">{t("payslipsDescription")}</p>
         </div>
-        {canManage && (
+        {canUpload && (
           <Link
             className="button"
             href={`/documents/payslips/upload?period=${period}`}
@@ -217,7 +219,7 @@ export function PayslipManagement({
                       >
                         <FileDownloadIcon />
                       </button>
-                      {canManage && (
+                      {canDelete && (
                         <button
                           className="table-action table-action-danger icon-action"
                           aria-label={t("delete")}

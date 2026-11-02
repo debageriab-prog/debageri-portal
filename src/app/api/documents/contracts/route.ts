@@ -5,14 +5,14 @@ import { verifySession } from "@/server/auth/session";
 import { parseContractForm } from "@/server/validators/contracts";
 import {
   assertConsultant,
-  canManageContracts,
+  canAddContracts,
   ContractError,
   uploadContractFiles,
 } from "@/server/services/contract-service";
 
 export async function POST(request: Request) {
   const actor = await verifySession();
-  if (!actor || !canManageContracts(actor))
+  if (!actor || !canAddContracts(actor))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const form = await request.formData();
   const parsed = parseContractForm(form);

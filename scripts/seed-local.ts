@@ -85,9 +85,17 @@ const sampleProfiles: Array<{
   {
     id: "seed-consultant-no-invoices",
     name: "Consultant without invoices",
-    description: "All own data except invoices.",
+    description: "Own data without invoices or estimated income.",
     audience: "consultant",
-    permissions: ["my.finance", "my.contracts", "my.payslips", "my.receipts"],
+    permissions: [
+      "my.time.report",
+      "my.time.history",
+      "my.finance",
+      "my.contracts",
+      "my.payslips",
+      "my.receipts",
+      "my.receipts.upload",
+    ],
   },
 ];
 

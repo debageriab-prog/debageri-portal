@@ -31,6 +31,8 @@ import type { AccessProfile } from "@/server/services/access-profile-service";
 import { PermissionSummary } from "../access-profiles/PermissionTree";
 import { accessProfileError } from "../access-profiles/AccessProfileForm";
 
+const staffRoles = ["manager", "accountant"];
+
 type Tab =
   "general" | "employment" | "compensation" | "access" | "notifications";
 const TABS: Tab[] = [
@@ -83,7 +85,9 @@ export function EmployeeEditor({
       : (employee?.role ?? "consultant"),
   );
   const [managerReportsTime, setManagerReportsTime] = useState(
-    employee?.role === "manager" ? employee.reportsTime : false,
+    employee && staffRoles.includes(employee.role)
+      ? employee.reportsTime
+      : false,
   );
   const defaultProfileFor = (nextRole: string) =>
     accessProfiles.find((profile) => profile.defaultForRole === nextRole)?.id ??
@@ -115,7 +119,7 @@ export function EmployeeEditor({
   );
   const [message, setMessage] = useState("");
   const reportsTime =
-    role === "consultant" || (role === "manager" && managerReportsTime);
+    role === "consultant" || (staffRoles.includes(role) && managerReportsTime);
   const isConsultant = role === "consultant";
   const audience = audienceForRole(role);
   const availableProfiles = accessProfiles.filter(
@@ -134,7 +138,7 @@ export function EmployeeEditor({
 
   function changeRole(nextRole: string) {
     setRole(nextRole);
-    if (nextRole !== "manager") setManagerReportsTime(false);
+    if (!staffRoles.includes(nextRole)) setManagerReportsTime(false);
     setAccessProfileId(defaultProfileFor(nextRole));
   }
 
@@ -311,7 +315,7 @@ export function EmployeeEditor({
                 <option value="admin">{t("administrator")}</option>
               </select>
             </label>
-            {role === "manager" && (
+            {staffRoles.includes(role) && (
               <label className="checkbox-row form-wide">
                 <input
                   type="checkbox"

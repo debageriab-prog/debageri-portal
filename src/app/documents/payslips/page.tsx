@@ -2,9 +2,12 @@ import { parsePayslipPeriod } from "@/domain/payslips";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import {
-  canManagePayslips,
+  canDeletePayslips,
   canReadAllPayslips,
+  canUploadPayslips,
+  canViewOwnPayslips,
   payslipVisible,
+  RECIPIENT_ROLES,
 } from "@/server/services/payslip-service";
 import { PayslipManagement } from "./PayslipManagement";
 import type { PayslipItem } from "./PayslipPreview";
@@ -28,7 +31,12 @@ function toItem(doc: FirebaseFirestore.QueryDocumentSnapshot): PayslipItem {
 export default async function PayslipsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; period?: string; year?: string }>;
+  searchParams: Promise<{
+    view?: string;
+    period?: string;
+    year?: string;
+    mine?: string;
+  }>;
 }) {
   const actor = (await verifySession())!;
   const { db } = getAdminServices();
@@ -37,7 +45,11 @@ export default async function PayslipsPage({
     year: "numeric",
     month: "2-digit",
   }).format(new Date());
-  if (!canReadAllPayslips(actor)) {
+  const params = await searchParams;
+  if (
+    !canReadAllPayslips(actor) ||
+    (params.mine === "1" && canViewOwnPayslips(actor))
+  ) {
     const snapshot = await db
       .collection("payslips")
       .where("organizationId", "==", actor.organizationId)
@@ -49,7 +61,6 @@ export default async function PayslipsPage({
       .sort((a, b) => b.period.localeCompare(a.period));
     return <PayslipViewer payslips={payslips} currentPeriod={currentPeriod} />;
   }
-  const params = await searchParams;
   const view = params.view === "year" ? "year" : "month";
   const period = parsePayslipPeriod(params.period ?? "")
     ? params.period!
@@ -71,7 +82,7 @@ export default async function PayslipsPage({
     db
       .collection("users")
       .where("organizationId", "==", actor.organizationId)
-      .where("role", "in", ["employee", "consultant", "manager"])
+      .where("role", "in", RECIPIENT_ROLES)
       .get(),
   ]);
   const payslips = snapshot.docs
@@ -95,7 +106,8 @@ export default async function PayslipsPage({
       people.set(item.userId, { name: item.userName, employeeNumber: "" });
   return (
     <PayslipManagement
-      canManage={canManagePayslips(actor)}
+      canUpload={canUploadPayslips(actor)}
+      canDelete={canDeletePayslips(actor)}
       payslips={payslips}
       view={view}
       period={period}

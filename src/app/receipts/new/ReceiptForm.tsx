@@ -78,7 +78,7 @@ export function ReceiptForm({ today }: { today: string }) {
         return setError(
           t(errors[result.error ?? ""] ?? "receiptError_receiptSaveFailed"),
         );
-      router.push("/receipts?submitted=1");
+      router.push("/receipts?mine=1&submitted=1");
       router.refresh();
     } catch {
       setError(t("serverUnavailable"));
@@ -200,7 +200,7 @@ export function ReceiptForm({ today }: { today: string }) {
         <button
           type="button"
           className="button secondary"
-          onClick={() => router.push("/receipts")}
+          onClick={() => router.push("/receipts?mine=1")}
         >
           {t("cancel")}
         </button>
