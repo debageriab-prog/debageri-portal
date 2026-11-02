@@ -5,15 +5,16 @@ import {
   timesheetAttachmentAccess,
   timesheetAttachmentFileError,
 } from "@/domain/timesheets/attachments";
-import { legacyPermissions } from "@/domain/access/permissions";
+import type { PermissionKey } from "@/domain/access/permissions";
 import type { UserRole } from "@/domain/types";
 import { timesheetAttachmentRemovalSchema } from "@/server/validators/timesheet-attachments";
+import { rolePermissions } from "./role-permissions";
 
 const actor = (id: string, role: UserRole, organizationId = "debageri") => ({
   id,
   role,
   organizationId,
-  permissions: legacyPermissions(role),
+  permissions: rolePermissions(role),
 });
 const owner = (role: UserRole, reportsTime = true) => ({
   role,
@@ -23,7 +24,7 @@ const owner = (role: UserRole, reportsTime = true) => ({
 
 describe("timesheet attachment access", () => {
   it("follows the profile rather than the role", () => {
-    const withProfile = (permissions: ReturnType<typeof legacyPermissions>) =>
+    const withProfile = (permissions: PermissionKey[]) =>
       timesheetAttachmentAccess(
         { ...actor("m1", "manager"), permissions },
         "u1",

@@ -175,8 +175,6 @@ async function usersWhoCan(
         role: String(data.role),
         organizationId: String(data.organizationId),
         accessProfileId: data.accessProfileId,
-        financeAccess: data.financeAccess,
-        documentAccess: data.documentAccess,
       }).includes(key),
     );
 }
@@ -250,8 +248,6 @@ export function notifyPayslipPublished(payslipId: string, portalUrl: string) {
       role: String(owner.data.role),
       organizationId: String(owner.data.organizationId),
       accessProfileId: owner.data.accessProfileId,
-      financeAccess: owner.data.financeAccess,
-      documentAccess: owner.data.documentAccess,
     });
     if (!ownerPermissions.includes("my.payslips")) return;
     await deliver(

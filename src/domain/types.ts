@@ -7,16 +7,6 @@ export type UserStatus = "active" | "inactive";
 export type CompensationModel = "flexible" | "fixed" | "hybrid";
 export type FinanceDirection = "income" | "expense";
 export type FinanceFunding = "company" | "consultant";
-export interface FinanceAccess {
-  enabled: boolean;
-  myFinance: boolean;
-  myInvoices: boolean;
-}
-export interface DocumentAccess {
-  contracts: boolean;
-  payslips: boolean;
-  receipts: boolean;
-}
 export type TimesheetStatus =
   "draft" | "submitted" | "approved" | "rejected" | "reopened";
 export type TimeCategory =
@@ -47,8 +37,6 @@ export interface PortalUser {
   timezone: "Europe/Stockholm";
   locale: "sv-SE" | "en-SE";
   compensationModel?: CompensationModel | null;
-  financeAccess: FinanceAccess;
-  documentAccess: DocumentAccess;
   accessProfileId: string | null;
   permissions: PermissionKey[];
   emailPreferences: Record<"receipts" | "payslips" | "timesheets", boolean>;

@@ -4,7 +4,7 @@
 
 Primary threats are cross-employee/organization access, manager overreach, privilege escalation, manipulated totals/transitions, stolen sessions, unsafe project selection, document disclosure, injection, excessive error detail, secrets leakage, and insider misuse.
 
-Authentication uses revocation-checked server sessions; authorization combines active Firestore membership, organization, role, ownership, and manager assignment. Sensitive transitions/admin changes are server-only, schema validated, transactionally based on current state, and audited. Firestore/Storage rules deny by default. App Check must be enforced in production as defense in depth, not identity. Rate limits are recommended on session and mutation routes.
+Authentication uses revocation-checked server sessions; authorization combines active Firestore membership, organization, the permissions of the assigned access profile, and ownership. A non-admin without a valid profile has no access, and only admins can edit profiles or assign them, so nobody can raise their own access. Sensitive transitions/admin changes are server-only, schema validated, transactionally based on current state, and audited. Firestore/Storage rules deny by default. App Check must be enforced in production as defense in depth, not identity. Rate limits are recommended on session and mutation routes.
 
 Use separate portal projects, least-privilege runtime/deployer service accounts, Workload Identity Federation for CI, Secret Manager, key rotation, and no downloaded runtime keys. Log correlation/action/outcome without comments, tokens, document contents, or unnecessary personal data. Monitor repeated authorization failures, mutation errors, and privileged changes.
 

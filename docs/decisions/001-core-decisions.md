@@ -46,3 +46,7 @@ Accepted. Employees are deliberately onboarded and never mixed or automatically 
 ## 011: Separate private employee Storage
 
 Accepted. Employee documents use portal-only buckets and private organization/employee paths; website résumé storage is never reused.
+
+## 012: Access profiles decide permissions
+
+Accepted. Roles remain and say who someone is. Permissions come from one admin-defined access profile per user, resolved on each request, so access can be tuned per person without code changes. Administration stays admin-only. There is no fallback: a non-admin without a valid profile has no access, so a mistake closes access rather than opening it. Consultant profiles can only grant a person's own data.

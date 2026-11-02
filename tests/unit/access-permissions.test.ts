@@ -3,7 +3,6 @@ import {
   audienceForRole,
   can,
   DEFAULT_PROFILES,
-  legacyPermissions,
   normalizePermissions,
   PERMISSION_KEYS,
   PERMISSION_TREE,
@@ -12,18 +11,7 @@ import {
   type PermissionKey,
   type PermissionNode,
 } from "@/domain/access/permissions";
-
-const noFlags = {
-  finance: { enabled: false, myFinance: false, myInvoices: false },
-  documents: { contracts: false, payslips: false, receipts: false },
-};
-const allFlags = {
-  finance: { enabled: true, myFinance: true, myInvoices: true },
-  documents: { contracts: true, payslips: true, receipts: true },
-};
-const ownTime = ["my.time.report", "my.time.history", "my.time.income"];
-const orgWide = (role: string) =>
-  legacyPermissions(role, noFlags.finance, noFlags.documents);
+import { rolePermissions } from "./role-permissions";
 
 /** What each role could do before profiles, row by row. */
 const matrix: Array<[PermissionKey, manager: boolean, accountant: boolean]> = [
@@ -126,10 +114,10 @@ describe("normalizePermissions", () => {
   });
 });
 
-describe("legacy behaviour", () => {
+describe("default profiles match the roles", () => {
   it.each(matrix)("%s matches the old roles", (key, manager, accountant) => {
-    expect(orgWide("manager").includes(key)).toBe(manager);
-    expect(orgWide("accountant").includes(key)).toBe(accountant);
+    expect(rolePermissions("manager").includes(key)).toBe(manager);
+    expect(rolePermissions("accountant").includes(key)).toBe(accountant);
   });
 
   it("covers every organization-wide permission in the matrix", () => {
@@ -139,55 +127,9 @@ describe("legacy behaviour", () => {
   });
 
   it("gives admins all company permissions and no own records", () => {
-    expect(orgWide("admin")).toEqual(
+    expect(rolePermissions("admin")).toEqual(
       PERMISSION_KEYS.filter((key) => !key.startsWith("my.")),
     );
-  });
-
-  it("gives a consultant only what their flags allow", () => {
-    expect(orgWide("consultant")).toEqual(ownTime);
-    expect(
-      [
-        ...legacyPermissions(
-          "consultant",
-          allFlags.finance,
-          allFlags.documents,
-        ),
-      ].sort(),
-    ).toEqual([...permissionsForAudience("consultant")].sort());
-  });
-
-  it("ignores finance page flags when finance is not enabled", () => {
-    expect(
-      legacyPermissions(
-        "consultant",
-        { enabled: false, myFinance: true, myInvoices: true },
-        noFlags.documents,
-      ),
-    ).toEqual(ownTime);
-  });
-
-  it("keeps a manager's own pay slip and receipt flags", () => {
-    const keys = legacyPermissions("manager", noFlags.finance, {
-      contracts: true,
-      payslips: true,
-      receipts: true,
-    });
-    expect(keys).toContain("my.payslips");
-    expect(keys).toContain("my.receipts");
-    expect(keys).not.toContain("my.contracts");
-  });
-
-  it("never lets accountants hold own-document flags", () => {
-    expect(
-      legacyPermissions("accountant", allFlags.finance, allFlags.documents),
-    ).toEqual(orgWide("accountant"));
-  });
-
-  it("gives a legacy employee time reporting and documents only", () => {
-    expect(
-      legacyPermissions("employee", allFlags.finance, allFlags.documents),
-    ).toEqual([...ownTime, "my.payslips", "my.receipts", "my.receipts.upload"]);
   });
 });
 
@@ -198,18 +140,6 @@ describe("default profiles", () => {
       expect(
         normalizePermissions(profile.permissions, profile.audience),
       ).toEqual([...profile.permissions]);
-    },
-  );
-
-  it.each(["manager", "accountant"] as const)(
-    "%s matches the old role",
-    (role) => {
-      const profile = DEFAULT_PROFILES.find(
-        (candidate) => candidate.defaultForRole === role,
-      )!;
-      expect([...profile.permissions].sort()).toEqual(
-        [...orgWide(role)].sort(),
-      );
     },
   );
 });
@@ -232,14 +162,17 @@ describe("resolvePermissions", () => {
     expect(can({ permissions }, "time.approvals.review")).toBe(false);
   });
 
-  it("falls back to flags without a profile", () => {
-    expect(
-      resolvePermissions(
-        { role: "manager", organizationId: "org", accessProfileId: null },
-        null,
-      ),
-    ).toEqual(orgWide("manager"));
-  });
+  it.each(["manager", "accountant", "consultant", "employee"])(
+    "grants a %s nothing without a profile",
+    (role) => {
+      expect(
+        resolvePermissions(
+          { role, organizationId: "org", accessProfileId: null },
+          profile,
+        ),
+      ).toEqual([]);
+    },
+  );
 
   it("grants nothing when the assigned profile is gone", () => {
     expect(resolvePermissions(manager, null)).toEqual([]);
@@ -275,7 +208,7 @@ describe("resolvePermissions", () => {
 
   it("keeps admins on everything regardless of any profile", () => {
     expect(resolvePermissions({ ...manager, role: "admin" }, profile)).toEqual(
-      orgWide("admin"),
+      rolePermissions("admin"),
     );
   });
 });

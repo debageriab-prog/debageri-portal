@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { legacyPermissions } from "@/domain/access/permissions";
+import { rolePermissions } from "./role-permissions";
 import type { TimeCode, TimeEntry, UserRole } from "@/domain/types";
 import {
   assertTransition,
@@ -57,7 +57,7 @@ const reviewer = (id: string, role: UserRole, organizationId = "debageri") => ({
   id,
   role,
   organizationId,
-  permissions: legacyPermissions(role),
+  permissions: rolePermissions(role),
 });
 
 describe("timesheet rules", () => {

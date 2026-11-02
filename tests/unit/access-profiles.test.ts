@@ -1,15 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  defaultProfileId,
-  defaultProfilesFor,
-  planBackfill,
-  type BackfillUser,
-} from "@/domain/access/backfill";
-import {
   canReportTime,
   financeHome,
   homePath,
-  legacyPermissions,
   PERMISSION_KEYS,
   permissionTreeFor,
   togglePermission,
@@ -18,6 +11,7 @@ import {
 import en from "@/locales/en.json";
 import sv from "@/locales/sv.json";
 import { accessProfileSchema } from "@/server/validators/access-profile";
+import { rolePermissions } from "./role-permissions";
 
 const input = {
   name: "Finance read-only",
@@ -144,10 +138,10 @@ describe("landing pages", () => {
     homePath({ permissions, reportsTime });
 
   it("keeps each role where it landed before profiles", () => {
-    expect(home(legacyPermissions("admin"))).toBe("/manager/approvals");
-    expect(home(legacyPermissions("manager"))).toBe("/manager/approvals");
-    expect(home(legacyPermissions("accountant"))).toBe("/time-reports");
-    expect(home(legacyPermissions("consultant"), true)).toBe(
+    expect(home(rolePermissions("admin"))).toBe("/manager/approvals");
+    expect(home(rolePermissions("manager"))).toBe("/manager/approvals");
+    expect(home(rolePermissions("accountant"))).toBe("/time-reports");
+    expect(home(rolePermissions("consultant"), true)).toBe(
       "/employee/timesheets/current",
     );
   });
@@ -161,96 +155,6 @@ describe("landing pages", () => {
 
   it("falls back to the unauthorized page with nothing granted", () => {
     expect(home([])).toBe("/unauthorized");
-  });
-});
-
-describe("planBackfill", () => {
-  const user = (id: string, role: string, flags = {}): BackfillUser => ({
-    id,
-    role,
-    organizationId: "org",
-    ...flags,
-  });
-  const consultantFlags = {
-    financeAccess: { enabled: true, myFinance: true, myInvoices: false },
-    documentAccess: { contracts: true, payslips: false, receipts: false },
-  };
-
-  it("assigns default profiles when they match", () => {
-    const plan = planBackfill(
-      "org",
-      [user("m", "manager"), user("a", "accountant"), user("x", "admin")],
-      [],
-    );
-    expect(plan.assignments).toEqual([
-      { userId: "m", profileId: defaultProfileId("org", "manager") },
-      { userId: "a", profileId: defaultProfileId("org", "accountant") },
-    ]);
-    expect(plan.newProfiles).toHaveLength(3);
-  });
-
-  it("shares one new profile between users with the same flags", () => {
-    const plan = planBackfill(
-      "org",
-      [
-        user("c1", "consultant", consultantFlags),
-        user("c2", "consultant", consultantFlags),
-      ],
-      [],
-    );
-    const created = plan.newProfiles.filter((item) => !item.defaultForRole);
-    expect(created).toHaveLength(1);
-    expect(created[0]!.permissions).toEqual([
-      "my.time.report",
-      "my.time.history",
-      "my.time.income",
-      "my.finance",
-      "my.contracts",
-    ]);
-    expect(created[0]!.name).toBe("Consultant: my finances, contracts");
-    expect(new Set(plan.assignments.map((item) => item.profileId)).size).toBe(
-      1,
-    );
-  });
-
-  it("keeps a manager's own document flags in a separate profile", () => {
-    const plan = planBackfill(
-      "org",
-      [
-        user("m", "manager", {
-          documentAccess: { contracts: false, payslips: true, receipts: false },
-        }),
-      ],
-      [],
-    );
-    const profile = plan.newProfiles.find(
-      (item) => item.id === plan.assignments[0]!.profileId,
-    )!;
-    expect(profile.permissions).toContain("my.payslips");
-    expect(profile.permissions).toContain("time.approvals.review");
-  });
-
-  it("skips users who already have a profile and existing defaults", () => {
-    const plan = planBackfill(
-      "org",
-      [{ ...user("m", "manager"), accessProfileId: "custom" }],
-      defaultProfilesFor("org"),
-    );
-    expect(plan).toEqual({ newProfiles: [], assignments: [] });
-  });
-
-  it("is idempotent once the plan has been applied", () => {
-    const users = [user("c", "consultant", consultantFlags)];
-    const first = planBackfill("org", users, []);
-    const second = planBackfill(
-      "org",
-      users.map((item) => ({
-        ...item,
-        accessProfileId: first.assignments[0]!.profileId,
-      })),
-      first.newProfiles,
-    );
-    expect(second).toEqual({ newProfiles: [], assignments: [] });
   });
 });
 

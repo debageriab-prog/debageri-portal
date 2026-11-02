@@ -76,8 +76,6 @@ export default async function RemindersPage({
           role: String(data.role),
           organizationId: String(data.organizationId),
           accessProfileId: data.accessProfileId,
-          financeAccess: data.financeAccess,
-          documentAccess: data.documentAccess,
         }).includes("my.time.report")
       );
     })

@@ -1,15 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { legacyPermissions } from "@/domain/access/permissions";
 import {
   emailPreferencesFrom,
   relevantEmailTopics,
 } from "@/domain/notifications";
 import { emailPreferencesSchema } from "@/server/validators/user-access";
-
-const access = (payslips: boolean, receipts: boolean) => ({
-  payslips,
-  receipts,
-});
+import { rolePermissions } from "./role-permissions";
 
 describe("email preferences", () => {
   it("sends every email type until the person turns it off", () => {
@@ -25,23 +20,19 @@ describe("email preferences", () => {
     expect(
       relevantEmailTopics({
         reportsTime: false,
-        permissions: legacyPermissions(
-          "accountant",
-          null,
-          access(false, false),
-        ),
+        permissions: rolePermissions("accountant"),
       }),
     ).toEqual(["receipts"]);
     expect(
       relevantEmailTopics({
         reportsTime: true,
-        permissions: legacyPermissions("consultant", null, access(true, true)),
+        permissions: rolePermissions("consultant"),
       }),
     ).toEqual(["receipts", "payslips", "timesheets"]);
     expect(
       relevantEmailTopics({
         reportsTime: false,
-        permissions: legacyPermissions("manager", null, access(false, false)),
+        permissions: rolePermissions("manager"),
       }),
     ).toEqual([]);
   });

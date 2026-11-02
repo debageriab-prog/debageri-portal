@@ -67,8 +67,6 @@ export async function POST(request: Request) {
         role: String(user.role),
         organizationId: String(user.organizationId),
         accessProfileId: user.accessProfileId,
-        financeAccess: user.financeAccess,
-        documentAccess: user.documentAccess,
       }).includes("my.time.report")
     ) {
       summary.skipped += 1;
