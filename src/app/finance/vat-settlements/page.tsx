@@ -12,7 +12,6 @@ import {
 export default async function VatSettlementsPage() {
   const actor = (await verifySession())!;
   if (!can(actor, "finance.vat.view")) redirect("/unauthorized");
-  const canEdit = can(actor, "finance.vat.edit");
   const t = await getTranslator();
   const { db } = getAdminServices();
   const [snapshot, attachmentsSnapshot] = await Promise.all([
@@ -65,7 +64,7 @@ export default async function VatSettlementsPage() {
             {t("vatSettlementsDescription")}
           </p>
         </div>
-        {canEdit && (
+        {can(actor, "finance.vat.add") && (
           <Link className="button" href="/finance/vat-settlements/new">
             {t("recordVatPayment")}
           </Link>
@@ -74,7 +73,8 @@ export default async function VatSettlementsPage() {
       <VatSettlementHistory
         settlements={settlements}
         locale={actor.locale}
-        canEdit={canEdit}
+        canEdit={can(actor, "finance.vat.edit")}
+        canDelete={can(actor, "finance.vat.delete")}
       />
     </>
   );

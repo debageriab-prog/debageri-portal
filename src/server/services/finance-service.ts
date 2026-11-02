@@ -278,7 +278,7 @@ export async function createCustomer(
   actor: PortalUser,
   input: { name: string; contactPerson: string; financeEmail: string },
 ) {
-  requireFinancePermission(actor, "finance.customers.edit");
+  requireFinancePermission(actor, "finance.customers.add");
   const duplicate = await db
     .collection("financeCustomers")
     .where("organizationId", "==", actor.organizationId)
@@ -401,7 +401,7 @@ export async function createCategory(
     direction: "income" | "expense";
   },
 ) {
-  requireFinancePermission(actor, "finance.categories.edit");
+  requireFinancePermission(actor, "finance.categories.add");
   const duplicate = await db
     .collection("financeCategories")
     .where("organizationId", "==", actor.organizationId)
@@ -457,7 +457,7 @@ export async function createInvoice(
     importKey?: string | null;
   },
 ) {
-  requireFinancePermission(actor, "finance.invoices.edit");
+  requireFinancePermission(actor, "finance.invoices.add");
   if (input.dueDate < input.issueDate)
     throw new FinanceError("invoiceDateInvalid");
   const periodFrom = input.periodFrom ?? null;
@@ -734,7 +734,7 @@ export async function createFinancialTransaction(
   actor: PortalUser,
   input: FinancialTransactionInput,
 ) {
-  requireFinancePermission(actor, "finance.ledger.edit");
+  requireFinancePermission(actor, "finance.ledger.add");
   const balanceDelta = await validateFinancialTransaction(db, actor, input);
   const vatMinor =
     input.vatMinor ?? calculateVatMinor(input.netMinor, input.vatRateBps);
@@ -855,7 +855,7 @@ export async function createExpenseCopies(
     }>;
   },
 ) {
-  requireFinancePermission(actor, "finance.ledger.edit");
+  requireFinancePermission(actor, "finance.ledger.add");
   const categoryIds = [
     ...new Set(input.expenses.map((item) => item.categoryId)),
   ];
@@ -958,7 +958,7 @@ export async function voidFinancialTransaction(
   actor: PortalUser,
   input: { transactionId: string; reason: string },
 ) {
-  requireFinancePermission(actor, "finance.ledger.edit");
+  requireFinancePermission(actor, "finance.ledger.delete");
   const originalRef = db
     .collection("financialTransactions")
     .doc(input.transactionId);
@@ -1009,7 +1009,7 @@ export async function deleteFinancialTransaction(
   actor: PortalUser,
   input: { transactionId: string; confirmation: "I am sure" },
 ) {
-  requireFinancePermission(actor, "finance.ledger.edit");
+  requireFinancePermission(actor, "finance.ledger.delete");
   const reference = db
     .collection("financialTransactions")
     .doc(input.transactionId);
@@ -1044,7 +1044,7 @@ export async function voidInvoice(
   actor: PortalUser,
   input: { invoiceId: string; reason: string },
 ) {
-  requireFinancePermission(actor, "finance.invoices.edit");
+  requireFinancePermission(actor, "finance.invoices.delete");
   const reference = db.collection("invoices").doc(input.invoiceId);
   const snapshot = await reference.get();
   const data = snapshot.data();
@@ -1092,7 +1092,7 @@ export async function createVatSettlement(
     note: string;
   },
 ) {
-  requireFinancePermission(actor, "finance.vat.edit");
+  requireFinancePermission(actor, "finance.vat.add");
   const settlementRef = db.collection("vatSettlements").doc();
   await db.runTransaction(async (transaction) => {
     const [transactionsSnapshot, settlementsSnapshot] = await Promise.all([
@@ -1159,7 +1159,7 @@ export async function reverseVatSettlement(
   actor: PortalUser,
   input: { settlementId: string; reason: string },
 ) {
-  requireFinancePermission(actor, "finance.vat.edit");
+  requireFinancePermission(actor, "finance.vat.delete");
   const reference = db.collection("vatSettlements").doc(input.settlementId);
   await db.runTransaction(async (transaction) => {
     const document = await transaction.get(reference);

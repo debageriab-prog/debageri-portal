@@ -15,7 +15,7 @@ export default async function NewTransactionPage({
   searchParams: Promise<{ returnTo?: string; receiptId?: string }>;
 }) {
   const params = await searchParams;
-  const { actor, db } = await financeFormContext("finance.ledger.edit");
+  const { actor, db } = await financeFormContext("finance.ledger.add");
   let receipt: ExpenseReceipt | undefined;
   if (params.receiptId) {
     const data = await expensableReceipt(db, actor, params.receiptId).catch(

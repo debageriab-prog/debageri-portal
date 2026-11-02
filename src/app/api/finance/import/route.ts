@@ -29,23 +29,23 @@ const isoDate = /^\d{4}-\d{2}-\d{2}$/;
 
 const importPermissions: Record<
   z.infer<typeof requestSchema>["kind"],
-  { importKey: PermissionKey; editKey: PermissionKey }
+  { importKey: PermissionKey; writeKeys: PermissionKey[] }
 > = {
   invoices: {
     importKey: "finance.invoices.import",
-    editKey: "finance.invoices.edit",
+    writeKeys: ["finance.invoices.add", "finance.invoices.edit"],
   },
   transactions: {
     importKey: "finance.ledger.import",
-    editKey: "finance.ledger.edit",
+    writeKeys: ["finance.ledger.add"],
   },
   income: {
     importKey: "finance.ledger.import",
-    editKey: "finance.ledger.edit",
+    writeKeys: ["finance.ledger.add"],
   },
   expenses: {
     importKey: "finance.ledger.import",
-    editKey: "finance.ledger.edit",
+    writeKeys: ["finance.ledger.add"],
   },
 };
 
@@ -58,13 +58,13 @@ export async function POST(request: Request) {
   );
   if (!parsedRequest.success)
     return NextResponse.json({ error: "invalidInput" }, { status: 400 });
-  const { importKey, editKey } = importPermissions[parsedRequest.data.kind];
+  const { importKey, writeKeys } = importPermissions[parsedRequest.data.kind];
   if (!can(session, importKey))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   // Importing creates the same records as the forms, without granting the forms.
   const actor = {
     ...session,
-    permissions: [...session.permissions, editKey],
+    permissions: [...session.permissions, ...writeKeys],
   };
 
   const { db } = getAdminServices();

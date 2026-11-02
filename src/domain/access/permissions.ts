@@ -2,18 +2,26 @@ import type { DocumentAccess, FinanceAccess, UserRole } from "@/domain/types";
 
 export const PERMISSION_KEYS = [
   "finance.ledger.view",
+  "finance.ledger.add",
   "finance.ledger.edit",
+  "finance.ledger.delete",
   "finance.ledger.import",
   "finance.ledger.export",
   "finance.invoices.view",
+  "finance.invoices.add",
   "finance.invoices.edit",
+  "finance.invoices.delete",
   "finance.invoices.import",
   "finance.customers.view",
+  "finance.customers.add",
   "finance.customers.edit",
   "finance.categories.view",
+  "finance.categories.add",
   "finance.categories.edit",
   "finance.vat.view",
+  "finance.vat.add",
   "finance.vat.edit",
+  "finance.vat.delete",
   "finance.accountingEmail",
   "finance.aiExtraction",
   "time.reports.view",
@@ -85,7 +93,9 @@ export const PERMISSION_TREE: PermissionGroup[] = [
       {
         key: "finance.ledger.view",
         children: [
+          { key: "finance.ledger.add" },
           { key: "finance.ledger.edit" },
+          { key: "finance.ledger.delete" },
           { key: "finance.ledger.import" },
           { key: "finance.ledger.export" },
         ],
@@ -93,18 +103,33 @@ export const PERMISSION_TREE: PermissionGroup[] = [
       {
         key: "finance.invoices.view",
         children: [
+          { key: "finance.invoices.add" },
           { key: "finance.invoices.edit" },
+          { key: "finance.invoices.delete" },
           { key: "finance.invoices.import" },
         ],
       },
-      { key: "finance.vat.view", children: [{ key: "finance.vat.edit" }] },
+      {
+        key: "finance.vat.view",
+        children: [
+          { key: "finance.vat.add" },
+          { key: "finance.vat.edit" },
+          { key: "finance.vat.delete" },
+        ],
+      },
       {
         key: "finance.categories.view",
-        children: [{ key: "finance.categories.edit" }],
+        children: [
+          { key: "finance.categories.add" },
+          { key: "finance.categories.edit" },
+        ],
       },
       {
         key: "finance.customers.view",
-        children: [{ key: "finance.customers.edit" }],
+        children: [
+          { key: "finance.customers.add" },
+          { key: "finance.customers.edit" },
+        ],
       },
       { key: "finance.accountingEmail" },
       { key: "finance.aiExtraction" },
@@ -270,12 +295,24 @@ export const hasOrganizationFinance = (user: Holder) =>
   financeHome(user) !== null;
 
 export const FINANCE_ENTITY_PERMISSIONS = {
-  transaction: { view: "finance.ledger.view", edit: "finance.ledger.edit" },
-  invoice: { view: "finance.invoices.view", edit: "finance.invoices.edit" },
-  vatSettlement: { view: "finance.vat.view", edit: "finance.vat.edit" },
+  transaction: {
+    view: "finance.ledger.view",
+    add: "finance.ledger.add",
+    edit: "finance.ledger.edit",
+  },
+  invoice: {
+    view: "finance.invoices.view",
+    add: "finance.invoices.add",
+    edit: "finance.invoices.edit",
+  },
+  vatSettlement: {
+    view: "finance.vat.view",
+    add: "finance.vat.add",
+    edit: "finance.vat.edit",
+  },
 } as const satisfies Record<
   string,
-  { view: PermissionKey; edit: PermissionKey }
+  { view: PermissionKey; add: PermissionKey; edit: PermissionKey }
 >;
 
 const FALLBACK_PAGES: Array<[PermissionKey, string]> = [
@@ -335,17 +372,24 @@ const managerPermissions: PermissionKey[] = [
 
 const accountantPermissions: PermissionKey[] = [
   "finance.ledger.view",
+  "finance.ledger.add",
   "finance.ledger.edit",
+  "finance.ledger.delete",
   "finance.ledger.import",
   "finance.ledger.export",
   "finance.invoices.view",
+  "finance.invoices.add",
   "finance.invoices.edit",
+  "finance.invoices.delete",
   "finance.invoices.import",
   "finance.customers.view",
+  "finance.customers.add",
   "finance.customers.edit",
   "finance.categories.view",
   "finance.vat.view",
+  "finance.vat.add",
   "finance.vat.edit",
+  "finance.vat.delete",
   "finance.accountingEmail",
   "finance.aiExtraction",
   "time.reports.view",

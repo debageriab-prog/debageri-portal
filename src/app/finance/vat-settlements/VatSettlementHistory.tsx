@@ -27,10 +27,12 @@ export function VatSettlementHistory({
   settlements,
   locale,
   canEdit,
+  canDelete,
 }: {
   settlements: VatSettlementRow[];
   locale: "sv-SE" | "en-SE";
   canEdit: boolean;
+  canDelete: boolean;
 }) {
   const { t } = useLocale();
   const router = useRouter();
@@ -157,7 +159,7 @@ export function VatSettlementHistory({
                         <ActionIcon type="edit" />
                       </Link>
                     )}
-                    {canEdit && settlement.status === "active" && (
+                    {canDelete && settlement.status === "active" && (
                       <button
                         className="table-action table-action-danger icon-action"
                         type="button"

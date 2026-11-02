@@ -1254,8 +1254,11 @@ export function FinanceDashboard({
   const searchParams = useSearchParams();
   const manager = hasOrganizationFinance(actor);
   const admin = actor.role === "admin";
+  const canAddLedger = can(actor, "finance.ledger.add");
   const canEditLedger = can(actor, "finance.ledger.edit");
+  const canDeleteLedger = can(actor, "finance.ledger.delete");
   const canEditInvoices = can(actor, "finance.invoices.edit");
+  const canEditCustomers = can(actor, "finance.customers.edit");
   const canEditCategories = can(actor, "finance.categories.edit");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -2137,7 +2140,7 @@ export function FinanceDashboard({
         <section className="card table-wrap">
           <div className="week-head">
             <h2>{t("currentCustomers")}</h2>
-            {can(actor, "finance.customers.edit") && (
+            {can(actor, "finance.customers.add") && (
               <Link className="button" href="/finance/customers/new">
                 {t("addCustomer")}
               </Link>
@@ -2161,14 +2164,16 @@ export function FinanceDashboard({
                   <td>{customer.contactPerson}</td>
                   <td>{customer.financeEmail}</td>
                   <td>
-                    <Link
-                      className="table-action icon-action"
-                      aria-label={t("edit")}
-                      title={t("edit")}
-                      href={`/finance/customers/${customer.id}/edit`}
-                    >
-                      <ActionIcon type="edit" />
-                    </Link>
+                    {canEditCustomers && (
+                      <Link
+                        className="table-action icon-action"
+                        aria-label={t("edit")}
+                        title={t("edit")}
+                        href={`/finance/customers/${customer.id}/edit`}
+                      >
+                        <ActionIcon type="edit" />
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -2181,7 +2186,7 @@ export function FinanceDashboard({
         <section className="card table-wrap">
           <div className="week-head">
             <h2>{t("currentCategories")}</h2>
-            {canEditCategories && (
+            {can(actor, "finance.categories.add") && (
               <Link className="button" href="/finance/categories/new">
                 {t("addCategory")}
               </Link>
@@ -2244,7 +2249,7 @@ export function FinanceDashboard({
                       {t("csvImport")}
                     </Link>
                   )}
-                  {canEditInvoices && (
+                  {can(actor, "finance.invoices.add") && (
                     <Link className="button" href="/finance/invoices/new">
                       {t("addInvoice")}
                     </Link>
@@ -2394,7 +2399,7 @@ export function FinanceDashboard({
                 </button>
               </>
             )}
-            {canEditLedger && (
+            {canAddLedger && (
               <Link
                 className="button secondary"
                 href="/finance/transactions/copy-expenses"
@@ -2410,7 +2415,7 @@ export function FinanceDashboard({
                 {t("csvImport")}
               </Link>
             )}
-            {canEditLedger && (
+            {canAddLedger && (
               <Link
                 className="button"
                 href={transactionFormHref("/finance/transactions/new")}
@@ -2662,52 +2667,57 @@ export function FinanceDashboard({
                       >
                         i
                       </button>
-                      {canEditLedger && (
+                      {(canEditLedger || canDeleteLedger) && (
                         <>
-                          {!transactionDeleteProtection(transaction) && (
-                            <Link
-                              className="table-action icon-action"
-                              aria-label={t("edit")}
-                              title={t("edit")}
-                              href={transactionFormHref(
-                                `/finance/transactions/${encodeURIComponent(transaction.id)}/edit`,
-                              )}
-                            >
-                              <ActionIcon type="edit" />
-                            </Link>
-                          )}
-                          <div
-                            className="protected-action"
-                            tabIndex={
-                              transactionDeleteProtection(transaction) ? 0 : -1
-                            }
-                          >
-                            <button
-                              className="table-action table-action-danger icon-action"
-                              aria-label={t("delete")}
-                              title={t("delete")}
-                              disabled={
-                                busy ||
-                                Boolean(
-                                  transactionDeleteProtection(transaction),
-                                )
-                              }
-                              onClick={() => {
-                                setDeletingTransaction(transaction);
-                                setDeleteConfirmation("");
-                              }}
-                            >
-                              <ActionIcon type="delete" />
-                            </button>
-                            {transactionDeleteProtection(transaction) && (
-                              <span
-                                className="protected-action-tooltip"
-                                role="tooltip"
+                          {canEditLedger &&
+                            !transactionDeleteProtection(transaction) && (
+                              <Link
+                                className="table-action icon-action"
+                                aria-label={t("edit")}
+                                title={t("edit")}
+                                href={transactionFormHref(
+                                  `/finance/transactions/${encodeURIComponent(transaction.id)}/edit`,
+                                )}
                               >
-                                {transactionDeleteProtection(transaction)}
-                              </span>
+                                <ActionIcon type="edit" />
+                              </Link>
                             )}
-                          </div>
+                          {canDeleteLedger && (
+                            <div
+                              className="protected-action"
+                              tabIndex={
+                                transactionDeleteProtection(transaction)
+                                  ? 0
+                                  : -1
+                              }
+                            >
+                              <button
+                                className="table-action table-action-danger icon-action"
+                                aria-label={t("delete")}
+                                title={t("delete")}
+                                disabled={
+                                  busy ||
+                                  Boolean(
+                                    transactionDeleteProtection(transaction),
+                                  )
+                                }
+                                onClick={() => {
+                                  setDeletingTransaction(transaction);
+                                  setDeleteConfirmation("");
+                                }}
+                              >
+                                <ActionIcon type="delete" />
+                              </button>
+                              {transactionDeleteProtection(transaction) && (
+                                <span
+                                  className="protected-action-tooltip"
+                                  role="tooltip"
+                                >
+                                  {transactionDeleteProtection(transaction)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </>
                       )}
                     </div>

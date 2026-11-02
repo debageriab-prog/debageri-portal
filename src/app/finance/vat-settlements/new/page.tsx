@@ -11,7 +11,7 @@ import { VatSettlementForm } from "./VatSettlementForm";
 
 export default async function NewVatSettlementPage() {
   const actor = (await verifySession())!;
-  if (!can(actor, "finance.vat.edit")) redirect("/unauthorized");
+  if (!can(actor, "finance.vat.add")) redirect("/unauthorized");
   const t = await getTranslator();
   const { db } = getAdminServices();
   const [transactions, settlements] = await Promise.all([

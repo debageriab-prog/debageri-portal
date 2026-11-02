@@ -57,7 +57,10 @@ async function context(entityType: string, entityId: string, write: boolean) {
     FINANCE_ENTITY_PERMISSIONS[
       entityType as "transaction" | "invoice" | "vatSettlement"
     ];
-  const manager = can(actor, write ? permissions.edit : permissions.view);
+  // Files can be added while creating a record, not only when editing one.
+  const manager = write
+    ? can(actor, permissions.add) || can(actor, permissions.edit)
+    : can(actor, permissions.view);
   const consultantCanRead =
     !write &&
     data?.consultantId === actor.id &&

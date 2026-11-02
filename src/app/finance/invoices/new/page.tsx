@@ -4,7 +4,7 @@ import { InvoiceForm } from "../../FinanceForms";
 import { financeFormContext, financeUsers } from "../../form-data";
 
 export default async function NewInvoicePage() {
-  const { actor, db } = await financeFormContext("finance.invoices.edit");
+  const { actor, db } = await financeFormContext("finance.invoices.add");
   const customers = await db
     .collection("financeCustomers")
     .where("organizationId", "==", actor.organizationId)

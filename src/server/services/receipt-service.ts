@@ -31,7 +31,7 @@ export const SUBMITTER_ROLES = [
 export const canReviewReceipts = (actor: PortalUser) =>
   can(actor, "documents.receipts.review");
 export const canBookReceipts = (actor: PortalUser) =>
-  can(actor, "documents.receipts.book") && can(actor, "finance.ledger.edit");
+  can(actor, "documents.receipts.book") && can(actor, "finance.ledger.add");
 export const canViewOwnReceipts = (actor: PortalUser) =>
   SUBMITTER_ROLES.includes(actor.role) && can(actor, "my.receipts");
 export const canSubmitReceipts = (actor: PortalUser) =>
