@@ -1,3 +1,5 @@
+import type { PermissionKey } from "@/domain/access/permissions";
+
 export type UserRole =
   "employee" | "consultant" | "manager" | "accountant" | "admin";
 export type UserStatus = "active" | "inactive";
@@ -47,6 +49,8 @@ export interface PortalUser {
   compensationModel?: CompensationModel | null;
   financeAccess: FinanceAccess;
   documentAccess: DocumentAccess;
+  accessProfileId: string | null;
+  permissions: PermissionKey[];
   emailPreferences: Record<"receipts" | "payslips" | "timesheets", boolean>;
 }
 
