@@ -240,6 +240,7 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
       items: admin
         ? [
             { label: t("employees"), href: "/admin/users" },
+            { label: t("accessProfiles"), href: "/admin/access-profiles" },
             { label: t("organization"), href: "/admin/settings" },
             { label: t("emailSettings"), href: "/admin/email-settings" },
             { label: t("aiIntegration"), href: "/admin/ai-integration" },

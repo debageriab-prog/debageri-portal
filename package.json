@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "test:rules": "firebase emulators:exec --only firestore \"vitest run --config vitest.rules.config.ts\"",
     "emulators": "firebase emulators:start --project debageri-portal-local --export-on-exit=.firebase-data",
+    "seed:local": "tsx --env-file=.env.local scripts/seed-local.ts",
     "check:project": "tsx scripts/validate-project.ts",
     "deploy": "npm run check:project && firebase deploy --project prod",
     "ci": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:rules && npm run build"

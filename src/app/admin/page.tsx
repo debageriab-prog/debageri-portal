@@ -6,6 +6,11 @@ export default function AdminPage() {
   const { t } = useLocale();
   const cards = [
     [t("users"), t("usersDescription"), "/admin/users"],
+    [
+      t("accessProfiles"),
+      t("accessProfilesDescription"),
+      "/admin/access-profiles",
+    ],
     [t("organization"), t("organizationDescription"), "/admin/settings"],
     [
       t("emailSettings"),

@@ -187,6 +187,47 @@ export function normalizePermissions(
   return PERMISSION_KEYS.filter((key) => selected.has(key));
 }
 
+function descendantsOf(key: PermissionKey): PermissionKey[] {
+  const find = (nodes: PermissionNode[]): PermissionNode | undefined =>
+    nodes
+      .flatMap((node) => [node, find(node.children ?? [])])
+      .find((node) => node?.key === key);
+  const collect = (node?: PermissionNode): PermissionKey[] =>
+    (node?.children ?? []).flatMap((child) => [child.key, ...collect(child)]);
+  return collect(
+    PERMISSION_TREE.map((group) => find(group.nodes)).find(Boolean),
+  );
+}
+
+/** Ticking adds the parents; unticking also clears everything underneath. */
+export function togglePermission(
+  selected: readonly PermissionKey[],
+  key: PermissionKey,
+  checked: boolean,
+  audience: ProfileAudience,
+) {
+  if (checked) return normalizePermissions([...selected, key], audience);
+  const removed = new Set([key, ...descendantsOf(key)]);
+  return selected.filter((item) => !removed.has(item));
+}
+
+/** The tree an audience can be granted, without branches it cannot hold. */
+export function permissionTreeFor(audience: ProfileAudience) {
+  const allowed = permissionsForAudience(audience);
+  const prune = (nodes: PermissionNode[]): PermissionNode[] =>
+    nodes
+      .filter((node) => allowed.includes(node.key))
+      .map((node) =>
+        node.children
+          ? { ...node, children: prune(node.children) }
+          : { key: node.key },
+      );
+  return PERMISSION_TREE.map((group) => ({
+    ...group,
+    nodes: prune(group.nodes),
+  })).filter((group) => group.nodes.length > 0);
+}
+
 export function can(
   user: { permissions: readonly PermissionKey[] },
   key: PermissionKey,

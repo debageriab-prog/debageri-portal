@@ -6,7 +6,6 @@ import Link from "next/link";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import type { Locale } from "@/lib/localization/locale";
-import type { DocumentAccess, FinanceAccess } from "@/domain/types";
 import type { EmailPreferences } from "@/domain/notifications";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 
@@ -22,8 +21,8 @@ export interface ManagedUser {
   employmentStartDate: string;
   employmentEndDate: string;
   reportingStartDate: string;
-  financeAccess: FinanceAccess;
-  documentAccess: DocumentAccess;
+  accessProfileId: string | null;
+  accessProfileName: string | null;
   emailPreferences: EmailPreferences;
   locale: Locale;
 }
@@ -199,6 +198,7 @@ export function UserManagement({
                 <th>{t("email")}</th>
                 <th>{t("number")}</th>
                 <th>{t("role")}</th>
+                <th>{t("accessProfile")}</th>
                 <th>{t("status")}</th>
                 <th>
                   <span className="sr-only">Actions</span>
@@ -217,6 +217,7 @@ export function UserManagement({
                   <td>{user.email}</td>
                   <td>{user.employeeNumber}</td>
                   <td className="capitalize">{user.role}</td>
+                  <td>{user.accessProfileName ?? "—"}</td>
                   <td>
                     <span className={`status status-${user.status}`}>
                       {user.status}
