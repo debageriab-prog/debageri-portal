@@ -71,8 +71,6 @@ export async function runAutoReminders(portalUrl: string, now = new Date()) {
           role: String(user.role),
           organizationId: String(user.organizationId),
           accessProfileId: user.accessProfileId,
-          financeAccess: user.financeAccess,
-          documentAccess: user.documentAccess,
         }).includes("my.time.report")
       )
         continue;

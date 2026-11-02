@@ -56,28 +56,16 @@ export const verifySession = cache(
         timezone: data.timezone,
         locale: data.locale,
         compensationModel,
-        financeAccess: {
-          enabled: data.financeAccess?.enabled === true,
-          myFinance: data.financeAccess?.myFinance === true,
-          myInvoices: data.financeAccess?.myInvoices === true,
-        },
         emailPreferences: {
           receipts: data.emailPreferences?.receipts !== false,
           payslips: data.emailPreferences?.payslips !== false,
           timesheets: data.emailPreferences?.timesheets !== false,
-        },
-        documentAccess: {
-          contracts: data.documentAccess?.contracts === true,
-          payslips: data.documentAccess?.payslips === true,
-          receipts: data.documentAccess?.receipts === true,
         },
         accessProfileId: data.accessProfileId ?? null,
         permissions: await permissionsOf(db, {
           role: data.role,
           organizationId: data.organizationId,
           accessProfileId: data.accessProfileId,
-          financeAccess: data.financeAccess,
-          documentAccess: data.documentAccess,
         }),
       } as PortalUser;
     } catch {

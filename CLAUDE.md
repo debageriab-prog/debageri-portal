@@ -43,7 +43,7 @@ actually running it.
 
 - `src/app/<area>/` — pages per area (`employee`, `manager`, `time-reports`,
   `finance`, `documents`, `reminders`, `admin`, `auth`). Each area's
-  `layout.tsx` calls `verifySession()` and gates access by role and capability,
+  `layout.tsx` calls `verifySession()` and gates access by permission,
   redirecting to `/auth/login` or `/unauthorized`.
 - `src/app/api/**/route.ts` — trusted route handlers. Pattern: `verifySession()`
   → Zod `safeParse` → call a service → map errors to stable codes such as
@@ -53,7 +53,7 @@ actually running it.
   validates and writes transactionally, with audit and approval events.
   `finance-service.ts` is the largest.
 - `src/server/validators/` — Zod schemas. `src/server/auth/` — session and
-  `requireRole`. `src/server/security/app-check.ts` — App Check enforcement,
+  permission resolution. `src/server/security/app-check.ts` — App Check enforcement,
   applied to `/api/*` by `src/proxy.ts` (Next 16's replacement for middleware).
 - `src/domain/` — pure, testable logic (`types.ts`, timesheet rules, finance
   calculations and CSV, report aggregation, reminders). Put logic here when it
@@ -71,10 +71,15 @@ actually running it.
 ## Domain essentials
 
 - Roles: `consultant`, `manager`, `accountant`, `admin`. `reportsTime` is a
-  separate capability (always on for consultants, optional for managers).
-  Legacy `employee` means consultant. Consultants have a compensation model
-  (`flexible` or `fixed`) from effective-dated `compensationAgreements`, and
-  finance access flags (`financeAccess.myFinance` / `myInvoices`).
+  separate capability (on for consultants, optional for managers and
+  accountants). Legacy `employee` means consultant. Consultants have a
+  compensation model (`flexible`, `fixed` or `hybrid`) from effective-dated
+  `compensationAgreements`.
+- The role says who someone is; their access profile says what they can do.
+  Check `can(user, key)` with keys from `src/domain/access/permissions.ts`, not
+  roles. Admins hold every company permission and have no profile. Any other
+  user without a valid profile has no access. Consultant profiles can only grant
+  `my.*` keys.
 - Every organization-owned document carries `organizationId`. Always scope
   queries by it and check it.
 - Dates are `YYYY-MM-DD` in `Europe/Stockholm`. Durations are integer minutes.

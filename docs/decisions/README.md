@@ -13,3 +13,4 @@
 | 009 | Standard 40-hour reporting                  |
 | 010 | Separate Authentication user base           |
 | 011 | Separate private employee-document Storage  |
+| 012 | Access profiles decide permissions          |

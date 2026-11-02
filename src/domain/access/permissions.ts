@@ -1,4 +1,4 @@
-import type { DocumentAccess, FinanceAccess, UserRole } from "@/domain/types";
+import type { UserRole } from "@/domain/types";
 
 export const PERMISSION_KEYS = [
   "finance.ledger.view",
@@ -438,35 +438,6 @@ export const DEFAULT_PROFILES = [
   permissions: readonly PermissionKey[];
 }>;
 
-/** What a user without a profile may do, derived from the flags they carry. */
-export function legacyPermissions(
-  role: string,
-  financeAccess?: Partial<FinanceAccess> | null,
-  documentAccess?: Partial<DocumentAccess> | null,
-): PermissionKey[] {
-  if (role === "admin") return [...ADMIN_PERMISSIONS];
-  if (role === "accountant") return [...accountantPermissions];
-  const keys: PermissionKey[] =
-    role === "manager"
-      ? [...managerPermissions]
-      : ["consultant", "employee"].includes(role)
-        ? [...ownTimePermissions]
-        : [];
-  if (role === "consultant") {
-    if (financeAccess?.enabled && financeAccess.myFinance)
-      keys.push("my.finance");
-    if (financeAccess?.enabled && financeAccess.myInvoices)
-      keys.push("my.invoices");
-    if (documentAccess?.contracts) keys.push("my.contracts");
-  }
-  if (["employee", "consultant", "manager"].includes(role)) {
-    if (documentAccess?.payslips) keys.push("my.payslips");
-    if (documentAccess?.receipts)
-      keys.push("my.receipts", "my.receipts.upload");
-  }
-  return keys;
-}
-
 export type StoredProfile = {
   organizationId: string;
   audience: ProfileAudience;
@@ -474,29 +445,22 @@ export type StoredProfile = {
 };
 
 /**
- * Admins hold everything. Otherwise an assigned profile decides, and one that
- * is missing, foreign or for the wrong audience grants nothing. Users not yet
- * assigned a profile keep what their flags allowed.
+ * Admins hold everything. Otherwise the assigned profile decides, and no
+ * profile, or one that is missing, foreign or for the wrong audience, grants
+ * nothing.
  */
 export function resolvePermissions(
   user: {
     role: string;
     organizationId: string;
     accessProfileId?: string | null;
-    financeAccess?: Partial<FinanceAccess> | null;
-    documentAccess?: Partial<DocumentAccess> | null;
   },
   profile: StoredProfile | null,
 ): PermissionKey[] {
   if (user.role === "admin") return [...ADMIN_PERMISSIONS];
-  if (!user.accessProfileId)
-    return legacyPermissions(
-      user.role,
-      user.financeAccess,
-      user.documentAccess,
-    );
   const audience = audienceForRole(user.role);
   if (
+    !user.accessProfileId ||
     !profile ||
     !audience ||
     profile.organizationId !== user.organizationId ||

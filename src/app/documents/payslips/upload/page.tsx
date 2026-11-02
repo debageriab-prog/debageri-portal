@@ -39,8 +39,6 @@ export default async function UploadPayslipsPage({
         role: String(doc.data().role),
         organizationId: actor.organizationId,
         accessProfileId: doc.data().accessProfileId,
-        financeAccess: doc.data().financeAccess,
-        documentAccess: doc.data().documentAccess,
       }).includes("my.payslips"),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));

@@ -30,9 +30,16 @@ Custom claims may cache coarse role and organization hints but never replace Fir
 
 Portal roles are `consultant`, `manager`, `accountant`, and `admin`.
 `reportsTime` is a separate capability: consultants always have it, managers
-may have it, and accountants and admins do not. Legacy `employee` records are
-treated as consultants with time reporting enabled. Managers can review
-consultant reports, admins can also review reports from time-reporting managers,
-and accountants can only read consultant reports.
+and accountants may have it, and admins do not. Legacy `employee` records are
+treated as consultants with time reporting enabled.
+
+The role says who someone is. Their access profile says what they can do.
+Profiles live in `accessProfiles`, one is assigned through `users/{uid}.accessProfileId`, and `verifySession` resolves it into `permissions` on every request, so a change applies without a new sign-in. The catalogue and tree are in `src/domain/access/permissions.ts`.
+
+- Admins hold every company permission and have no profile. Administration stays admin-only, as does enabling finance and setting compensation.
+- Any other user needs a profile. Without one, or with one that is missing, from another organization or for the wrong audience, they have no access.
+- `consultant` profiles can only grant `my.*` permissions, which cover a person's own data. `staff` profiles apply to managers and accountants.
+- Own time pages need both the profile permission and `reportsTime`.
+- Nobody reviews their own report, whatever their profile allows.
 
 Admins deliberately onboard employees in portal Auth and Firestore. Candidate accounts and records are never copied automatically.

@@ -8,8 +8,10 @@ import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { defaultProfileId, defaultProfilesFor } from "@/domain/access/backfill";
-import type { PermissionKey } from "@/domain/access/permissions";
+import {
+  DEFAULT_PROFILES,
+  type PermissionKey,
+} from "@/domain/access/permissions";
 import { payslipId, payslipPeriod } from "@/domain/payslips";
 import { getIsoWeekDates, timesheetId } from "@/lib/dates/iso-week";
 
@@ -99,9 +101,10 @@ const sampleProfiles: Array<{
   },
 ];
 
-const managerProfile = defaultProfileId(org, "manager");
-const accountantProfile = defaultProfileId(org, "accountant");
-const consultantProfile = defaultProfileId(org, "consultant");
+const defaultProfileId = (role: string) => `${org}_default_${role}`;
+const managerProfile = defaultProfileId("manager");
+const accountantProfile = defaultProfileId("accountant");
+const consultantProfile = defaultProfileId("consultant");
 
 const people = [
   ["seed-admin", "admin@debageri.test", "Alva Admin", "admin", null, false],
@@ -197,16 +200,6 @@ async function seedPeople() {
         employmentEndDate: null,
         reportingStartDate: reportsTime ? "2026-01-01" : null,
         accessProfileId,
-        // Shows how someone not yet moved to a profile keeps their flags.
-        ...(uid === "seed-manager-unassigned"
-          ? {
-              documentAccess: {
-                contracts: false,
-                payslips: true,
-                receipts: true,
-              },
-            }
-          : {}),
         status: "active",
         managerId: null,
         timezone: "Europe/Stockholm",
@@ -219,12 +212,20 @@ async function seedPeople() {
 
 async function seedProfiles() {
   const batch = db.batch();
-  for (const { id, ...profile } of defaultProfilesFor(org))
-    batch.set(db.collection("accessProfiles").doc(id), {
-      ...profile,
-      createdAt: now,
-      updatedAt: now,
-    });
+  for (const profile of DEFAULT_PROFILES)
+    batch.set(
+      db
+        .collection("accessProfiles")
+        .doc(defaultProfileId(profile.defaultForRole)),
+      {
+        ...profile,
+        permissions: [...profile.permissions],
+        organizationId: org,
+        description: "",
+        createdAt: now,
+        updatedAt: now,
+      },
+    );
   for (const { id, ...profile } of sampleProfiles)
     batch.set(db.collection("accessProfiles").doc(id), {
       ...profile,

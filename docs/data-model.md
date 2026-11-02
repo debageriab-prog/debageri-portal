@@ -36,8 +36,13 @@ booked as a company-funded expense so it never touches the balance. VAT is
 stored separately from net revenue and cost. Internal
 notes and customer contact details never pass through consultant-facing
 responses, and consultants see neither invoice details nor invoice files. A
-consultant's access to My invoices comes from `financeAccess`, whatever their
-compensation model. My finances also comes from `financeAccess`, but is never
+consultant's access to My invoices comes from their access profile, whatever
+their compensation model. My finances also comes from the profile, but is never
 shown to fixed-salary consultants because they have no personal balance.
+
+`accessProfiles` holds `organizationId`, `name`, `description`, `audience`
+(`consultant` or `staff`), `permissions` and `defaultForRole`. It is server-only:
+rules deny all direct access. `users/{uid}.accessProfileId` assigns one. The
+`financeAccess` and `documentAccess` fields on older user documents are unused.
 
 Indexes in `firestore.indexes.json` serve user date/week entry queries, user sheet history, and manager status queues. Future `leaveBalances`, `payslips`, `employeeDocuments`, `projects`, and `reportSummaries` retain organization isolation and server ownership. The portal database is separate because candidate recruitment data has a different purpose, access population, retention policy, and threat boundary.

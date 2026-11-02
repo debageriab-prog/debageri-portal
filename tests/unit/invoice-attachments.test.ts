@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { legacyPermissions } from "@/domain/access/permissions";
+import { rolePermissions } from "./role-permissions";
 
 const state = vi.hoisted(() => ({
   actor: {
@@ -144,7 +144,7 @@ describe("invoice attachment authorization", () => {
     "allows %s to download company invoices",
     async (role) => {
       state.actor.role = role;
-      state.actor.permissions = legacyPermissions(role);
+      state.actor.permissions = rolePermissions(role);
       state.invoice.consultantId = "";
       const response = await list(request, { params: Promise.resolve(params) });
       expect(response!.status).toBe(200);
@@ -178,7 +178,7 @@ describe("invoice attachment authorization", () => {
   });
   it("closes finance files when finance is disabled", async () => {
     state.actor.role = "accountant";
-    state.actor.permissions = legacyPermissions("accountant");
+    state.actor.permissions = rolePermissions("accountant");
     state.financeEnabled = false;
     expect(
       (await download(request, { params: Promise.resolve(params) }))!.status,
