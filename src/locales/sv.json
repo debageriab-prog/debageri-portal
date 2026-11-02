@@ -1272,5 +1272,16 @@
   "permission_finance_customers_add": "Lägga till kunder",
   "permission_finance_categories_add": "Lägga till kategorier",
   "permission_finance_vat_add": "Registrera momsbetalningar",
-  "permission_finance_vat_delete": "Återföra momsbetalningar"
+  "permission_finance_vat_delete": "Återföra momsbetalningar",
+  "viewAsAction": "Visa som {name}",
+  "viewAsBar": "Du visar portalen som {name}. Du ser det personen ser och ändringar är avstängda.",
+  "viewAsEnded": "Den här visningen har avslutats. Avsluta för att komma tillbaka till ditt eget konto.",
+  "viewAsExit": "Avsluta visning",
+  "viewAsExitFailed": "Visningen kunde inte avslutas. Försök igen.",
+  "viewAsPausedTitle": "Visar som {name}",
+  "viewAsPausedDescription": "Den här webbläsaren visar nu portalen som den här personen, i alla flikar. Avsluta visningen för att fortsätta som dig själv.",
+  "viewAsReadOnly": "Du visar portalen som någon annan, så ändringar är avstängda.",
+  "viewAsStartFailed": "Visningen kunde inte startas. Försök igen.",
+  "auditViewAsStarted": "Började visa som användare",
+  "auditViewAsEnded": "Slutade visa som användare"
 }

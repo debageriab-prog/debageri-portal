@@ -248,7 +248,13 @@ export function AccountMenu({ user }: { user: PortalUser }) {
               <button role="menuitem" onClick={() => showDialog("avatar")}>
                 {t("updateAvatar")}
               </button>
-              <button role="menuitem" onClick={() => showDialog("password")}>
+              {/* Goes straight to Firebase as the admin, past the read-only guard. */}
+              <button
+                role="menuitem"
+                disabled={Boolean(user.impersonatedBy)}
+                title={user.impersonatedBy ? t("viewAsReadOnly") : undefined}
+                onClick={() => showDialog("password")}
+              >
                 {t("changePassword")}
               </button>
               <button

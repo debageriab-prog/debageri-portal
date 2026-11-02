@@ -18,6 +18,8 @@
   --danger-bg: #f8e4e1;
   --income: #2e9e5b;
   --expense: #d43d31;
+  --alert: #b3261e;
+  --impersonation-offset: 0px;
 }
 
 * {
@@ -100,8 +102,8 @@ a {
   color: #f7f2ea;
   padding: 30px 22px;
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: var(--impersonation-offset);
+  height: calc(100vh - var(--impersonation-offset));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -299,7 +301,7 @@ a {
 .account-control {
   position: fixed;
   z-index: 30;
-  top: 14px;
+  top: calc(14px + var(--impersonation-offset));
   right: 22px;
   display: flex;
   align-items: center;
@@ -776,6 +778,48 @@ a.card:hover {
 .mobile-menu-close,
 .mobile-menu-backdrop {
   display: none;
+}
+body:has(.impersonation-bar) {
+  --impersonation-offset: 44px;
+  padding-top: var(--impersonation-offset);
+}
+.impersonation-bar {
+  position: fixed;
+  z-index: 300;
+  inset: 0 0 auto;
+  height: var(--impersonation-offset);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 16px;
+  background: var(--alert);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.impersonation-bar button {
+  flex: 0 0 auto;
+  padding: 4px 12px;
+  border: 1px solid white;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.impersonation-bar button:hover {
+  background: white;
+  color: var(--alert);
+}
+.impersonation-bar button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.account-menu button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .table-wrap {
   overflow: auto;
@@ -3085,10 +3129,16 @@ th.actions-heading {
     display: none;
     position: fixed;
     z-index: 80;
-    inset: 0 auto 0 0;
+    inset: var(--impersonation-offset) auto 0 0;
     width: min(310px, 86vw);
-    height: 100dvh;
+    height: calc(100dvh - var(--impersonation-offset));
     overflow-y: auto;
+  }
+  body:has(.impersonation-bar) {
+    --impersonation-offset: 72px;
+  }
+  .impersonation-bar {
+    font-size: 0.8125rem;
   }
   .sidebar.mobile-open {
     display: block;

@@ -42,4 +42,27 @@ Profiles live in `accessProfiles`, one is assigned through `users/{uid}.accessPr
 - Own time pages need both the profile permission and `reportsTime`.
 - Nobody reviews their own report, whatever their profile allows.
 
+## Viewing as an employee
+
+Admins can open the portal as any other active user in their organization from
+the employee list, to see what that person sees or troubleshoot their access.
+
+- `POST /api/admin/impersonation` writes `user.impersonation_started` and sets
+  the HTTP-only `debageri-view-as` cookie for one hour. It holds only the
+  target's user ID, so it grants nothing by itself.
+- `verifySession()` still verifies the admin's own session, including MFA and
+  revocation, and then returns the target's `PortalUser` with `impersonatedBy`
+  set. Every page and route therefore applies the target's real role, profile
+  and ownership checks. If the target is no longer valid, the admin stays
+  themselves and the bar offers to exit.
+- The view is read-only. `src/proxy.ts` refuses every non-GET API call while the
+  cookie is set, apart from signing in or out and leaving the view
+  (`isAllowedWhileImpersonating`), so records stay untouched and the audit log
+  never credits the target with an admin's action. Changing a password talks to
+  Firebase directly as the admin, so the account menu disables it instead.
+- A red bar stays at the top of every page. Exit calls
+  `DELETE /api/admin/impersonation`, which writes `user.impersonation_ended`.
+- Cookies are shared across a browser's tabs, so all of them follow the view.
+  The tab that started it pauses behind a dialog, and other open tabs reload.
+
 Admins deliberately onboard employees in portal Auth and Firestore. Candidate accounts and records are never copied automatically.

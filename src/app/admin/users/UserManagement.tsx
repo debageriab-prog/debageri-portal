@@ -8,6 +8,10 @@ import { useLocale } from "@/components/localization/LocaleProvider";
 import type { Locale } from "@/lib/localization/locale";
 import type { EmailPreferences } from "@/domain/notifications";
 import { ActionIcon } from "@/components/ui/ActionIcon";
+import {
+  announceImpersonationChange,
+  endImpersonation,
+} from "@/components/layout/ImpersonationBar";
 
 export interface ManagedUser {
   id: string;
@@ -30,10 +34,12 @@ export interface ManagedUser {
 export function UserManagement({
   users,
   currentUserId,
+  canViewAs,
   saved,
 }: {
   users: ManagedUser[];
   currentUserId: string;
+  canViewAs: boolean;
   saved: "created" | "updated" | null;
 }) {
   const router = useRouter();
@@ -43,6 +49,8 @@ export function UserManagement({
     null,
   );
   const [resettingMfa, setResettingMfa] = useState<ManagedUser | null>(null);
+  const [viewingAs, setViewingAs] = useState<ManagedUser | null>(null);
+  const [viewAsError, setViewAsError] = useState("");
   const [message, setMessage] = useState(
     saved === "created"
       ? t("employeeCreated")
@@ -134,6 +142,44 @@ export function UserManagement({
     }
   }
 
+  async function startViewAs(user: ManagedUser) {
+    setBusy(true);
+    setViewAsError("");
+    // Opened before the request, while the click still allows a new tab.
+    const tab = window.open("about:blank", "_blank");
+    try {
+      const response = await appCheckFetch("/api/admin/impersonation", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      if (!response.ok) throw new Error("viewAsStartFailed");
+      announceImpersonationChange();
+      if (!tab) return window.location.assign("/");
+      tab.location.assign("/");
+      setViewingAs(user);
+    } catch {
+      tab?.close();
+      setViewAsError(t("viewAsStartFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exitViewAs() {
+    setBusy(true);
+    setViewAsError("");
+    try {
+      await endImpersonation();
+      setViewingAs(null);
+      router.refresh();
+    } catch {
+      setViewAsError(t("viewAsExitFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function resetMfa() {
     if (!resettingMfa) return;
     setBusy(true);
@@ -181,6 +227,12 @@ export function UserManagement({
             ×
           </button>
         </div>
+      )}
+
+      {viewAsError && !viewingAs && (
+        <p className="notice notice-error" role="alert">
+          {viewAsError}
+        </p>
       )}
 
       <section className="card table-wrap">
@@ -233,6 +285,27 @@ export function UserManagement({
                       >
                         <ActionIcon type="edit" />
                       </Link>
+                      {canViewAs && (
+                        <button
+                          className="table-action icon-action"
+                          aria-label={t("viewAsAction").replace(
+                            "{name}",
+                            user.displayName,
+                          )}
+                          disabled={
+                            busy ||
+                            user.id === currentUserId ||
+                            user.status !== "active"
+                          }
+                          title={t("viewAsAction").replace(
+                            "{name}",
+                            user.displayName,
+                          )}
+                          onClick={() => startViewAs(user)}
+                        >
+                          <ActionIcon type="viewAs" />
+                        </button>
+                      )}
                       <button
                         className="table-action icon-action"
                         aria-label={t("password")}
@@ -278,6 +351,44 @@ export function UserManagement({
           </table>
         )}
       </section>
+
+      {viewingAs && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="modal modal-small"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="view-as-title"
+          >
+            <header className="modal-header">
+              <div>
+                <span className="eyebrow">{t("admin")}</span>
+                <h2 id="view-as-title">
+                  {t("viewAsPausedTitle").replace(
+                    "{name}",
+                    viewingAs.displayName,
+                  )}
+                </h2>
+                <p>{t("viewAsPausedDescription")}</p>
+              </div>
+            </header>
+            {viewAsError && (
+              <p className="notice notice-error" role="alert">
+                {viewAsError}
+              </p>
+            )}
+            <footer className="modal-actions">
+              <button
+                className="button danger"
+                disabled={busy}
+                onClick={exitViewAs}
+              >
+                {t("viewAsExit")}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
 
       {deleting && (
         <div className="modal-backdrop" role="presentation">

@@ -1,5 +1,15 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import {
+  IMPERSONATION_COOKIE,
+  isAllowedWhileImpersonating,
+} from "@/domain/impersonation";
+import {
+  defaultLocale,
+  isLocale,
+  localeCookieName,
+} from "@/lib/localization/locale";
+import { translate } from "@/lib/localization/messages";
 import { rejectInvalidAppCheck } from "@/server/security/app-check";
 
 export async function proxy(request: NextRequest) {
@@ -15,6 +25,22 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname === "/api/cron/reminders"
   )
     return NextResponse.next();
+  // The one place every change passes through, so a new route can't miss it.
+  if (
+    request.cookies.has(IMPERSONATION_COOKIE) &&
+    !isAllowedWhileImpersonating(request.method, request.nextUrl.pathname)
+  ) {
+    const locale = request.cookies.get(localeCookieName)?.value;
+    return NextResponse.json(
+      {
+        error: translate(
+          isLocale(locale) ? locale : defaultLocale,
+          "viewAsReadOnly",
+        ),
+      },
+      { status: 403 },
+    );
+  }
   const rejection = await rejectInvalidAppCheck(request);
   return rejection ?? NextResponse.next();
 }

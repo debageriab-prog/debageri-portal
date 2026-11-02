@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { IMPERSONATION_COOKIE } from "@/domain/impersonation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { hasSecondFactor, isMfaRequired } from "@/server/auth/mfa";
 import { SESSION_COOKIE, SESSION_DURATION_MS } from "@/server/auth/session";
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
       maxAge: SESSION_DURATION_MS / 1_000,
       path: "/",
     });
+    endImpersonation(response);
     return response;
   } catch {
     return NextResponse.json(
@@ -55,5 +57,13 @@ export async function POST(request: Request) {
 export async function DELETE() {
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, "", { expires: new Date(0), path: "/" });
+  endImpersonation(response);
   return response;
+}
+
+function endImpersonation(response: NextResponse) {
+  response.cookies.set(IMPERSONATION_COOKIE, "", {
+    expires: new Date(0),
+    path: "/",
+  });
 }
