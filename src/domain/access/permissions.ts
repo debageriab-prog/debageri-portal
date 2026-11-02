@@ -194,6 +194,58 @@ export function can(
   return user.permissions.includes(key);
 }
 
+type Holder = { permissions: readonly PermissionKey[] };
+
+const ORGANIZATION_FINANCE_PAGES: Array<[PermissionKey, string]> = [
+  ["finance.ledger.view", "/finance"],
+  ["finance.invoices.view", "/finance?section=invoices"],
+  ["finance.vat.view", "/finance/vat-settlements"],
+  ["finance.categories.view", "/finance?section=categories"],
+  ["finance.customers.view", "/finance?section=customers"],
+];
+
+/** Where someone with company finance access lands, or null without any. */
+export function financeHome(user: Holder) {
+  return (
+    ORGANIZATION_FINANCE_PAGES.find(([key]) => can(user, key))?.[1] ?? null
+  );
+}
+
+export const hasOrganizationFinance = (user: Holder) =>
+  financeHome(user) !== null;
+
+export const FINANCE_ENTITY_PERMISSIONS = {
+  transaction: { view: "finance.ledger.view", edit: "finance.ledger.edit" },
+  invoice: { view: "finance.invoices.view", edit: "finance.invoices.edit" },
+  vatSettlement: { view: "finance.vat.view", edit: "finance.vat.edit" },
+} as const satisfies Record<
+  string,
+  { view: PermissionKey; edit: PermissionKey }
+>;
+
+const FALLBACK_PAGES: Array<[PermissionKey, string]> = [
+  ["my.finance", "/finance"],
+  ["my.invoices", "/finance?section=invoices"],
+  ["documents.contracts.view", "/documents/contracts"],
+  ["my.contracts", "/documents/contracts"],
+  ["documents.payslips.view", "/documents/payslips"],
+  ["my.payslips", "/documents/payslips"],
+  ["documents.receipts.review", "/receipts"],
+  ["my.receipts", "/receipts"],
+  ["time.reminders.view", "/reminders"],
+];
+
+export function homePath(user: Holder & { reportsTime: boolean }) {
+  if (can(user, "time.approvals.review")) return "/manager/approvals";
+  if (can(user, "time.reports.view")) return "/time-reports";
+  if (user.reportsTime) return "/employee/timesheets/current";
+  return (
+    financeHome(user) ??
+    FALLBACK_PAGES.find(([key]) => can(user, key))?.[1] ??
+    "/unauthorized"
+  );
+}
+
 const managerPermissions: PermissionKey[] = [
   "time.reports.view",
   "time.reports.viewIncome",

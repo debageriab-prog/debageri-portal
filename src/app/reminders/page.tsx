@@ -1,4 +1,5 @@
 import { getAdminServices } from "@/lib/firebase/admin";
+import { can } from "@/domain/access/permissions";
 import { stockholmDateTime } from "@/lib/dates/stockholm";
 import { verifySession } from "@/server/auth/session";
 import { getTranslator } from "@/lib/localization/server";
@@ -123,16 +124,17 @@ export default async function RemindersPage({
             <ReminderOverview
               rows={rows}
               settingsConfigured={settingsConfigured}
+              canSend={can(actor, "time.reminders.send")}
             />
           ),
-          auto: (
+          auto: can(actor, "time.reminders.schedule") ? (
             <AutoReminderForm
               autoReminders={normalizeAutoReminders(
                 settingsDoc.data()?.autoReminders,
               )}
               settingsConfigured={settingsConfigured}
             />
-          ),
+          ) : undefined,
         }}
       />
     </>

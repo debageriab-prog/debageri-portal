@@ -5,8 +5,8 @@ import {
 } from "../../../FinanceForms";
 import { financeFormContext, financeUsers } from "../../../form-data";
 import { safeTransactionReturnHref } from "../../../transaction-navigation";
-import { isAiFeatureEnabled } from "@/server/services/ai-service";
-import { accountingRecipientLabels } from "@/server/services/accounting-email-service";
+import { aiExtractionEnabledFor } from "@/server/services/ai-service";
+import { accountingRecipientsFor } from "@/server/services/accounting-email-service";
 
 export default async function EditTransactionPage({
   params,
@@ -16,7 +16,7 @@ export default async function EditTransactionPage({
   searchParams: Promise<{ returnTo?: string }>;
 }) {
   const { id } = await params;
-  const { actor, db } = await financeFormContext();
+  const { actor, db } = await financeFormContext("finance.ledger.edit");
   const [transactionSnapshot, categorySnapshot, users] = await Promise.all([
     db.collection("financialTransactions").doc(id).get(),
     db
@@ -66,16 +66,12 @@ export default async function EditTransactionPage({
       users={users}
       categories={categories}
       transaction={transaction}
-      accountingRecipients={await accountingRecipientLabels(
+      accountingRecipients={await accountingRecipientsFor(
+        actor,
         db,
-        actor.organizationId,
         "transactions",
       )}
-      aiEnabled={await isAiFeatureEnabled(
-        db,
-        actor.organizationId,
-        "financeAttachments",
-      )}
+      aiEnabled={await aiExtractionEnabledFor(actor, db, "financeAttachments")}
       returnHref={safeTransactionReturnHref((await searchParams).returnTo)}
     />
   );

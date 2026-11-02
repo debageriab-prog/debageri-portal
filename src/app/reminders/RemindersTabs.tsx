@@ -12,14 +12,17 @@ export function RemindersTabs({
   panels,
 }: {
   initialTab: RemindersTab;
-  panels: Record<RemindersTab, ReactNode>;
+  panels: { overview: ReactNode; auto?: ReactNode };
 }) {
   const { t } = useLocale();
-  const [tab, setTab] = useState<RemindersTab>(initialTab);
+  const tabs = REMINDERS_TABS.filter((item) => panels[item] !== undefined);
+  const [tab, setTab] = useState<RemindersTab>(
+    tabs.includes(initialTab) ? initialTab : "overview",
+  );
   return (
     <section className="card employee-editor">
       <div className="editor-tabs" role="tablist" aria-label={t("reminders")}>
-        {REMINDERS_TABS.map((item) => (
+        {tabs.map((item) => (
           <button
             key={item}
             type="button"
@@ -37,7 +40,7 @@ export function RemindersTabs({
           </button>
         ))}
       </div>
-      {REMINDERS_TABS.map((item) => (
+      {tabs.map((item) => (
         <div
           key={item}
           className="editor-panel"

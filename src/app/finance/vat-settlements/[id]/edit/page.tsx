@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { can } from "@/domain/access/permissions";
 import { notFound, redirect } from "next/navigation";
 import { vatPayableMinor } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
-import { isAiFeatureEnabled } from "@/server/services/ai-service";
-import { accountingRecipientLabels } from "@/server/services/accounting-email-service";
+import { aiExtractionEnabledFor } from "@/server/services/ai-service";
+import { accountingRecipientsFor } from "@/server/services/accounting-email-service";
 import { VatSettlementForm } from "../../new/VatSettlementForm";
 
 export default async function EditVatSettlementPage({
@@ -14,7 +15,7 @@ export default async function EditVatSettlementPage({
   params: Promise<{ id: string }>;
 }) {
   const actor = (await verifySession())!;
-  if (!["admin", "accountant"].includes(actor.role)) redirect("/unauthorized");
+  if (!can(actor, "finance.vat.edit")) redirect("/unauthorized");
   const { id } = await params;
   const { db } = getAdminServices();
   const [document, transactions, settlements] = await Promise.all([
@@ -67,14 +68,14 @@ export default async function EditVatSettlementPage({
         <VatSettlementForm
           payableMinor={payableMinor}
           locale={actor.locale}
-          accountingRecipients={await accountingRecipientLabels(
+          accountingRecipients={await accountingRecipientsFor(
+            actor,
             db,
-            actor.organizationId,
             "vatSettlements",
           )}
-          aiEnabled={await isAiFeatureEnabled(
+          aiEnabled={await aiExtractionEnabledFor(
+            actor,
             db,
-            actor.organizationId,
             "financeVatSettlements",
           )}
           settlement={{

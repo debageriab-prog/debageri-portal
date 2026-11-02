@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { legacyPermissions } from "@/domain/access/permissions";
 
 const state = vi.hoisted(() => ({
   actor: {
     id: "consultant-1",
     organizationId: "org-1",
     role: "consultant",
-    financeAccess: { myInvoices: true, myFinance: false },
+    compensationModel: null,
+    permissions: ["my.invoices"] as string[],
   },
+  financeEnabled: true,
   invoice: { organizationId: "org-1", consultantId: "consultant-1" },
   file: {
     organizationId: "org-1",
@@ -20,6 +23,7 @@ const state = vi.hoisted(() => ({
   save: vi.fn(),
   deleteFile: vi.fn(),
 }));
+vi.mock("server-only", () => ({}));
 vi.mock("@/server/auth/session", () => ({
   verifySession: async () => state.actor,
 }));
@@ -30,7 +34,12 @@ vi.mock("@/lib/firebase/admin", () => ({
         doc: () => ({
           get: async () => ({
             exists: true,
-            data: () => (name === "invoices" ? state.invoice : state.file),
+            data: () =>
+              name === "organizations"
+                ? { financeEnabled: state.financeEnabled }
+                : name === "invoices"
+                  ? state.invoice
+                  : state.file,
           }),
         }),
         where: () => ({
@@ -77,15 +86,15 @@ const request = new Request(
 describe("invoice attachment authorization", () => {
   beforeEach(() => {
     state.actor.role = "consultant";
-    state.actor.financeAccess.myInvoices = true;
-    state.actor.financeAccess.myFinance = false;
+    state.actor.permissions = ["my.invoices"];
+    state.financeEnabled = true;
     state.invoice.organizationId = "org-1";
     state.invoice.consultantId = "consultant-1";
     state.file.entityId = "invoice-1";
     vi.clearAllMocks();
   });
   it("blocks own invoice files even with invoice and finance access", async () => {
-    state.actor.financeAccess.myFinance = true;
+    state.actor.permissions = ["my.invoices", "my.finance"];
     expect(
       (await list(request, { params: Promise.resolve(params) }))!.status,
     ).toBe(403);
@@ -95,7 +104,7 @@ describe("invoice attachment authorization", () => {
     expect(state.download).not.toHaveBeenCalled();
   });
   it("blocks consultants without invoice access", async () => {
-    state.actor.financeAccess.myInvoices = false;
+    state.actor.permissions = [];
     expect(
       (await list(request, { params: Promise.resolve(params) }))!.status,
     ).toBe(403);
@@ -135,6 +144,7 @@ describe("invoice attachment authorization", () => {
     "allows %s to download company invoices",
     async (role) => {
       state.actor.role = role;
+      state.actor.permissions = legacyPermissions(role);
       state.invoice.consultantId = "";
       const response = await list(request, { params: Promise.resolve(params) });
       expect(response!.status).toBe(200);
@@ -145,4 +155,33 @@ describe("invoice attachment authorization", () => {
       expect(file!.headers.get("Content-Disposition")).toContain("invoice.pdf");
     },
   );
+  it("lets a view-only profile read but not change invoice files", async () => {
+    state.actor.role = "manager";
+    state.actor.permissions = ["finance.invoices.view"];
+    expect(
+      (await download(request, { params: Promise.resolve(params) }))!.status,
+    ).toBe(200);
+    expect(
+      (await upload(request, { params: Promise.resolve(params) }))!.status,
+    ).toBe(403);
+    expect(
+      (await remove(request, { params: Promise.resolve(params) }))!.status,
+    ).toBe(403);
+    expect(state.deleteFile).not.toHaveBeenCalled();
+  });
+  it("keeps other finance areas from invoice files", async () => {
+    state.actor.role = "manager";
+    state.actor.permissions = ["finance.ledger.view", "finance.ledger.edit"];
+    expect(
+      (await download(request, { params: Promise.resolve(params) }))!.status,
+    ).toBe(403);
+  });
+  it("closes finance files when finance is disabled", async () => {
+    state.actor.role = "accountant";
+    state.actor.permissions = legacyPermissions("accountant");
+    state.financeEnabled = false;
+    expect(
+      (await download(request, { params: Promise.resolve(params) }))!.status,
+    ).toBe(409);
+  });
 });

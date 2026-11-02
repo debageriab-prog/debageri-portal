@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
+import { can } from "@/domain/access/permissions";
 import type { PortalUser } from "@/domain/types";
 import {
   isPayslipContentType,
@@ -24,18 +25,20 @@ export class PayslipError extends Error {
 const recipientRoles = ["employee", "consultant", "manager"];
 
 export const canManagePayslips = (actor: PortalUser) =>
-  ["admin", "accountant"].includes(actor.role);
+  can(actor, "documents.payslips.edit");
+export const canReadAllPayslips = (actor: PortalUser) =>
+  can(actor, "documents.payslips.view");
 export const canViewOwnPayslips = (actor: PortalUser) =>
-  recipientRoles.includes(actor.role) && actor.documentAccess.payslips;
+  recipientRoles.includes(actor.role) && can(actor, "my.payslips");
 export const canReadPayslips = (actor: PortalUser) =>
-  canManagePayslips(actor) || canViewOwnPayslips(actor);
+  canReadAllPayslips(actor) || canViewOwnPayslips(actor);
 
 export function payslipVisible(
   actor: PortalUser,
   data: FirebaseFirestore.DocumentData,
 ) {
   if (data.organizationId !== actor.organizationId) return false;
-  if (canManagePayslips(actor)) return true;
+  if (canReadAllPayslips(actor)) return true;
   return canViewOwnPayslips(actor) && data.userId === actor.id;
 }
 

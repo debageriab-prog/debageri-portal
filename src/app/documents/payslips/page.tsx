@@ -3,6 +3,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import {
   canManagePayslips,
+  canReadAllPayslips,
   payslipVisible,
 } from "@/server/services/payslip-service";
 import { PayslipManagement } from "./PayslipManagement";
@@ -36,7 +37,7 @@ export default async function PayslipsPage({
     year: "numeric",
     month: "2-digit",
   }).format(new Date());
-  if (!canManagePayslips(actor)) {
+  if (!canReadAllPayslips(actor)) {
     const snapshot = await db
       .collection("payslips")
       .where("organizationId", "==", actor.organizationId)
@@ -94,6 +95,7 @@ export default async function PayslipsPage({
       people.set(item.userId, { name: item.userName, employeeNumber: "" });
   return (
     <PayslipManagement
+      canManage={canManagePayslips(actor)}
       payslips={payslips}
       view={view}
       period={period}

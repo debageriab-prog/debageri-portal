@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { accountingRecipientLabels } from "@/server/services/accounting-email-service";
+import { accountingRecipientsFor } from "@/server/services/accounting-email-service";
 import { financeFormContext } from "../../../form-data";
 import { InvoiceAttachmentForm } from "./InvoiceAttachmentForm";
 
@@ -10,7 +10,7 @@ export default async function InvoiceAttachmentsPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ uploadFailed?: string }>;
 }) {
-  const { actor, db } = await financeFormContext();
+  const { actor, db } = await financeFormContext("finance.invoices.edit");
   const { id } = await params;
   const invoice = await db.collection("invoices").doc(id).get();
   if (
@@ -23,9 +23,9 @@ export default async function InvoiceAttachmentsPage({
       invoiceId={id}
       invoiceNumber={String(invoice.data()?.invoiceNumber)}
       uploadFailed={(await searchParams).uploadFailed === "1"}
-      accountingRecipients={await accountingRecipientLabels(
+      accountingRecipients={await accountingRecipientsFor(
+        actor,
         db,
-        actor.organizationId,
         "invoices",
       )}
     />

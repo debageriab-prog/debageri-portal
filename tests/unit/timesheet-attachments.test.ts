@@ -5,6 +5,7 @@ import {
   timesheetAttachmentAccess,
   timesheetAttachmentFileError,
 } from "@/domain/timesheets/attachments";
+import { legacyPermissions } from "@/domain/access/permissions";
 import type { UserRole } from "@/domain/types";
 import { timesheetAttachmentRemovalSchema } from "@/server/validators/timesheet-attachments";
 
@@ -12,6 +13,7 @@ const actor = (id: string, role: UserRole, organizationId = "debageri") => ({
   id,
   role,
   organizationId,
+  permissions: legacyPermissions(role),
 });
 const owner = (role: UserRole, reportsTime = true) => ({
   role,
@@ -20,6 +22,25 @@ const owner = (role: UserRole, reportsTime = true) => ({
 });
 
 describe("timesheet attachment access", () => {
+  it("follows the profile rather than the role", () => {
+    const withProfile = (permissions: ReturnType<typeof legacyPermissions>) =>
+      timesheetAttachmentAccess(
+        { ...actor("m1", "manager"), permissions },
+        "u1",
+        owner("consultant"),
+      );
+    expect(withProfile(["time.reports.view"])).toEqual({
+      canAdd: false,
+      canRemove: false,
+      canView: true,
+    });
+    expect(withProfile([])).toEqual({
+      canAdd: false,
+      canRemove: false,
+      canView: false,
+    });
+  });
+
   it("lets the reporter add and view but never remove", () => {
     expect(
       timesheetAttachmentAccess(

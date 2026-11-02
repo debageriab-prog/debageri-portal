@@ -78,10 +78,31 @@ describe("Firestore rules", () => {
     await assertSucceeds(getDoc(doc(db, "timesheets/s1")));
     await assertFails(getDoc(doc(db, "timesheets/s2")));
   });
-  it("allows managers to read consultant reports across the organization", async () => {
+  it("gives managers no direct reads, since profiles decide on the server", async () => {
     const db = env.authenticatedContext("m1").firestore();
-    await assertSucceeds(getDoc(doc(db, "timesheets/s1")));
-    await assertSucceeds(getDoc(doc(db, "timesheets/s2")));
+    await assertFails(getDoc(doc(db, "timesheets/s1")));
+    await assertFails(getDoc(doc(db, "users/u1")));
+  });
+  it("keeps access profiles server-only, even from admins", async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "users/a1"), {
+        organizationId: "debageri",
+        status: "active",
+        role: "admin",
+      });
+      await setDoc(doc(context.firestore(), "accessProfiles/p1"), {
+        organizationId: "debageri",
+        permissions: [],
+      });
+    });
+    const admin = env.authenticatedContext("a1").firestore();
+    await assertFails(getDoc(doc(admin, "accessProfiles/p1")));
+    await assertFails(
+      setDoc(doc(admin, "accessProfiles/p1"), {
+        organizationId: "debageri",
+        permissions: ["finance.ledger.view"],
+      }),
+    );
   });
   it("prevents direct approval updates", async () => {
     const db = env.authenticatedContext("m1").firestore();

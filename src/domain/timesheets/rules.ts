@@ -1,3 +1,4 @@
+import { can, type PermissionKey } from "@/domain/access/permissions";
 import type {
   TimeCode,
   TimeEntry,
@@ -107,18 +108,27 @@ export function calculateTotals(
 }
 
 export function canReview(
-  actor: { id: string; role: UserRole; organizationId: string },
+  actor: {
+    id: string;
+    role: UserRole;
+    organizationId: string;
+    permissions: readonly PermissionKey[];
+  },
   subject: {
+    id: string;
     role: UserRole;
     reportsTime: boolean;
     organizationId: string;
   },
 ): boolean {
-  if (actor.organizationId !== subject.organizationId) return false;
-  const consultant = ["employee", "consultant"].includes(subject.role);
-  if (actor.role === "manager") return consultant;
+  if (
+    !can(actor, "time.approvals.review") ||
+    actor.organizationId !== subject.organizationId ||
+    actor.id === subject.id
+  )
+    return false;
+  if (["employee", "consultant"].includes(subject.role)) return true;
   return (
-    actor.role === "admin" &&
-    (consultant || (subject.role === "manager" && subject.reportsTime))
+    actor.role === "admin" && subject.role === "manager" && subject.reportsTime
   );
 }

@@ -2,6 +2,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { isReceiptStatus } from "@/domain/receipts";
 import { verifySession } from "@/server/auth/session";
 import {
+  canBookReceipts,
   canReviewReceipts,
   receiptVisible,
 } from "@/server/services/receipt-service";
@@ -92,6 +93,7 @@ export default async function ReceiptsPage({
     <ReceiptReview
       receipts={receipts}
       currentPeriod={currentPeriod}
+      canBook={canBookReceipts(actor)}
       people={Array.from(people, ([id, person]) => ({ id, ...person })).sort(
         (a, b) => a.name.localeCompare(b.name),
       )}

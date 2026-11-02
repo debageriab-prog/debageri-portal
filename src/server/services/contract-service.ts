@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
+import { can } from "@/domain/access/permissions";
 import type { PortalUser } from "@/domain/types";
 
 export class ContractError extends Error {
@@ -15,11 +16,12 @@ export class ContractError extends Error {
 }
 
 export const canManageContracts = (actor: PortalUser) =>
-  ["admin", "manager"].includes(actor.role);
+  can(actor, "documents.contracts.edit");
+export const canReadAllContracts = (actor: PortalUser) =>
+  can(actor, "documents.contracts.view");
 export const canReadContracts = (actor: PortalUser) =>
-  canManageContracts(actor) ||
-  actor.role === "accountant" ||
-  (actor.role === "consultant" && actor.documentAccess.contracts);
+  canReadAllContracts(actor) ||
+  (actor.role === "consultant" && can(actor, "my.contracts"));
 
 export async function assertConsultant(
   db: Firestore,
@@ -42,10 +44,10 @@ export function contractVisible(
   actor: PortalUser,
   data: FirebaseFirestore.DocumentData,
 ) {
-  if (["admin", "manager", "accountant"].includes(actor.role)) return true;
+  if (canReadAllContracts(actor)) return true;
   return (
     actor.role === "consultant" &&
-    actor.documentAccess.contracts &&
+    can(actor, "my.contracts") &&
     data.ownerType === "consultant" &&
     data.consultantId === actor.id &&
     data.visibleToConsultant === true

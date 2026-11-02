@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { can } from "@/domain/access/permissions";
 import { resolvePortalUrl } from "@/lib/config/portal-url";
 import { stockholmDateTime } from "@/lib/dates/stockholm";
 import { getAdminServices } from "@/lib/firebase/admin";
@@ -18,7 +19,7 @@ import { deliverReminder } from "@/server/services/reminder-service";
  */
 export async function POST(request: Request) {
   const actor = await verifySession();
-  if (!actor || !["admin", "manager", "accountant"].includes(actor.role))
+  if (!actor || !can(actor, "time.reminders.send"))
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   const parsed = sendReminderSchema.safeParse(
     await request.json().catch(() => null),

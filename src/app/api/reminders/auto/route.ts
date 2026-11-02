@@ -1,4 +1,5 @@
 import { FieldValue } from "firebase-admin/firestore";
+import { can } from "@/domain/access/permissions";
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
@@ -6,7 +7,7 @@ import { autoRemindersSchema } from "@/server/validators/reminder";
 
 export async function PATCH(request: Request) {
   const actor = await verifySession();
-  if (!actor || !["admin", "manager", "accountant"].includes(actor.role))
+  if (!actor || !can(actor, "time.reminders.schedule"))
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   const parsed = autoRemindersSchema.safeParse(
     await request.json().catch(() => null),

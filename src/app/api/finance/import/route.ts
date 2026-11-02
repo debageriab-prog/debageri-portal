@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { can, type PermissionKey } from "@/domain/access/permissions";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
@@ -26,15 +27,45 @@ const requestSchema = z.object({
 
 const isoDate = /^\d{4}-\d{2}-\d{2}$/;
 
+const importPermissions: Record<
+  z.infer<typeof requestSchema>["kind"],
+  { importKey: PermissionKey; editKey: PermissionKey }
+> = {
+  invoices: {
+    importKey: "finance.invoices.import",
+    editKey: "finance.invoices.edit",
+  },
+  transactions: {
+    importKey: "finance.ledger.import",
+    editKey: "finance.ledger.edit",
+  },
+  income: {
+    importKey: "finance.ledger.import",
+    editKey: "finance.ledger.edit",
+  },
+  expenses: {
+    importKey: "finance.ledger.import",
+    editKey: "finance.ledger.edit",
+  },
+};
+
 export async function POST(request: Request) {
-  const actor = await verifySession();
-  if (!actor || !["admin", "accountant"].includes(actor.role))
+  const session = await verifySession();
+  if (!session)
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const parsedRequest = requestSchema.safeParse(
     await request.json().catch(() => null),
   );
   if (!parsedRequest.success)
     return NextResponse.json({ error: "invalidInput" }, { status: 400 });
+  const { importKey, editKey } = importPermissions[parsedRequest.data.kind];
+  if (!can(session, importKey))
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  // Importing creates the same records as the forms, without granting the forms.
+  const actor = {
+    ...session,
+    permissions: [...session.permissions, editKey],
+  };
 
   const { db } = getAdminServices();
   try {

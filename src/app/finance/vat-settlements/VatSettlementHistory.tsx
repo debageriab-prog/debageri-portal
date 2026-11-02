@@ -26,9 +26,11 @@ export type VatSettlementRow = {
 export function VatSettlementHistory({
   settlements,
   locale,
+  canEdit,
 }: {
   settlements: VatSettlementRow[];
   locale: "sv-SE" | "en-SE";
+  canEdit: boolean;
 }) {
   const { t } = useLocale();
   const router = useRouter();
@@ -145,7 +147,7 @@ export function VatSettlementHistory({
                     >
                       i
                     </button>
-                    {settlement.status === "active" && (
+                    {canEdit && settlement.status === "active" && (
                       <Link
                         className="table-action icon-action"
                         aria-label={t("edit")}
@@ -155,7 +157,7 @@ export function VatSettlementHistory({
                         <ActionIcon type="edit" />
                       </Link>
                     )}
-                    {settlement.status === "active" && (
+                    {canEdit && settlement.status === "active" && (
                       <button
                         className="table-action table-action-danger icon-action"
                         type="button"

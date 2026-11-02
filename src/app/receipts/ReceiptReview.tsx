@@ -27,10 +27,12 @@ export function ReceiptReview({
   receipts,
   people,
   currentPeriod,
+  canBook,
 }: {
   receipts: ReceiptItem[];
   people: { id: string; name: string; employeeNumber: string }[];
   currentPeriod: string;
+  canBook: boolean;
 }) {
   const { t, locale } = useLocale();
   const router = useRouter();
@@ -81,7 +83,7 @@ export function ReceiptReview({
     const reviewed = { ...reviewing, status: decision, reviewNote: note };
     setReviewing(null);
     router.refresh();
-    if (decision === "approved") setAskExpense(reviewed);
+    if (canBook && decision === "approved") setAskExpense(reviewed);
   }
 
   return (
@@ -186,7 +188,7 @@ export function ReceiptReview({
                       >
                         <ActionIcon type="edit" />
                       </button>
-                      {canBecomeExpense(receipt) && (
+                      {canBook && canBecomeExpense(receipt) && (
                         <button
                           className="table-action icon-action receipt-expense-action"
                           aria-label={t("addReceiptAsExpense")}

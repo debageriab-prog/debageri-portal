@@ -1,4 +1,8 @@
 import { getAdminServices } from "@/lib/firebase/admin";
+import {
+  canManageContracts,
+  canReadAllContracts,
+} from "@/server/services/contract-service";
 import { verifySession } from "@/server/auth/session";
 import { contractVisible } from "@/server/services/contract-service";
 import { ContractList } from "./ContractList";
@@ -48,8 +52,8 @@ export default async function ContractsPage() {
   return (
     <ContractList
       contracts={contracts}
-      canManage={["admin", "manager"].includes(actor.role)}
-      viewerIsConsultant={actor.role === "consultant"}
+      canManage={canManageContracts(actor)}
+      viewerIsConsultant={!canReadAllContracts(actor)}
     />
   );
 }

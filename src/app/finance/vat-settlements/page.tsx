@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { can } from "@/domain/access/permissions";
 import { redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
@@ -10,7 +11,8 @@ import {
 
 export default async function VatSettlementsPage() {
   const actor = (await verifySession())!;
-  if (!["admin", "accountant"].includes(actor.role)) redirect("/unauthorized");
+  if (!can(actor, "finance.vat.view")) redirect("/unauthorized");
+  const canEdit = can(actor, "finance.vat.edit");
   const t = await getTranslator();
   const { db } = getAdminServices();
   const [snapshot, attachmentsSnapshot] = await Promise.all([
@@ -63,11 +65,17 @@ export default async function VatSettlementsPage() {
             {t("vatSettlementsDescription")}
           </p>
         </div>
-        <Link className="button" href="/finance/vat-settlements/new">
-          {t("recordVatPayment")}
-        </Link>
+        {canEdit && (
+          <Link className="button" href="/finance/vat-settlements/new">
+            {t("recordVatPayment")}
+          </Link>
+        )}
       </div>
-      <VatSettlementHistory settlements={settlements} locale={actor.locale} />
+      <VatSettlementHistory
+        settlements={settlements}
+        locale={actor.locale}
+        canEdit={canEdit}
+      />
     </>
   );
 }

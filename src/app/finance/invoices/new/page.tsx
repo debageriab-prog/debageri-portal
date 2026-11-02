@@ -1,10 +1,10 @@
-import { isAiFeatureEnabled } from "@/server/services/ai-service";
-import { accountingRecipientLabels } from "@/server/services/accounting-email-service";
+import { aiExtractionEnabledFor } from "@/server/services/ai-service";
+import { accountingRecipientsFor } from "@/server/services/accounting-email-service";
 import { InvoiceForm } from "../../FinanceForms";
 import { financeFormContext, financeUsers } from "../../form-data";
 
 export default async function NewInvoicePage() {
-  const { actor, db } = await financeFormContext();
+  const { actor, db } = await financeFormContext("finance.invoices.edit");
   const customers = await db
     .collection("financeCustomers")
     .where("organizationId", "==", actor.organizationId)
@@ -18,16 +18,12 @@ export default async function NewInvoicePage() {
           name: String(document.data().name),
         }))
         .sort((a, b) => a.name.localeCompare(b.name))}
-      accountingRecipients={await accountingRecipientLabels(
+      accountingRecipients={await accountingRecipientsFor(
+        actor,
         db,
-        actor.organizationId,
         "invoices",
       )}
-      aiEnabled={await isAiFeatureEnabled(
-        db,
-        actor.organizationId,
-        "financeInvoices",
-      )}
+      aiEnabled={await aiExtractionEnabledFor(actor, db, "financeInvoices")}
     />
   );
 }

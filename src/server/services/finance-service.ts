@@ -1,6 +1,7 @@
 import "server-only";
 
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { can, type PermissionKey } from "@/domain/access/permissions";
 import type { CompensationModel, PortalUser } from "@/domain/types";
 import {
   allocateInvoiceIncome,
@@ -24,9 +25,19 @@ export class FinanceError extends Error {
   }
 }
 
-export function requireFinanceManager(actor: PortalUser) {
-  if (!["admin", "accountant"].includes(actor.role))
-    throw new FinanceError("forbidden", 403);
+export function requireFinancePermission(
+  actor: PortalUser,
+  key: PermissionKey,
+) {
+  if (!can(actor, key)) throw new FinanceError("forbidden", 403);
+}
+
+export async function financeIsEnabled(db: Firestore, organizationId: string) {
+  const organization = await db
+    .collection("organizations")
+    .doc(organizationId)
+    .get();
+  return organization.data()?.financeEnabled === true;
 }
 
 async function activeAgreement(
@@ -143,7 +154,7 @@ export async function setCompensation(
     confirmation?: typeof COMPENSATION_END_CONFIRMATION;
   },
 ) {
-  if (actor.role !== "admin") throw new FinanceError("forbidden", 403);
+  requireFinancePermission(actor, "finance.compensation.edit");
   const user = await db.collection("users").doc(input.userId).get();
   if (
     !user.exists ||
@@ -234,7 +245,7 @@ export async function setCompensationValidTo(
   actor: PortalUser,
   input: { agreementId: string; validTo: string },
 ) {
-  if (actor.role !== "admin") throw new FinanceError("forbidden", 403);
+  requireFinancePermission(actor, "finance.compensation.edit");
   const reference = db
     .collection("compensationAgreements")
     .doc(input.agreementId);
@@ -267,7 +278,7 @@ export async function createCustomer(
   actor: PortalUser,
   input: { name: string; contactPerson: string; financeEmail: string },
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.customers.edit");
   const duplicate = await db
     .collection("financeCustomers")
     .where("organizationId", "==", actor.organizationId)
@@ -306,7 +317,7 @@ export async function updateCustomer(
     financeEmail: string;
   },
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.customers.edit");
   const reference = db.collection("financeCustomers").doc(input.customerId);
   const snapshot = await reference.get();
   if (
@@ -351,7 +362,7 @@ export async function updateCategory(
     active: boolean;
   },
 ) {
-  if (actor.role !== "admin") throw new FinanceError("forbidden", 403);
+  requireFinancePermission(actor, "finance.categories.edit");
   const reference = db.collection("financeCategories").doc(input.categoryId);
   const snapshot = await reference.get();
   if (
@@ -390,7 +401,7 @@ export async function createCategory(
     direction: "income" | "expense";
   },
 ) {
-  if (actor.role !== "admin") throw new FinanceError("forbidden", 403);
+  requireFinancePermission(actor, "finance.categories.edit");
   const duplicate = await db
     .collection("financeCategories")
     .where("organizationId", "==", actor.organizationId)
@@ -446,7 +457,7 @@ export async function createInvoice(
     importKey?: string | null;
   },
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.invoices.edit");
   if (input.dueDate < input.issueDate)
     throw new FinanceError("invoiceDateInvalid");
   const periodFrom = input.periodFrom ?? null;
@@ -531,7 +542,7 @@ export async function markInvoicePaid(
   actor: PortalUser,
   input: { invoiceId: string; paidDate: string; categoryId: string },
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.invoices.edit");
   const invoiceRef = db.collection("invoices").doc(input.invoiceId);
   const categoryRef = db.collection("financeCategories").doc(input.categoryId);
   const companyTransactionRef = db.collection("financialTransactions").doc();
@@ -723,7 +734,7 @@ export async function createFinancialTransaction(
   actor: PortalUser,
   input: FinancialTransactionInput,
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.ledger.edit");
   const balanceDelta = await validateFinancialTransaction(db, actor, input);
   const vatMinor =
     input.vatMinor ?? calculateVatMinor(input.netMinor, input.vatRateBps);
@@ -771,7 +782,7 @@ export async function updateFinancialTransaction(
   actor: PortalUser,
   input: FinancialTransactionInput & { transactionId: string },
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.ledger.edit");
   const ref = db.collection("financialTransactions").doc(input.transactionId);
   const snapshot = await ref.get();
   const current = snapshot.data();
@@ -844,7 +855,7 @@ export async function createExpenseCopies(
     }>;
   },
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.ledger.edit");
   const categoryIds = [
     ...new Set(input.expenses.map((item) => item.categoryId)),
   ];
@@ -947,7 +958,7 @@ export async function voidFinancialTransaction(
   actor: PortalUser,
   input: { transactionId: string; reason: string },
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.ledger.edit");
   const originalRef = db
     .collection("financialTransactions")
     .doc(input.transactionId);
@@ -998,7 +1009,7 @@ export async function deleteFinancialTransaction(
   actor: PortalUser,
   input: { transactionId: string; confirmation: "I am sure" },
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.ledger.edit");
   const reference = db
     .collection("financialTransactions")
     .doc(input.transactionId);
@@ -1033,7 +1044,7 @@ export async function voidInvoice(
   actor: PortalUser,
   input: { invoiceId: string; reason: string },
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.invoices.edit");
   const reference = db.collection("invoices").doc(input.invoiceId);
   const snapshot = await reference.get();
   const data = snapshot.data();
@@ -1081,7 +1092,7 @@ export async function createVatSettlement(
     note: string;
   },
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.vat.edit");
   const settlementRef = db.collection("vatSettlements").doc();
   await db.runTransaction(async (transaction) => {
     const [transactionsSnapshot, settlementsSnapshot] = await Promise.all([
@@ -1148,7 +1159,7 @@ export async function reverseVatSettlement(
   actor: PortalUser,
   input: { settlementId: string; reason: string },
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.vat.edit");
   const reference = db.collection("vatSettlements").doc(input.settlementId);
   await db.runTransaction(async (transaction) => {
     const document = await transaction.get(reference);
@@ -1190,7 +1201,7 @@ export async function updateVatSettlement(
     note: string;
   },
 ) {
-  requireFinanceManager(actor);
+  requireFinancePermission(actor, "finance.vat.edit");
   const reference = db.collection("vatSettlements").doc(input.settlementId);
   await db.runTransaction(async (transaction) => {
     const current = await transaction.get(reference);

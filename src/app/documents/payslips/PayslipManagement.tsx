@@ -17,11 +17,13 @@ import { MonthStepper } from "@/components/ui/MonthStepper";
 
 export function PayslipManagement({
   payslips,
+  canManage,
   view,
   period,
   year,
   people,
 }: {
+  canManage: boolean;
   payslips: PayslipItem[];
   view: "month" | "year";
   period: string;
@@ -85,12 +87,14 @@ export function PayslipManagement({
           <h1>{t("payslips")}</h1>
           <p className="muted page-description">{t("payslipsDescription")}</p>
         </div>
-        <Link
-          className="button"
-          href={`/documents/payslips/upload?period=${period}`}
-        >
-          {t("uploadPayslips")}
-        </Link>
+        {canManage && (
+          <Link
+            className="button"
+            href={`/documents/payslips/upload?period=${period}`}
+          >
+            {t("uploadPayslips")}
+          </Link>
+        )}
       </div>
       {error && (
         <p className="notice notice-error" role="alert">
@@ -213,17 +217,19 @@ export function PayslipManagement({
                       >
                         <FileDownloadIcon />
                       </button>
-                      <button
-                        className="table-action table-action-danger icon-action"
-                        aria-label={t("delete")}
-                        title={t("delete")}
-                        onClick={() => {
-                          setDeleting(item);
-                          setConfirmation("");
-                        }}
-                      >
-                        <ActionIcon type="delete" />
-                      </button>
+                      {canManage && (
+                        <button
+                          className="table-action table-action-danger icon-action"
+                          aria-label={t("delete")}
+                          title={t("delete")}
+                          onClick={() => {
+                            setDeleting(item);
+                            setConfirmation("");
+                          }}
+                        >
+                          <ActionIcon type="delete" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

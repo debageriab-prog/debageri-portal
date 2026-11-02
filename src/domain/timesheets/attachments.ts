@@ -1,3 +1,4 @@
+import { can, type PermissionKey } from "@/domain/access/permissions";
 import type { UserRole } from "@/domain/types";
 import { canReview } from "@/domain/timesheets/rules";
 
@@ -47,19 +48,24 @@ export function isUnsentTimesheetAttachment(
  * them, so a manager's own report needs an admin.
  */
 export function timesheetAttachmentAccess(
-  actor: { id: string; role: UserRole; organizationId: string },
+  actor: {
+    id: string;
+    role: UserRole;
+    organizationId: string;
+    permissions: readonly PermissionKey[];
+  },
   ownerId: string,
   owner: { role: UserRole; reportsTime: boolean; organizationId: string },
 ) {
   const own = actor.id === ownerId;
-  const canRemove = !own && canReview(actor, owner);
-  const accountant =
-    actor.role === "accountant" &&
+  const canRemove = !own && canReview(actor, { ...owner, id: ownerId });
+  const reader =
+    can(actor, "time.reports.view") &&
     actor.organizationId === owner.organizationId &&
     ["employee", "consultant"].includes(owner.role);
   return {
     canAdd: own,
     canRemove,
-    canView: own || canRemove || accountant,
+    canView: own || canRemove || reader,
   };
 }

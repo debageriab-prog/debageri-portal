@@ -2,7 +2,7 @@ import { ExpenseCopyForm } from "../../ExpenseCopyForm";
 import { financeFormContext, financeUsers } from "../../form-data";
 
 export default async function CopyExpensesPage() {
-  const { actor, db } = await financeFormContext();
+  const { actor, db } = await financeFormContext("finance.ledger.edit");
   const [categorySnapshot, transactionSnapshot, users] = await Promise.all([
     db
       .collection("financeCategories")

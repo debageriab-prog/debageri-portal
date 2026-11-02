@@ -29,9 +29,9 @@ export default async function ApprovalsPage() {
     const user = users.get(String(doc.data().userId));
     if (!user) return false;
     const consultant = ["employee", "consultant"].includes(String(user.role));
-    return actor.role === "manager"
-      ? consultant
-      : consultant || (user.role === "manager" && user.reportsTime === true);
+    return actor.role === "admin"
+      ? consultant || (user.role === "manager" && user.reportsTime === true)
+      : consultant;
   });
   const reportedBreakdowns = new Map<
     string,

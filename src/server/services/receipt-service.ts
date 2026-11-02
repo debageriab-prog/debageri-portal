@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
+import { can } from "@/domain/access/permissions";
 import type { PortalUser } from "@/domain/types";
 import {
   canBecomeExpense,
@@ -23,9 +24,11 @@ export class ReceiptError extends Error {
 const submitterRoles = ["employee", "consultant", "manager"];
 
 export const canReviewReceipts = (actor: PortalUser) =>
-  ["admin", "accountant"].includes(actor.role);
+  can(actor, "documents.receipts.review");
+export const canBookReceipts = (actor: PortalUser) =>
+  can(actor, "documents.receipts.book") && can(actor, "finance.ledger.edit");
 export const canSubmitReceipts = (actor: PortalUser) =>
-  submitterRoles.includes(actor.role) && actor.documentAccess.receipts;
+  submitterRoles.includes(actor.role) && can(actor, "my.receipts");
 export const canUseReceipts = (actor: PortalUser) =>
   canReviewReceipts(actor) || canSubmitReceipts(actor);
 
@@ -147,7 +150,7 @@ export async function expensableReceipt(
   actor: PortalUser,
   receiptId: string,
 ) {
-  if (!canReviewReceipts(actor)) throw new ReceiptError("forbidden", 403);
+  if (!canBookReceipts(actor)) throw new ReceiptError("forbidden", 403);
   const snapshot = await db.collection("receipts").doc(receiptId).get();
   const data = snapshot.data();
   if (!snapshot.exists || data?.organizationId !== actor.organizationId)

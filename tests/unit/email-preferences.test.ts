@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { legacyPermissions } from "@/domain/access/permissions";
 import {
   emailPreferencesFrom,
   relevantEmailTopics,
@@ -23,23 +24,24 @@ describe("email preferences", () => {
   it("only offers the email types that can reach the person", () => {
     expect(
       relevantEmailTopics({
-        role: "accountant",
         reportsTime: false,
-        documentAccess: access(false, false),
+        permissions: legacyPermissions(
+          "accountant",
+          null,
+          access(false, false),
+        ),
       }),
     ).toEqual(["receipts"]);
     expect(
       relevantEmailTopics({
-        role: "consultant",
         reportsTime: true,
-        documentAccess: access(true, true),
+        permissions: legacyPermissions("consultant", null, access(true, true)),
       }),
     ).toEqual(["receipts", "payslips", "timesheets"]);
     expect(
       relevantEmailTopics({
-        role: "manager",
         reportsTime: false,
-        documentAccess: access(false, false),
+        permissions: legacyPermissions("manager", null, access(false, false)),
       }),
     ).toEqual([]);
   });

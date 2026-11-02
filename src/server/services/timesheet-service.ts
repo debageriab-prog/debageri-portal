@@ -46,6 +46,7 @@ export async function transitionTimesheet(
     const reviewerAction =
       ["approved", "rejected", "reopened"].includes(toStatus) &&
       canReview(actor, {
+        id: sheet.userId,
         role: subject.role,
         reportsTime:
           subject.reportsTime ??

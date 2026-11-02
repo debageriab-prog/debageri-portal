@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import {
+  can,
+  hasOrganizationFinance,
+  type PermissionKey,
+} from "@/domain/access/permissions";
 import { canViewMyFinance } from "@/domain/finance/calculations";
 import type { PortalUser } from "@/domain/types";
 import { useLocale } from "@/components/localization/LocaleProvider";
@@ -96,208 +101,154 @@ function NavIcon({ name }: { name: NavIconName }) {
   );
 }
 
-function financeItems(t: Translate): NavItem[] {
+function financeItems(user: PortalUser, t: Translate): NavItem[] {
+  const organizationItems: Array<[PermissionKey, NavItem]> = [
+    [
+      "finance.ledger.view",
+      { label: t("financialOverview"), href: "/finance" },
+    ],
+    [
+      "finance.ledger.view",
+      {
+        label: t("incomeExpenseManagement"),
+        href: "/finance?section=transactions",
+      },
+    ],
+    [
+      "finance.invoices.view",
+      { label: t("invoiceManagement"), href: "/finance?section=invoices" },
+    ],
+    [
+      "finance.vat.view",
+      { label: t("vatSettlements"), href: "/finance/vat-settlements" },
+    ],
+    [
+      "finance.categories.view",
+      {
+        label: t("categoryManagement"),
+        href: "/finance?section=categories",
+      },
+    ],
+    [
+      "finance.customers.view",
+      {
+        label: t("customerManagement"),
+        href: "/finance?section=customers",
+      },
+    ],
+  ];
+  if (hasOrganizationFinance(user))
+    return organizationItems
+      .filter(([key]) => can(user, key))
+      .map(([, item]) => item);
   return [
-    { label: t("financialOverview"), href: "/finance" },
-    {
-      label: t("incomeExpenseManagement"),
-      href: "/finance?section=transactions",
-    },
-    { label: t("invoiceManagement"), href: "/finance?section=invoices" },
-    { label: t("vatSettlements"), href: "/finance/vat-settlements" },
-    {
-      label: t("categoryManagement"),
-      href: "/finance?section=categories",
-    },
-    {
-      label: t("customerManagement"),
-      href: "/finance?section=customers",
-    },
+    ...(canViewMyFinance(user)
+      ? [{ label: t("myFinances"), href: "/finance" }]
+      : []),
+    ...(can(user, "my.invoices")
+      ? [{ label: t("myInvoices"), href: "/finance?section=invoices" }]
+      : []),
   ];
 }
 
 function documentItems(user: PortalUser, t: Translate): NavItem[] {
-  const manages = ["admin", "accountant"].includes(user.role);
   return [
-    ...(manages || user.role === "manager" || user.documentAccess.contracts
+    ...(can(user, "documents.contracts.view") || can(user, "my.contracts")
       ? [{ label: t("contracts"), href: "/documents/contracts" }]
       : []),
-    ...(manages || user.documentAccess.payslips
+    ...(can(user, "documents.payslips.view") || can(user, "my.payslips")
       ? [{ label: t("payslips"), href: "/documents/payslips" }]
       : []),
   ];
 }
 
-function receiptGroup(user: PortalUser, t: Translate): NavGroup[] {
-  if (["admin", "accountant"].includes(user.role))
-    return [
-      {
-        id: "receipts",
-        label: t("receipts"),
-        icon: "receipts",
-        items: [{ label: t("reviewReceipts"), href: "/receipts" }],
-      },
-    ];
-  if (!user.documentAccess.receipts) return [];
+function receiptItems(user: PortalUser, t: Translate): NavItem[] {
+  if (can(user, "documents.receipts.review"))
+    return [{ label: t("reviewReceipts"), href: "/receipts" }];
+  if (!can(user, "my.receipts")) return [];
   return [
-    {
-      id: "receipts",
-      label: t("receipts"),
-      icon: "receipts",
-      items: [
-        { label: t("myReceipts"), href: "/receipts" },
-        { label: t("uploadReceipt"), href: "/receipts/new" },
-      ],
-    },
+    { label: t("myReceipts"), href: "/receipts" },
+    { label: t("uploadReceipt"), href: "/receipts/new" },
+  ];
+}
+
+function timeReportItems(user: PortalUser, t: Translate): NavItem[] {
+  return [
+    ...(can(user, "time.approvals.review")
+      ? [{ label: t("approvals"), href: "/manager/approvals" }]
+      : []),
+    ...(can(user, "time.reports.view")
+      ? [{ label: t("timeReports"), href: "/time-reports" }]
+      : []),
+    ...(can(user, "time.reminders.view")
+      ? [{ label: t("reminder"), href: "/reminders" }]
+      : []),
+    ...(user.role === "admin"
+      ? [
+          { label: t("timeCodes"), href: "/admin/time-codes" },
+          { label: t("redDays"), href: "/admin/red-days" },
+        ]
+      : []),
   ];
 }
 
 function navigation(user: PortalUser, t: Translate): NavGroup[] {
-  const reporting: NavItem[] = user.reportsTime
-    ? [
-        {
-          label: t("reportTimeTitle"),
-          href: "/employee/timesheets/current",
-        },
-        { label: t("history"), href: "/employee/timesheets" },
-      ]
-    : [];
-
-  if (user.role === "admin")
-    return [
-      {
-        id: "time-reports",
-        label: t("timeReport"),
-        icon: "reports",
-        items: [
-          { label: t("approvals"), href: "/manager/approvals" },
-          { label: t("timeReports"), href: "/time-reports" },
-          { label: t("reminder"), href: "/reminders" },
-          { label: t("timeCodes"), href: "/admin/time-codes" },
-          { label: t("redDays"), href: "/admin/red-days" },
-        ],
-      },
-      {
-        id: "finance",
-        label: t("finance"),
-        icon: "finance",
-        items: financeItems(t),
-      },
-      {
-        id: "documents",
-        label: t("documents"),
-        icon: "documents",
-        items: documentItems(user, t),
-      },
-      ...receiptGroup(user, t),
-      {
-        id: "admin",
-        label: t("admin"),
-        icon: "admin",
-        items: [
-          { label: t("employees"), href: "/admin/users" },
-          { label: t("organization"), href: "/admin/settings" },
-          { label: t("emailSettings"), href: "/admin/email-settings" },
-          { label: t("aiIntegration"), href: "/admin/ai-integration" },
-          { label: t("auditHistory"), href: "/admin/audit" },
-        ],
-      },
-    ] satisfies NavGroup[];
-
-  if (user.role === "accountant")
-    return [
-      {
-        id: "time-reports",
-        label: t("timeReports"),
-        icon: "reports",
-        items: [
-          { label: t("timeReports"), href: "/time-reports" },
-          { label: t("reminder"), href: "/reminders" },
-        ],
-      },
-      {
-        id: "finance",
-        label: t("finance"),
-        icon: "finance",
-        items: financeItems(t),
-      },
-      {
-        id: "documents",
-        label: t("documents"),
-        icon: "documents",
-        items: documentItems(user, t),
-      },
-      ...receiptGroup(user, t),
-    ] satisfies NavGroup[];
-
-  if (user.role === "manager") {
-    const groups: NavGroup[] = [];
-    if (reporting.length)
-      groups.push({
-        id: "time-reporting",
-        label: t("timeReport"),
-        icon: "clock",
-        items: reporting,
-      });
-    groups.push({
-      id: "time-reports",
-      label: t("timeReports"),
-      icon: "reports",
-      items: [
-        { label: t("approvals"), href: "/manager/approvals" },
-        { label: t("timeReports"), href: "/time-reports" },
-        { label: t("reminder"), href: "/reminders" },
-      ],
-    });
-    groups.push({
-      id: "documents",
-      label: t("documents"),
-      icon: "documents",
-      items: documentItems(user, t),
-    });
-    groups.push(...receiptGroup(user, t));
-    return groups;
-  }
-
+  const admin = user.role === "admin";
   const groups: NavGroup[] = [
     {
       id: "time-reporting",
       label: t("timeReport"),
       icon: "clock",
-      items: reporting,
+      items: user.reportsTime
+        ? [
+            {
+              label: t("reportTimeTitle"),
+              href: "/employee/timesheets/current",
+            },
+            { label: t("history"), href: "/employee/timesheets" },
+          ]
+        : [],
     },
-  ];
-  if (
-    user.financeAccess.enabled &&
-    (canViewMyFinance(user) || user.financeAccess.myInvoices)
-  )
-    groups.push({
+    {
+      id: "time-reports",
+      label: admin ? t("timeReport") : t("timeReports"),
+      icon: "reports",
+      items: timeReportItems(user, t),
+    },
+    {
       id: "finance",
       label: t("finance"),
       icon: "finance",
-      items: [
-        ...(canViewMyFinance(user)
-          ? [{ label: t("myFinances"), href: "/finance" }]
-          : []),
-        ...(user.financeAccess.myInvoices
-          ? [
-              {
-                label: t("myInvoices"),
-                href: "/finance?section=invoices",
-              },
-            ]
-          : []),
-      ],
-    });
-  if (user.documentAccess.contracts || user.documentAccess.payslips)
-    groups.push({
+      items: financeItems(user, t),
+    },
+    {
       id: "documents",
       label: t("documents"),
       icon: "documents",
       items: documentItems(user, t),
-    });
-  groups.push(...receiptGroup(user, t));
-  return groups;
+    },
+    {
+      id: "receipts",
+      label: t("receipts"),
+      icon: "receipts",
+      items: receiptItems(user, t),
+    },
+    {
+      id: "admin",
+      label: t("admin"),
+      icon: "admin",
+      items: admin
+        ? [
+            { label: t("employees"), href: "/admin/users" },
+            { label: t("organization"), href: "/admin/settings" },
+            { label: t("emailSettings"), href: "/admin/email-settings" },
+            { label: t("aiIntegration"), href: "/admin/ai-integration" },
+            { label: t("auditHistory"), href: "/admin/audit" },
+          ]
+        : [],
+    },
+  ];
+  return groups.filter((group) => group.items.length > 0);
 }
 
 function itemMatchesRoute(

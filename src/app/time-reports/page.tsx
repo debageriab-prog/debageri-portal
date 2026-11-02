@@ -1,4 +1,5 @@
 import { getAdminServices } from "@/lib/firebase/admin";
+import { can } from "@/domain/access/permissions";
 import { getIsoWeek } from "@/lib/dates/iso-week";
 import { verifySession } from "@/server/auth/session";
 import { HistoryView } from "@/app/employee/timesheets/HistoryView";
@@ -38,12 +39,14 @@ export default async function TimeReportsPage({
     .filter(
       (code) => code.active !== false && code.countsAsWorkedTime === true,
     );
+  const showIncome = can(actor, "time.reports.viewIncome");
   const hourlyRateFor = (userId: string) =>
     Number(
       workedCodes.find((code) => code.assignedUserId === userId)?.hourlyRate ??
         workedCodes.find((code) => !code.assignedUserId)?.hourlyRate ??
         0,
     );
+  const incomeRate = (rate: unknown) => (showIncome ? Number(rate) : 0);
   const users = usersSnapshot.docs
     .map((doc) => {
       const data = doc.data();
@@ -60,7 +63,7 @@ export default async function TimeReportsPage({
         employmentEndDate: data.employmentEndDate
           ? String(data.employmentEndDate)
           : null,
-        hourlyRate: hourlyRateFor(doc.id),
+        hourlyRate: incomeRate(hourlyRateFor(doc.id)),
       };
     })
     .filter((user) => visibleUser(actor.role, user))
@@ -118,7 +121,7 @@ export default async function TimeReportsPage({
             data.timeCodeId,
         ),
         countsAsWorkedTime: Boolean(data.timeCodeSnapshot?.countsAsWorkedTime),
-        hourlyRate: Number(
+        hourlyRate: incomeRate(
           data.timeCodeSnapshot?.hourlyRate ?? hourlyRateFor(selected.id),
         ),
       };
@@ -172,7 +175,7 @@ export default async function TimeReportsPage({
           countsAsWorkedTime: Boolean(
             data.timeCodeSnapshot?.countsAsWorkedTime,
           ),
-          hourlyRate: Number(
+          hourlyRate: incomeRate(
             data.timeCodeSnapshot?.hourlyRate ??
               hourlyRateFor(String(data.userId)),
           ),
@@ -216,7 +219,7 @@ export default async function TimeReportsPage({
           currentYear={current.isoYear}
           currentWeek={current.isoWeek}
           currentMonth={today.slice(0, 7)}
-          showEstimatedIncome
+          showEstimatedIncome={showIncome}
         />
       )}
       {selected && (
@@ -232,7 +235,7 @@ export default async function TimeReportsPage({
           readOnly
           initialMode="month"
           avatarUserId={selected.id}
-          showEstimatedIncome={selected.role !== "employee"}
+          showEstimatedIncome={showIncome && selected.role !== "employee"}
           hourlyRate={selected.hourlyRate}
           title={String(selected.displayName)}
           description={t("selectedReportDescription")}

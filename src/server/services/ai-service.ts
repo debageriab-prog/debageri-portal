@@ -5,6 +5,7 @@ import OpenAI from "openai";
 import type { Firestore } from "firebase-admin/firestore";
 import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
+import { can } from "@/domain/access/permissions";
 import type { PortalUser } from "@/domain/types";
 import {
   AI_PURPOSE_FEATURE,
@@ -66,6 +67,17 @@ export async function readAiSettings(db: Firestore, organizationId: string) {
     } as Record<AiProvider, boolean>,
     encryptedKeys: keys,
   };
+}
+
+export async function aiExtractionEnabledFor(
+  actor: PortalUser,
+  db: Firestore,
+  feature: AiFeature,
+) {
+  return (
+    can(actor, "finance.aiExtraction") &&
+    isAiFeatureEnabled(db, actor.organizationId, feature)
+  );
 }
 
 export async function isAiFeatureEnabled(

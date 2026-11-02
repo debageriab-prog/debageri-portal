@@ -1,3 +1,4 @@
+import { can, type PermissionKey } from "@/domain/access/permissions";
 import { formatSek } from "@/domain/finance/calculations";
 import { formatPayslipMonth } from "@/domain/payslips";
 
@@ -111,16 +112,14 @@ export const emailPreferencesFrom = (value: unknown): EmailPreferences =>
 
 /** Email types that can actually reach this person, for the settings UI. */
 export function relevantEmailTopics(user: {
-  role: string;
   reportsTime: boolean;
-  documentAccess: { payslips: boolean; receipts: boolean };
+  permissions: readonly PermissionKey[];
 }): NotificationTopic[] {
   return NOTIFICATION_TOPICS.filter((topic) =>
     topic === "receipts"
-      ? ["admin", "accountant"].includes(user.role) ||
-        user.documentAccess.receipts
+      ? can(user, "documents.receipts.review") || can(user, "my.receipts")
       : topic === "payslips"
-        ? user.documentAccess.payslips
+        ? can(user, "my.payslips")
         : user.reportsTime,
   );
 }

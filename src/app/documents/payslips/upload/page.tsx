@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { parsePayslipPeriod } from "@/domain/payslips";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
+import { permissionResolver } from "@/server/auth/permissions";
 import { verifySession } from "@/server/auth/session";
 import { canManagePayslips } from "@/server/services/payslip-service";
 import { receivesDocuments } from "@/server/validators/user-access";
@@ -16,11 +17,14 @@ export default async function UploadPayslipsPage({
   if (!canManagePayslips(actor)) redirect("/unauthorized");
   const t = await getTranslator();
   const { db } = getAdminServices();
-  const users = await db
-    .collection("users")
-    .where("organizationId", "==", actor.organizationId)
-    .where("role", "in", ["employee", "consultant", "manager"])
-    .get();
+  const [users, permissionsFor] = await Promise.all([
+    db
+      .collection("users")
+      .where("organizationId", "==", actor.organizationId)
+      .where("role", "in", ["employee", "consultant", "manager"])
+      .get(),
+    permissionResolver(db, actor.organizationId),
+  ]);
   const recipients = users.docs
     .filter((doc) => receivesDocuments(doc.data()))
     .map((doc) => ({
@@ -28,7 +32,13 @@ export default async function UploadPayslipsPage({
       name: String(doc.data().displayName),
       employeeNumber: String(doc.data().employeeNumber ?? ""),
       role: String(doc.data().role),
-      hasAccess: doc.data().documentAccess?.payslips === true,
+      hasAccess: permissionsFor({
+        role: String(doc.data().role),
+        organizationId: actor.organizationId,
+        accessProfileId: doc.data().accessProfileId,
+        financeAccess: doc.data().financeAccess,
+        documentAccess: doc.data().documentAccess,
+      }).includes("my.payslips"),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const requested = (await searchParams).period ?? "";

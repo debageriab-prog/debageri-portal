@@ -23,9 +23,11 @@ export type ReminderRow = {
 export function ReminderOverview({
   rows,
   settingsConfigured,
+  canSend,
 }: {
   rows: ReminderRow[];
   settingsConfigured: boolean;
+  canSend: boolean;
 }) {
   const { t } = useLocale();
   const router = useRouter();
@@ -43,7 +45,10 @@ export function ReminderOverview({
   );
   const reviewing = rows.find((row) => row.id === reviewingId);
   const canRemind = (row: ReminderRow) =>
-    settingsConfigured && row.missing.length > 0 && !row.alreadySentToday;
+    canSend &&
+    settingsConfigured &&
+    row.missing.length > 0 &&
+    !row.alreadySentToday;
   const visibleRemindable = visible.filter(canRemind);
   const selectedRows = rows.filter(
     (row) => selected.has(row.id) && canRemind(row),
@@ -148,14 +153,19 @@ export function ReminderOverview({
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-        <button
-          type="button"
-          className="button"
-          disabled={!selectedRows.length}
-          onClick={() => setConfirming(selectedRows)}
-        >
-          {t("remindSelected").replace("{count}", String(selectedRows.length))}
-        </button>
+        {canSend && (
+          <button
+            type="button"
+            className="button"
+            disabled={!selectedRows.length}
+            onClick={() => setConfirming(selectedRows)}
+          >
+            {t("remindSelected").replace(
+              "{count}",
+              String(selectedRows.length),
+            )}
+          </button>
+        )}
       </div>
       {notice && <p className={`notice ${notice.kind}`}>{notice.text}</p>}
       {visible.length === 0 ? (
@@ -301,13 +311,15 @@ export function ReminderOverview({
             ) : (
               <p>{t("noMissingWeeks")}</p>
             )}
-            <ReminderPanel
-              key={reviewing.id}
-              selectedUserId={reviewing.id}
-              settingsConfigured={settingsConfigured}
-              alreadySentToday={reviewing.alreadySentToday}
-              nothingMissing={!reviewing.missing.length}
-            />
+            {canSend && (
+              <ReminderPanel
+                key={reviewing.id}
+                selectedUserId={reviewing.id}
+                settingsConfigured={settingsConfigured}
+                alreadySentToday={reviewing.alreadySentToday}
+                nothingMissing={!reviewing.missing.length}
+              />
+            )}
           </section>
         </div>
       )}

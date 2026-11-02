@@ -4,6 +4,8 @@ import { FieldValue } from "firebase-admin/firestore";
 import { canViewMyFinance } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
+import { financeIsEnabled } from "@/server/services/finance-service";
+import { can, FINANCE_ENTITY_PERMISSIONS } from "@/domain/access/permissions";
 
 const MAX_FILES = 3;
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -47,7 +49,15 @@ async function context(entityType: string, entityId: string, write: boolean) {
   const data = entity.data();
   if (!entity.exists || data?.organizationId !== actor.organizationId)
     return { error: NextResponse.json({ error: "notFound" }, { status: 404 }) };
-  const manager = ["admin", "accountant"].includes(actor.role);
+  if (!(await financeIsEnabled(db, actor.organizationId)))
+    return {
+      error: NextResponse.json({ error: "financeDisabled" }, { status: 409 }),
+    };
+  const permissions =
+    FINANCE_ENTITY_PERMISSIONS[
+      entityType as "transaction" | "invoice" | "vatSettlement"
+    ];
+  const manager = can(actor, write ? permissions.edit : permissions.view);
   const consultantCanRead =
     !write &&
     data?.consultantId === actor.id &&

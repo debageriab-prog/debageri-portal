@@ -1,4 +1,10 @@
 import { redirect } from "next/navigation";
+import {
+  can,
+  financeHome,
+  hasOrganizationFinance,
+  type PermissionKey,
+} from "@/domain/access/permissions";
 import { canViewMyFinance } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
@@ -18,6 +24,17 @@ const financeSections = [
   "customers",
 ] as const;
 
+const sectionPermissions: Record<
+  (typeof financeSections)[number],
+  PermissionKey
+> = {
+  overview: "finance.ledger.view",
+  transactions: "finance.ledger.view",
+  invoices: "finance.invoices.view",
+  categories: "finance.categories.view",
+  customers: "finance.customers.view",
+};
+
 export default async function FinancePage({
   searchParams,
 }: {
@@ -30,14 +47,19 @@ export default async function FinancePage({
     ? (requestedSection as (typeof financeSections)[number])
     : "overview";
   const actor = (await verifySession())!;
-  const manager = ["admin", "accountant"].includes(actor.role);
+  const manager = hasOrganizationFinance(actor);
   const myFinance = canViewMyFinance(actor);
+  const myInvoices = can(actor, "my.invoices");
+  if (manager && !can(actor, sectionPermissions[section]))
+    redirect(financeHome(actor)!);
   if (
     !manager &&
-    ((section === "invoices" && !actor.financeAccess.myInvoices) ||
+    ((section === "invoices" && !myInvoices) ||
       (section !== "invoices" && !myFinance))
   )
     redirect("/unauthorized");
+  const organizationLedger = can(actor, "finance.ledger.view");
+  const organizationInvoices = can(actor, "finance.invoices.view");
   const visibleSection = manager
     ? section
     : section === "invoices"
@@ -67,47 +89,55 @@ export default async function FinancePage({
       .collection("financeCategories")
       .where("organizationId", "==", organizationId)
       .get(),
-    manager || actor.financeAccess.myInvoices
+    organizationLedger || organizationInvoices || myInvoices
       ? db
           .collection("invoices")
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
-    manager || myFinance
+    organizationLedger || myFinance
       ? db
           .collection("financialTransactions")
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
-    manager
+    can(actor, "finance.customers.view")
       ? db
           .collection("financeCustomers")
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
-    manager
+    can(actor, "finance.vat.view")
       ? db
           .collection("vatSettlements")
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
-    manager || myFinance
+    organizationLedger || myFinance
       ? db
           .collection("financeAttachments")
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
-    manager
+    can(actor, "finance.compensation.view")
       ? db
           .collection("compensationAgreements")
           .where("organizationId", "==", organizationId)
           .get()
-      : db
-          .collection("compensationAgreements")
-          .where("organizationId", "==", organizationId)
-          .where("userId", "==", actor.id)
-          .get(),
+      : manager
+        ? Promise.resolve(null)
+        : db
+            .collection("compensationAgreements")
+            .where("organizationId", "==", organizationId)
+            .where("userId", "==", actor.id)
+            .get(),
   ]);
+  const invoiceConsultantIds = new Map(
+    (invoicesSnapshot?.docs ?? []).map((document) => [
+      document.id,
+      document.data().consultantId ?? null,
+    ]),
+  );
 
   const transactionAttachments = new Map<
     string,
@@ -144,7 +174,9 @@ export default async function FinancePage({
       active: document.data().active !== false,
     }))
     .sort((a, b) => a.code.localeCompare(b.code));
-  const invoices: FinancePageData["invoices"] = (invoicesSnapshot?.docs ?? [])
+  const invoices: FinancePageData["invoices"] = (
+    organizationInvoices || myInvoices ? (invoicesSnapshot?.docs ?? []) : []
+  )
     .map((document) => {
       const data = document.data();
       return {
@@ -197,6 +229,7 @@ export default async function FinancePage({
         categoryId: String(data.categoryId),
         consultantId: data.consultantId ?? null,
         invoiceId: data.invoiceId ?? null,
+        invoiceConsultantId: invoiceConsultantIds.get(data.invoiceId) ?? null,
         funding: data.funding ?? null,
         date: String(data.date),
         netMinor: Number(data.netMinor),
@@ -217,17 +250,17 @@ export default async function FinancePage({
     })
     .filter((transaction) => manager || transaction.consultantId === actor.id)
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
-  const agreements: FinancePageData["agreements"] = agreementsSnapshot.docs.map(
-    (document) => ({
-      id: document.id,
-      userId: String(document.data().userId),
-      model: document.data().model,
-      validFrom: String(document.data().validFrom),
-      validTo: document.data().validTo ?? null,
-      shareBps: Number(document.data().shareBps ?? 0),
-      fixedMonthlySalaryMinor: document.data().fixedMonthlySalaryMinor ?? null,
-    }),
-  );
+  const agreements: FinancePageData["agreements"] = (
+    agreementsSnapshot?.docs ?? []
+  ).map((document) => ({
+    id: document.id,
+    userId: String(document.data().userId),
+    model: document.data().model,
+    validFrom: String(document.data().validFrom),
+    validTo: document.data().validTo ?? null,
+    shareBps: Number(document.data().shareBps ?? 0),
+    fixedMonthlySalaryMinor: document.data().fixedMonthlySalaryMinor ?? null,
+  }));
   const customers: FinancePageData["customers"] = (
     customersSnapshot?.docs ?? []
   )
@@ -259,7 +292,12 @@ export default async function FinancePage({
         agreements,
         vatSettlements,
       }}
-      actor={{ id: actor.id, role: actor.role, locale: actor.locale }}
+      actor={{
+        id: actor.id,
+        role: actor.role,
+        locale: actor.locale,
+        permissions: actor.permissions,
+      }}
       section={visibleSection}
     />
   );
