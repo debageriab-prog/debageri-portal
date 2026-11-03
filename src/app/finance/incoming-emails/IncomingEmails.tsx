@@ -30,11 +30,11 @@ import { shiftMonth } from "@/lib/dates/month";
 import { appCheckFetch } from "@/lib/firebase/client";
 import type { IncomingEmailView } from "@/server/services/incoming-email-service";
 import {
-  AttachmentPreviewModal,
   canPreview,
+  FilePreviewModal,
   PreviewButton,
   type PreviewTarget,
-} from "../FinanceAttachments";
+} from "@/components/ui/FilePreview";
 
 type Names = {
   categories: Record<string, string>;
@@ -661,7 +661,7 @@ function IncomingEmailModal({
                     contentType={attachment.contentType}
                     size={attachment.size}
                   >
-                    {canPreview(attachment.contentType) && (
+                    {canPreview(attachment.contentType) ? (
                       <PreviewButton
                         name={attachment.name}
                         onClick={() =>
@@ -672,18 +672,19 @@ function IncomingEmailModal({
                           })
                         }
                       />
+                    ) : (
+                      <button
+                        className="attachment-view"
+                        type="button"
+                        aria-label={`${t("download")} ${attachment.name}`}
+                        title={`${t("download")} ${attachment.name}`}
+                        onClick={() =>
+                          void download(attachment.id, attachment.name)
+                        }
+                      >
+                        <FileDownloadIcon />
+                      </button>
                     )}
-                    <button
-                      className="attachment-view"
-                      type="button"
-                      aria-label={`${t("download")} ${attachment.name}`}
-                      title={`${t("download")} ${attachment.name}`}
-                      onClick={() =>
-                        void download(attachment.id, attachment.name)
-                      }
-                    >
-                      <FileDownloadIcon />
-                    </button>
                   </DetailFile>
                 ))}
               </DetailFiles>
@@ -756,10 +757,7 @@ function IncomingEmailModal({
         </section>
       </div>
       {preview && (
-        <AttachmentPreviewModal
-          target={preview}
-          onClose={() => setPreview(null)}
-        />
+        <FilePreviewModal target={preview} onClose={() => setPreview(null)} />
       )}
       {confirmDismiss && (
         <div

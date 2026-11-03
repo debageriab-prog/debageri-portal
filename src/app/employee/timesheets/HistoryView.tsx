@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
 import { appCheckFetch } from "@/lib/firebase/client";
 import {
-  AttachmentPreviewModal,
-  PreviewButton,
+  FileClips,
+  FilePreviewModal,
   type PreviewTarget,
-} from "@/app/finance/FinanceAttachments";
+} from "@/components/ui/FilePreview";
 import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
@@ -487,30 +487,16 @@ export function HistoryView({
   }
 
   function sheetFiles(sheet: HistorySheet) {
-    const files = (attachments ?? []).filter(
-      (attachment) => attachment.timesheetId === sheet.id,
-    );
-    if (!files.length) return "-";
     return (
-      <ul className="table-attachment-list">
-        {files.map((file) => (
-          <li key={file.id}>
-            <span className="stored-attachment">
-              <span className="stored-attachment-name">{file.name}</span>
-              <PreviewButton
-                name={file.name}
-                onClick={() =>
-                  setPreviewing({
-                    name: file.name,
-                    contentType: file.contentType,
-                    fileUrl: `/api/timesheets/${encodeURIComponent(sheet.id)}/attachments/${encodeURIComponent(file.id)}`,
-                  })
-                }
-              />
-            </span>
-          </li>
-        ))}
-      </ul>
+      <FileClips
+        targets={(attachments ?? [])
+          .filter((attachment) => attachment.timesheetId === sheet.id)
+          .map((file) => ({
+            name: file.name,
+            contentType: file.contentType,
+            fileUrl: `/api/timesheets/${encodeURIComponent(sheet.id)}/attachments/${encodeURIComponent(file.id)}`,
+          }))}
+      />
     );
   }
 
@@ -900,7 +886,7 @@ export function HistoryView({
         </div>
       )}
       {previewing && (
-        <AttachmentPreviewModal
+        <FilePreviewModal
           target={previewing}
           onClose={() => setPreviewing(null)}
         />

@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { appCheckFetch } from "@/lib/firebase/client";
 import {
-  FileDownloadIcon,
-  FileRemoveIcon,
-} from "@/components/ui/FileActionIcons";
-import type { ContractItem } from "./ContractList";
+  contentTypeFromName,
+  FilePreviewAction,
+} from "@/components/ui/FilePreview";
+import { FileRemoveIcon } from "@/components/ui/FileActionIcons";
+import { contractFileUrl, type ContractItem } from "./ContractList";
 
 type Consultant = { id: string; name: string };
 export function ContractForm({
@@ -29,19 +30,6 @@ export function ContractForm({
   const [removed, setRemoved] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  async function download(file: ContractItem["files"][number]) {
-    if (!contract) return;
-    const response = await appCheckFetch(
-      `/api/documents/contracts/${encodeURIComponent(contract.id)}/files/${encodeURIComponent(file.id)}`,
-    );
-    if (!response.ok) return setError(t("contractDownloadFailed"));
-    const url = URL.createObjectURL(await response.blob());
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = file.name;
-    anchor.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
-  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -180,19 +168,16 @@ export function ContractForm({
             <ul className="attachment-list editable-attachment-list">
               {existing.map((file) => (
                 <li key={file.id}>
-                  <span>{file.name}</span>
-                  <button
-                    type="button"
-                    className="attachment-download"
-                    aria-label={t("downloadAttachment").replace(
-                      "{name}",
-                      file.name,
-                    )}
-                    title={t("downloadAttachment").replace("{name}", file.name)}
-                    onClick={() => void download(file)}
-                  >
-                    <FileDownloadIcon />
-                  </button>
+                  <span className="stored-attachment-name">{file.name}</span>
+                  {contract && (
+                    <FilePreviewAction
+                      target={{
+                        name: file.name,
+                        contentType: contentTypeFromName(file.name),
+                        fileUrl: contractFileUrl(contract.id, file.id),
+                      }}
+                    />
+                  )}
                   <button
                     type="button"
                     className="attachment-remove"

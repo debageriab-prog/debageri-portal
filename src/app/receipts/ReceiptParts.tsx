@@ -3,12 +3,14 @@
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
   DetailFacts,
+  DetailFile,
+  DetailFiles,
   DetailSection,
   DetailSections,
   DetailSummary,
   DetailTag,
 } from "@/components/ui/DetailView";
-import { DocumentPreview } from "@/components/ui/DocumentPreview";
+import { FilePreviewAction } from "@/components/ui/FilePreview";
 import { MonthStepper } from "@/components/ui/MonthStepper";
 import { formatSek } from "@/domain/finance/calculations";
 import { RECEIPT_STATUSES, type ReceiptStatus } from "@/domain/receipts";
@@ -221,12 +223,22 @@ export function ReceiptDetailModal({
             </DetailSection>
           )}
         </DetailSections>
-        <DocumentPreview
-          fileUrl={receiptFileUrl(receipt.id)}
-          fileName={receipt.fileName}
-          contentType={receipt.contentType}
-          title={t("receiptPreviewTitle")}
-        />
+        <DetailSection title={t("attachments")} count={1}>
+          <DetailFiles>
+            <DetailFile
+              name={receipt.fileName}
+              contentType={receipt.contentType}
+            >
+              <FilePreviewAction
+                target={{
+                  name: receipt.fileName,
+                  contentType: receipt.contentType,
+                  fileUrl: receiptFileUrl(receipt.id),
+                }}
+              />
+            </DetailFile>
+          </DetailFiles>
+        </DetailSection>
       </section>
     </div>
   );

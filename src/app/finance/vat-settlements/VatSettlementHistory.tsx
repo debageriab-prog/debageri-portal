@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { formatSek } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
-import { AttachmentDownloads, StoredAttachment } from "../FinanceAttachments";
+import { AttachmentClip, AttachmentDownloads } from "../FinanceAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import {
   DetailFacts,
@@ -130,17 +130,16 @@ export function VatSettlementHistory({
                 </td>
                 <td>
                   {settlement.attachments.length ? (
-                    <ul className="table-attachment-list">
+                    <div className="table-attachment-clips">
                       {settlement.attachments.map((attachment) => (
-                        <li key={attachment.id}>
-                          <StoredAttachment
-                            entityType="vatSettlement"
-                            entityId={settlement.id}
-                            attachment={attachment}
-                          />
-                        </li>
+                        <AttachmentClip
+                          key={attachment.id}
+                          entityType="vatSettlement"
+                          entityId={settlement.id}
+                          attachment={attachment}
+                        />
                       ))}
-                    </ul>
+                    </div>
                   ) : (
                     "-"
                   )}

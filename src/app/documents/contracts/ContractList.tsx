@@ -15,7 +15,10 @@ import {
   DetailSummary,
   DetailTag,
 } from "@/components/ui/DetailView";
-import { FileDownloadIcon } from "@/components/ui/FileActionIcons";
+import {
+  contentTypeFromName,
+  FilePreviewAction,
+} from "@/components/ui/FilePreview";
 
 export type ContractItem = {
   id: string;
@@ -29,6 +32,9 @@ export type ContractItem = {
   confidential: boolean;
   files: { id: string; name: string; size: number }[];
 };
+
+export const contractFileUrl = (contractId: string, fileId: string) =>
+  `/api/documents/contracts/${encodeURIComponent(contractId)}/files/${encodeURIComponent(fileId)}`;
 
 export function ContractList({
   contracts,
@@ -71,21 +77,6 @@ export function ContractList({
         .includes(nameFilter.toLocaleLowerCase()) &&
       (!consultantFilter || contract.consultantId === consultantFilter),
   );
-  async function download(
-    contractId: string,
-    file: ContractItem["files"][number],
-  ) {
-    const response = await appCheckFetch(
-      `/api/documents/contracts/${encodeURIComponent(contractId)}/files/${encodeURIComponent(file.id)}`,
-    );
-    if (!response.ok) return setError(t("contractDownloadFailed"));
-    const url = URL.createObjectURL(await response.blob());
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = file.name;
-    anchor.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
   async function remove() {
     if (!deleting) return;
     setBusy(true);
@@ -331,20 +322,13 @@ export function ContractList({
                 <DetailFiles>
                   {viewing.files.map((file) => (
                     <DetailFile key={file.id} name={file.name} size={file.size}>
-                      <button
-                        className="attachment-download"
-                        aria-label={t("downloadAttachment").replace(
-                          "{name}",
-                          file.name,
-                        )}
-                        title={t("downloadAttachment").replace(
-                          "{name}",
-                          file.name,
-                        )}
-                        onClick={() => void download(viewing.id, file)}
-                      >
-                        <FileDownloadIcon />
-                      </button>
+                      <FilePreviewAction
+                        target={{
+                          name: file.name,
+                          contentType: contentTypeFromName(file.name),
+                          fileUrl: contractFileUrl(viewing.id, file.id),
+                        }}
+                      />
                     </DetailFile>
                   ))}
                 </DetailFiles>

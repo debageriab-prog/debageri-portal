@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale } from "@/components/localization/LocaleProvider";
-import { DocumentPreview, downloadFile } from "@/components/ui/DocumentPreview";
+import { DocumentPreview } from "@/components/ui/DocumentPreview";
 
 export type PayslipItem = {
   id: string;
@@ -17,9 +17,6 @@ export type PayslipItem = {
 
 export const payslipFileUrl = (id: string) =>
   `/api/documents/payslips/${encodeURIComponent(id)}/file`;
-
-export const downloadPayslip = (item: PayslipItem) =>
-  downloadFile(payslipFileUrl(item.id), item.fileName);
 
 export function PayslipPreview({
   payslip,

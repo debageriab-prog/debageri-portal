@@ -1362,8 +1362,7 @@ th {
 }
 
 .document-icon-action svg,
-.receipt-expense-action svg,
-.payslip-download-action svg {
+.receipt-expense-action svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -1411,10 +1410,6 @@ th {
 
 th.actions-heading {
   text-align: right;
-}
-
-.payslip-file-name {
-  overflow-wrap: anywhere;
 }
 
 .payslip-period-filter,

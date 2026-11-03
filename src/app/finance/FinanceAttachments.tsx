@@ -1,17 +1,22 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { appCheckFetch } from "@/lib/firebase/client";
 import {
   FileAiIcon,
-  FileAttachmentIcon,
-  FileDownloadIcon,
   FileRemoveIcon,
-  FileViewIcon,
   SuccessCheckIcon,
 } from "@/components/ui/FileActionIcons";
-import { DocumentPreview } from "@/components/ui/DocumentPreview";
+import {
+  canPreview,
+  FileClip,
+  FileName,
+  FilePreviewAction,
+  FilePreviewModal,
+  PreviewButton,
+  type PreviewTarget,
+} from "@/components/ui/FilePreview";
 import {
   DetailFile,
   DetailFiles,
@@ -26,68 +31,6 @@ type Attachment = {
   size: number;
   contentType: string;
 };
-
-export function AttachmentDownloadLink({
-  entityType,
-  entityId,
-  attachmentId,
-  name,
-  className = "text-link",
-  children,
-}: {
-  entityType: FinanceEntityType;
-  entityId: string;
-  attachmentId: string;
-  name: string;
-  className?: string;
-  children?: ReactNode;
-}) {
-  const { t } = useLocale();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
-  const href = `/api/finance/attachments/${entityType}/${encodeURIComponent(entityId)}/${encodeURIComponent(attachmentId)}`;
-  const label = t("downloadAttachment").replace("{name}", name);
-
-  return (
-    <>
-      <a
-        className={className}
-        href={href}
-        aria-label={label}
-        aria-disabled={busy}
-        title={label}
-        onClick={(event) => {
-          event.preventDefault();
-          if (busy) return;
-          setBusy(true);
-          setError(false);
-          void appCheckFetch(href)
-            .then(async (response) => {
-              if (!response.ok) throw new Error("download failed");
-              const url = URL.createObjectURL(await response.blob());
-              const download = document.createElement("a");
-              download.href = url;
-              download.download = name;
-              download.click();
-              window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
-            })
-            .catch(() => setError(true))
-            .finally(() => setBusy(false));
-        }}
-      >
-        {children ?? name}
-      </a>
-      {error && (
-        <span
-          className="notice notice-error attachment-download-notice"
-          role="alert"
-        >
-          {t("financeError_attachmentDownloadFailed")}
-        </span>
-      )}
-    </>
-  );
-}
 
 export async function uploadFinanceAttachments(
   entityType: FinanceEntityType,
@@ -123,95 +66,12 @@ export async function saveFinanceAttachmentChanges(
   return uploadFinanceAttachments(entityType, entityId, files);
 }
 
-export type PreviewTarget = {
-  name: string;
-  contentType: string;
-  fileUrl?: string;
-  blob?: Blob;
-};
-
-export function canPreview(contentType: string) {
-  return contentType === "application/pdf" || contentType.startsWith("image/");
-}
-
 function attachmentUrl(
   entityType: FinanceEntityType,
   entityId: string,
   attachmentId: string,
 ) {
   return `/api/finance/attachments/${entityType}/${encodeURIComponent(entityId)}/${encodeURIComponent(attachmentId)}`;
-}
-
-export function PreviewButton({
-  name,
-  onClick,
-}: {
-  name: string;
-  onClick(): void;
-}) {
-  const { t } = useLocale();
-  const label = t("previewAttachment").replace("{name}", name);
-  return (
-    <button
-      className="attachment-view"
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-    >
-      <FileViewIcon />
-    </button>
-  );
-}
-
-export function AttachmentPreviewModal({
-  target,
-  onClose,
-}: {
-  target: PreviewTarget;
-  onClose(): void;
-}) {
-  const { t } = useLocale();
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section
-        className="modal payslip-modal attachment-preview-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="attachment-preview-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header className="modal-header">
-          <div>
-            <span className="eyebrow">{t("attachments")}</span>
-            <h2 id="attachment-preview-title">{target.name}</h2>
-          </div>
-          <button
-            className="modal-close"
-            type="button"
-            aria-label={t("close")}
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </header>
-        <DocumentPreview
-          fileUrl={target.fileUrl}
-          blob={target.blob}
-          fileName={target.name}
-          contentType={target.contentType}
-          title={target.name}
-        />
-      </section>
-    </div>
-  );
 }
 
 export type AiAttachmentSource =
@@ -349,12 +209,7 @@ export function FinanceAttachments({
         <ul className="attachment-list editable-attachment-list">
           {existing.map((attachment) => (
             <li key={attachment.id}>
-              <AttachmentDownloadLink
-                entityType={entityType}
-                entityId={entityId!}
-                attachmentId={attachment.id}
-                name={attachment.name}
-              />
+              <span className="stored-attachment-name">{attachment.name}</span>
               {ai && (
                 <AiProcessButton
                   name={attachment.name}
@@ -374,22 +229,13 @@ export function FinanceAttachments({
                   }
                 />
               )}
-              {canPreview(attachment.contentType) && (
-                <PreviewButton
-                  name={attachment.name}
-                  onClick={() =>
-                    setPreviewing({
-                      name: attachment.name,
-                      contentType: attachment.contentType,
-                      fileUrl: attachmentUrl(
-                        entityType,
-                        entityId!,
-                        attachment.id,
-                      ),
-                    })
-                  }
-                />
-              )}
+              <FilePreviewAction
+                target={{
+                  name: attachment.name,
+                  contentType: attachment.contentType,
+                  fileUrl: attachmentUrl(entityType, entityId!, attachment.id),
+                }}
+              />
               <button
                 className="attachment-remove"
                 type="button"
@@ -491,7 +337,7 @@ export function FinanceAttachments({
       )}
       {error && <p className="notice notice-error">{error}</p>}
       {previewing && (
-        <AttachmentPreviewModal
+        <FilePreviewModal
           target={previewing}
           onClose={() => setPreviewing(null)}
         />
@@ -566,10 +412,7 @@ export function FinanceAttachments({
   );
 }
 
-/**
- * A stored attachment's name followed by view (PDF and images) and download
- * icons; the view icon opens the preview popup.
- */
+/** A stored attachment's name followed by the eye icon. */
 export function StoredAttachment({
   entityType,
   entityId,
@@ -579,43 +422,20 @@ export function StoredAttachment({
   entityId: string;
   attachment: { id: string; name: string; contentType: string };
 }) {
-  const [previewing, setPreviewing] = useState(false);
   return (
-    <span className="stored-attachment">
-      <span className="stored-attachment-name">{attachment.name}</span>
-      {canPreview(attachment.contentType) && (
-        <PreviewButton
-          name={attachment.name}
-          onClick={() => setPreviewing(true)}
-        />
-      )}
-      <AttachmentDownloadLink
-        className="attachment-download"
-        entityType={entityType}
-        entityId={entityId}
-        attachmentId={attachment.id}
-        name={attachment.name}
-      >
-        <FileDownloadIcon />
-      </AttachmentDownloadLink>
-      {previewing && (
-        <AttachmentPreviewModal
-          target={{
-            name: attachment.name,
-            contentType: attachment.contentType,
-            fileUrl: attachmentUrl(entityType, entityId, attachment.id),
-          }}
-          onClose={() => setPreviewing(false)}
-        />
-      )}
-    </span>
+    <FileName
+      target={{
+        name: attachment.name,
+        contentType: attachment.contentType,
+        fileUrl: attachmentUrl(entityType, entityId, attachment.id),
+      }}
+    />
   );
 }
 
 /**
- * A stored attachment as one paper clip icon for tight table cells: hovering
- * shows the file name and clicking opens the preview popup, or downloads the
- * file when its type cannot be previewed.
+ * A stored attachment as one paper clip icon for table cells: hovering shows
+ * the file name and clicking opens the preview popup.
  */
 export function AttachmentClip({
   entityType,
@@ -626,42 +446,14 @@ export function AttachmentClip({
   entityId: string;
   attachment: { id: string; name: string; contentType: string };
 }) {
-  const { t } = useLocale();
-  const [previewing, setPreviewing] = useState(false);
-  if (!canPreview(attachment.contentType))
-    return (
-      <AttachmentDownloadLink
-        className="attachment-view"
-        entityType={entityType}
-        entityId={entityId}
-        attachmentId={attachment.id}
-        name={attachment.name}
-      >
-        <FileAttachmentIcon />
-      </AttachmentDownloadLink>
-    );
   return (
-    <>
-      <button
-        className="attachment-view"
-        type="button"
-        aria-label={t("previewAttachment").replace("{name}", attachment.name)}
-        title={attachment.name}
-        onClick={() => setPreviewing(true)}
-      >
-        <FileAttachmentIcon />
-      </button>
-      {previewing && (
-        <AttachmentPreviewModal
-          target={{
-            name: attachment.name,
-            contentType: attachment.contentType,
-            fileUrl: attachmentUrl(entityType, entityId, attachment.id),
-          }}
-          onClose={() => setPreviewing(false)}
-        />
-      )}
-    </>
+    <FileClip
+      target={{
+        name: attachment.name,
+        contentType: attachment.contentType,
+        fileUrl: attachmentUrl(entityType, entityId, attachment.id),
+      }}
+    />
   );
 }
 
@@ -721,38 +513,19 @@ function DetailAttachment({
   entityId: string;
   attachment: Attachment;
 }) {
-  const [previewing, setPreviewing] = useState(false);
   return (
     <DetailFile
       name={attachment.name}
       contentType={attachment.contentType}
       size={attachment.size}
     >
-      {canPreview(attachment.contentType) && (
-        <PreviewButton
-          name={attachment.name}
-          onClick={() => setPreviewing(true)}
-        />
-      )}
-      <AttachmentDownloadLink
-        className="attachment-download"
-        entityType={entityType}
-        entityId={entityId}
-        attachmentId={attachment.id}
-        name={attachment.name}
-      >
-        <FileDownloadIcon />
-      </AttachmentDownloadLink>
-      {previewing && (
-        <AttachmentPreviewModal
-          target={{
-            name: attachment.name,
-            contentType: attachment.contentType,
-            fileUrl: attachmentUrl(entityType, entityId, attachment.id),
-          }}
-          onClose={() => setPreviewing(false)}
-        />
-      )}
+      <FilePreviewAction
+        target={{
+          name: attachment.name,
+          contentType: attachment.contentType,
+          fileUrl: attachmentUrl(entityType, entityId, attachment.id),
+        }}
+      />
     </DetailFile>
   );
 }

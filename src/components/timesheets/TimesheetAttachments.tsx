@@ -3,17 +3,14 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  AttachmentPreviewModal,
   canPreview,
+  FilePreviewAction,
+  FilePreviewModal,
   PreviewButton,
   type PreviewTarget,
-} from "@/app/finance/FinanceAttachments";
+} from "@/components/ui/FilePreview";
 import { useLocale } from "@/components/localization/LocaleProvider";
-import { downloadFile } from "@/components/ui/DocumentPreview";
-import {
-  FileDownloadIcon,
-  FileRemoveIcon,
-} from "@/components/ui/FileActionIcons";
+import { FileRemoveIcon } from "@/components/ui/FileActionIcons";
 import { InfoTip } from "@/components/ui/InfoTip";
 import {
   TIMESHEET_ATTACHMENT_CONTENT_TYPES,
@@ -215,10 +212,6 @@ export function TimesheetAttachments({
         <ul className="attachment-list editable-attachment-list">
           {stored.map((attachment) => {
             const fileUrl = `${attachmentsUrl(timesheetId)}/${encodeURIComponent(attachment.id)}`;
-            const downloadLabel = t("downloadAttachment").replace(
-              "{name}",
-              attachment.name,
-            );
             const removeLabel = t("removeAttachment").replace(
               "{name}",
               attachment.name,
@@ -228,34 +221,13 @@ export function TimesheetAttachments({
                 <span className="stored-attachment-name">
                   {attachment.name}
                 </span>
-                {canPreview(attachment.contentType) && (
-                  <PreviewButton
-                    name={attachment.name}
-                    onClick={() =>
-                      setPreviewing({
-                        name: attachment.name,
-                        contentType: attachment.contentType,
-                        fileUrl,
-                      })
-                    }
-                  />
-                )}
-                <button
-                  className="attachment-download"
-                  type="button"
-                  aria-label={downloadLabel}
-                  title={downloadLabel}
-                  onClick={() => {
-                    setError("");
-                    void downloadFile(fileUrl, attachment.name)
-                      .catch(() => false)
-                      .then((ok) => {
-                        if (!ok) setError(t("documentDownloadFailed"));
-                      });
+                <FilePreviewAction
+                  target={{
+                    name: attachment.name,
+                    contentType: attachment.contentType,
+                    fileUrl,
                   }}
-                >
-                  <FileDownloadIcon />
-                </button>
+                />
                 {attachment.canRemove && (
                   <button
                     className="attachment-remove"
@@ -354,7 +326,7 @@ export function TimesheetAttachments({
       )}
       {previewing &&
         createPortal(
-          <AttachmentPreviewModal
+          <FilePreviewModal
             target={previewing}
             onClose={() => setPreviewing(null)}
           />,
