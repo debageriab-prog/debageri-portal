@@ -56,6 +56,20 @@ function createHref(kind: "transaction" | "invoice", emailId: string) {
   return `/finance/${kind === "invoice" ? "invoices" : "transactions"}/new?incomingEmailId=${encodeURIComponent(emailId)}`;
 }
 
+/** A short label such as PDF or JPG for the file badge. */
+function fileType(name: string, contentType: string) {
+  const extension = /\.([a-z0-9]{1,4})$/i.exec(name)?.[1];
+  return (extension ?? contentType.split("/")[1] ?? "file")
+    .slice(0, 4)
+    .toUpperCase();
+}
+
+function fileSize(bytes: number) {
+  return bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+    : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function StatusBadge({ status }: { status: IncomingEmailStatus }) {
   const { t } = useLocale();
   const tone =
@@ -385,15 +399,70 @@ function IncomingEmailModal({
     window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
   }
 
-  const fact = (label: string, value: string | null | undefined) =>
-    value ? (
-      <>
-        <dt>{label}</dt>
-        <dd>{value}</dd>
-      </>
-    ) : null;
   const money = (minor: number | null | undefined) =>
     minor == null ? null : formatSek(minor, locale);
+  const facts = (rows: [string, string | null | undefined][]) =>
+    rows.filter((row): row is [string, string] => Boolean(row[1]));
+  const factGroups = extraction
+    ? [
+        {
+          title: t("incomingEmailAmounts"),
+          rows: facts([
+            [t("totalExcludingVat"), money(extraction.netMinor)],
+            [t("vatAmount"), money(extraction.vatMinor)],
+            [t("totalIncludingVat"), money(extraction.grossMinor)],
+            [
+              t("incomingEmailOriginalAmount"),
+              extraction.conversion?.grossMinor != null
+                ? `${(extraction.conversion.grossMinor / 100).toFixed(2)} ${extraction.conversion.currency}`
+                : null,
+            ],
+          ]),
+        },
+        {
+          title: t("incomingEmailBooking"),
+          rows: facts([
+            [
+              t("category"),
+              extraction.categoryId
+                ? names.categories[extraction.categoryId]
+                : null,
+            ],
+            [
+              t("consultant"),
+              extraction.consultantId
+                ? names.consultants[extraction.consultantId]
+                : null,
+            ],
+            [
+              t("funding"),
+              extraction.funding === "company"
+                ? t("companyFunded")
+                : extraction.funding === "consultant"
+                  ? t("consultantFunded")
+                  : null,
+            ],
+            [
+              t("customer"),
+              extraction.customerId
+                ? names.customers[extraction.customerId]
+                : null,
+            ],
+          ]),
+        },
+        {
+          title: t("incomingEmailPaymentDetails"),
+          rows: facts([
+            [t("invoiceNumber"), extraction.invoiceNumber],
+            [t("dueDate"), extraction.dueDate],
+            [t("paymentReference"), extraction.paymentReference],
+          ]),
+        },
+      ].filter((group) => group.rows.length > 0)
+    : [];
+  const headline = [extraction?.counterpartyName, extraction?.date]
+    .filter(Boolean)
+    .join(" · ");
   const convertible = canProcess && canConvertIncomingEmail(email.status);
   const aiError = AI_ERRORS.find((code) => code === email.error);
   // The kind the AI recognized comes first.
@@ -419,7 +488,17 @@ function IncomingEmailModal({
               <h2 id="incoming-email-title">
                 {email.subject || t("incomingEmailNoSubject")}
               </h2>
-              <p>{email.from}</p>
+              <p className="incoming-email-meta">
+                <span>{email.from}</span>
+                {email.receivedAt && (
+                  <span>
+                    {new Date(email.receivedAt).toLocaleString(locale, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </span>
+                )}
+              </p>
             </div>
             <button
               className="modal-close"
@@ -440,110 +519,105 @@ function IncomingEmailModal({
               )}
             </p>
           )}
-          <dl className="detail-grid">
-            <div>
-              <dt>{t("status")}</dt>
-              <dd>
-                <StatusBadge status={email.status} />
-              </dd>
+          <div
+            className={`incoming-email-summary${extraction?.direction ? ` incoming-email-summary-${extraction.direction}` : ""}`}
+          >
+            <div className="incoming-email-tags">
+              <StatusBadge status={email.status} />
+              <span className="incoming-email-tag">
+                {t(`incomingEmailKind_${email.kind}`)}
+              </span>
+              {extraction?.direction && (
+                <span
+                  className={`incoming-email-tag incoming-email-tag-${extraction.direction}`}
+                >
+                  {t(extraction.direction)}
+                </span>
+              )}
             </div>
-            <div>
-              <dt>{t("incomingEmailType")}</dt>
-              <dd>{t(`incomingEmailKind_${email.kind}`)}</dd>
-            </div>
-          </dl>
-          {extraction && (
-            <>
-              <h3>{t("incomingEmailExtracted")}</h3>
-              <dl className="incoming-email-facts">
-                {fact(
-                  t("incomingEmailDirection"),
-                  extraction.direction ? t(extraction.direction) : null,
-                )}
-                {fact(t("date"), extraction.date)}
-                {fact(
-                  t("incomingEmailCounterparty"),
-                  extraction.counterpartyName,
-                )}
-                {fact(t("description"), extraction.description)}
-                {fact(t("totalExcludingVat"), money(extraction.netMinor))}
-                {fact(t("vatAmount"), money(extraction.vatMinor))}
-                {fact(t("totalIncludingVat"), money(extraction.grossMinor))}
-                {fact(
-                  t("incomingEmailOriginalAmount"),
-                  extraction.conversion?.grossMinor != null
-                    ? `${(extraction.conversion.grossMinor / 100).toFixed(2)} ${extraction.conversion.currency}`
-                    : null,
-                )}
-                {fact(
-                  t("category"),
-                  extraction.categoryId
-                    ? names.categories[extraction.categoryId]
-                    : null,
-                )}
-                {fact(
-                  t("consultant"),
-                  extraction.consultantId
-                    ? names.consultants[extraction.consultantId]
-                    : null,
-                )}
-                {fact(
-                  t("funding"),
-                  extraction.funding === "company"
-                    ? t("companyFunded")
-                    : extraction.funding === "consultant"
-                      ? t("consultantFunded")
-                      : null,
-                )}
-                {fact(
-                  t("customer"),
-                  extraction.customerId
-                    ? names.customers[extraction.customerId]
-                    : null,
-                )}
-                {fact(t("invoiceNumber"), extraction.invoiceNumber)}
-                {fact(t("dueDate"), extraction.dueDate)}
-                {fact(t("paymentReference"), extraction.paymentReference)}
-              </dl>
-            </>
-          )}
-          <h3>{t("attachments")}</h3>
-          {email.attachments.length === 0 ? (
-            <p className="muted">{t("incomingEmailNoAttachments")}</p>
-          ) : (
-            <ul className="incoming-email-attachments">
-              {email.attachments.map((attachment) => (
-                <li key={attachment.id} className="incoming-email-attachment">
-                  <span>{attachment.name}</span>
-                  {canPreview(attachment.contentType) && (
-                    <PreviewButton
-                      name={attachment.name}
-                      onClick={() =>
-                        setPreview({
-                          name: attachment.name,
-                          contentType: attachment.contentType,
-                          fileUrl: attachmentUrl(email.id, attachment.id),
-                        })
-                      }
-                    />
-                  )}
-                  <button
-                    className="attachment-view"
-                    type="button"
-                    aria-label={`${t("download")} ${attachment.name}`}
-                    title={`${t("download")} ${attachment.name}`}
-                    onClick={() =>
-                      void download(attachment.id, attachment.name)
-                    }
-                  >
-                    <FileDownloadIcon />
-                  </button>
-                </li>
+            {extraction?.grossMinor != null && (
+              <strong className="incoming-email-amount">
+                {money(extraction.grossMinor)}
+              </strong>
+            )}
+            {headline && (
+              <span className="incoming-email-headline">{headline}</span>
+            )}
+            {extraction?.description && (
+              <p className="incoming-email-description">
+                {extraction.description}
+              </p>
+            )}
+          </div>
+          {factGroups.length > 0 && (
+            <div className="incoming-email-sections">
+              {factGroups.map((group) => (
+                <section className="incoming-email-section" key={group.title}>
+                  <h3>{group.title}</h3>
+                  <dl className="incoming-email-facts">
+                    {group.rows.map(([label, value]) => (
+                      <div key={label}>
+                        <dt>{label}</dt>
+                        <dd>{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
               ))}
-            </ul>
+            </div>
           )}
-          <h3>{t("incomingEmailBody")}</h3>
-          <pre className="incoming-email-body">{email.bodyText || "—"}</pre>
+          <section className="incoming-email-section">
+            <h3>
+              {t("attachments")}
+              <span className="incoming-email-count">
+                {email.attachments.length}
+              </span>
+            </h3>
+            {email.attachments.length === 0 ? (
+              <p className="muted">{t("incomingEmailNoAttachments")}</p>
+            ) : (
+              <ul className="incoming-email-attachments">
+                {email.attachments.map((attachment) => (
+                  <li key={attachment.id} className="incoming-email-attachment">
+                    <span className="incoming-email-file-type">
+                      {fileType(attachment.name, attachment.contentType)}
+                    </span>
+                    <span className="incoming-email-file-name">
+                      <strong>{attachment.name}</strong>
+                      <small>{fileSize(attachment.size)}</small>
+                    </span>
+                    {canPreview(attachment.contentType) && (
+                      <PreviewButton
+                        name={attachment.name}
+                        onClick={() =>
+                          setPreview({
+                            name: attachment.name,
+                            contentType: attachment.contentType,
+                            fileUrl: attachmentUrl(email.id, attachment.id),
+                          })
+                        }
+                      />
+                    )}
+                    <button
+                      className="attachment-view"
+                      type="button"
+                      aria-label={`${t("download")} ${attachment.name}`}
+                      title={`${t("download")} ${attachment.name}`}
+                      onClick={() =>
+                        void download(attachment.id, attachment.name)
+                      }
+                    >
+                      <FileDownloadIcon />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <details className="incoming-email-text">
+            <summary>{t("incomingEmailBody")}</summary>
+            <pre className="incoming-email-body">{email.bodyText || "—"}</pre>
+          </details>
           {error && (
             <p className="notice notice-error" role="alert">
               {error}
