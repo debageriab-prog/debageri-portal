@@ -597,14 +597,17 @@ export async function listIncomingEmails(
   db: Firestore,
   organizationId: string,
   status: IncomingEmailStatus[],
+  received?: { from: Date; to: Date },
 ) {
-  const snapshot = await db
+  let query = db
     .collection(EMAILS)
     .where("organizationId", "==", organizationId)
-    .where("status", "in", status)
-    .orderBy("receivedAt", "desc")
-    .limit(200)
-    .get();
+    .where("status", "in", status);
+  if (received)
+    query = query
+      .where("receivedAt", ">=", received.from)
+      .where("receivedAt", "<", received.to);
+  const snapshot = await query.orderBy("receivedAt", "desc").limit(200).get();
   return snapshot.docs.map((document) =>
     viewFrom(document.id, document.data()),
   );

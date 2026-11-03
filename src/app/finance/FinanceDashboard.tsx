@@ -15,6 +15,7 @@ import {
   useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { shiftMonth } from "@/lib/dates/month";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
   compensationModelLabels,
@@ -165,12 +166,6 @@ function inFinancePeriod(
   if (period === "all") return true;
   if (period === "range") return date >= from && date <= to;
   return date.startsWith(period === "month" ? anchor : anchor.slice(0, 4));
-}
-
-function shiftMonth(month: string, offset: number) {
-  const value = new Date(`${month}-01T12:00:00Z`);
-  value.setUTCMonth(value.getUTCMonth() + offset);
-  return value.toISOString().slice(0, 7);
 }
 
 function dateValue(date: string) {

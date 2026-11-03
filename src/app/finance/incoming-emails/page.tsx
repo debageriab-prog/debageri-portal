@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { can } from "@/domain/access/permissions";
+import { shiftMonth, stockholmMonthStart } from "@/lib/dates/month";
+import { stockholmDateTime } from "@/lib/dates/stockholm";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
@@ -23,9 +25,13 @@ export default async function IncomingEmailsPage() {
     readIncomingEmailSettings(db, actor.organizationId),
   ]);
   const active = financeOn && availability.mailbox && availability.ai;
+  const month = stockholmDateTime().date.slice(0, 7);
   const [emails, categories, users, customers] = active
     ? await Promise.all([
-        listIncomingEmails(db, actor.organizationId, ["ready"]),
+        listIncomingEmails(db, actor.organizationId, ["ready"], {
+          from: stockholmMonthStart(month),
+          to: stockholmMonthStart(shiftMonth(month, 1)),
+        }),
         db
           .collection("financeCategories")
           .where("organizationId", "==", actor.organizationId)
@@ -101,6 +107,7 @@ export default async function IncomingEmailsPage() {
       ) : (
         <IncomingEmails
           initialEmails={emails}
+          initialMonth={month}
           names={names}
           lastRunAt={settings.lastRunAt}
           canProcess={can(actor, "finance.incomingEmails.process")}

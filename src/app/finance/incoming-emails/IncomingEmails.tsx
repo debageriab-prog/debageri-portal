@@ -14,6 +14,7 @@ import {
   type IncomingEmailRunSummary,
   type IncomingEmailStatus,
 } from "@/domain/incoming-email";
+import { shiftMonth } from "@/lib/dates/month";
 import { appCheckFetch } from "@/lib/firebase/client";
 import type { IncomingEmailView } from "@/server/services/incoming-email-service";
 import {
@@ -30,6 +31,7 @@ type Names = {
 };
 
 type Filter = IncomingEmailStatus | "all";
+type Period = "month" | "all";
 
 const AI_ERRORS = [
   "aiDisabled",
@@ -88,6 +90,7 @@ function StatusBadge({ status }: { status: IncomingEmailStatus }) {
 /** Emails forwarded to the finance mailbox, waiting to become records. */
 export function IncomingEmails({
   initialEmails,
+  initialMonth,
   names,
   lastRunAt: initialLastRunAt,
   canProcess,
@@ -95,6 +98,7 @@ export function IncomingEmails({
   canAddInvoice,
 }: {
   initialEmails: IncomingEmailView[];
+  initialMonth: string;
   names: Names;
   lastRunAt: string | null;
   canProcess: boolean;
@@ -104,6 +108,9 @@ export function IncomingEmails({
   const { t, locale } = useLocale();
   const [emails, setEmails] = useState(initialEmails);
   const [filter, setFilter] = useState<Filter>("ready");
+  const [period, setPeriod] = useState<Period>("month");
+  const [month, setMonth] = useState(initialMonth);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [reading, setReading] = useState(false);
   const [lastRunAt, setLastRunAt] = useState(initialLastRunAt);
@@ -111,11 +118,18 @@ export function IncomingEmails({
   const [message, setMessage] = useState("");
   const [viewing, setViewing] = useState<IncomingEmailView | null>(null);
 
-  async function load(status: Filter) {
+  async function load(
+    status: Filter = filter,
+    nextPeriod: Period = period,
+    nextMonth: string = month,
+  ) {
     setLoading(true);
+    const params = new URLSearchParams();
+    if (status !== "all") params.set("status", status);
+    if (nextPeriod === "month") params.set("month", nextMonth);
     try {
       const response = await appCheckFetch(
-        `/api/finance/incoming-emails${status === "all" ? "" : `?status=${status}`}`,
+        `/api/finance/incoming-emails?${params.toString()}`,
       );
       if (!response.ok) throw new Error("load failed");
       setEmails(
@@ -181,7 +195,7 @@ export function IncomingEmails({
         return;
       }
       setMessage(summaryText(body.summary));
-      await load(filter);
+      await load();
     } catch {
       setError(t("serverUnavailable"));
     } finally {
@@ -189,10 +203,47 @@ export function IncomingEmails({
     }
   }
 
+  function changeMonth(value: string) {
+    if (!value) return;
+    setMonth(value);
+    void load(filter, period, value);
+  }
+
+  // Spaces are ignored, so "1250" and "1 250" both find 1 250,00 kr.
+  const searchable = (text: string) =>
+    text.toLocaleLowerCase(locale).replace(/\s+/g, "");
+  const query = searchable(search);
+  const shown = query
+    ? emails.filter((email) =>
+        searchable(
+          [
+            email.from,
+            email.subject,
+            t(`incomingEmailKind_${email.kind}`),
+            t(`incomingEmailStatus_${email.status}`),
+            email.extraction?.counterpartyName,
+            email.extraction?.description,
+            email.extraction?.invoiceNumber,
+            email.extraction?.paymentReference,
+            email.extraction?.categoryId &&
+              names.categories[email.extraction.categoryId],
+            email.extraction?.consultantId &&
+              names.consultants[email.extraction.consultantId],
+            email.extraction?.customerId &&
+              names.customers[email.extraction.customerId],
+            email.extraction?.grossMinor != null &&
+              formatSek(email.extraction.grossMinor, locale),
+          ]
+            .filter(Boolean)
+            .join(" "),
+        ).includes(query),
+      )
+    : emails;
+
   return (
     <>
       <section className="card filters-card">
-        <div className="incoming-email-toolbar">
+        <div className="finance-filter-bar finance-filter-bar-wide incoming-email-filters">
           <label>
             {t("status")}
             <select
@@ -212,6 +263,64 @@ export function IncomingEmails({
               <option value="all">{t("incomingEmailStatusAll")}</option>
             </select>
           </label>
+          <label>
+            {t("periodType")}
+            <select
+              className="field"
+              value={period}
+              onChange={(event) => {
+                const value = event.target.value as Period;
+                setPeriod(value);
+                void load(filter, value);
+              }}
+            >
+              <option value="month">{t("month")}</option>
+              <option value="all">{t("allTime")}</option>
+            </select>
+          </label>
+          {period === "month" && (
+            <div className="finance-filter-control">
+              <span>{t("month")}</span>
+              <div className="month-stepper">
+                <button
+                  className="button secondary month-step-button"
+                  type="button"
+                  aria-label={t("previousMonth")}
+                  title={t("previousMonth")}
+                  onClick={() => changeMonth(shiftMonth(month, -1))}
+                >
+                  {"\u2039"}
+                </button>
+                <input
+                  className="field"
+                  type="month"
+                  value={month}
+                  onChange={(event) => changeMonth(event.target.value)}
+                />
+                <button
+                  className="button secondary month-step-button"
+                  type="button"
+                  aria-label={t("nextMonth")}
+                  title={t("nextMonth")}
+                  onClick={() => changeMonth(shiftMonth(month, 1))}
+                >
+                  {"\u203a"}
+                </button>
+              </div>
+            </div>
+          )}
+          <label>
+            {t("incomingEmailSearch")}
+            <input
+              className="field"
+              type="search"
+              value={search}
+              placeholder={t("incomingEmailSearchPlaceholder")}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+        </div>
+        <div className="incoming-email-toolbar">
           <span className="muted">
             {lastRunAt
               ? t("incomingEmailLastRead").replace(
@@ -245,9 +354,13 @@ export function IncomingEmails({
           </p>
         )}
       </section>
-      {emails.length === 0 ? (
+      {shown.length === 0 ? (
         <section className="card empty-state">
-          {loading ? t("loading") : t("incomingEmailNone")}
+          {loading
+            ? t("loading")
+            : emails.length > 0
+              ? t("incomingEmailNoMatches")
+              : t("incomingEmailNone")}
         </section>
       ) : (
         <section className="card table-wrap">
@@ -264,7 +377,7 @@ export function IncomingEmails({
               </tr>
             </thead>
             <tbody>
-              {emails.map((email) => (
+              {shown.map((email) => (
                 <tr key={email.id}>
                   <td>
                     {email.receivedAt
