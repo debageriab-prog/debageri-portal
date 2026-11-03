@@ -22,6 +22,8 @@ export const PERMISSION_KEYS = [
   "finance.vat.add",
   "finance.vat.edit",
   "finance.vat.delete",
+  "finance.incomingEmails.view",
+  "finance.incomingEmails.process",
   "finance.accountingEmail",
   "finance.aiExtraction",
   "time.reports.view",
@@ -118,6 +120,10 @@ export const PERMISSION_TREE: PermissionGroup[] = [
           { key: "finance.vat.edit" },
           { key: "finance.vat.delete" },
         ],
+      },
+      {
+        key: "finance.incomingEmails.view",
+        children: [{ key: "finance.incomingEmails.process" }],
       },
       {
         key: "finance.categories.view",
@@ -283,6 +289,7 @@ const ORGANIZATION_FINANCE_PAGES: Array<[PermissionKey, string]> = [
   ["finance.ledger.view", "/finance"],
   ["finance.invoices.view", "/finance?section=invoices"],
   ["finance.vat.view", "/finance/vat-settlements"],
+  ["finance.incomingEmails.view", "/finance/incoming-emails"],
   ["finance.categories.view", "/finance?section=categories"],
   ["finance.customers.view", "/finance?section=customers"],
 ];
@@ -394,6 +401,8 @@ const accountantPermissions: PermissionKey[] = [
   "finance.vat.add",
   "finance.vat.edit",
   "finance.vat.delete",
+  "finance.incomingEmails.view",
+  "finance.incomingEmails.process",
   "finance.accountingEmail",
   "finance.aiExtraction",
   "time.reports.view",

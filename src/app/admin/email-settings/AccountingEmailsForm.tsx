@@ -92,7 +92,9 @@ export function AccountingEmailsForm({
       {!emailConfigured && (
         <p className="notice notice-warning">
           {t("accountingEmailsSmtpMissing")}{" "}
-          <Link href="/admin/email-settings">{t("emailSettings")}</Link>
+          <Link href="/admin/email-settings?tab=smtp">
+            {t("emailSettingsTab_smtp")}
+          </Link>
         </p>
       )}
       {contacts.length === 0 && (

@@ -69,6 +69,7 @@ const sampleProfiles: Array<{
       "finance.customers.view",
       "finance.categories.view",
       "finance.vat.view",
+      "finance.incomingEmails.view",
     ],
   },
   {

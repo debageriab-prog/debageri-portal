@@ -7,19 +7,25 @@ export const AI_PROVIDERS: AiProvider[] = ["anthropic", "openai"];
 
 /** Portal areas an admin can switch AI on for, one at a time. */
 export type AiFeature =
-  "financeAttachments" | "financeInvoices" | "financeVatSettlements";
+  | "financeAttachments"
+  | "financeInvoices"
+  | "financeVatSettlements"
+  | "financeIncomingEmails";
 export const AI_FEATURES: AiFeature[] = [
   "financeAttachments",
   "financeInvoices",
   "financeVatSettlements",
+  "financeIncomingEmails",
 ];
 
 /** What a document is read for; each purpose has its own AI switch. */
-export type AiExtractionPurpose = "transaction" | "invoice" | "vatSettlement";
+export type AiExtractionPurpose =
+  "transaction" | "invoice" | "vatSettlement" | "incomingEmail";
 export const AI_PURPOSE_FEATURE: Record<AiExtractionPurpose, AiFeature> = {
   transaction: "financeAttachments",
   invoice: "financeInvoices",
   vatSettlement: "financeVatSettlements",
+  incomingEmail: "financeIncomingEmails",
 };
 
 /** Suggested model IDs per provider; admins may also enter any other ID. */

@@ -32,6 +32,30 @@ import {
   linkReceiptExpense,
   ReceiptError,
 } from "@/server/services/receipt-service";
+import {
+  convertibleIncomingEmail,
+  IncomingEmailError,
+  linkIncomingEmail,
+} from "@/server/services/incoming-email-service";
+import type { PortalUser } from "@/domain/types";
+import type { Firestore } from "firebase-admin/firestore";
+
+/** Marks the forwarded email as used; the new record stays either way. */
+async function linkEmail(
+  db: Firestore,
+  actor: PortalUser,
+  incomingEmailId: string,
+  entity: { type: "transaction" | "invoice"; id: string },
+) {
+  await linkIncomingEmail(db, actor, incomingEmailId, entity).catch(
+    (error: unknown) =>
+      console.error("Incoming email link failed", {
+        incomingEmailId,
+        entityId: entity.id,
+        errorClass: error instanceof Error ? error.name : "unknown",
+      }),
+  );
+}
 
 function transactionAmounts(data: {
   amountMode: TransactionAmountMode;
@@ -93,14 +117,25 @@ export async function POST(request: Request) {
       case "updateCategory":
         await updateCategory(db, actor, parsed.data);
         break;
-      case "createInvoice":
-        id = await createInvoice(db, actor, parsed.data);
+      case "createInvoice": {
+        const { incomingEmailId, ...invoice } = parsed.data;
+        if (incomingEmailId)
+          await convertibleIncomingEmail(db, actor, incomingEmailId);
+        id = await createInvoice(db, actor, invoice);
+        if (incomingEmailId)
+          await linkEmail(db, actor, incomingEmailId, {
+            type: "invoice",
+            id,
+          });
         break;
+      }
       case "markInvoicePaid":
         id = await markInvoicePaid(db, actor, parsed.data);
         break;
       case "createTransaction": {
-        const receiptId = parsed.data.receiptId;
+        const { receiptId, incomingEmailId } = parsed.data;
+        if (incomingEmailId)
+          await convertibleIncomingEmail(db, actor, incomingEmailId);
         if (receiptId) {
           if (parsed.data.direction !== "expense")
             throw new FinanceError("invalidInput");
@@ -131,6 +166,11 @@ export async function POST(request: Request) {
               }),
           );
         }
+        if (incomingEmailId)
+          await linkEmail(db, actor, incomingEmailId, {
+            type: "transaction",
+            id,
+          });
         break;
       }
       case "updateTransaction":
@@ -175,6 +215,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, id });
   } catch (error) {
     if (error instanceof FinanceError)
+      return NextResponse.json({ error: error.code }, { status: error.status });
+    if (error instanceof IncomingEmailError)
       return NextResponse.json({ error: error.code }, { status: error.status });
     if (error instanceof ReceiptError)
       return NextResponse.json(
