@@ -3873,9 +3873,10 @@ td.amount-cell {
   font-weight: 800;
 }
 
+/* Only as wide as the name, so the eye icon sits right after it. */
 .detail-file-name {
   display: grid;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
 }
 
