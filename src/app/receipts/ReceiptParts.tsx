@@ -1,6 +1,13 @@
 "use client";
 
 import { useLocale } from "@/components/localization/LocaleProvider";
+import {
+  DetailFacts,
+  DetailSection,
+  DetailSections,
+  DetailSummary,
+  DetailTag,
+} from "@/components/ui/DetailView";
 import { DocumentPreview } from "@/components/ui/DocumentPreview";
 import { MonthStepper } from "@/components/ui/MonthStepper";
 import { formatSek } from "@/domain/finance/calculations";
@@ -149,7 +156,7 @@ export function ReceiptDetailModal({
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
-        className="modal payslip-modal"
+        className="modal detail-modal detail-modal-wide"
         role="dialog"
         aria-modal="true"
         aria-labelledby="receipt-view-title"
@@ -172,52 +179,48 @@ export function ReceiptDetailModal({
             ×
           </button>
         </header>
-        <dl className="detail-grid receipt-detail-grid">
-          <div>
-            <dt>{t("receiptDate")}</dt>
-            <dd>{receipt.date}</dd>
-          </div>
-          <div>
-            <dt>{t("status")}</dt>
-            <dd>
+        <DetailSummary
+          tone={
+            receipt.status === "approved"
+              ? "positive"
+              : receipt.status === "rejected"
+                ? "negative"
+                : "neutral"
+          }
+          tags={
+            <>
               <ReceiptStatusBadge status={receipt.status} />
-            </dd>
-          </div>
-          <div>
-            <dt>{t("totalExcludingVat")}</dt>
-            <dd>{formatSek(receipt.netMinor, locale)}</dd>
-          </div>
-          <div>
-            <dt>{t("vatAmount")}</dt>
-            <dd>{formatSek(receipt.vatMinor, locale)}</dd>
-          </div>
-          <div className="receipt-detail-wide">
-            <dt>{t("totalIncludingVat")}</dt>
-            <dd>
-              <strong>
-                {formatSek(receipt.netMinor + receipt.vatMinor, locale)}
-              </strong>
-            </dd>
-          </div>
-          {receipt.description && (
-            <div className="receipt-detail-wide">
-              <dt>{t("description")}</dt>
-              <dd>{receipt.description}</dd>
-            </div>
-          )}
+              {receipt.expenseTransactionId && (
+                <DetailTag tone="positive">
+                  {t("receiptExpenseBooked")}
+                </DetailTag>
+              )}
+            </>
+          }
+          amount={formatSek(receipt.netMinor + receipt.vatMinor, locale)}
+          headline={`${t("receiptDate")} ${receipt.date}`}
+        >
+          {receipt.description}
+        </DetailSummary>
+        <DetailSections>
+          <DetailSection title={t("detailAmounts")}>
+            <DetailFacts
+              rows={[
+                [t("totalExcludingVat"), formatSek(receipt.netMinor, locale)],
+                [t("vatAmount"), formatSek(receipt.vatMinor, locale)],
+                [
+                  t("totalIncludingVat"),
+                  formatSek(receipt.netMinor + receipt.vatMinor, locale),
+                ],
+              ]}
+            />
+          </DetailSection>
           {receipt.reviewNote && (
-            <div className="receipt-detail-wide">
-              <dt>{t("receiptReviewNote")}</dt>
-              <dd>{receipt.reviewNote}</dd>
-            </div>
+            <DetailSection title={t("receiptReviewNote")}>
+              <p>{receipt.reviewNote}</p>
+            </DetailSection>
           )}
-          {receipt.expenseTransactionId && (
-            <div className="receipt-detail-wide">
-              <dt>{t("expense")}</dt>
-              <dd>{t("receiptExpenseBooked")}</dd>
-            </div>
-          )}
-        </dl>
+        </DetailSections>
         <DocumentPreview
           fileUrl={receiptFileUrl(receipt.id)}
           fileName={receipt.fileName}

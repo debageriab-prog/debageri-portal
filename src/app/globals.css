@@ -1322,35 +1322,13 @@ th {
   cursor: pointer;
 }
 
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.detail-grid dt {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-.detail-grid dd {
-  margin: 0.2rem 0 0;
-  overflow-wrap: anywhere;
-}
-.detail-attachments {
-  margin-top: 1.25rem;
-}
-
-.pending-attachment-list span,
-.detail-attachments .attachment-list span,
-.detail-attachment-list span {
+.pending-attachment-list span {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .editable-attachment-list li,
-.pending-attachment-list li,
-.detail-attachments .attachment-list li,
-.detail-attachment-list li {
+.pending-attachment-list li {
   justify-content: flex-start;
   gap: 0.5rem;
 }
@@ -1361,50 +1339,9 @@ th {
   list-style: none;
 }
 
-.detail-attachment-list {
-  padding-left: 0;
-  list-style: none;
-}
-
-.contract-detail-modal {
-  width: min(720px, 100%);
-}
-
 .contract-confidential-notice {
   display: grid;
   gap: 0.25rem;
-  margin-bottom: 1.5rem;
-}
-
-.contract-detail-grid > div {
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  background: #fbf8f5;
-}
-
-.contract-detail-files {
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border);
-}
-
-.contract-detail-files-heading h3,
-.contract-detail-files-heading p {
-  margin: 0;
-}
-
-.contract-detail-files-heading p {
-  margin-top: 0.25rem;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.contract-detail-files .detail-attachment-list li {
-  padding: 0.65rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.65rem;
-  background: white;
 }
 
 .document-toolbar {
@@ -3588,25 +3525,6 @@ th.actions-heading {
   }
 }
 
-.receipt-detail-grid {
-  margin-bottom: 1.25rem;
-}
-
-.receipt-detail-grid > div {
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  background: #fbf8f5;
-}
-
-.receipt-detail-wide {
-  grid-column: 1 / -1;
-}
-
-.receipt-detail-wide dd {
-  white-space: pre-line;
-}
-
 th.amount-heading,
 td.amount-cell {
   text-align: right;
@@ -3758,21 +3676,26 @@ td.amount-cell {
   font-size: 1rem;
 }
 
-/* Incoming email details */
-.incoming-email-modal {
+/* Detail popups (src/components/ui/DetailView.tsx) */
+.detail-modal {
   display: grid;
   gap: 16px;
+  width: min(860px, 100%);
 }
 
-.incoming-email-modal .modal-header {
+.detail-modal-wide {
+  width: min(960px, 100%);
+}
+
+.detail-modal .modal-header {
   margin-bottom: 0;
 }
 
-.incoming-email-modal .modal-actions {
+.detail-modal .modal-actions {
   margin-top: 4px;
 }
 
-.incoming-email-meta {
+.detail-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 14px;
@@ -3781,7 +3704,7 @@ td.amount-cell {
   font-size: 13px;
 }
 
-.incoming-email-summary {
+.detail-summary {
   display: grid;
   gap: 8px;
   justify-items: start;
@@ -3792,21 +3715,23 @@ td.amount-cell {
   background: var(--background);
 }
 
-.incoming-email-summary-income {
+.detail-summary-income,
+.detail-summary-positive {
   border-left-color: var(--income);
 }
 
-.incoming-email-summary-expense {
+.detail-summary-expense,
+.detail-summary-negative {
   border-left-color: var(--expense);
 }
 
-.incoming-email-tags {
+.detail-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.incoming-email-tag {
+.detail-tag {
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--border);
@@ -3818,19 +3743,21 @@ td.amount-cell {
   font-weight: 700;
 }
 
-.incoming-email-tag-income {
+.detail-tag-income,
+.detail-tag-positive {
   border-color: #b9d8c4;
   background: #eaf6ee;
   color: #24613c;
 }
 
-.incoming-email-tag-expense {
+.detail-tag-expense,
+.detail-tag-negative {
   border-color: #efc3c0;
   background: #fff0ef;
   color: #a1352f;
 }
 
-.incoming-email-amount {
+.detail-amount {
   color: var(--foreground);
   font-size: 1.75rem;
   font-weight: 700;
@@ -3838,30 +3765,34 @@ td.amount-cell {
   font-variant-numeric: tabular-nums;
 }
 
-.incoming-email-headline {
+.detail-headline {
   color: var(--accent-dark);
   font-weight: 600;
 }
 
-.incoming-email-description {
-  margin: 0;
+.detail-summary-text {
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
-.incoming-email-sections {
+.detail-summary-text p {
+  margin: 0;
+}
+
+.detail-sections {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 12px;
 }
 
-.incoming-email-section {
+.detail-section {
   padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface);
 }
 
-.incoming-email-section h3 {
+.detail-section h3 {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3873,7 +3804,13 @@ td.amount-cell {
   text-transform: uppercase;
 }
 
-.incoming-email-count {
+.detail-section > p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.detail-count {
   border-radius: 999px;
   padding: 1px 8px;
   background: var(--accent-soft);
@@ -3881,12 +3818,12 @@ td.amount-cell {
   letter-spacing: 0;
 }
 
-.incoming-email-facts {
+.detail-facts {
   display: grid;
   margin: 0;
 }
 
-.incoming-email-facts > div {
+.detail-facts > div {
   display: flex;
   justify-content: space-between;
   gap: 16px;
@@ -3894,23 +3831,23 @@ td.amount-cell {
   border-top: 1px solid var(--border);
 }
 
-.incoming-email-facts > div:first-child {
+.detail-facts > div:first-child {
   border-top: 0;
   padding-top: 0;
 }
 
-.incoming-email-facts dt {
+.detail-facts dt {
   color: var(--muted);
 }
 
-.incoming-email-facts dd {
+.detail-facts dd {
   margin: 0;
   font-weight: 600;
   text-align: right;
   overflow-wrap: anywhere;
 }
 
-.incoming-email-attachments {
+.detail-files {
   display: grid;
   gap: 8px;
   margin: 0;
@@ -3918,7 +3855,7 @@ td.amount-cell {
   list-style: none;
 }
 
-.incoming-email-attachment {
+.detail-file {
   display: flex;
   gap: 10px;
   align-items: center;
@@ -3928,7 +3865,7 @@ td.amount-cell {
   background: var(--background);
 }
 
-.incoming-email-file-type {
+.detail-file-type {
   display: inline-grid;
   flex: 0 0 auto;
   width: 2.6rem;
@@ -3941,29 +3878,29 @@ td.amount-cell {
   font-weight: 800;
 }
 
-.incoming-email-file-name {
+.detail-file-name {
   display: grid;
   flex: 1;
   min-width: 0;
 }
 
-.incoming-email-file-name strong {
+.detail-file-name strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.incoming-email-file-name small {
+.detail-file-name small {
   color: var(--muted);
 }
 
-.incoming-email-text {
+.detail-collapsible {
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface);
 }
 
-.incoming-email-text summary {
+.detail-collapsible summary {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3974,11 +3911,11 @@ td.amount-cell {
   list-style: none;
 }
 
-.incoming-email-text summary::-webkit-details-marker {
+.detail-collapsible summary::-webkit-details-marker {
   display: none;
 }
 
-.incoming-email-text summary::before {
+.detail-collapsible summary::before {
   content: "";
   width: 7px;
   height: 7px;
@@ -3988,10 +3925,10 @@ td.amount-cell {
   transition: transform 150ms ease;
 }
 
-.incoming-email-text[open] summary::before {
+.detail-collapsible[open] summary::before {
   transform: rotate(45deg);
 }
 
-.incoming-email-text .incoming-email-body {
-  margin: 0 16px 16px;
+.detail-collapsible-body {
+  padding: 0 16px 16px;
 }

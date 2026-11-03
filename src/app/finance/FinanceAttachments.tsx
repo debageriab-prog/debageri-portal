@@ -12,6 +12,11 @@ import {
   SuccessCheckIcon,
 } from "@/components/ui/FileActionIcons";
 import { DocumentPreview } from "@/components/ui/DocumentPreview";
+import {
+  DetailFile,
+  DetailFiles,
+  DetailSection,
+} from "@/components/ui/DetailView";
 import type { AiExtractionPurpose, FinanceExtraction } from "@/domain/ai";
 
 export type FinanceEntityType = "transaction" | "vatSettlement" | "invoice";
@@ -681,29 +686,73 @@ export function AttachmentDownloads({
       .catch(() => setError(true));
   }, [entityId, entityType]);
   return (
-    <div className="detail-attachments">
-      <strong>{t("attachments")}</strong>
+    <DetailSection title={t("attachments")} count={items?.length}>
       {error ? (
         <p className="notice notice-error" role="alert">
           {t("financeError_attachmentLoadFailed")}
         </p>
       ) : items === null ? (
-        <p>{t("loading")}</p>
+        <p className="muted">{t("loading")}</p>
       ) : items.length ? (
-        <ul className="attachment-list">
+        <DetailFiles>
           {items.map((item) => (
-            <li key={item.id}>
-              <StoredAttachment
-                entityType={entityType}
-                entityId={entityId}
-                attachment={item}
-              />
-            </li>
+            <DetailAttachment
+              key={item.id}
+              entityType={entityType}
+              entityId={entityId}
+              attachment={item}
+            />
           ))}
-        </ul>
+        </DetailFiles>
       ) : (
         <p className="muted">{t("noAttachments")}</p>
       )}
-    </div>
+    </DetailSection>
+  );
+}
+
+/** A stored attachment as a file row in a detail popup. */
+function DetailAttachment({
+  entityType,
+  entityId,
+  attachment,
+}: {
+  entityType: FinanceEntityType;
+  entityId: string;
+  attachment: Attachment;
+}) {
+  const [previewing, setPreviewing] = useState(false);
+  return (
+    <DetailFile
+      name={attachment.name}
+      contentType={attachment.contentType}
+      size={attachment.size}
+    >
+      {canPreview(attachment.contentType) && (
+        <PreviewButton
+          name={attachment.name}
+          onClick={() => setPreviewing(true)}
+        />
+      )}
+      <AttachmentDownloadLink
+        className="attachment-download"
+        entityType={entityType}
+        entityId={entityId}
+        attachmentId={attachment.id}
+        name={attachment.name}
+      >
+        <FileDownloadIcon />
+      </AttachmentDownloadLink>
+      {previewing && (
+        <AttachmentPreviewModal
+          target={{
+            name: attachment.name,
+            contentType: attachment.contentType,
+            fileUrl: attachmentUrl(entityType, entityId, attachment.id),
+          }}
+          onClose={() => setPreviewing(false)}
+        />
+      )}
+    </DetailFile>
   );
 }
