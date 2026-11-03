@@ -627,7 +627,7 @@ function IncomingEmailModal({
             {email.createdEntity && (
               <Link
                 className="button secondary"
-                href={`/finance/${email.createdEntity.type === "invoice" ? "invoices" : "transactions"}/${encodeURIComponent(email.createdEntity.id)}`}
+                href={`/finance?section=${email.createdEntity.type === "invoice" ? "invoices" : "transactions"}&${email.createdEntity.type}=${encodeURIComponent(email.createdEntity.id)}`}
               >
                 {email.createdEntity.type === "invoice"
                   ? t("incomingEmailOpenInvoice")

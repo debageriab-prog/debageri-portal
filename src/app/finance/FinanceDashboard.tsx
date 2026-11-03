@@ -1287,17 +1287,29 @@ export function FinanceDashboard({
     | "spentFromBalance"
     | null
   >(null);
+  // `?invoice=` and `?transaction=` open that record's details, so other
+  // pages can link straight to it.
   const [viewingInvoice, setViewingInvoice] = useState<
     FinancePageData["invoices"][number] | null
-  >(null);
+  >(
+    () =>
+      data.invoices.find(
+        (invoice) => invoice.id === searchParams.get("invoice"),
+      ) ?? null,
+  );
   const [invoiceConsultantFilter, setInvoiceConsultantFilter] = useState("all");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
+  const linkedTransaction =
+    data.transactions.find(
+      (item) => item.id === searchParams.get("transaction"),
+    ) ?? null;
   const latestListedTransaction = manager
     ? data.transactions[0]
     : data.transactions.find((item) => belongsToConsultant(item, actor.id));
   const initialTransactionListState = transactionListState(
     searchParams,
-    latestListedTransaction?.date.slice(0, 7) ?? today().slice(0, 7),
+    (linkedTransaction ?? latestListedTransaction)?.date.slice(0, 7) ??
+      today().slice(0, 7),
   );
   const [transactionConsultantFilter, setTransactionConsultantFilter] =
     useState(manager ? initialTransactionListState.scope : actor.id);
@@ -1338,7 +1350,7 @@ export function FinanceDashboard({
   >(null);
   const [viewingTransaction, setViewingTransaction] = useState<
     FinancePageData["transactions"][number] | null
-  >(null);
+  >(linkedTransaction);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [payingInvoice, setPayingInvoice] = useState<
     FinancePageData["invoices"][number] | null
