@@ -889,6 +889,15 @@ th {
   max-width: 900px;
 }
 
+/* Text, fields, buttons and notices in a settings form never touch. */
+.reminder-settings-form > * + * {
+  margin-top: 16px;
+}
+
+.reminder-settings-form > .form-grid {
+  margin-bottom: 0;
+}
+
 .reminder-template {
   min-height: 260px;
   resize: vertical;
@@ -1885,7 +1894,10 @@ th.actions-heading {
   grid-template-columns: minmax(0, 28rem) auto;
   gap: 12px;
   align-items: center;
-  margin-bottom: 10px;
+}
+
+.reminder-settings-form > .incoming-sender-row + .incoming-sender-row {
+  margin-top: 10px;
 }
 
 .incoming-sender-field {
