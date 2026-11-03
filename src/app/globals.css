@@ -3756,3 +3756,24 @@ td.amount-cell {
 .incoming-email-toolbar .button {
   margin-left: auto;
 }
+
+.incoming-email-modal h3,
+.incoming-email-settings h3 {
+  margin: 1.25rem 0 0.6rem;
+  font-size: 1rem;
+}
+
+.incoming-email-attachments {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.incoming-email-attachment {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  overflow-wrap: anywhere;
+}

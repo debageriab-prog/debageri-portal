@@ -3,15 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
 
-export type EmailSettingsTab =
-  "smtp" | "notifications" | "templates" | "accounting" | "incoming";
-export const EMAIL_SETTINGS_TABS: EmailSettingsTab[] = [
-  "smtp",
-  "notifications",
-  "templates",
-  "accounting",
-  "incoming",
-];
+import { EMAIL_SETTINGS_TABS, type EmailSettingsTab } from "./tabs";
 
 /** The email settings page's tabs, laid out like the employee editor. */
 export function EmailSettingsTabs({

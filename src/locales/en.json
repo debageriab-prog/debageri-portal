@@ -325,7 +325,7 @@
   "reminderSentSuccessfully": "Reminder email sent successfully.",
   "reminderSettingsDescription": "Configure the sender, SMTP connection, and reusable reminder template.",
   "emailSettings": "Email settings",
-  "emailSettingsDescription": "Configure the SMTP connection, the notification emails and the email templates used for portal email.",
+  "emailSettingsDescription": "Configure the SMTP connection, notification emails and templates used for portal email, the accounting email addresses, and the mailbox for incoming financial emails.",
   "emailSettingsSaved": "Email settings saved.",
   "emailSettingsSaveFailed": "Email settings could not be saved.",
   "emailTemplatesDescription": "Select and edit the subject and content of an email sent by the portal.",

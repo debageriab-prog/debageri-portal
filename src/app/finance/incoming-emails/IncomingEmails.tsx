@@ -386,7 +386,7 @@ function IncomingEmailModal({
     <>
       <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
         <section
-          className="modal payslip-modal"
+          className="modal payslip-modal incoming-email-modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="incoming-email-title"
@@ -490,9 +490,9 @@ function IncomingEmailModal({
           {email.attachments.length === 0 ? (
             <p className="muted">{t("incomingEmailNoAttachments")}</p>
           ) : (
-            <ul className="table-attachment-list">
+            <ul className="incoming-email-attachments">
               {email.attachments.map((attachment) => (
-                <li key={attachment.id} className="row-actions">
+                <li key={attachment.id} className="incoming-email-attachment">
                   <span>{attachment.name}</span>
                   {canPreview(attachment.contentType) && (
                     <PreviewButton

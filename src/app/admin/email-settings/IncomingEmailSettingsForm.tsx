@@ -144,7 +144,10 @@ export function IncomingEmailSettingsForm({
   }
 
   return (
-    <form className="reminder-settings-form" onSubmit={save}>
+    <form
+      className="reminder-settings-form incoming-email-settings"
+      onSubmit={save}
+    >
       <p className="muted editor-panel-intro">
         {t("incomingEmailSettingsDescription")}
       </p>

@@ -20,7 +20,8 @@ import { isAiFeatureEnabled } from "@/server/services/ai-service";
 import { readIncomingEmailSettings } from "@/server/services/incoming-email-service";
 import { AccountingEmailsForm } from "./AccountingEmailsForm";
 import { EmailSettingsForm } from "./EmailSettingsForm";
-import { EMAIL_SETTINGS_TABS, EmailSettingsTabs } from "./EmailSettingsTabs";
+import { EmailSettingsTabs } from "./EmailSettingsTabs";
+import { EMAIL_SETTINGS_TABS } from "./tabs";
 import { IncomingEmailSettingsForm } from "./IncomingEmailSettingsForm";
 import {
   EmailTemplateForm,

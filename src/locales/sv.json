@@ -325,7 +325,7 @@
   "reminderSentSuccessfully": "Påminnelsen har skickats via e-post.",
   "reminderSettingsDescription": "Konfigurera avsändaren, SMTP-anslutningen och den återanvändbara påminnelsemallen.",
   "emailSettings": "E-postinställningar",
-  "emailSettingsDescription": "Konfigurera SMTP-anslutningen, aviseringsmejlen och e-postmallarna som används för portalens e-post.",
+  "emailSettingsDescription": "Konfigurera SMTP-anslutningen, aviseringsmejlen och e-postmallarna för portalens e-post, adresserna till redovisningen och brevlådan för inkommande ekonomimejl.",
   "emailSettingsSaved": "E-postinställningarna har sparats.",
   "emailSettingsSaveFailed": "E-postinställningarna kunde inte sparas.",
   "emailTemplatesDescription": "Välj och redigera ämnet och innehållet för e-post som skickas från portalen.",
