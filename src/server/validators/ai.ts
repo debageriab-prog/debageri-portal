@@ -14,6 +14,7 @@ export const aiSettingsSchema = z.object({
     financeAttachments: z.boolean(),
     financeInvoices: z.boolean().default(false),
     financeVatSettlements: z.boolean().default(false),
+    financeIncomingEmails: z.boolean().default(false),
   }),
 });
 

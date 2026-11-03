@@ -88,6 +88,8 @@ export const invoiceSchema = z.object({
     .max(10_000)
     .nullable()
     .default(null),
+  /** The forwarded email the invoice is made from. */
+  incomingEmailId: z.string().min(1).max(128).nullable().default(null),
 });
 
 export const paymentSchema = z.object({
@@ -125,6 +127,7 @@ export const transactionSchema = z.object({
   action: z.literal("createTransaction"),
   ...transactionFields,
   receiptId: z.string().min(1).max(128).nullable().default(null),
+  incomingEmailId: z.string().min(1).max(128).nullable().default(null),
 });
 
 export const updateTransactionSchema = z.object({

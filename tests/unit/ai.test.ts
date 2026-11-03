@@ -54,6 +54,7 @@ describe("AI settings", () => {
         financeAttachments: false,
         financeInvoices: false,
         financeVatSettlements: false,
+        financeIncomingEmails: false,
       },
     });
   });
@@ -78,6 +79,7 @@ describe("AI settings", () => {
             financeAttachments: false,
             financeInvoices: true,
             financeVatSettlements: false,
+            financeIncomingEmails: false,
           },
         },
         "financeAttachments",
@@ -103,6 +105,7 @@ describe("AI settings", () => {
       financeAttachments: true,
       financeInvoices: false,
       financeVatSettlements: false,
+      financeIncomingEmails: false,
     });
     expect(
       aiSettingsSchema.safeParse({ ...valid, provider: "gemini" }).success,
@@ -387,6 +390,7 @@ describe("invoice fields in AI output", () => {
       transaction: "financeAttachments",
       invoice: "financeInvoices",
       vatSettlement: "financeVatSettlements",
+      incomingEmail: "financeIncomingEmails",
     });
   });
 });

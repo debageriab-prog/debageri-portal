@@ -85,6 +85,29 @@ gcloud scheduler jobs create http portal-auto-reminders \
 Leave the job out of `debageri-portal-dev` unless you are testing reminders,
 because it would email the development users.
 
+## Incoming financial emails
+
+The finance mailbox under Email settings › Incoming financial emails is read by
+a second Cloud Scheduler job that calls `POST /api/cron/incoming-emails` every
+hour from 08:00 to 23:00 Stockholm time. It uses the same
+`REMINDER_CRON_SECRET` and skips organizations whose mailbox or AI section is
+switched off. Create it once in production:
+
+```bash
+gcloud scheduler jobs create http portal-incoming-emails \
+  --project=debageri-portal \
+  --location=europe-west1 \
+  --schedule="0 8-23 * * *" \
+  --time-zone="Europe/Stockholm" \
+  --http-method=POST \
+  --uri="https://portal.debageri.se/api/cron/incoming-emails" \
+  --headers="Authorization=Bearer YOUR_SECRET" \
+  --attempt-deadline=300s
+```
+
+The mailbox password is encrypted with `REMINDER_CREDENTIAL_ENCRYPTION_KEY`
+like the SMTP password, so rotating that key means saving it again.
+
 The App Check site key setup, allowed domains, staged enforcement, and
 verification procedure are documented in
 [Firebase App Check and reCAPTCHA](recaptcha-app-check.md).

@@ -1,6 +1,15 @@
 {
   "indexes": [
     {
+      "collectionGroup": "incomingFinanceEmails",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "receivedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "financialTransactions",
       "queryScope": "COLLECTION",
       "fields": [

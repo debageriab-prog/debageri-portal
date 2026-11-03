@@ -30,6 +30,11 @@ import {
   type AiAttachmentSource,
 } from "./FinanceAttachments";
 import { useAccountingEmailPrompt } from "./AccountingEmailPrompt";
+import type { FinanceExtraction } from "@/domain/ai";
+import {
+  useIncomingEmailPrefill,
+  type IncomingEmailSource,
+} from "./incoming-email-prefill";
 import type { AccountingEntityType } from "@/domain/accounting-email";
 import {
   aiConversionText,
@@ -235,17 +240,42 @@ function useFinanceSubmit(
   return { busy, error, submit, accountingDialog: prompt.dialog };
 }
 
+/** Says which forwarded email the form was filled from. */
+function IncomingEmailNotice({
+  email,
+  filesFailed,
+}: {
+  email: IncomingEmailSource;
+  filesFailed: boolean;
+}) {
+  const { t } = useLocale();
+  return (
+    <div className="notice notice-success receipt-expense-notice">
+      <strong>
+        {t("incomingEmailFormNotice")
+          .replace("{subject}", email.subject || t("incomingEmailNoSubject"))
+          .replace("{from}", email.from)}
+      </strong>
+      <span>{t("incomingEmailFormCheck")}</span>
+      {filesFailed && <span>{t("incomingEmailFilesFailed")}</span>}
+    </div>
+  );
+}
+
 export function InvoiceForm({
   users,
   customers,
   aiEnabled = false,
   accountingRecipients = [],
+  incomingEmail,
 }: {
   users: User[];
   customers: Customer[];
   aiEnabled?: boolean;
   /** Accounting contacts to offer emailing the new invoice to. */
   accountingRecipients?: string[];
+  /** A forwarded email whose AI reading and files fill the form. */
+  incomingEmail?: IncomingEmailSource;
 }) {
   const { t, locale } = useLocale();
   const [invoiceNumber, setInvoiceNumber] = useState("");
@@ -274,8 +304,12 @@ export function InvoiceForm({
   const [aiCurrencyWarning, setAiCurrencyWarning] = useState<string[] | null>(
     null,
   );
+  const returnHref = incomingEmail
+    ? "/finance/incoming-emails"
+    : "/finance?section=invoices";
+  const [emailFilesFailed, setEmailFilesFailed] = useState(false);
   const { busy, error, submit, accountingDialog } = useFinanceSubmit(
-    "/finance?section=invoices",
+    returnHref,
     { entityType: "invoice", recipients: accountingRecipients },
   );
   const amountMinor = (parse: (value: string) => number, value: string) => {
@@ -333,22 +367,8 @@ export function InvoiceForm({
     }
   }
 
-  async function processWithAi(
-    source: AiAttachmentSource,
-    key: string,
-    name: string,
-  ) {
-    setAiBusyKey(key);
-    setAiNotice(null);
-    setAiCurrencyWarning(null);
-    const result = await processAttachmentWithAi(source, "invoice");
-    setAiBusyKey(null);
-    const extraction = result.extraction;
-    if (!extraction) {
-      setAiNotice(aiErrorNotice(result, t));
-      return;
-    }
-    setAiProcessedKeys((keys) => [...keys, key]);
+  /** Fills the form from an AI reading of a file or forwarded email. */
+  function applyExtraction(extraction: FinanceExtraction, name: string) {
     let filled = 0;
     const foreignAmounts = extraction.currency !== "SEK";
     if (extraction.invoiceNumber) {
@@ -446,6 +466,35 @@ export function InvoiceForm({
     });
   }
 
+  async function processWithAi(
+    source: AiAttachmentSource,
+    key: string,
+    name: string,
+  ) {
+    setAiBusyKey(key);
+    setAiNotice(null);
+    setAiCurrencyWarning(null);
+    const result = await processAttachmentWithAi(source, "invoice");
+    setAiBusyKey(null);
+    const extraction = result.extraction;
+    if (!extraction) {
+      setAiNotice(aiErrorNotice(result, t));
+      return;
+    }
+    setAiProcessedKeys((keys) => [...keys, key]);
+    applyExtraction(extraction, name);
+  }
+
+  useIncomingEmailPrefill(incomingEmail, (files, failed) => {
+    setAttachmentFiles(files);
+    setEmailFilesFailed(failed);
+    if (incomingEmail?.extraction)
+      applyExtraction(
+        incomingEmail.extraction,
+        incomingEmail.subject || t("incomingEmailSourceName"),
+      );
+  });
+
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -467,6 +516,7 @@ export function InvoiceForm({
         shareBpsOverride: form.get("sharePercent")
           ? Math.round(Number(form.get("sharePercent")) * 100)
           : null,
+        ...(incomingEmail ? { incomingEmailId: incomingEmail.id } : {}),
       },
       { entityType: "invoice", files: attachmentFiles, removedAttachmentIds },
     );
@@ -475,8 +525,18 @@ export function InvoiceForm({
     <FormPage
       title={t("addInvoice")}
       description={t("newInvoiceDescription")}
-      backHref="/finance?section=invoices"
-      backLabel={t("backToInvoices")}
+      backHref={returnHref}
+      backLabel={
+        incomingEmail ? t("backToIncomingEmails") : t("backToInvoices")
+      }
+      notice={
+        incomingEmail && (
+          <IncomingEmailNotice
+            email={incomingEmail}
+            filesFailed={emailFilesFailed}
+          />
+        )
+      }
     >
       {!customers.length ? (
         <p className="notice notice-error">
@@ -824,6 +884,7 @@ export function TransactionForm({
   defaultDate,
   transaction,
   receipt,
+  incomingEmail,
   accountingRecipients = [],
   aiEnabled = false,
 }: {
@@ -833,6 +894,8 @@ export function TransactionForm({
   defaultDate?: string;
   transaction?: EditableTransaction;
   receipt?: ExpenseReceipt;
+  /** A forwarded email whose AI reading and files fill the form. */
+  incomingEmail?: IncomingEmailSource;
   aiEnabled?: boolean;
   /** Accounting contacts to offer emailing the saved entry to. */
   accountingRecipients?: string[];
@@ -931,6 +994,7 @@ export function TransactionForm({
     { entityType: "transaction", recipients: accountingRecipients },
   );
   const [receiptFileError, setReceiptFileError] = useState(false);
+  const [emailFilesFailed, setEmailFilesFailed] = useState(false);
   const [categoryId, setCategoryId] = useState(transaction?.categoryId ?? "");
   const [date, setDate] = useState(
     transaction?.date ?? receipt?.date ?? defaultDate ?? today(),
@@ -952,22 +1016,8 @@ export function TransactionForm({
   );
   const [aiNotice, setAiNotice] = useState<AiNotice | null>(null);
 
-  async function processWithAi(
-    source: AiAttachmentSource,
-    key: string,
-    name: string,
-  ) {
-    setAiBusyKey(key);
-    setAiNotice(null);
-    setAiCurrencyWarning(null);
-    const result = await processAttachmentWithAi(source);
-    setAiBusyKey(null);
-    const extraction = result.extraction;
-    if (!extraction) {
-      setAiNotice(aiErrorNotice(result, t));
-      return;
-    }
-    setAiProcessedKeys((keys) => [...keys, key]);
+  /** Fills the form from an AI reading of a file or forwarded email. */
+  function applyExtraction(extraction: FinanceExtraction, name: string) {
     let filled = 0;
     const foreignAmounts = extraction.currency !== "SEK";
     if (extraction.direction) {
@@ -1080,6 +1130,35 @@ export function TransactionForm({
       messages,
     });
   }
+
+  async function processWithAi(
+    source: AiAttachmentSource,
+    key: string,
+    name: string,
+  ) {
+    setAiBusyKey(key);
+    setAiNotice(null);
+    setAiCurrencyWarning(null);
+    const result = await processAttachmentWithAi(source);
+    setAiBusyKey(null);
+    const extraction = result.extraction;
+    if (!extraction) {
+      setAiNotice(aiErrorNotice(result, t));
+      return;
+    }
+    setAiProcessedKeys((keys) => [...keys, key]);
+    applyExtraction(extraction, name);
+  }
+
+  useIncomingEmailPrefill(incomingEmail, (files, failed) => {
+    setAttachmentFiles(files);
+    setEmailFilesFailed(failed);
+    if (incomingEmail?.extraction)
+      applyExtraction(
+        incomingEmail.extraction,
+        incomingEmail.subject || t("incomingEmailSourceName"),
+      );
+  });
   useEffect(() => {
     if (!receipt) return;
     let active = true;
@@ -1183,6 +1262,9 @@ export function TransactionForm({
       visibleDescription: hasConsultant ? visibleDescription : "",
       internalNote: form.get("internalNote"),
       ...(receipt && !transaction ? { receiptId: receipt.id } : {}),
+      ...(incomingEmail && !transaction
+        ? { incomingEmailId: incomingEmail.id }
+        : {}),
     };
     post(payload, true);
   }
@@ -1220,36 +1302,51 @@ export function TransactionForm({
           : t("newTransactionDescription")
       }
       backHref={returnHref}
-      backLabel={receipt ? t("backToReceipts") : t("backToTransactions")}
+      backLabel={
+        receipt
+          ? t("backToReceipts")
+          : incomingEmail
+            ? t("backToIncomingEmails")
+            : t("backToTransactions")
+      }
       notice={
-        receipt && (
-          <div className="notice notice-success receipt-expense-notice">
-            <strong>
-              {t("expenseFromReceipt")
-                .replace("{name}", receipt.name)
-                .replace("{person}", receipt.userName)}
-            </strong>
-            {receipt.netMinor > 0 && (
+        incomingEmail ? (
+          <IncomingEmailNotice
+            email={incomingEmail}
+            filesFailed={emailFilesFailed}
+          />
+        ) : (
+          receipt && (
+            <div className="notice notice-success receipt-expense-notice">
+              <strong>
+                {t("expenseFromReceipt")
+                  .replace("{name}", receipt.name)
+                  .replace("{person}", receipt.userName)}
+              </strong>
+              {receipt.netMinor > 0 && (
+                <span>
+                  {t("expenseFromReceiptAmounts")
+                    .replace("{net}", formatSek(receipt.netMinor, locale))
+                    .replace("{vat}", formatSek(receipt.vatMinor, locale))
+                    .replace(
+                      "{total}",
+                      formatSek(receipt.netMinor + receipt.vatMinor, locale),
+                    )}
+                </span>
+              )}
               <span>
-                {t("expenseFromReceiptAmounts")
-                  .replace("{net}", formatSek(receipt.netMinor, locale))
-                  .replace("{vat}", formatSek(receipt.vatMinor, locale))
-                  .replace(
-                    "{total}",
-                    formatSek(receipt.netMinor + receipt.vatMinor, locale),
-                  )}
+                {receiptConsultant
+                  ? t("expenseFromReceiptFundingHelp")
+                  : t("expenseFromReceiptCompanyOnly").replace(
+                      "{person}",
+                      receipt.userName,
+                    )}
               </span>
-            )}
-            <span>
-              {receiptConsultant
-                ? t("expenseFromReceiptFundingHelp")
-                : t("expenseFromReceiptCompanyOnly").replace(
-                    "{person}",
-                    receipt.userName,
-                  )}
-            </span>
-            {receiptFileError && <span>{t("expenseReceiptFileMissing")}</span>}
-          </div>
+              {receiptFileError && (
+                <span>{t("expenseReceiptFileMissing")}</span>
+              )}
+            </div>
+          )
         )
       }
     >

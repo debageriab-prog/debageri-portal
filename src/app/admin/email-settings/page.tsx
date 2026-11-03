@@ -12,15 +12,22 @@ import {
   defaultReminderSubject,
   defaultReminderTemplate,
 } from "@/server/services/reminder-service";
+import {
+  isAccountingEmailConfigured,
+  readAccountingContacts,
+} from "@/server/services/accounting-email-service";
+import { isAiFeatureEnabled } from "@/server/services/ai-service";
+import { readIncomingEmailSettings } from "@/server/services/incoming-email-service";
+import { AccountingEmailsForm } from "./AccountingEmailsForm";
 import { EmailSettingsForm } from "./EmailSettingsForm";
-import { EmailSettingsTabs, type EmailSettingsTab } from "./EmailSettingsTabs";
+import { EmailSettingsTabs } from "./EmailSettingsTabs";
+import { EMAIL_SETTINGS_TABS } from "./tabs";
+import { IncomingEmailSettingsForm } from "./IncomingEmailSettingsForm";
 import {
   EmailTemplateForm,
   type NotificationTemplateState,
 } from "./EmailTemplateForm";
 import { NotificationSettingsForm } from "./NotificationSettingsForm";
-
-const tabs: EmailSettingsTab[] = ["smtp", "notifications", "templates"];
 
 export default async function EmailSettingsPage({
   searchParams,
@@ -30,9 +37,20 @@ export default async function EmailSettingsPage({
   const actor = (await verifySession())!;
   const t = await getTranslator();
   const { db } = getAdminServices();
-  const [settingsDoc, templatesDoc] = await Promise.all([
+  const [
+    settingsDoc,
+    templatesDoc,
+    accountingContacts,
+    accountingConfigured,
+    incoming,
+    incomingAi,
+  ] = await Promise.all([
     db.collection("reminderSettings").doc(actor.organizationId).get(),
     db.collection("emailTemplates").doc(actor.organizationId).get(),
+    readAccountingContacts(db, actor.organizationId),
+    isAccountingEmailConfigured(db, actor.organizationId),
+    readIncomingEmailSettings(db, actor.organizationId),
+    isAiFeatureEnabled(db, actor.organizationId, "financeIncomingEmails"),
   ]);
   const data = settingsDoc.data();
   const templateData = templatesDoc.data()?.timeReportReminder;
@@ -58,7 +76,8 @@ export default async function EmailSettingsPage({
   ) as NotificationTemplateState;
   const requestedTab = (await searchParams).tab;
   const initialTab =
-    tabs.find((tab) => tab === requestedTab) ?? ("smtp" as const);
+    EMAIL_SETTINGS_TABS.find((tab) => tab === requestedTab) ??
+    ("smtp" as const);
   return (
     <>
       <div className="topbar">
@@ -71,6 +90,7 @@ export default async function EmailSettingsPage({
         </div>
       </div>
       <EmailSettingsTabs
+        key={initialTab}
         initialTab={initialTab}
         panels={{
           smtp: (
@@ -111,6 +131,18 @@ export default async function EmailSettingsPage({
                 notifications={notificationTemplates}
               />
             </>
+          ),
+          accounting: (
+            <AccountingEmailsForm
+              contacts={accountingContacts}
+              emailConfigured={accountingConfigured}
+            />
+          ),
+          incoming: (
+            <IncomingEmailSettingsForm
+              settings={incoming}
+              aiEnabled={incomingAi}
+            />
           ),
         }}
       />

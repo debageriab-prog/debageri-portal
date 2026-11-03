@@ -22,7 +22,8 @@ export async function proxy(request: NextRequest) {
   // Cloud Scheduler has no App Check token; the route checks its own secret.
   if (
     request.method === "POST" &&
-    request.nextUrl.pathname === "/api/cron/reminders"
+    (request.nextUrl.pathname === "/api/cron/reminders" ||
+      request.nextUrl.pathname === "/api/cron/incoming-emails")
   )
     return NextResponse.next();
   // The one place every change passes through, so a new route can't miss it.

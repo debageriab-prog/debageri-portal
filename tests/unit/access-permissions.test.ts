@@ -33,6 +33,8 @@ const matrix: Array<[PermissionKey, manager: boolean, accountant: boolean]> = [
   ["finance.vat.add", false, true],
   ["finance.vat.edit", false, true],
   ["finance.vat.delete", false, true],
+  ["finance.incomingEmails.view", false, true],
+  ["finance.incomingEmails.process", false, true],
   ["finance.accountingEmail", false, true],
   ["finance.aiExtraction", false, true],
   ["finance.categories.view", false, true],

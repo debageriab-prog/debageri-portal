@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import { expensableReceipt } from "@/server/services/receipt-service";
 import { aiExtractionEnabledFor } from "@/server/services/ai-service";
 import { accountingRecipientsFor } from "@/server/services/accounting-email-service";
+import { convertibleIncomingEmail } from "@/server/services/incoming-email-service";
 import { type ExpenseReceipt, TransactionForm } from "../../FinanceForms";
+import type { IncomingEmailSource } from "../../incoming-email-prefill";
 import { financeFormContext, financeUsers } from "../../form-data";
 import {
   safeTransactionReturnHref,
@@ -12,7 +14,11 @@ import {
 export default async function NewTransactionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ returnTo?: string; receiptId?: string }>;
+  searchParams: Promise<{
+    returnTo?: string;
+    receiptId?: string;
+    incomingEmailId?: string;
+  }>;
 }) {
   const params = await searchParams;
   const { actor, db } = await financeFormContext("finance.ledger.add");
@@ -35,9 +41,20 @@ export default async function NewTransactionPage({
       contentType: String(data.contentType),
     };
   }
+  let incomingEmail: IncomingEmailSource | undefined;
+  if (params.incomingEmailId && !receipt) {
+    incomingEmail = await convertibleIncomingEmail(
+      db,
+      actor,
+      params.incomingEmailId,
+    ).catch(() => undefined);
+    if (!incomingEmail) redirect("/finance/incoming-emails");
+  }
   const returnHref = receipt
     ? "/receipts"
-    : safeTransactionReturnHref(params.returnTo);
+    : incomingEmail
+      ? "/finance/incoming-emails"
+      : safeTransactionReturnHref(params.returnTo);
   const snapshot = await db
     .collection("financeCategories")
     .where("organizationId", "==", actor.organizationId)
@@ -55,6 +72,7 @@ export default async function NewTransactionPage({
       categories={categories}
       returnHref={returnHref}
       receipt={receipt}
+      incomingEmail={incomingEmail}
       accountingRecipients={await accountingRecipientsFor(
         actor,
         db,

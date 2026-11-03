@@ -19,8 +19,22 @@ Every organization-owned document has `organizationId`. Dates are `YYYY-MM-DD` i
 | `financialTransactions`   | immutable income, expense, and reversal ledger in integer Ã¶re                             | finance service          | role-scoped finance server  |
 | `aiSettings`              | organization ID; AI on/off, provider, model, enabled sections, encrypted keys              | admin service            | server only                 |
 | `accountingEmailSettings` | per-organization accounting email addresses and which finance changes each receives        | accounting email service | server only (admin API)     |
+| `incomingEmailSettings`   | organization ID; finance mailbox (IMAP, encrypted password), trusted senders, read state   | incoming email service   | server only (admin API)     |
+| `incomingFinanceEmails`   | generated; forwarded email, its files and what AI read, waiting to become a record         | incoming email service   | finance server only         |
 
 Weekly sheets are approval/state units; entries remain separate so one date can have multiple codes and date-range reporting stays queryable. Each eligible weekday expects eight reported hours, while submitted sheets preserve their historical expected total. Code snapshots preserve historical meaning after a rename/deactivation. Approval events are append-only because current sheet fields are not history.
+
+Incoming financial emails are read from the finance mailbox every hour from
+08:00 to 23:00 and on "Read now", only while the mailbox is switched on and the
+AI section "Finance: Process incoming financial emails" is enabled. Only mail
+from the trusted senders is stored, and mail whose DMARC check failed is
+skipped. Each message is remembered by its IMAP UID (and UIDVALIDITY) and marked
+as read, so it is never read twice. Its PDF and image attachments are private
+Storage objects under `organizations/{org}/finance/incomingEmails/{id}/`. An
+email moves from `ready` (or `failed`, when AI could not read it) to `converted`
+when someone creates the income, expense or invoice from it, or to `dismissed`.
+Nothing is booked without that step, and the created record gets its own copy
+of the files.
 
 Time report files are private Storage objects under `organizations/{org}/timesheets/{uid}/{timesheetId}/`. The reporter adds and views them and can remove a file while the report is an unsent draft. Once a report has been sent, only admins and managers remove files. Every removal needs the typed confirmation phrase and is audited. Deleting a report keeps its files, which return when the same week is reported again, and deleting a sent report sets `locked` on them so the reporter cannot remove them that way.
 
