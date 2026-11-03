@@ -10,6 +10,7 @@ import {
   canConvertIncomingEmail,
   INCOMING_EMAIL_STATUSES,
   type IncomingEmailAction,
+  INCOMING_SKIP_REASONS,
   type IncomingEmailRunSummary,
   type IncomingEmailStatus,
 } from "@/domain/incoming-email";
@@ -113,6 +114,32 @@ export function IncomingEmails({
     }
   }
 
+  function summaryText(summary: IncomingEmailRunSummary) {
+    const reasons = INCOMING_SKIP_REASONS.filter(
+      (reason) => summary.skippedBy?.[reason],
+    ).map((reason) =>
+      t(`incomingEmailSkipped_${reason}`).replace(
+        "{count}",
+        String(summary.skippedBy![reason]),
+      ),
+    );
+    if (summary.untrustedSenders?.length)
+      reasons.push(
+        t("incomingEmailSkippedSenders").replace(
+          "{senders}",
+          summary.untrustedSenders.join(", "),
+        ),
+      );
+    return [
+      t("incomingEmailReadSummary")
+        .replace("{read}", String(summary.read))
+        .replace("{stored}", String(summary.stored))
+        .replace("{failed}", String(summary.failed))
+        .replace("{skipped}", String(summary.skipped)),
+      ...reasons,
+    ].join(" ");
+  }
+
   async function readNow() {
     setError("");
     setMessage("");
@@ -139,13 +166,7 @@ export function IncomingEmails({
         );
         return;
       }
-      setMessage(
-        t("incomingEmailReadSummary")
-          .replace("{read}", String(body.summary.read))
-          .replace("{stored}", String(body.summary.stored))
-          .replace("{failed}", String(body.summary.failed))
-          .replace("{skipped}", String(body.summary.skipped)),
-      );
+      setMessage(summaryText(body.summary));
       await load(filter);
     } catch {
       setError(t("serverUnavailable"));

@@ -8,8 +8,11 @@ import {
   emailBodyText,
   incomingEmailKind,
   isTrustedSender,
+  type IncomingEmailRunSummary,
   MAX_INCOMING_ATTACHMENT_BYTES,
   MAX_INCOMING_BODY_CHARS,
+  MAX_REPORTED_SENDERS,
+  recordSkip,
   selectAttachments,
 } from "@/domain/incoming-email";
 import {
@@ -163,5 +166,28 @@ describe("settings validation", () => {
       incomingEmailConnectionSchema.safeParse({ ...settings, imapPort: 0 })
         .success,
     ).toBe(false);
+  });
+});
+
+describe("run summary", () => {
+  it("counts skips by reason and lists a few untrusted senders", () => {
+    const summary: IncomingEmailRunSummary = {
+      read: 0,
+      stored: 0,
+      skipped: 0,
+      failed: 0,
+    };
+    recordSkip(summary, "untrustedSender", "a@example.se");
+    recordSkip(summary, "untrustedSender", "a@example.se");
+    recordSkip(summary, "senderCheckFailed", "b@example.se");
+    for (let index = 0; index < MAX_REPORTED_SENDERS + 2; index += 1)
+      recordSkip(summary, "untrustedSender", `x${index}@example.se`);
+    expect(summary.skipped).toBe(MAX_REPORTED_SENDERS + 5);
+    expect(summary.skippedBy).toEqual({
+      untrustedSender: MAX_REPORTED_SENDERS + 4,
+      senderCheckFailed: 1,
+    });
+    expect(summary.untrustedSenders).toHaveLength(MAX_REPORTED_SENDERS);
+    expect(summary.untrustedSenders![0]).toBe("a@example.se");
   });
 });

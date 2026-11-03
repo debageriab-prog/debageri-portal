@@ -19,11 +19,13 @@ import {
   incomingEmailKind,
   isIncomingEmailStatus,
   isTrustedSender,
+  recordSkip,
   selectAttachments,
   type IncomingEmailAction,
   type IncomingEmailAttachment,
   type IncomingEmailKind,
   type IncomingEmailRunSummary,
+  type IncomingSkipReason,
   type IncomingEmailStatus,
 } from "@/domain/incoming-email";
 import type { PortalUser } from "@/domain/types";
@@ -270,7 +272,8 @@ async function takeLease(db: Firestore, organizationId: string) {
   });
 }
 
-type StoredOutcome = "stored" | "skipped" | "failed";
+type StoredOutcome =
+  "stored" | "failed" | { skipped: IncomingSkipReason; sender?: string | null };
 
 async function extract(
   db: Firestore,
@@ -313,11 +316,15 @@ async function storeMessage(
 ): Promise<StoredOutcome> {
   const parsed = await simpleParser(source);
   const sender = parsed.from?.value[0]?.address ?? "";
-  if (!isTrustedSender(sender, trustedSenders)) return "skipped";
+  if (!isTrustedSender(sender, trustedSenders))
+    return {
+      skipped: "untrustedSender",
+      sender: emailAddress(sender) ?? sender.slice(0, 254),
+    };
   const authentication = parsed.headerLines
     .filter((line) => line.key === "authentication-results")
     .map((line) => line.line);
-  if (dmarcFailed(authentication)) return "skipped";
+  if (dmarcFailed(authentication)) return { skipped: "senderCheckFailed" };
   const messageId = (parsed.messageId ?? fallbackId).slice(0, 500);
   const duplicate = await db
     .collection(EMAILS)
@@ -325,7 +332,7 @@ async function storeMessage(
     .where("messageId", "==", messageId)
     .limit(1)
     .get();
-  if (!duplicate.empty) return "skipped";
+  if (!duplicate.empty) return { skipped: "duplicate" };
 
   const { kept } = selectAttachments(
     parsed.attachments.map((attachment) => ({
@@ -467,8 +474,11 @@ export async function readIncomingEmails(
             { uid: true, size: true },
             { uid: true },
           );
-          let outcome: StoredOutcome = "skipped";
+          let outcome: StoredOutcome = {
+            skipped: meta ? "tooLarge" : "unreadable",
+          };
           if (meta && (meta.size ?? 0) <= MAX_MESSAGE_BYTES) {
+            outcome = { skipped: "unreadable" };
             const message = await connection.fetchOne(
               String(uid),
               { uid: true, source: true },
@@ -491,7 +501,8 @@ export async function readIncomingEmails(
                 return "failed" as const;
               });
           }
-          summary[outcome] += 1;
+          if (typeof outcome === "string") summary[outcome] += 1;
+          else recordSkip(summary, outcome.skipped, outcome.sender);
           await connection.messageFlagsAdd(String(uid), ["\\Seen"], {
             uid: true,
           });

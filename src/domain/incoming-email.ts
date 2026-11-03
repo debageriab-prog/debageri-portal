@@ -40,12 +40,42 @@ export type IncomingEmailAttachment = {
   storagePath: string;
 };
 
+/** Why a read email was left out, so the summary can say what to fix. */
+export const INCOMING_SKIP_REASONS = [
+  "untrustedSender",
+  "senderCheckFailed",
+  "duplicate",
+  "tooLarge",
+  "unreadable",
+] as const;
+export type IncomingSkipReason = (typeof INCOMING_SKIP_REASONS)[number];
+
+/** Untrusted addresses kept in a run summary, enough to spot a typo. */
+export const MAX_REPORTED_SENDERS = 5;
+
 export type IncomingEmailRunSummary = {
   read: number;
   stored: number;
   skipped: number;
   failed: number;
+  /** Missing on summaries written before reasons were tracked. */
+  skippedBy?: Partial<Record<IncomingSkipReason, number>>;
+  untrustedSenders?: string[];
 };
+
+export function recordSkip(
+  summary: IncomingEmailRunSummary,
+  reason: IncomingSkipReason,
+  sender?: string | null,
+) {
+  summary.skipped += 1;
+  const skippedBy = (summary.skippedBy ??= {});
+  skippedBy[reason] = (skippedBy[reason] ?? 0) + 1;
+  if (reason !== "untrustedSender" || !sender) return;
+  const senders = (summary.untrustedSenders ??= []);
+  if (!senders.includes(sender) && senders.length < MAX_REPORTED_SENDERS)
+    senders.push(sender);
+}
 
 /** The lower-case address in `Name <address>` or a bare address. */
 export function emailAddress(value: string | null | undefined) {
