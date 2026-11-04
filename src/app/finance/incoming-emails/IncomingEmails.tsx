@@ -3,6 +3,18 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import {
+  DetailCollapsible,
+  DetailFacts,
+  DetailFile,
+  DetailFiles,
+  DetailSection,
+  DetailSections,
+  DetailSummary,
+  DetailTag,
+  hasDetailRows,
+  type DetailRow,
+} from "@/components/ui/DetailView";
 import { FileDownloadIcon } from "@/components/ui/FileActionIcons";
 import { formatSek } from "@/domain/finance/calculations";
 import {
@@ -18,11 +30,11 @@ import { shiftMonth } from "@/lib/dates/month";
 import { appCheckFetch } from "@/lib/firebase/client";
 import type { IncomingEmailView } from "@/server/services/incoming-email-service";
 import {
-  AttachmentPreviewModal,
   canPreview,
+  FilePreviewModal,
   PreviewButton,
   type PreviewTarget,
-} from "../FinanceAttachments";
+} from "@/components/ui/FilePreview";
 
 type Names = {
   categories: Record<string, string>;
@@ -56,20 +68,6 @@ function attachmentUrl(emailId: string, attachmentId: string) {
 
 function createHref(kind: "transaction" | "invoice", emailId: string) {
   return `/finance/${kind === "invoice" ? "invoices" : "transactions"}/new?incomingEmailId=${encodeURIComponent(emailId)}`;
-}
-
-/** A short label such as PDF or JPG for the file badge. */
-function fileType(name: string, contentType: string) {
-  const extension = /\.([a-z0-9]{1,4})$/i.exec(name)?.[1];
-  return (extension ?? contentType.split("/")[1] ?? "file")
-    .slice(0, 4)
-    .toUpperCase();
-}
-
-function fileSize(bytes: number) {
-  return bytes < 1024 * 1024
-    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
-    : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function StatusBadge({ status }: { status: IncomingEmailStatus }) {
@@ -514,65 +512,54 @@ function IncomingEmailModal({
 
   const money = (minor: number | null | undefined) =>
     minor == null ? null : formatSek(minor, locale);
-  const facts = (rows: [string, string | null | undefined][]) =>
-    rows.filter((row): row is [string, string] => Boolean(row[1]));
-  const factGroups = extraction
+  const groups: { title: string; rows: DetailRow[] }[] = extraction
     ? [
         {
-          title: t("incomingEmailAmounts"),
-          rows: facts([
+          title: t("detailAmounts"),
+          rows: [
             [t("totalExcludingVat"), money(extraction.netMinor)],
             [t("vatAmount"), money(extraction.vatMinor)],
             [t("totalIncludingVat"), money(extraction.grossMinor)],
-            [
+            extraction.conversion?.grossMinor != null && [
               t("incomingEmailOriginalAmount"),
-              extraction.conversion?.grossMinor != null
-                ? `${(extraction.conversion.grossMinor / 100).toFixed(2)} ${extraction.conversion.currency}`
-                : null,
+              `${(extraction.conversion.grossMinor / 100).toFixed(2)} ${extraction.conversion.currency}`,
             ],
-          ]),
+          ],
         },
         {
-          title: t("incomingEmailBooking"),
-          rows: facts([
-            [
+          title: t("detailBooking"),
+          rows: [
+            extraction.categoryId && [
               t("category"),
-              extraction.categoryId
-                ? names.categories[extraction.categoryId]
-                : null,
+              names.categories[extraction.categoryId],
             ],
-            [
+            extraction.consultantId && [
               t("consultant"),
-              extraction.consultantId
-                ? names.consultants[extraction.consultantId]
-                : null,
+              names.consultants[extraction.consultantId],
             ],
-            [
+            extraction.funding && [
               t("funding"),
               extraction.funding === "company"
                 ? t("companyFunded")
-                : extraction.funding === "consultant"
-                  ? t("consultantFunded")
-                  : null,
+                : t("consultantFunded"),
             ],
-            [
+            extraction.customerId && [
               t("customer"),
-              extraction.customerId
-                ? names.customers[extraction.customerId]
-                : null,
+              names.customers[extraction.customerId],
             ],
-          ]),
+          ],
         },
         {
           title: t("incomingEmailPaymentDetails"),
-          rows: facts([
+          rows: [
             [t("invoiceNumber"), extraction.invoiceNumber],
             [t("dueDate"), extraction.dueDate],
             [t("paymentReference"), extraction.paymentReference],
-          ]),
+          ],
         },
-      ].filter((group) => group.rows.length > 0)
+      ]
     : [];
+  const factGroups = groups.filter((group) => hasDetailRows(group.rows));
   const headline = [extraction?.counterpartyName, extraction?.date]
     .filter(Boolean)
     .join(" · ");
@@ -589,7 +576,7 @@ function IncomingEmailModal({
     <>
       <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
         <section
-          className="modal payslip-modal incoming-email-modal"
+          className="modal detail-modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="incoming-email-title"
@@ -601,7 +588,7 @@ function IncomingEmailModal({
               <h2 id="incoming-email-title">
                 {email.subject || t("incomingEmailNoSubject")}
               </h2>
-              <p className="incoming-email-meta">
+              <p className="detail-meta">
                 <span>{email.from}</span>
                 {email.receivedAt && (
                   <span>
@@ -632,74 +619,49 @@ function IncomingEmailModal({
               )}
             </p>
           )}
-          <div
-            className={`incoming-email-summary${extraction?.direction ? ` incoming-email-summary-${extraction.direction}` : ""}`}
+          <DetailSummary
+            tone={extraction?.direction ?? "neutral"}
+            tags={
+              <>
+                <StatusBadge status={email.status} />
+                <DetailTag>{t(`incomingEmailKind_${email.kind}`)}</DetailTag>
+                {extraction?.direction && (
+                  <DetailTag tone={extraction.direction}>
+                    {t(extraction.direction)}
+                  </DetailTag>
+                )}
+              </>
+            }
+            amount={money(extraction?.grossMinor)}
+            headline={headline}
           >
-            <div className="incoming-email-tags">
-              <StatusBadge status={email.status} />
-              <span className="incoming-email-tag">
-                {t(`incomingEmailKind_${email.kind}`)}
-              </span>
-              {extraction?.direction && (
-                <span
-                  className={`incoming-email-tag incoming-email-tag-${extraction.direction}`}
-                >
-                  {t(extraction.direction)}
-                </span>
-              )}
-            </div>
-            {extraction?.grossMinor != null && (
-              <strong className="incoming-email-amount">
-                {money(extraction.grossMinor)}
-              </strong>
-            )}
-            {headline && (
-              <span className="incoming-email-headline">{headline}</span>
-            )}
-            {extraction?.description && (
-              <p className="incoming-email-description">
-                {extraction.description}
-              </p>
-            )}
-          </div>
+            {extraction?.description}
+          </DetailSummary>
           {factGroups.length > 0 && (
-            <div className="incoming-email-sections">
+            <DetailSections>
               {factGroups.map((group) => (
-                <section className="incoming-email-section" key={group.title}>
-                  <h3>{group.title}</h3>
-                  <dl className="incoming-email-facts">
-                    {group.rows.map(([label, value]) => (
-                      <div key={label}>
-                        <dt>{label}</dt>
-                        <dd>{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </section>
+                <DetailSection key={group.title} title={group.title}>
+                  <DetailFacts rows={group.rows} />
+                </DetailSection>
               ))}
-            </div>
+            </DetailSections>
           )}
-          <section className="incoming-email-section">
-            <h3>
-              {t("attachments")}
-              <span className="incoming-email-count">
-                {email.attachments.length}
-              </span>
-            </h3>
+          <DetailSection
+            title={t("attachments")}
+            count={email.attachments.length}
+          >
             {email.attachments.length === 0 ? (
               <p className="muted">{t("incomingEmailNoAttachments")}</p>
             ) : (
-              <ul className="incoming-email-attachments">
+              <DetailFiles>
                 {email.attachments.map((attachment) => (
-                  <li key={attachment.id} className="incoming-email-attachment">
-                    <span className="incoming-email-file-type">
-                      {fileType(attachment.name, attachment.contentType)}
-                    </span>
-                    <span className="incoming-email-file-name">
-                      <strong>{attachment.name}</strong>
-                      <small>{fileSize(attachment.size)}</small>
-                    </span>
-                    {canPreview(attachment.contentType) && (
+                  <DetailFile
+                    key={attachment.id}
+                    name={attachment.name}
+                    contentType={attachment.contentType}
+                    size={attachment.size}
+                  >
+                    {canPreview(attachment.contentType) ? (
                       <PreviewButton
                         name={attachment.name}
                         onClick={() =>
@@ -710,27 +672,27 @@ function IncomingEmailModal({
                           })
                         }
                       />
+                    ) : (
+                      <button
+                        className="attachment-view"
+                        type="button"
+                        aria-label={`${t("download")} ${attachment.name}`}
+                        title={`${t("download")} ${attachment.name}`}
+                        onClick={() =>
+                          void download(attachment.id, attachment.name)
+                        }
+                      >
+                        <FileDownloadIcon />
+                      </button>
                     )}
-                    <button
-                      className="attachment-view"
-                      type="button"
-                      aria-label={`${t("download")} ${attachment.name}`}
-                      title={`${t("download")} ${attachment.name}`}
-                      onClick={() =>
-                        void download(attachment.id, attachment.name)
-                      }
-                    >
-                      <FileDownloadIcon />
-                    </button>
-                  </li>
+                  </DetailFile>
                 ))}
-              </ul>
+              </DetailFiles>
             )}
-          </section>
-          <details className="incoming-email-text">
-            <summary>{t("incomingEmailBody")}</summary>
+          </DetailSection>
+          <DetailCollapsible title={t("incomingEmailBody")}>
             <pre className="incoming-email-body">{email.bodyText || "—"}</pre>
-          </details>
+          </DetailCollapsible>
           {error && (
             <p className="notice notice-error" role="alert">
               {error}
@@ -795,10 +757,7 @@ function IncomingEmailModal({
         </section>
       </div>
       {preview && (
-        <AttachmentPreviewModal
-          target={preview}
-          onClose={() => setPreview(null)}
-        />
+        <FilePreviewModal target={preview} onClose={() => setPreview(null)} />
       )}
       {confirmDismiss && (
         <div

@@ -6,8 +6,15 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { formatSek } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
-import { AttachmentDownloads, StoredAttachment } from "../FinanceAttachments";
+import { AttachmentClip, AttachmentDownloads } from "../FinanceAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
+import {
+  DetailFacts,
+  DetailSection,
+  DetailSections,
+  DetailSummary,
+  DetailTag,
+} from "@/components/ui/DetailView";
 
 export type VatSettlementRow = {
   id: string;
@@ -123,17 +130,16 @@ export function VatSettlementHistory({
                 </td>
                 <td>
                   {settlement.attachments.length ? (
-                    <ul className="table-attachment-list">
+                    <div className="table-attachment-clips">
                       {settlement.attachments.map((attachment) => (
-                        <li key={attachment.id}>
-                          <StoredAttachment
-                            entityType="vatSettlement"
-                            entityId={settlement.id}
-                            attachment={attachment}
-                          />
-                        </li>
+                        <AttachmentClip
+                          key={attachment.id}
+                          entityType="vatSettlement"
+                          entityId={settlement.id}
+                          attachment={attachment}
+                        />
                       ))}
-                    </ul>
+                    </div>
                   ) : (
                     "-"
                   )}
@@ -187,7 +193,7 @@ export function VatSettlementHistory({
           onMouseDown={() => setViewing(null)}
         >
           <section
-            className="modal"
+            className="modal detail-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="vat-details-title"
@@ -195,8 +201,15 @@ export function VatSettlementHistory({
           >
             <header className="modal-header">
               <div>
-                <h2 id="vat-details-title">{t("vatSettlementDetails")}</h2>
-                <p>{viewing.paymentDate}</p>
+                <span className="eyebrow">{t("vatSettlementDetails")}</span>
+                <h2 id="vat-details-title">
+                  {viewing.periodFrom} {"\u2013"} {viewing.periodTo}
+                </h2>
+                <p className="detail-meta">
+                  <span>
+                    {t("paymentDate")} {viewing.paymentDate}
+                  </span>
+                </p>
               </div>
               <button
                 className="modal-close"
@@ -207,42 +220,46 @@ export function VatSettlementHistory({
                 {"\u00d7"}
               </button>
             </header>
-            <dl className="detail-grid">
-              <div>
-                <dt>{t("vatPeriod")}</dt>
-                <dd>
-                  {viewing.periodFrom} {"\u2013"} {viewing.periodTo}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("amount")}</dt>
-                <dd>{formatSek(viewing.amountMinor, locale)}</dd>
-              </div>
-              {viewing.roundingMinor !== 0 && (
-                <div>
-                  <dt>{t("rounding")}</dt>
-                  <dd>{formatSek(viewing.roundingMinor, locale)}</dd>
-                </div>
-              )}
-              <div>
-                <dt>{t("paymentReference")}</dt>
-                <dd>{viewing.reference || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("internalNote")}</dt>
-                <dd>{viewing.note || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("status")}</dt>
-                <dd>{t(viewing.status)}</dd>
-              </div>
+            <DetailSummary
+              tone={viewing.status === "reversed" ? "negative" : "neutral"}
+              tags={
+                <DetailTag
+                  tone={viewing.status === "reversed" ? "negative" : "neutral"}
+                >
+                  {t(viewing.status)}
+                </DetailTag>
+              }
+              amount={formatSek(viewing.amountMinor, locale)}
+            />
+            <DetailSections>
+              <DetailSection title={t("detailDetails")}>
+                <DetailFacts
+                  rows={[
+                    [
+                      t("vatPeriod"),
+                      `${viewing.periodFrom} \u2013 ${viewing.periodTo}`,
+                    ],
+                    [t("paymentDate"), viewing.paymentDate],
+                    [t("amount"), formatSek(viewing.amountMinor, locale)],
+                    viewing.roundingMinor !== 0 && [
+                      t("rounding"),
+                      formatSek(viewing.roundingMinor, locale),
+                    ],
+                    [t("paymentReference"), viewing.reference || "\u2014"],
+                  ]}
+                />
+              </DetailSection>
               {viewing.reversalReason && (
-                <div>
-                  <dt>{t("reversalReason")}</dt>
-                  <dd>{viewing.reversalReason}</dd>
-                </div>
+                <DetailSection title={t("reversalReason")}>
+                  <p>{viewing.reversalReason}</p>
+                </DetailSection>
               )}
-            </dl>
+            </DetailSections>
+            {viewing.note && (
+              <DetailSection title={t("internalNote")}>
+                <p>{viewing.note}</p>
+              </DetailSection>
+            )}
             <AttachmentDownloads
               entityType="vatSettlement"
               entityId={viewing.id}

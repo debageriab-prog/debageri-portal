@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ActionIcon } from "@/components/ui/ActionIcon";
-import { FileDownloadIcon } from "@/components/ui/FileActionIcons";
+import { FileClip } from "@/components/ui/FilePreview";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { formatPayslipMonth } from "@/domain/payslips";
 import { appCheckFetch } from "@/lib/firebase/client";
 import {
-  downloadPayslip,
   PayslipPreview,
+  payslipFileUrl,
   type PayslipItem,
 } from "./PayslipPreview";
 import { MonthStepper } from "@/components/ui/MonthStepper";
@@ -48,11 +48,6 @@ export function PayslipManagement({
   const filtered = payslips.filter(
     (item) => !personFilter || item.userId === personFilter,
   );
-
-  async function download(item: PayslipItem) {
-    setError("");
-    if (!(await downloadPayslip(item))) setError(t("payslipDownloadFailed"));
-  }
 
   async function remove() {
     if (!deleting) return;
@@ -199,7 +194,15 @@ export function PayslipManagement({
                     {employeeNumbers.get(item.userId) &&
                       ` (${employeeNumbers.get(item.userId)})`}
                   </td>
-                  <td className="payslip-file-name">{item.fileName}</td>
+                  <td>
+                    <FileClip
+                      target={{
+                        name: item.fileName,
+                        contentType: item.contentType,
+                        fileUrl: payslipFileUrl(item.id),
+                      }}
+                    />
+                  </td>
                   <td>{item.uploadedAt}</td>
                   <td>
                     <div className="row-actions">
@@ -210,14 +213,6 @@ export function PayslipManagement({
                         onClick={() => setViewing(item)}
                       >
                         <span aria-hidden="true">i</span>
-                      </button>
-                      <button
-                        className="table-action icon-action payslip-download-action"
-                        aria-label={t("download")}
-                        title={t("download")}
-                        onClick={() => void download(item)}
-                      >
-                        <FileDownloadIcon />
                       </button>
                       {canDelete && (
                         <button

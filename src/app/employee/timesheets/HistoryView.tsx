@@ -6,14 +6,15 @@ import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/durations/duration";
 import { appCheckFetch } from "@/lib/firebase/client";
 import {
-  AttachmentPreviewModal,
-  PreviewButton,
+  FileClips,
+  FilePreviewModal,
   type PreviewTarget,
-} from "@/app/finance/FinanceAttachments";
+} from "@/components/ui/FilePreview";
 import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
+import { DetailSection, DetailSummary } from "@/components/ui/DetailView";
 import { aggregateReportedDays } from "@/domain/reports/aggregate";
 import {
   consultantIncome,
@@ -486,30 +487,16 @@ export function HistoryView({
   }
 
   function sheetFiles(sheet: HistorySheet) {
-    const files = (attachments ?? []).filter(
-      (attachment) => attachment.timesheetId === sheet.id,
-    );
-    if (!files.length) return "-";
     return (
-      <ul className="table-attachment-list">
-        {files.map((file) => (
-          <li key={file.id}>
-            <span className="stored-attachment">
-              <span className="stored-attachment-name">{file.name}</span>
-              <PreviewButton
-                name={file.name}
-                onClick={() =>
-                  setPreviewing({
-                    name: file.name,
-                    contentType: file.contentType,
-                    fileUrl: `/api/timesheets/${encodeURIComponent(sheet.id)}/attachments/${encodeURIComponent(file.id)}`,
-                  })
-                }
-              />
-            </span>
-          </li>
-        ))}
-      </ul>
+      <FileClips
+        targets={(attachments ?? [])
+          .filter((attachment) => attachment.timesheetId === sheet.id)
+          .map((file) => ({
+            name: file.name,
+            contentType: file.contentType,
+            fileUrl: `/api/timesheets/${encodeURIComponent(sheet.id)}/attachments/${encodeURIComponent(file.id)}`,
+          }))}
+      />
     );
   }
 
@@ -607,6 +594,16 @@ export function HistoryView({
       <p>{t("noTimesheets")}</p>
     );
   }
+
+  const viewingEntries = viewing
+    ? entries
+        .filter((entry) => entry.timesheetId === viewing.id)
+        .sort((a, b) => a.date.localeCompare(b.date))
+    : [];
+  const viewingMinutes = viewingEntries.reduce(
+    (total, entry) => total + entry.minutes,
+    0,
+  );
 
   return (
     <>
@@ -794,7 +791,7 @@ export function HistoryView({
       {viewing && (
         <div className="modal-backdrop" onMouseDown={closeDetails}>
           <section
-            className="modal"
+            className="modal detail-modal"
             role="dialog"
             aria-modal="true"
             aria-label={t("timeReportForWeek").replace(
@@ -812,12 +809,9 @@ export function HistoryView({
                     ? `-${String(viewing.part).padStart(2, "0")}`
                     : ""}
                 </h2>
-                <p>
+                <p className="detail-meta">
                   {dateRangeLabel(t, viewing.periodStart, viewing.periodEnd)}
                 </p>
-                <span className={`status status-${viewing.status}`}>
-                  {timesheetStatusLabel(t, viewing.status)}
-                </span>
               </div>
               <button
                 className="modal-close"
@@ -833,20 +827,34 @@ export function HistoryView({
                 {viewing.rejectionReason}
               </p>
             )}
-            <div className="table-wrap">
-              <table className="report-details-table">
-                <thead>
-                  <tr>
-                    <th>{t("date")}</th>
-                    <th>{t("code")}</th>
-                    <th>{t("time")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries
-                    .filter((entry) => entry.timesheetId === viewing.id)
-                    .sort((a, b) => a.date.localeCompare(b.date))
-                    .map((entry, index) => (
+            <DetailSummary
+              tone={
+                viewing.status === "approved"
+                  ? "positive"
+                  : viewing.status === "rejected"
+                    ? "negative"
+                    : "neutral"
+              }
+              tags={
+                <span className={`status status-${viewing.status}`}>
+                  {timesheetStatusLabel(t, viewing.status)}
+                </span>
+              }
+              amount={formatDuration(viewingMinutes)}
+              headline={t("detailReportedTime")}
+            />
+            <DetailSection title={t("detailTimeEntries")}>
+              <div className="table-wrap">
+                <table className="report-details-table">
+                  <thead>
+                    <tr>
+                      <th>{t("date")}</th>
+                      <th>{t("code")}</th>
+                      <th>{t("time")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {viewingEntries.map((entry, index) => (
                       <tr key={`${entry.date}-${entry.name}-${index}`}>
                         <td>{entry.date}</td>
                         <td>
@@ -855,9 +863,10 @@ export function HistoryView({
                         <td>{formatDuration(entry.minutes)}</td>
                       </tr>
                     ))}
-                </tbody>
-              </table>
-            </div>
+                  </tbody>
+                </table>
+              </div>
+            </DetailSection>
             {readOnly ? (
               <TimesheetAttachments timesheetId={viewing.id} />
             ) : (
@@ -877,7 +886,7 @@ export function HistoryView({
         </div>
       )}
       {previewing && (
-        <AttachmentPreviewModal
+        <FilePreviewModal
           target={previewing}
           onClose={() => setPreviewing(null)}
         />

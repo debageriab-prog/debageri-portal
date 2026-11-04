@@ -6,7 +6,19 @@ import { useRouter } from "next/navigation";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { appCheckFetch } from "@/lib/firebase/client";
-import { FileDownloadIcon } from "@/components/ui/FileActionIcons";
+import {
+  DetailFacts,
+  DetailFile,
+  DetailFiles,
+  DetailSection,
+  DetailSections,
+  DetailSummary,
+  DetailTag,
+} from "@/components/ui/DetailView";
+import {
+  contentTypeFromName,
+  FilePreviewAction,
+} from "@/components/ui/FilePreview";
 
 export type ContractItem = {
   id: string;
@@ -20,6 +32,9 @@ export type ContractItem = {
   confidential: boolean;
   files: { id: string; name: string; size: number }[];
 };
+
+export const contractFileUrl = (contractId: string, fileId: string) =>
+  `/api/documents/contracts/${encodeURIComponent(contractId)}/files/${encodeURIComponent(fileId)}`;
 
 export function ContractList({
   contracts,
@@ -62,21 +77,6 @@ export function ContractList({
         .includes(nameFilter.toLocaleLowerCase()) &&
       (!consultantFilter || contract.consultantId === consultantFilter),
   );
-  async function download(
-    contractId: string,
-    file: ContractItem["files"][number],
-  ) {
-    const response = await appCheckFetch(
-      `/api/documents/contracts/${encodeURIComponent(contractId)}/files/${encodeURIComponent(file.id)}`,
-    );
-    if (!response.ok) return setError(t("contractDownloadFailed"));
-    const url = URL.createObjectURL(await response.blob());
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = file.name;
-    anchor.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
   async function remove() {
     if (!deleting) return;
     setBusy(true);
@@ -243,7 +243,7 @@ export function ContractList({
           onMouseDown={() => setViewing(null)}
         >
           <section
-            className="modal contract-detail-modal"
+            className="modal detail-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="contract-view-title"
@@ -274,66 +274,66 @@ export function ContractList({
                 <span>{t("confidentialDocumentNotice")}</span>
               </aside>
             )}
-            <dl className="detail-grid contract-detail-grid">
-              <div>
-                <dt>{t("documentDate")}</dt>
-                <dd>{viewing.documentDate}</dd>
-              </div>
-              <div>
-                <dt>{t("validTo")}</dt>
-                <dd>{viewing.validTo ?? t("noEndDate")}</dd>
-              </div>
-              <div>
-                <dt>{t("documentOwner")}</dt>
-                <dd>
-                  {viewing.ownerType === "company"
-                    ? t("company")
-                    : viewing.consultantName}
-                </dd>
-              </div>
-              {!viewerIsConsultant && (
-                <div>
-                  <dt>{t("visibleToConsultant")}</dt>
-                  <dd>{viewing.visibleToConsultant ? t("yes") : t("no")}</dd>
-                </div>
-              )}
-              <div>
-                <dt>{t("confidential")}</dt>
-                <dd>{viewing.confidential ? t("yes") : t("no")}</dd>
-              </div>
-            </dl>
-            <section className="contract-detail-files">
-              <div className="contract-detail-files-heading">
-                <h3>{t("files")}</h3>
-                <p>
-                  {t("contractFilesAvailable").replace(
-                    "{count}",
-                    String(viewing.files.length),
+            <DetailSummary
+              tone={viewing.confidential ? "negative" : "neutral"}
+              tags={
+                <>
+                  <DetailTag>
+                    {viewing.ownerType === "company"
+                      ? t("company")
+                      : viewing.consultantName}
+                  </DetailTag>
+                  {viewing.confidential && (
+                    <DetailTag tone="negative">{t("confidential")}</DetailTag>
                   )}
-                </p>
-              </div>
-              <ul className="attachment-list detail-attachment-list">
-                {viewing.files.map((file) => (
-                  <li key={file.id}>
-                    <span>{file.name}</span>
-                    <button
-                      className="attachment-download"
-                      aria-label={t("downloadAttachment").replace(
-                        "{name}",
-                        file.name,
-                      )}
-                      title={t("downloadAttachment").replace(
-                        "{name}",
-                        file.name,
-                      )}
-                      onClick={() => void download(viewing.id, file)}
-                    >
-                      <FileDownloadIcon />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
+                  {!viewerIsConsultant && viewing.visibleToConsultant && (
+                    <DetailTag tone="positive">
+                      {t("visibleToConsultant")}
+                    </DetailTag>
+                  )}
+                </>
+              }
+              headline={`${viewing.documentDate} \u2013 ${viewing.validTo ?? t("noEndDate")}`}
+            />
+            <DetailSections>
+              <DetailSection title={t("detailDetails")}>
+                <DetailFacts
+                  rows={[
+                    [t("documentDate"), viewing.documentDate],
+                    [t("validTo"), viewing.validTo ?? t("noEndDate")],
+                    [
+                      t("documentOwner"),
+                      viewing.ownerType === "company"
+                        ? t("company")
+                        : viewing.consultantName,
+                    ],
+                    !viewerIsConsultant && [
+                      t("visibleToConsultant"),
+                      viewing.visibleToConsultant ? t("yes") : t("no"),
+                    ],
+                    [
+                      t("confidential"),
+                      viewing.confidential ? t("yes") : t("no"),
+                    ],
+                  ]}
+                />
+              </DetailSection>
+              <DetailSection title={t("files")} count={viewing.files.length}>
+                <DetailFiles>
+                  {viewing.files.map((file) => (
+                    <DetailFile key={file.id} name={file.name} size={file.size}>
+                      <FilePreviewAction
+                        target={{
+                          name: file.name,
+                          contentType: contentTypeFromName(file.name),
+                          fileUrl: contractFileUrl(viewing.id, file.id),
+                        }}
+                      />
+                    </DetailFile>
+                  ))}
+                </DetailFiles>
+              </DetailSection>
+            </DetailSections>
           </section>
         </div>
       )}

@@ -59,6 +59,13 @@ import {
 import { AttachmentClip, AttachmentDownloads } from "./FinanceAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import {
+  DetailFacts,
+  DetailSection,
+  DetailSections,
+  DetailSummary,
+  DetailTag,
+} from "@/components/ui/DetailView";
+import {
   createFinanceCsv,
   transactionExportCsvHeaders,
 } from "@/domain/finance/csv";
@@ -2774,7 +2781,7 @@ export function FinanceDashboard({
           onMouseDown={() => setViewingTransaction(null)}
         >
           <section
-            className="modal"
+            className="modal detail-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="transaction-details-title"
@@ -2782,10 +2789,14 @@ export function FinanceDashboard({
           >
             <header className="modal-header">
               <div>
+                <span className="eyebrow">{t("transactionDetails")}</span>
                 <h2 id="transaction-details-title">
-                  {t("transactionDetails")}
+                  {categoryName(viewingTransaction.categoryId)}
                 </h2>
-                <p>{viewingTransaction.date}</p>
+                <p className="detail-meta">
+                  <span>{viewingTransaction.date}</span>
+                  <span>{consultantName(viewingTransaction.consultantId)}</span>
+                </p>
               </div>
               <button
                 className="modal-close"
@@ -2796,60 +2807,84 @@ export function FinanceDashboard({
                 {"\u00d7"}
               </button>
             </header>
-            <dl className="detail-grid">
-              <div>
-                <dt>{t("type")}</dt>
-                <dd>{t(viewingTransaction.direction)}</dd>
-              </div>
-              <div>
-                <dt>{t("category")}</dt>
-                <dd>{categoryName(viewingTransaction.categoryId)}</dd>
-              </div>
-              <div>
-                <dt>{t("consultant")}</dt>
-                <dd>{consultantName(viewingTransaction.consultantId)}</dd>
-              </div>
-              <div>
-                <dt>{t("netAmount")}</dt>
-                <dd>{formatSek(viewingTransaction.netMinor, locale)}</dd>
-              </div>
-              <div>
-                <dt>{t("vatAmount")}</dt>
-                <dd>{formatSek(viewingTransaction.vatMinor, locale)}</dd>
-              </div>
-              {viewingTransaction.roundingMinor !== 0 && (
-                <div>
-                  <dt>{t("rounding")}</dt>
-                  <dd>{formatSek(viewingTransaction.roundingMinor, locale)}</dd>
-                </div>
-              )}
-              <div>
-                <dt>{t("totalIncludingVat")}</dt>
-                <dd>{formatSek(viewingTransaction.grossMinor, locale)}</dd>
-              </div>
-              <div>
-                <dt>{t("funding")}</dt>
-                <dd>
-                  {viewingTransaction.funding
-                    ? t(
+            <DetailSummary
+              tone={viewingTransaction.direction}
+              tags={
+                <>
+                  <DetailTag tone={viewingTransaction.direction}>
+                    {t(viewingTransaction.direction)}
+                  </DetailTag>
+                  {viewingTransaction.funding && (
+                    <DetailTag>
+                      {t(
                         viewingTransaction.funding === "company"
                           ? "companyFunded"
                           : "consultantFunded",
-                      )
-                    : "\u2014"}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("description")}</dt>
-                <dd>{viewingTransaction.visibleDescription || "\u2014"}</dd>
-              </div>
-              {manager && (
-                <div>
-                  <dt>{t("internalNote")}</dt>
-                  <dd>{viewingTransaction.internalNote || "\u2014"}</dd>
-                </div>
-              )}
-            </dl>
+                      )}
+                    </DetailTag>
+                  )}
+                </>
+              }
+              amount={formatSek(viewingTransaction.grossMinor, locale)}
+              headline={t("totalIncludingVat")}
+            >
+              {viewingTransaction.visibleDescription}
+            </DetailSummary>
+            <DetailSections>
+              <DetailSection title={t("detailAmounts")}>
+                <DetailFacts
+                  rows={[
+                    [
+                      t("netAmount"),
+                      formatSek(viewingTransaction.netMinor, locale),
+                    ],
+                    [
+                      t("vatAmount"),
+                      formatSek(viewingTransaction.vatMinor, locale),
+                    ],
+                    viewingTransaction.roundingMinor !== 0 && [
+                      t("rounding"),
+                      formatSek(viewingTransaction.roundingMinor, locale),
+                    ],
+                    [
+                      t("totalIncludingVat"),
+                      formatSek(viewingTransaction.grossMinor, locale),
+                    ],
+                  ]}
+                />
+              </DetailSection>
+              <DetailSection title={t("detailBooking")}>
+                <DetailFacts
+                  rows={[
+                    [t("type"), t(viewingTransaction.direction)],
+                    [
+                      t("category"),
+                      categoryName(viewingTransaction.categoryId),
+                    ],
+                    [
+                      t("consultant"),
+                      consultantName(viewingTransaction.consultantId),
+                    ],
+                    [
+                      t("funding"),
+                      viewingTransaction.funding
+                        ? t(
+                            viewingTransaction.funding === "company"
+                              ? "companyFunded"
+                              : "consultantFunded",
+                          )
+                        : "\u2014",
+                    ],
+                    [t("date"), viewingTransaction.date],
+                  ]}
+                />
+              </DetailSection>
+            </DetailSections>
+            {manager && viewingTransaction.internalNote && (
+              <DetailSection title={t("internalNote")}>
+                <p>{viewingTransaction.internalNote}</p>
+              </DetailSection>
+            )}
             <AttachmentDownloads
               entityType="transaction"
               entityId={viewingTransaction.id}
@@ -2874,7 +2909,7 @@ export function FinanceDashboard({
           onMouseDown={() => setViewingInvoice(null)}
         >
           <section
-            className="modal"
+            className="modal detail-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="invoice-details-title"
@@ -2884,7 +2919,18 @@ export function FinanceDashboard({
             }}
           >
             <header className="modal-header">
-              <h2 id="invoice-details-title">{t("invoiceDetails")}</h2>
+              <div>
+                <span className="eyebrow">{t("invoiceDetails")}</span>
+                <h2 id="invoice-details-title">
+                  {viewingInvoice.customerName || "\u2014"}
+                </h2>
+                <p className="detail-meta">
+                  <span>
+                    {t("invoiceNumber")} {viewingInvoice.invoiceNumber}
+                  </span>
+                  <span>{viewingInvoice.issueDate}</span>
+                </p>
+              </div>
               <button
                 className="modal-close"
                 type="button"
@@ -2895,106 +2941,116 @@ export function FinanceDashboard({
                 {"\u00d7"}
               </button>
             </header>
-            <dl className="detail-grid">
-              <div>
-                <dt>{t("invoiceNumber")}</dt>
-                <dd>{viewingInvoice.invoiceNumber || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("customer")}</dt>
-                <dd>{viewingInvoice.customerName || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("contactPerson")}</dt>
-                <dd>{viewingInvoice.customerContactPerson || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("financeDepartmentEmail")}</dt>
-                <dd>{viewingInvoice.customerFinanceEmail || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("consultant")}</dt>
-                <dd>
-                  {consultantName(viewingInvoice.consultantId) || "\u2014"}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("invoicePeriod")}</dt>
-                <dd>
-                  {viewingInvoice.periodFrom && viewingInvoice.periodTo
-                    ? `${viewingInvoice.periodFrom} – ${viewingInvoice.periodTo}`
-                    : "\u2014"}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("issueDate")}</dt>
-                <dd>{viewingInvoice.issueDate || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("dueDate")}</dt>
-                <dd>{viewingInvoice.dueDate || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("paymentDate")}</dt>
-                <dd>{viewingInvoice.paidDate || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("status")}</dt>
-                <dd>{t(viewingInvoice.status) || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("netAmount")}</dt>
-                <dd>
-                  {formatSek(viewingInvoice.netMinor, locale) || "\u2014"}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("vatPercent")}</dt>
-                <dd>{`${viewingInvoice.vatRateBps / 100}%` || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("vatAmount")}</dt>
-                <dd>
-                  {formatSek(viewingInvoice.vatMinor, locale) || "\u2014"}
-                </dd>
-              </div>
-              {viewingInvoice.roundingMinor !== 0 && (
-                <div>
-                  <dt>{t("rounding")}</dt>
-                  <dd>{formatSek(viewingInvoice.roundingMinor, locale)}</dd>
-                </div>
-              )}
-              <div>
-                <dt>{t("totalIncludingVat")}</dt>
-                <dd>
-                  {formatSek(viewingInvoice.grossMinor, locale) || "\u2014"}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("compensationModel")}</dt>
-                <dd>
-                  {viewingInvoice.compensationModel
-                    ? t(
-                        compensationModelLabels[
-                          viewingInvoice.compensationModel
-                        ],
-                      )
-                    : "\u2014"}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("invoiceSharePercent")}</dt>
-                <dd>{`${viewingInvoice.shareBps / 100}%` || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("description")}</dt>
-                <dd>{viewingInvoice.visibleDescription || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt>{t("internalNote")}</dt>
-                <dd>{viewingInvoice.internalNote || "\u2014"}</dd>
-              </div>
-            </dl>
+            <DetailSummary
+              tone={
+                viewingInvoice.status === "paid"
+                  ? "positive"
+                  : viewingInvoice.status === "void"
+                    ? "negative"
+                    : "neutral"
+              }
+              tags={
+                <DetailTag
+                  tone={
+                    viewingInvoice.status === "paid"
+                      ? "positive"
+                      : viewingInvoice.status === "void"
+                        ? "negative"
+                        : "neutral"
+                  }
+                >
+                  {t(viewingInvoice.status)}
+                </DetailTag>
+              }
+              amount={formatSek(viewingInvoice.grossMinor, locale)}
+              headline={
+                viewingInvoice.paidDate
+                  ? `${t("paymentDate")} ${viewingInvoice.paidDate}`
+                  : `${t("dueDate")} ${viewingInvoice.dueDate}`
+              }
+            >
+              {viewingInvoice.visibleDescription}
+            </DetailSummary>
+            <DetailSections>
+              <DetailSection title={t("detailAmounts")}>
+                <DetailFacts
+                  rows={[
+                    [
+                      t("netAmount"),
+                      formatSek(viewingInvoice.netMinor, locale),
+                    ],
+                    [t("vatPercent"), `${viewingInvoice.vatRateBps / 100}%`],
+                    [
+                      t("vatAmount"),
+                      formatSek(viewingInvoice.vatMinor, locale),
+                    ],
+                    viewingInvoice.roundingMinor !== 0 && [
+                      t("rounding"),
+                      formatSek(viewingInvoice.roundingMinor, locale),
+                    ],
+                    [
+                      t("totalIncludingVat"),
+                      formatSek(viewingInvoice.grossMinor, locale),
+                    ],
+                  ]}
+                />
+              </DetailSection>
+              <DetailSection title={t("detailDates")}>
+                <DetailFacts
+                  rows={[
+                    [t("issueDate"), viewingInvoice.issueDate],
+                    [t("dueDate"), viewingInvoice.dueDate],
+                    [t("paymentDate"), viewingInvoice.paidDate || "\u2014"],
+                    viewingInvoice.periodFrom &&
+                      viewingInvoice.periodTo && [
+                        t("invoicePeriod"),
+                        `${viewingInvoice.periodFrom} \u2013 ${viewingInvoice.periodTo}`,
+                      ],
+                  ]}
+                />
+              </DetailSection>
+              <DetailSection title={t("customer")}>
+                <DetailFacts
+                  rows={[
+                    [t("customer"), viewingInvoice.customerName],
+                    [t("contactPerson"), viewingInvoice.customerContactPerson],
+                    [
+                      t("financeDepartmentEmail"),
+                      viewingInvoice.customerFinanceEmail,
+                    ],
+                  ]}
+                />
+              </DetailSection>
+              <DetailSection title={t("detailConsultantShare")}>
+                <DetailFacts
+                  rows={[
+                    [
+                      t("consultant"),
+                      consultantName(viewingInvoice.consultantId),
+                    ],
+                    [
+                      t("compensationModel"),
+                      viewingInvoice.compensationModel
+                        ? t(
+                            compensationModelLabels[
+                              viewingInvoice.compensationModel
+                            ],
+                          )
+                        : "\u2014",
+                    ],
+                    [
+                      t("invoiceSharePercent"),
+                      `${viewingInvoice.shareBps / 100}%`,
+                    ],
+                  ]}
+                />
+              </DetailSection>
+            </DetailSections>
+            {viewingInvoice.internalNote && (
+              <DetailSection title={t("internalNote")}>
+                <p>{viewingInvoice.internalNote}</p>
+              </DetailSection>
+            )}
             <AttachmentDownloads
               entityType="invoice"
               entityId={viewingInvoice.id}
