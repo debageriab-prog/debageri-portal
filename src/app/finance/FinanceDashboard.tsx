@@ -34,7 +34,6 @@ import {
   belongsToConsultant,
   belongsToFixedConsultantResult,
   calculateShareMinor,
-  companyOutstandingInvoiceShareMinor,
   companyBalanceDeltaMinor,
   consultantBalanceMovementHistory,
   earnsInvoiceShare,
@@ -50,6 +49,8 @@ import {
   transactionTableDescription,
   transactionFinanceHistory,
   vatPayableMinor,
+  vatPayableHistory,
+  outstandingInvoiceHistory,
 } from "@/domain/finance/calculations";
 import { appCheckFetch } from "@/lib/firebase/client";
 import {
@@ -142,6 +143,10 @@ export interface FinancePageData {
   agreements: CompensationRecord[];
   vatSettlements: Array<{
     id: string;
+    paymentDate: string;
+    periodFrom: string;
+    periodTo: string;
+    reference: string;
     amountMinor: number;
     roundingMinor: number;
     status: "active" | "reversed";
@@ -1144,6 +1149,8 @@ function FinanceHistoryModal({
   entries,
   locale,
   categoryName,
+  consultantName,
+  eyebrow,
   close,
 }: {
   title: string;
@@ -1152,6 +1159,9 @@ function FinanceHistoryModal({
   entries: FinanceHistoryEntry[];
   locale: Actor["locale"];
   categoryName: (id: string) => string;
+  /** When given, adds a column naming the consultant, or the company. */
+  consultantName?: (id: string) => string;
+  eyebrow?: string;
   close: () => void;
 }) {
   const { t } = useLocale();
@@ -1170,7 +1180,7 @@ function FinanceHistoryModal({
       >
         <header className="modal-header">
           <div>
-            <span className="eyebrow">{t("financialHistory")}</span>
+            <span className="eyebrow">{eyebrow ?? t("financialHistory")}</span>
             <h2>{title}</h2>
             <p>{description}</p>
           </div>
@@ -1190,6 +1200,7 @@ function FinanceHistoryModal({
                 <tr>
                   <th>{t("date")}</th>
                   <th>{t("source")}</th>
+                  {consultantName && <th>{t("consultant")}</th>}
                   <th>{t("description")}</th>
                   <th>{changeLabel ?? t("balanceChange")}</th>
                   <th>{t("runningTotal")}</th>
@@ -1202,10 +1213,23 @@ function FinanceHistoryModal({
                     <td>
                       {entry.kind === "invoice"
                         ? `${t("invoice")} ${entry.reference}`
-                        : entry.categoryId
-                          ? categoryName(entry.categoryId)
-                          : t("expense")}
+                        : entry.kind === "vatSettlement"
+                          ? [t("vatPayment"), entry.reference]
+                              .filter(Boolean)
+                              .join(" ")
+                          : entry.categoryId
+                            ? categoryName(entry.categoryId)
+                            : t("expense")}
                     </td>
+                    {consultantName && (
+                      <td>
+                        {entry.kind === "vatSettlement"
+                          ? "—"
+                          : entry.consultantId
+                            ? consultantName(entry.consultantId)
+                            : t("company")}
+                      </td>
+                    )}
                     <td>{entry.description || "—"}</td>
                     <td>{formatSek(entry.changeMinor, locale)}</td>
                     <td>{formatSek(entry.runningTotalMinor, locale)}</td>
@@ -1283,6 +1307,8 @@ export function FinanceDashboard({
     useState<ExpenseFundingFilter>("all");
   const [financeHistory, setFinanceHistory] = useState<
     | "netIncome"
+    | "vatPayable"
+    | "outstandingInvoices"
     | "consultantBalance"
     | "retainedResult"
     | "earnedShare"
@@ -1471,6 +1497,7 @@ export function FinanceDashboard({
     data.transactions,
     data.vatSettlements,
   );
+  const vatHistory = vatPayableHistory(data.transactions, data.vatSettlements);
   const earnedShareHistory = consultantBalanceMovementHistory(
     summaryTransactions,
     "earned",
@@ -1500,22 +1527,19 @@ export function FinanceDashboard({
           0,
         )
     : totals.balanceMinor;
-  const outstandingInvoices = data.invoices
-    .filter(
+  const outstandingInvoicesHistory = outstandingInvoiceHistory(
+    data.invoices.filter(
       (invoice) =>
-        invoice.status === "issued" &&
-        (selectedConsultant === "all" ||
-          selectedConsultant === "company" ||
-          invoice.consultantId === selectedConsultant),
-    )
-    .reduce(
-      (sum, invoice) =>
-        sum +
-        (selectedConsultant === "company"
-          ? companyOutstandingInvoiceShareMinor(invoice)
-          : invoice.netMinor),
-      0,
-    );
+        selectedConsultant === "all" ||
+        selectedConsultant === "company" ||
+        invoice.consultantId === selectedConsultant,
+    ),
+    selectedConsultant === "company",
+  );
+  const outstandingInvoices =
+    outstandingInvoicesHistory.at(-1)?.runningTotalMinor ?? 0;
+  const historyConsultantName = (id: string) =>
+    data.users.find((user) => user.id === id)?.displayName ?? "—";
   const consultantBalanceHistory =
     earnsInvoiceShare(selectedModel) &&
     selectedConsultant !== "all" &&
@@ -1928,10 +1952,17 @@ export function FinanceDashboard({
                   (selectedConsultant === "all" ||
                     selectedConsultant === "company") && (
                     <div className="metric">
-                      <span>{t("vatPayable")}</span>
-                      <strong>
-                        {formatSek(organizationVatPayable, locale)}
-                      </strong>
+                      <button
+                        className="metric-button"
+                        type="button"
+                        onClick={() => setFinanceHistory("vatPayable")}
+                      >
+                        <span>{t("vatPayable")}</span>
+                        <strong>
+                          {formatSek(organizationVatPayable, locale)}
+                        </strong>
+                        <small>{t("viewHistory")}</small>
+                      </button>
                     </div>
                   )}
                 <div className="metric">
@@ -1957,14 +1988,21 @@ export function FinanceDashboard({
                 </div>
                 {can(actor, "finance.invoices.view") && (
                   <div className="metric">
-                    <span>
-                      {t(
-                        selectedConsultant === "company"
-                          ? "companyOutstandingInvoiceShare"
-                          : "outstandingInvoices",
-                      )}
-                    </span>
-                    <strong>{formatSek(outstandingInvoices, locale)}</strong>
+                    <button
+                      className="metric-button"
+                      type="button"
+                      onClick={() => setFinanceHistory("outstandingInvoices")}
+                    >
+                      <span>
+                        {t(
+                          selectedConsultant === "company"
+                            ? "companyOutstandingInvoiceShare"
+                            : "outstandingInvoices",
+                        )}
+                      </span>
+                      <strong>{formatSek(outstandingInvoices, locale)}</strong>
+                      <small>{t("showDetails")}</small>
+                    </button>
                   </div>
                 )}
               </>
@@ -3180,6 +3218,42 @@ export function FinanceDashboard({
           entries={netIncomeHistory}
           locale={locale}
           categoryName={categoryName}
+          consultantName={historyConsultantName}
+          close={() => setFinanceHistory(null)}
+        />
+      )}
+      {financeHistory === "vatPayable" && (
+        <FinanceHistoryModal
+          title={t("vatPayable")}
+          description={t("vatPayableHistoryDescription")}
+          changeLabel={t("vatChange")}
+          entries={vatHistory}
+          locale={locale}
+          categoryName={categoryName}
+          consultantName={historyConsultantName}
+          close={() => setFinanceHistory(null)}
+        />
+      )}
+      {financeHistory === "outstandingInvoices" && (
+        <FinanceHistoryModal
+          title={t(
+            selectedConsultant === "company"
+              ? "companyOutstandingInvoiceShare"
+              : "outstandingInvoices",
+          )}
+          description={t(
+            selectedConsultant === "company"
+              ? "companyOutstandingInvoiceShareDescription"
+              : "outstandingInvoicesDescription",
+          )}
+          eyebrow={t("details")}
+          changeLabel={t(
+            selectedConsultant === "company" ? "companyShare" : "netAmount",
+          )}
+          entries={outstandingInvoicesHistory}
+          locale={locale}
+          categoryName={categoryName}
+          consultantName={historyConsultantName}
           close={() => setFinanceHistory(null)}
         />
       )}

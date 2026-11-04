@@ -281,6 +281,10 @@ export default async function FinancePage({
     vatSettlementsSnapshot?.docs ?? []
   ).map((document) => ({
     id: document.id,
+    paymentDate: String(document.data().paymentDate ?? ""),
+    periodFrom: String(document.data().periodFrom ?? ""),
+    periodTo: String(document.data().periodTo ?? ""),
+    reference: String(document.data().reference ?? ""),
     amountMinor: Number(document.data().amountMinor ?? 0),
     roundingMinor: Number(document.data().roundingMinor ?? 0),
     status: document.data().status as "active" | "reversed",
