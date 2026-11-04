@@ -2863,6 +2863,9 @@ th.actions-heading {
 .transaction-period-summary-pair {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.transaction-period-summary-five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
 .transaction-period-summary > div {
   display: grid;
   gap: 5px;

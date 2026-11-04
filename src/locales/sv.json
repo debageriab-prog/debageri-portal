@@ -567,6 +567,8 @@
   "totalIncomeExcludingVat": "Totala intäkter exklusive moms",
   "totalIncomeIncludingVat": "Totala intäkter inklusive moms",
   "totalExpensesExcludingVat": "Totala kostnader exklusive moms",
+  "totalConsultantFundedExpensesExcludingVat": "Totala kostnader exklusive moms (konsultfinansierade)",
+  "totalCompanyFundedExpensesExcludingVat": "Totala kostnader exklusive moms (företagsfinansierade)",
   "totalExpensesIncludingVat": "Totala kostnader inklusive moms",
   "totalIncome": "Totala intäkter",
   "totalExpenses": "Totala kostnader",

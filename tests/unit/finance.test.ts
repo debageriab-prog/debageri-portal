@@ -4,6 +4,8 @@ import {
   allocateInvoiceIncome,
   belongsToCompany,
   belongsToConsultant,
+  belongsToConsultantLedger,
+  transactionPeriodTotals,
   canViewMyFinance,
   canViewMyTransactions,
   belongsToFixedConsultantResult,
@@ -1038,5 +1040,77 @@ describe("outstanding invoice history", () => {
     expect(
       outstandingInvoiceHistory(invoices, false).at(-1)?.runningTotalMinor,
     ).toBe(200_000);
+  });
+});
+
+describe("consultant transaction list", () => {
+  const companyShare = {
+    consultantId: null,
+    direction: "income" as const,
+    funding: null,
+    invoiceId: "invoice-1",
+    invoiceConsultantId: "consultant-1",
+    netMinor: 70_000,
+    grossMinor: 95_000,
+  };
+  const consultantShare = {
+    ...companyShare,
+    consultantId: "consultant-1",
+    netMinor: 30_000,
+    grossMinor: 30_000,
+  };
+  const consultantExpense = {
+    consultantId: "consultant-1",
+    direction: "expense" as const,
+    funding: "consultant" as const,
+    invoiceId: null,
+    invoiceConsultantId: null,
+    netMinor: 10_000,
+    grossMinor: 12_500,
+  };
+  const companyExpense = {
+    ...consultantExpense,
+    funding: "company" as const,
+    netMinor: 4_000,
+    grossMinor: 5_000,
+  };
+
+  it("includes the company share of the consultant's invoices", () => {
+    expect(belongsToConsultantLedger(companyShare, "consultant-1")).toBe(true);
+    expect(belongsToConsultantLedger(companyShare, "consultant-2")).toBe(false);
+    expect(belongsToConsultantLedger(companyExpense, "consultant-1")).toBe(
+      true,
+    );
+    expect(
+      belongsToConsultantLedger(
+        { ...companyExpense, consultantId: null, invoiceConsultantId: null },
+        "consultant-1",
+      ),
+    ).toBe(false);
+  });
+
+  it("sums invoice income with VAT and splits expenses by funding", () => {
+    expect(
+      transactionPeriodTotals([
+        companyShare,
+        consultantShare,
+        consultantExpense,
+        companyExpense,
+      ]),
+    ).toEqual({
+      incomeNetMinor: 100_000,
+      incomeGrossMinor: 125_000,
+      expenseNetMinor: 14_000,
+      expenseGrossMinor: 17_500,
+      consultantFundedExpenseNetMinor: 10_000,
+      companyFundedExpenseNetMinor: 4_000,
+    });
+  });
+
+  it("covers fixed salary consultants, who only have company rows", () => {
+    expect(transactionPeriodTotals([companyShare])).toMatchObject({
+      incomeNetMinor: 70_000,
+      incomeGrossMinor: 95_000,
+    });
   });
 });

@@ -567,6 +567,8 @@
   "totalIncomeExcludingVat": "Total income excluding VAT",
   "totalIncomeIncludingVat": "Total income including VAT",
   "totalExpensesExcludingVat": "Total expenses excluding VAT",
+  "totalConsultantFundedExpensesExcludingVat": "Total expenses excluding VAT (consultant funded)",
+  "totalCompanyFundedExpensesExcludingVat": "Total expenses excluding VAT (company funded)",
   "totalExpensesIncludingVat": "Total expenses including VAT",
   "totalIncome": "Total income",
   "totalExpenses": "Total expenses",

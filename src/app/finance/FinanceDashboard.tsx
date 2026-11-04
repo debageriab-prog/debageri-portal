@@ -32,6 +32,8 @@ import {
   abbreviateText,
   belongsToCompany,
   belongsToConsultant,
+  belongsToConsultantLedger,
+  transactionPeriodTotals,
   belongsToFixedConsultantResult,
   calculateShareMinor,
   companyBalanceDeltaMinor,
@@ -1594,15 +1596,27 @@ export function FinanceDashboard({
   const normalizedTransactionSearch = transactionSearch
     .trim()
     .toLocaleLowerCase(locale);
+  // Managers looking at one consultant see everything the company earned and
+  // spent through them: the whole invoice income (company share with VAT and
+  // any consultant share) and expenses of every funding.
+  const transactionListShowsConsultant =
+    transactionConsultantFilter !== "all" &&
+    transactionConsultantFilter !== "company";
+  const managerConsultantTransactionList =
+    manager && transactionListShowsConsultant;
   const transactionListTransactions = data.transactions.filter(
     (transaction) => {
       const matchesConsultant =
         transactionConsultantFilter === "all" ||
         (transactionConsultantFilter === "company" &&
           belongsToCompany(transaction)) ||
-        (transactionConsultantFilter !== "all" &&
-          transactionConsultantFilter !== "company" &&
-          belongsToConsultant(transaction, transactionConsultantFilter));
+        (transactionListShowsConsultant &&
+          (manager
+            ? belongsToConsultantLedger(
+                transaction,
+                transactionConsultantFilter,
+              )
+            : belongsToConsultant(transaction, transactionConsultantFilter)));
       const matchesPeriod = inFinancePeriod(
         transaction.date,
         transactionPeriod,
@@ -1625,24 +1639,19 @@ export function FinanceDashboard({
       );
     },
   );
-  const transactionListTotals = transactionListTransactions.reduce(
-    (summary, transaction) => {
-      if (transaction.direction === "income") {
-        summary.incomeNetMinor += transaction.netMinor;
-        summary.incomeGrossMinor += transaction.grossMinor;
-      } else {
-        summary.expenseNetMinor += transaction.netMinor;
-        summary.expenseGrossMinor += transaction.grossMinor;
-      }
-      return summary;
-    },
-    {
-      incomeNetMinor: 0,
-      incomeGrossMinor: 0,
-      expenseNetMinor: 0,
-      expenseGrossMinor: 0,
-    },
+  const transactionListTotals = transactionPeriodTotals(
+    transactionListTransactions,
   );
+  const transactionListBalanceChange = (
+    transaction: FinancePageData["transactions"][number],
+  ) =>
+    manager && transactionConsultantFilter === "company"
+      ? companyBalanceDeltaMinor(transaction)
+      : // The company share of an invoice is not the consultant's balance.
+        managerConsultantTransactionList &&
+          transaction.consultantId !== transactionConsultantFilter
+        ? 0
+        : transaction.consultantBalanceDeltaMinor;
   const transactionDeleteProtection = (
     transaction: FinancePageData["transactions"][number],
   ) =>
@@ -1725,11 +1734,8 @@ export function FinanceDashboard({
       .write(`<!doctype html><html lang="${locale.slice(0, 2)}"><head><title>${escapeHtml(t("incomeExpenseManagement"))}</title><style>
       body{font:12px Arial,sans-serif;color:#172033;margin:24px}h1{font-size:22px} .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}.summary div{border:1px solid #ccd3dd;border-radius:6px;padding:10px}.summary span{display:block;color:#526070;margin-bottom:5px}.summary strong{font-size:14px}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #dfe4ea;padding:8px;text-align:left}th{background:#f3f5f7}@page{size:landscape;margin:12mm}
     </style></head><body><h1>${escapeHtml(t("incomeExpenseManagement"))}</h1>
-      <div class="summary">
-        <div><span>${escapeHtml(t("totalIncomeExcludingVat"))}</span><strong>${escapeHtml(formatSek(transactionListTotals.incomeNetMinor, locale))}</strong></div>
-        <div><span>${escapeHtml(t("totalIncomeIncludingVat"))}</span><strong>${escapeHtml(formatSek(transactionListTotals.incomeGrossMinor, locale))}</strong></div>
-        <div><span>${escapeHtml(t("totalExpensesExcludingVat"))}</span><strong>${escapeHtml(formatSek(transactionListTotals.expenseNetMinor, locale))}</strong></div>
-        <div><span>${escapeHtml(t("totalExpensesIncludingVat"))}</span><strong>${escapeHtml(formatSek(transactionListTotals.expenseGrossMinor, locale))}</strong></div>
+      <div class="summary" style="grid-template-columns:repeat(${transactionTotalsSummary.length},1fr)">
+        ${transactionTotalsSummary.map(([label, amountMinor]) => `<div><span>${escapeHtml(t(label))}</span><strong>${escapeHtml(formatSek(amountMinor, locale))}</strong></div>`).join("")}
       </div><table><thead><tr><th>${escapeHtml(t("date"))}</th><th>${escapeHtml(t("type"))}</th><th>${escapeHtml(t("category"))}</th><th>${escapeHtml(t("consultant"))}</th><th>${escapeHtml(t("description"))}</th><th>${escapeHtml(t("netAmount"))}</th><th>${escapeHtml(t("totalIncludingVat"))}</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>{window.print();window.close()}<\/script></body></html>`);
     printWindow.document.close();
   }
@@ -1813,20 +1819,40 @@ export function FinanceDashboard({
     customers: t("customerManagement"),
   }[section];
   const transactionTotalsSummary: Array<[Parameters<typeof t>[0], number]> =
-    manager
+    managerConsultantTransactionList
       ? [
           ["totalIncomeExcludingVat", transactionListTotals.incomeNetMinor],
           ["totalIncomeIncludingVat", transactionListTotals.incomeGrossMinor],
-          ["totalExpensesExcludingVat", transactionListTotals.expenseNetMinor],
+          [
+            "totalConsultantFundedExpensesExcludingVat",
+            transactionListTotals.consultantFundedExpenseNetMinor,
+          ],
+          [
+            "totalCompanyFundedExpensesExcludingVat",
+            transactionListTotals.companyFundedExpenseNetMinor,
+          ],
           [
             "totalExpensesIncludingVat",
             transactionListTotals.expenseGrossMinor,
           ],
         ]
-      : [
-          ["totalIncome", transactionListTotals.incomeNetMinor],
-          ["totalExpenses", transactionListTotals.expenseNetMinor],
-        ];
+      : manager
+        ? [
+            ["totalIncomeExcludingVat", transactionListTotals.incomeNetMinor],
+            ["totalIncomeIncludingVat", transactionListTotals.incomeGrossMinor],
+            [
+              "totalExpensesExcludingVat",
+              transactionListTotals.expenseNetMinor,
+            ],
+            [
+              "totalExpensesIncludingVat",
+              transactionListTotals.expenseGrossMinor,
+            ],
+          ]
+        : [
+            ["totalIncome", transactionListTotals.incomeNetMinor],
+            ["totalExpenses", transactionListTotals.expenseNetMinor],
+          ];
   return (
     <>
       <div className="topbar">
@@ -2655,7 +2681,7 @@ export function FinanceDashboard({
             </label>
           </section>
           <section
-            className={`transaction-period-summary${manager ? "" : " transaction-period-summary-pair"}`}
+            className={`transaction-period-summary${manager ? (managerConsultantTransactionList ? " transaction-period-summary-five" : "") : " transaction-period-summary-pair"}`}
             aria-label={t("periodTotals")}
           >
             {transactionTotalsSummary.map(([label, amountMinor]) => (
@@ -2717,9 +2743,7 @@ export function FinanceDashboard({
                   <td>{formatSekCompact(transaction.grossMinor, locale)}</td>
                   <td>
                     {formatSekCompact(
-                      manager && transactionConsultantFilter === "company"
-                        ? companyBalanceDeltaMinor(transaction)
-                        : transaction.consultantBalanceDeltaMinor,
+                      transactionListBalanceChange(transaction),
                       locale,
                     )}
                   </td>

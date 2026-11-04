@@ -562,6 +562,72 @@ export function belongsToFixedConsultantResult(
   );
 }
 
+/**
+ * Whether a transaction belongs to everything the company earned and spent
+ * through one consultant: their own rows (every expense funding) plus the
+ * company share of their paid invoices, which is booked without a consultant
+ * and carries the invoice VAT. Fixed salary consultants only have the latter.
+ */
+export function belongsToConsultantLedger(
+  transaction: Pick<
+    FinancialTransaction,
+    "consultantId" | "direction" | "invoiceId"
+  > & { invoiceConsultantId: string | null },
+  consultantId: string,
+) {
+  return (
+    transaction.consultantId === consultantId ||
+    (transaction.consultantId === null &&
+      transaction.direction === "income" &&
+      transaction.invoiceId !== null &&
+      transaction.invoiceConsultantId === consultantId)
+  );
+}
+
+export type TransactionPeriodTotals = {
+  incomeNetMinor: number;
+  incomeGrossMinor: number;
+  expenseNetMinor: number;
+  expenseGrossMinor: number;
+  consultantFundedExpenseNetMinor: number;
+  companyFundedExpenseNetMinor: number;
+};
+
+/**
+ * Sums a transaction list. Expenses without a consultant are company funded,
+ * as are consultant expenses marked `funding: "company"`.
+ */
+export function transactionPeriodTotals(
+  transactions: Array<
+    Pick<
+      FinancialTransaction,
+      "consultantId" | "direction" | "funding" | "netMinor" | "grossMinor"
+    >
+  >,
+): TransactionPeriodTotals {
+  const totals: TransactionPeriodTotals = {
+    incomeNetMinor: 0,
+    incomeGrossMinor: 0,
+    expenseNetMinor: 0,
+    expenseGrossMinor: 0,
+    consultantFundedExpenseNetMinor: 0,
+    companyFundedExpenseNetMinor: 0,
+  };
+  for (const transaction of transactions) {
+    if (transaction.direction === "income") {
+      totals.incomeNetMinor += transaction.netMinor;
+      totals.incomeGrossMinor += transaction.grossMinor;
+      continue;
+    }
+    totals.expenseNetMinor += transaction.netMinor;
+    totals.expenseGrossMinor += transaction.grossMinor;
+    if (transaction.consultantId === null || transaction.funding === "company")
+      totals.companyFundedExpenseNetMinor += transaction.netMinor;
+    else totals.consultantFundedExpenseNetMinor += transaction.netMinor;
+  }
+  return totals;
+}
+
 export function transactionTableDescription(
   transaction: Pick<
     FinancialTransaction,
