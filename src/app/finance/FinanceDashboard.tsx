@@ -1864,10 +1864,10 @@ export function FinanceDashboard({
         },
       ];
   function formatTotalWithVat(netMinor: number, grossMinor?: number) {
-    if (grossMinor === undefined) return formatSek(netMinor, locale);
+    if (grossMinor === undefined) return formatSekCompact(netMinor, locale);
     return t("amountPlusVat")
-      .replace("{amount}", formatSek(netMinor, locale))
-      .replace("{vat}", formatSek(grossMinor - netMinor, locale));
+      .replace("{amount}", formatSekCompact(netMinor, locale))
+      .replace("{vat}", formatSekCompact(grossMinor - netMinor, locale));
   }
   return (
     <>
