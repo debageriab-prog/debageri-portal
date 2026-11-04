@@ -1103,7 +1103,9 @@ describe("consultant transaction list", () => {
       expenseNetMinor: 14_000,
       expenseGrossMinor: 17_500,
       consultantFundedExpenseNetMinor: 10_000,
+      consultantFundedExpenseGrossMinor: 12_500,
       companyFundedExpenseNetMinor: 4_000,
+      companyFundedExpenseGrossMinor: 5_000,
     });
   });
 

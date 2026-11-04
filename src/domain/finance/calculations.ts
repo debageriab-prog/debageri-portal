@@ -590,7 +590,9 @@ export type TransactionPeriodTotals = {
   expenseNetMinor: number;
   expenseGrossMinor: number;
   consultantFundedExpenseNetMinor: number;
+  consultantFundedExpenseGrossMinor: number;
   companyFundedExpenseNetMinor: number;
+  companyFundedExpenseGrossMinor: number;
 };
 
 /**
@@ -611,7 +613,9 @@ export function transactionPeriodTotals(
     expenseNetMinor: 0,
     expenseGrossMinor: 0,
     consultantFundedExpenseNetMinor: 0,
+    consultantFundedExpenseGrossMinor: 0,
     companyFundedExpenseNetMinor: 0,
+    companyFundedExpenseGrossMinor: 0,
   };
   for (const transaction of transactions) {
     if (transaction.direction === "income") {
@@ -621,9 +625,16 @@ export function transactionPeriodTotals(
     }
     totals.expenseNetMinor += transaction.netMinor;
     totals.expenseGrossMinor += transaction.grossMinor;
-    if (transaction.consultantId === null || transaction.funding === "company")
+    if (
+      transaction.consultantId === null ||
+      transaction.funding === "company"
+    ) {
       totals.companyFundedExpenseNetMinor += transaction.netMinor;
-    else totals.consultantFundedExpenseNetMinor += transaction.netMinor;
+      totals.companyFundedExpenseGrossMinor += transaction.grossMinor;
+    } else {
+      totals.consultantFundedExpenseNetMinor += transaction.netMinor;
+      totals.consultantFundedExpenseGrossMinor += transaction.grossMinor;
+    }
   }
   return totals;
 }

@@ -1735,7 +1735,7 @@ export function FinanceDashboard({
       body{font:12px Arial,sans-serif;color:#172033;margin:24px}h1{font-size:22px} .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}.summary div{border:1px solid #ccd3dd;border-radius:6px;padding:10px}.summary span{display:block;color:#526070;margin-bottom:5px}.summary strong{font-size:14px}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #dfe4ea;padding:8px;text-align:left}th{background:#f3f5f7}@page{size:landscape;margin:12mm}
     </style></head><body><h1>${escapeHtml(t("incomeExpenseManagement"))}</h1>
       <div class="summary" style="grid-template-columns:repeat(${transactionTotalsSummary.length},1fr)">
-        ${transactionTotalsSummary.map(([label, amountMinor]) => `<div><span>${escapeHtml(t(label))}</span><strong>${escapeHtml(formatSek(amountMinor, locale))}</strong></div>`).join("")}
+        ${transactionTotalsSummary.map(({ label, netMinor, grossMinor }) => `<div><span>${escapeHtml(t(label))}</span><strong>${escapeHtml(formatTotalWithVat(netMinor, grossMinor))}</strong></div>`).join("")}
       </div><table><thead><tr><th>${escapeHtml(t("date"))}</th><th>${escapeHtml(t("type"))}</th><th>${escapeHtml(t("category"))}</th><th>${escapeHtml(t("consultant"))}</th><th>${escapeHtml(t("description"))}</th><th>${escapeHtml(t("netAmount"))}</th><th>${escapeHtml(t("totalIncludingVat"))}</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>{window.print();window.close()}<\/script></body></html>`);
     printWindow.document.close();
   }
@@ -1818,41 +1818,57 @@ export function FinanceDashboard({
     transactions: t("incomeExpenseManagement"),
     customers: t("customerManagement"),
   }[section];
-  const transactionTotalsSummary: Array<[Parameters<typeof t>[0], number]> =
-    managerConsultantTransactionList
-      ? [
-          ["totalIncomeExcludingVat", transactionListTotals.incomeNetMinor],
-          ["totalIncomeIncludingVat", transactionListTotals.incomeGrossMinor],
-          [
-            "totalConsultantFundedExpensesExcludingVat",
-            transactionListTotals.consultantFundedExpenseNetMinor,
-          ],
-          [
-            "totalCompanyFundedExpensesExcludingVat",
-            transactionListTotals.companyFundedExpenseNetMinor,
-          ],
-          [
-            "totalExpensesIncludingVat",
-            transactionListTotals.expenseGrossMinor,
-          ],
-        ]
-      : manager
-        ? [
-            ["totalIncomeExcludingVat", transactionListTotals.incomeNetMinor],
-            ["totalIncomeIncludingVat", transactionListTotals.incomeGrossMinor],
-            [
-              "totalExpensesExcludingVat",
-              transactionListTotals.expenseNetMinor,
-            ],
-            [
-              "totalExpensesIncludingVat",
-              transactionListTotals.expenseGrossMinor,
-            ],
-          ]
-        : [
-            ["totalIncome", transactionListTotals.incomeNetMinor],
-            ["totalExpenses", transactionListTotals.expenseNetMinor],
-          ];
+  // Managers see each total excluding VAT with its VAT beside it, for
+  // example "100 000 kr (+25 000 kr VAT)". Consultants see net amounts only.
+  const transactionTotalsSummary: Array<{
+    label: Parameters<typeof t>[0];
+    netMinor: number;
+    grossMinor?: number;
+  }> = manager
+    ? [
+        {
+          label: "totalIncome",
+          netMinor: transactionListTotals.incomeNetMinor,
+          grossMinor: transactionListTotals.incomeGrossMinor,
+        },
+        ...(managerConsultantTransactionList
+          ? [
+              {
+                label: "totalConsultantFundedExpenses" as const,
+                netMinor: transactionListTotals.consultantFundedExpenseNetMinor,
+                grossMinor:
+                  transactionListTotals.consultantFundedExpenseGrossMinor,
+              },
+              {
+                label: "totalCompanyFundedExpenses" as const,
+                netMinor: transactionListTotals.companyFundedExpenseNetMinor,
+                grossMinor:
+                  transactionListTotals.companyFundedExpenseGrossMinor,
+              },
+            ]
+          : []),
+        {
+          label: "totalExpenses",
+          netMinor: transactionListTotals.expenseNetMinor,
+          grossMinor: transactionListTotals.expenseGrossMinor,
+        },
+      ]
+    : [
+        {
+          label: "totalIncome",
+          netMinor: transactionListTotals.incomeNetMinor,
+        },
+        {
+          label: "totalExpenses",
+          netMinor: transactionListTotals.expenseNetMinor,
+        },
+      ];
+  function formatTotalWithVat(netMinor: number, grossMinor?: number) {
+    if (grossMinor === undefined) return formatSek(netMinor, locale);
+    return t("amountPlusVat")
+      .replace("{amount}", formatSek(netMinor, locale))
+      .replace("{vat}", formatSek(grossMinor - netMinor, locale));
+  }
   return (
     <>
       <div className="topbar">
@@ -2681,13 +2697,13 @@ export function FinanceDashboard({
             </label>
           </section>
           <section
-            className={`transaction-period-summary${manager ? (managerConsultantTransactionList ? " transaction-period-summary-five" : "") : " transaction-period-summary-pair"}`}
+            className={`transaction-period-summary${transactionTotalsSummary.length === 2 ? " transaction-period-summary-pair" : ""}`}
             aria-label={t("periodTotals")}
           >
-            {transactionTotalsSummary.map(([label, amountMinor]) => (
+            {transactionTotalsSummary.map(({ label, netMinor, grossMinor }) => (
               <div key={label}>
                 <span>{t(label)}</span>
-                <strong>{formatSek(amountMinor, locale)}</strong>
+                <strong>{formatTotalWithVat(netMinor, grossMinor)}</strong>
               </div>
             ))}
           </section>
