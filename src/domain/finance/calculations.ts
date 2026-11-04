@@ -150,12 +150,14 @@ type FlexibleExpenseHistoryInput = {
 export type FinanceHistoryEntry = {
   id: string;
   date: string;
-  kind: "invoice" | "income" | "expense";
+  kind: "invoice" | "income" | "expense" | "vatSettlement";
   reference: string;
   categoryId: string | null;
   description: string;
   changeMinor: number;
   runningTotalMinor: number;
+  /** Consultant the entry belongs to; `null` means the company. */
+  consultantId?: string | null;
 };
 
 function withRunningTotals(
@@ -182,7 +184,99 @@ type TransactionHistoryInput = {
   categoryId: string;
   visibleDescription: string;
   internalNote: string;
+  consultantId?: string | null;
+  invoiceConsultantId?: string | null;
 };
+
+/**
+ * VAT payable over time: output VAT adds, input VAT subtracts and active
+ * settlements (payment plus öresavrundning) reduce the amount owed. The last
+ * running total equals `vatPayableMinor`.
+ */
+export function vatPayableHistory(
+  transactions: Array<TransactionHistoryInput & { vatMinor: number }>,
+  settlements: Array<{
+    id: string;
+    paymentDate: string;
+    periodFrom: string;
+    periodTo: string;
+    reference: string;
+    amountMinor: number;
+    roundingMinor?: number;
+    status: "active" | "reversed";
+  }>,
+) {
+  return withRunningTotals([
+    ...transactions
+      .filter((transaction) => transaction.vatMinor !== 0)
+      .map((transaction) => ({
+        id: `transaction:${transaction.id}`,
+        date: transaction.date,
+        kind: transaction.direction,
+        reference: "",
+        categoryId: transaction.categoryId,
+        description: transaction.visibleDescription || transaction.internalNote,
+        changeMinor:
+          transaction.direction === "income"
+            ? transaction.vatMinor
+            : -transaction.vatMinor,
+        consultantId:
+          transaction.consultantId ?? transaction.invoiceConsultantId ?? null,
+      })),
+    ...settlements
+      .filter((settlement) => settlement.status === "active")
+      .map((settlement) => ({
+        id: `vatSettlement:${settlement.id}`,
+        date: settlement.paymentDate,
+        kind: "vatSettlement" as const,
+        reference: settlement.reference,
+        categoryId: null,
+        description:
+          settlement.periodFrom && settlement.periodTo
+            ? `${settlement.periodFrom} – ${settlement.periodTo}`
+            : "",
+        changeMinor: -(
+          settlement.amountMinor + (settlement.roundingMinor ?? 0)
+        ),
+      })),
+  ]);
+}
+
+/**
+ * Issued (unpaid) invoices behind the outstanding-invoice metric. With
+ * `companyShare` each invoice counts only the part the company keeps after
+ * the consultant's share.
+ */
+export function outstandingInvoiceHistory(
+  invoices: Array<{
+    id: string;
+    invoiceNumber: string;
+    customerName: string;
+    consultantId: string | null;
+    issueDate: string;
+    status: "issued" | "paid" | "void";
+    netMinor: number;
+    shareBps: number;
+  }>,
+  companyShare: boolean,
+) {
+  return withRunningTotals(
+    invoices
+      .filter((invoice) => invoice.status === "issued")
+      .map((invoice) => ({
+        id: `invoice:${invoice.id}`,
+        date: invoice.issueDate,
+        kind: "invoice" as const,
+        reference: invoice.invoiceNumber,
+        categoryId: null,
+        description: invoice.customerName,
+        changeMinor: companyShare
+          ? companyOutstandingInvoiceShareMinor(invoice)
+          : invoice.netMinor,
+        consultantId: invoice.consultantId,
+      })),
+  );
+}
 
 export function transactionFinanceHistory(
   transactions: TransactionHistoryInput[],
@@ -205,6 +299,8 @@ export function transactionFinanceHistory(
           transaction.direction === "income"
             ? transaction.netMinor
             : -transaction.netMinor,
+        consultantId:
+          transaction.consultantId ?? transaction.invoiceConsultantId ?? null,
       })),
   );
 }

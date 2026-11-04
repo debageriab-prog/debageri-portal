@@ -27,6 +27,8 @@ import {
   transactionTableDescription,
   transactionFinanceHistory,
   vatPayableMinor,
+  vatPayableHistory,
+  outstandingInvoiceHistory,
 } from "@/domain/finance/calculations";
 import {
   missingHeaders,
@@ -935,5 +937,106 @@ describe("finance deletion confirmation", () => {
         confirmation: "yes",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("VAT payable history", () => {
+  const base = {
+    categoryId: "cat",
+    visibleDescription: "",
+    internalNote: "",
+    netMinor: 10_000,
+  };
+  it("adds output VAT, subtracts input VAT and active settlements", () => {
+    const transactions = [
+      {
+        ...base,
+        id: "a",
+        direction: "income" as const,
+        date: "2026-01-10",
+        vatMinor: 2_500,
+        consultantId: "u1",
+      },
+      {
+        ...base,
+        id: "b",
+        direction: "expense" as const,
+        date: "2026-01-12",
+        vatMinor: 500,
+        consultantId: null,
+      },
+      {
+        ...base,
+        id: "c",
+        direction: "income" as const,
+        date: "2026-01-13",
+        vatMinor: 0,
+      },
+    ];
+    const settlements = [
+      {
+        id: "s1",
+        paymentDate: "2026-02-12",
+        periodFrom: "2026-01-01",
+        periodTo: "2026-01-31",
+        reference: "R1",
+        amountMinor: 1_500,
+        roundingMinor: 0,
+        status: "active" as const,
+      },
+      {
+        id: "s2",
+        paymentDate: "2026-02-13",
+        periodFrom: "",
+        periodTo: "",
+        reference: "",
+        amountMinor: 400,
+        status: "reversed" as const,
+      },
+    ];
+    const history = vatPayableHistory(transactions, settlements);
+    expect(history.map((entry) => entry.changeMinor)).toEqual([
+      2_500, -500, -1_500,
+    ]);
+    expect(history.at(-1)?.runningTotalMinor).toBe(
+      vatPayableMinor(transactions, settlements),
+    );
+    expect(history[0]?.consultantId).toBe("u1");
+    expect(history[2]).toMatchObject({
+      kind: "vatSettlement",
+      reference: "R1",
+    });
+  });
+});
+
+describe("outstanding invoice history", () => {
+  const invoice = {
+    invoiceNumber: "1",
+    customerName: "Customer",
+    consultantId: "u1",
+    issueDate: "2026-03-01",
+    netMinor: 100_000,
+    shareBps: 7_000,
+  };
+  it("lists issued invoices with the company share when asked", () => {
+    const invoices = [
+      { ...invoice, id: "i1", status: "issued" as const },
+      { ...invoice, id: "i2", status: "paid" as const },
+      {
+        ...invoice,
+        id: "i3",
+        status: "issued" as const,
+        consultantId: null,
+        shareBps: 0,
+      },
+    ];
+    expect(
+      outstandingInvoiceHistory(invoices, true).map(
+        (entry) => entry.changeMinor,
+      ),
+    ).toEqual([30_000, 100_000]);
+    expect(
+      outstandingInvoiceHistory(invoices, false).at(-1)?.runningTotalMinor,
+    ).toBe(200_000);
   });
 });
