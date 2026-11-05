@@ -193,6 +193,16 @@ describe("timeReportWorkbook", () => {
     expect(sheet).toContain('<dimension ref="A1:M35"/>');
   });
 
+  it("fills red days in light red", () => {
+    const files = unzip(
+      timeReportWorkbook(
+        buildExportSheets([], { year: 2026, month: 5 }, [], "Worked"),
+        labels,
+      ),
+    );
+    expect(files.get("xl/styles.xml")).toContain('<fgColor rgb="FFF3DADD"/>');
+  });
+
   it("escapes names and labels", () => {
     const sheets = buildExportSheets(
       [{ ...worked("2026-05-04", 60), name: 'R&D <"x">' }],
@@ -273,6 +283,18 @@ describe("timeReportPdf", () => {
       ),
     );
     expect(pages(pdf).boxes).toEqual([[595, 842]]);
+  });
+
+  it("fills red days in light red", () => {
+    const [stream] = pages(
+      timeReportPdf(
+        buildExportSheets([], { year: 2026, month: 5 }, [], "Worked"),
+        labels,
+        "Anna · Maj 2026",
+      ),
+    ).streams;
+    // F3DADD as PDF fractions, used for the weekend cells.
+    expect(stream).toContain("0.953 0.855 0.867 rg");
   });
 
   it("escapes and replaces what Helvetica cannot show", () => {

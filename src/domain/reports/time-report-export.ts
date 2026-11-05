@@ -43,7 +43,7 @@ export const MONTH_COLORS = [
   "F4CCCC",
   "A4C2F4",
 ];
-export const CLOSED_COLOR = "E06666";
+export const CLOSED_COLOR = "F3DADD";
 export const MISSING_COLOR = "999999";
 export const TOTAL_COLOR = "B6D7A8";
 export const MUTED_TEXT_COLOR = "B7B7B7";

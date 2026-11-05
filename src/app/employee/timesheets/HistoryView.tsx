@@ -11,6 +11,7 @@ import {
   type PreviewTarget,
 } from "@/components/ui/FilePreview";
 import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
+import type { ReportPeriod } from "@/app/time-reports/TimeReportsView";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
@@ -58,6 +59,8 @@ type HistoryEntry = {
   countsAsWorkedTime: boolean;
   hourlyRate?: number;
 };
+
+const pageSize = 10;
 
 function monthBounds(month: string): [string, string] {
   const [monthYear, monthNumber] = month.split("-").map(Number);
@@ -144,6 +147,7 @@ export function HistoryView({
   incomeAgreements,
   hourlyRate = 0,
   exportUserId,
+  period,
 }: {
   sheets: HistorySheet[];
   entries: HistoryEntry[];
@@ -166,18 +170,30 @@ export function HistoryView({
   hourlyRate?: number;
   /** Whose time the Excel export downloads; leave out to hide the button. */
   exportUserId?: string;
+  /** Set when the page owns the period filter; hides this view's own controls. */
+  period?: ReportPeriod;
 }) {
   const { t } = useLocale();
   const displayTitle = title ?? t("history");
   const displayDescription = description ?? t("historyDescription");
   const router = useRouter();
-  const [mode, setMode] = useState<"latest" | "year" | "month" | "week">(
+  const [ownMode, setMode] = useState<"latest" | "year" | "month" | "week">(
     initialMode,
   );
   const [page, setPage] = useState(1);
-  const [year, setYear] = useState(currentYear);
+  const [ownYear, setYear] = useState(currentYear);
   const [week, setWeek] = useState(currentWeek);
-  const [month, setMonth] = useState(currentMonth);
+  const [ownMonth, setMonth] = useState(currentMonth);
+  const mode = period?.mode ?? ownMode;
+  const year = period?.year ?? ownYear;
+  const month = period?.month ?? ownMonth;
+  // Back to the first page whenever the selected period changes.
+  const selectionKey = `${mode}|${year}|${month}|${week}`;
+  const [pageSelection, setPageSelection] = useState(selectionKey);
+  if (pageSelection !== selectionKey) {
+    setPageSelection(selectionKey);
+    setPage(1);
+  }
   const [deleting, setDeleting] = useState<HistorySheet | null>(null);
   const [error, setError] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
@@ -188,7 +204,6 @@ export function HistoryView({
   const weeklySheets = sheets.filter(
     (sheet) => sheet.isoYear === year && sheet.isoWeek === week,
   );
-  const latestSheets = sheets.slice((page - 1) * 10, page * 10);
   const monthEntries = entries.filter((entry) => entry.date.startsWith(month));
   const monthSheets = sheets.filter((sheet) =>
     sheet.periodStart.startsWith(month),
@@ -599,6 +614,21 @@ export function HistoryView({
     );
   }
 
+  const shownSheets =
+    mode === "latest"
+      ? sheets
+      : mode === "year"
+        ? yearSheets
+        : mode === "week"
+          ? weeklySheets
+          : monthSheets;
+  const pageCount = Math.max(1, Math.ceil(shownSheets.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageSheets = shownSheets.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+
   const viewingEntries = viewing
     ? entries
         .filter((entry) => entry.timesheetId === viewing.id)
@@ -626,46 +656,36 @@ export function HistoryView({
           </div>
         </div>
       </div>
-      <section className="card history-controls">
-        <div className="week-mode-picker history-mode-picker">
-          <button
-            className={mode === "latest" ? "selected" : ""}
-            onClick={() => setMode("latest")}
-          >
-            {t("latest")}
-          </button>
-          <button
-            className={mode === "year" ? "selected" : ""}
-            onClick={() => setMode("year")}
-          >
-            {t("year")}
-          </button>
-          <button
-            className={mode === "month" ? "selected" : ""}
-            onClick={() => setMode("month")}
-          >
-            {t("month")}
-          </button>
-          <button
-            className={mode === "week" ? "selected" : ""}
-            onClick={() => setMode("week")}
-          >
-            {t("week")}
-          </button>
-        </div>
-        <div className="history-filters">
-          {mode === "year" ? (
-            <label>
+      {!period && (
+        <section className="card history-controls">
+          <div className="week-mode-picker history-mode-picker">
+            <button
+              className={mode === "latest" ? "selected" : ""}
+              onClick={() => setMode("latest")}
+            >
+              {t("latest")}
+            </button>
+            <button
+              className={mode === "year" ? "selected" : ""}
+              onClick={() => setMode("year")}
+            >
               {t("year")}
-              <input
-                className="field compact-field"
-                type="number"
-                value={year}
-                onChange={(event) => setYear(Number(event.target.value))}
-              />
-            </label>
-          ) : mode === "week" ? (
-            <div className="actions">
+            </button>
+            <button
+              className={mode === "month" ? "selected" : ""}
+              onClick={() => setMode("month")}
+            >
+              {t("month")}
+            </button>
+            <button
+              className={mode === "week" ? "selected" : ""}
+              onClick={() => setMode("week")}
+            >
+              {t("week")}
+            </button>
+          </div>
+          <div className="history-filters">
+            {mode === "year" ? (
               <label>
                 {t("year")}
                 <input
@@ -675,48 +695,60 @@ export function HistoryView({
                   onChange={(event) => setYear(Number(event.target.value))}
                 />
               </label>
+            ) : mode === "week" ? (
+              <div className="actions">
+                <label>
+                  {t("year")}
+                  <input
+                    className="field compact-field"
+                    type="number"
+                    value={year}
+                    onChange={(event) => setYear(Number(event.target.value))}
+                  />
+                </label>
+                <label>
+                  {t("week")}
+                  <input
+                    className="field compact-field"
+                    type="number"
+                    min="1"
+                    max="53"
+                    value={week}
+                    onChange={(event) => setWeek(Number(event.target.value))}
+                  />
+                </label>
+              </div>
+            ) : mode === "month" ? (
               <label>
-                {t("week")}
+                {t("month")}
                 <input
-                  className="field compact-field"
-                  type="number"
-                  min="1"
-                  max="53"
-                  value={week}
-                  onChange={(event) => setWeek(Number(event.target.value))}
+                  className="field"
+                  type="month"
+                  value={month}
+                  onChange={(event) => setMonth(event.target.value)}
                 />
               </label>
-            </div>
-          ) : mode === "month" ? (
-            <label>
-              {t("month")}
-              <input
-                className="field"
-                type="month"
-                value={month}
-                onChange={(event) => setMonth(event.target.value)}
+            ) : null}
+            {exportUserId && (mode === "month" || mode === "year") && (
+              <ReportExportButtons
+                endpoint="/api/time-reports/export"
+                query={{
+                  userId: exportUserId,
+                  ...(mode === "month"
+                    ? {
+                        year: month.slice(0, 4),
+                        month: String(Number(month.slice(5, 7))),
+                      }
+                    : { year: String(year) }),
+                }}
+                hints={{ xlsx: "exportExcelHint", pdf: "exportPdfHint" }}
+                errorKey="timeReportExportFailed"
+                disabled={!(mode === "year" ? year : month)}
               />
-            </label>
-          ) : null}
-          {exportUserId && (mode === "month" || mode === "year") && (
-            <ReportExportButtons
-              endpoint="/api/time-reports/export"
-              query={{
-                userId: exportUserId,
-                ...(mode === "month"
-                  ? {
-                      year: month.slice(0, 4),
-                      month: String(Number(month.slice(5, 7))),
-                    }
-                  : { year: String(year) }),
-              }}
-              hints={{ xlsx: "exportExcelHint", pdf: "exportPdfHint" }}
-              errorKey="timeReportExportFailed"
-              disabled={!(mode === "year" ? year : month)}
-            />
-          )}
-        </div>
-      </section>
+            )}
+          </div>
+        </section>
+      )}
       {mode !== "latest" && (
         <section
           className={`card month-summary year-summary${income ? " income-summary" : ""}`}
@@ -727,31 +759,23 @@ export function HistoryView({
         </section>
       )}
       <section className="card table-wrap">
-        {table(
-          mode === "latest"
-            ? latestSheets
-            : mode === "year"
-              ? yearSheets
-              : mode === "week"
-                ? weeklySheets
-                : monthSheets,
-        )}
-        {mode === "latest" && sheets.length > 10 && (
+        {table(pageSheets)}
+        {pageCount > 1 && (
           <div className="pagination">
             <button
               className="button secondary"
-              disabled={page === 1}
-              onClick={() => setPage((value) => value - 1)}
+              disabled={currentPage === 1}
+              onClick={() => setPage(currentPage - 1)}
             >
               {t("previous")}
             </button>
             <span>
-              {t("page")} {page} {t("of")} {Math.ceil(sheets.length / 10)}
+              {t("page")} {currentPage} {t("of")} {pageCount}
             </span>
             <button
               className="button secondary"
-              disabled={page * 10 >= sheets.length}
-              onClick={() => setPage((value) => value + 1)}
+              disabled={currentPage >= pageCount}
+              onClick={() => setPage(currentPage + 1)}
             >
               {t("next")}
             </button>
