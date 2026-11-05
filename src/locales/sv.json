@@ -659,6 +659,8 @@
   "financeReportTotalExpenses": "Summa kostnader",
   "financeReportResult": "Kvar (intäkter - kostnader)",
   "financeReportClosingBalance": "Saldo vid slut",
+  "financeReportCompanyFunded": "Betalt av företaget",
+  "financeReportCompanyFundedTotal": "Summa betalt av företaget",
   "financeReportExportFailed": "Den ekonomiska rapporten kunde inte exporteras.",
   "financeExportExcelHint": "Laddar ner vald månad eller valt år som Excel: intäkter, övriga kostnader och lönerelaterade kostnader.",
   "financeExportPdfHint": "Laddar ner vald månad eller valt år som PDF: intäkter, övriga kostnader och lönerelaterade kostnader.",

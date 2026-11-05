@@ -4,6 +4,7 @@ import { canViewMyFinance } from "@/domain/finance/calculations";
 import {
   buildFinanceReport,
   financeReportFileName,
+  reportViewFor,
   type FinanceReportLabels,
 } from "@/domain/finance/report-export";
 import {
@@ -13,6 +14,7 @@ import {
   type ExportPeriod,
 } from "@/domain/reports/time-report-export";
 import type { CompensationModel } from "@/domain/types";
+import { compensationHistory } from "@/app/admin/users/user-data";
 import { financeReportPdf } from "@/server/export/finance-report-pdf";
 import { financeReportWorkbook } from "@/server/export/finance-report-workbook";
 import { PDF_CONTENT_TYPE } from "@/server/export/pdf-document";
@@ -39,6 +41,13 @@ export const canExportOwnFinanceReport = (actor: Actor) =>
 
 export const canExportFinanceReports = (actor: Actor) =>
   can(actor, "finance.overview.export");
+
+/** Firestore takes at most 30 values in one `in` filter. */
+function chunks<T>(items: readonly T[], size = 30) {
+  return Array.from({ length: Math.ceil(items.length / size) }, (_, index) =>
+    items.slice(index * size, (index + 1) * size),
+  );
+}
 
 export type FinanceReportText = FinanceReportLabels & {
   ownShare: string;
@@ -80,6 +89,7 @@ export async function exportFinanceReport(
     invoiceSnapshot,
     entrySnapshot,
     timeCodeSnapshot,
+    agreements,
   ] = await Promise.all([
     db
       .collection("financeCategories")
@@ -95,9 +105,29 @@ export async function exportFinanceReport(
       .collection("timeCodes")
       .where("organizationId", "==", organizationId)
       .get(),
+    compensationHistory(db, organizationId, userId),
   ]);
   const ours = (data: FirebaseFirestore.DocumentData) =>
     data.organizationId === organizationId;
+  const view = reportViewFor(agreements, end, user.compensationModel);
+  const invoiceDocs = invoiceSnapshot.docs.filter((doc) => ours(doc.data()));
+  // The company books the income of a fixed salary consultant's paid invoices
+  // without a consultant, so it is found through the invoices.
+  const invoiceIncome =
+    view === "company"
+      ? (
+          await Promise.all(
+            chunks(invoiceDocs.map((doc) => doc.id)).map((ids) =>
+              db
+                .collection("financialTransactions")
+                .where("invoiceId", "in", ids)
+                .get(),
+            ),
+          )
+        )
+          .flatMap((snapshot) => snapshot.docs)
+          .filter((doc) => doc.data().consultantId == null)
+      : [];
   const workedCodes = timeCodeSnapshot.docs
     .map((doc) => doc.data())
     .filter((code) => code.countsAsWorkedTime === true);
@@ -110,6 +140,9 @@ export async function exportFinanceReport(
   const report = buildFinanceReport({
     period,
     language: locale === "sv-SE" ? "sv" : "en",
+    view,
+    // Staff see what the company paid for the consultant too.
+    includeCompanyFunded: !own,
     labels: { ...text, share: own ? text.ownShare : text.share },
     categories: categorySnapshot.docs.map((doc) => ({
       id: doc.id,
@@ -121,7 +154,7 @@ export async function exportFinanceReport(
     })),
     // Only movements up to the end of the period matter, including the
     // earlier ones that make up the opening balance.
-    transactions: transactionSnapshot.docs
+    transactions: [...transactionSnapshot.docs, ...invoiceIncome]
       .map((doc) => doc.data())
       .filter((data) => ours(data) && String(data.date) <= end)
       .map((data) => ({
@@ -129,13 +162,14 @@ export async function exportFinanceReport(
         categoryId: String(data.categoryId),
         invoiceId: data.invoiceId ?? null,
         date: String(data.date),
+        netMinor: Number(data.netMinor ?? 0),
+        funding: data.funding ?? null,
         consultantBalanceDeltaMinor: Number(
           data.consultantBalanceDeltaMinor ?? 0,
         ),
       })),
-    invoices: invoiceSnapshot.docs
+    invoices: invoiceDocs
       .map((doc) => doc.data())
-      .filter(ours)
       .map((data) => ({
         status: data.status,
         issueDate: String(data.issueDate),
