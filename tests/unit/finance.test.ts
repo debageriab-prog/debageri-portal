@@ -6,6 +6,7 @@ import {
   belongsToConsultant,
   belongsToConsultantLedger,
   transactionPeriodTotals,
+  consultantIncomeShareMinor,
   canViewMyFinance,
   canViewMyTransactions,
   belongsToFixedConsultantResult,
@@ -1052,12 +1053,14 @@ describe("consultant transaction list", () => {
     invoiceConsultantId: "consultant-1",
     netMinor: 70_000,
     grossMinor: 95_000,
+    consultantBalanceDeltaMinor: 70_000,
   };
   const consultantShare = {
     ...companyShare,
     consultantId: "consultant-1",
     netMinor: 30_000,
     grossMinor: 30_000,
+    consultantBalanceDeltaMinor: 30_000,
   };
   const consultantExpense = {
     consultantId: "consultant-1",
@@ -1067,12 +1070,14 @@ describe("consultant transaction list", () => {
     invoiceConsultantId: null,
     netMinor: 10_000,
     grossMinor: 12_500,
+    consultantBalanceDeltaMinor: -10_000,
   };
   const companyExpense = {
     ...consultantExpense,
     funding: "company" as const,
     netMinor: 4_000,
     grossMinor: 5_000,
+    consultantBalanceDeltaMinor: 0,
   };
 
   it("includes the company share of the consultant's invoices", () => {
@@ -1100,6 +1105,9 @@ describe("consultant transaction list", () => {
     ).toEqual({
       incomeNetMinor: 100_000,
       incomeGrossMinor: 125_000,
+      consultantShareIncomeNetMinor: 30_000,
+      companyShareIncomeNetMinor: 70_000,
+      companyShareIncomeGrossMinor: 95_000,
       expenseNetMinor: 14_000,
       expenseGrossMinor: 17_500,
       consultantFundedExpenseNetMinor: 10_000,
@@ -1113,6 +1121,60 @@ describe("consultant transaction list", () => {
     expect(transactionPeriodTotals([companyShare])).toMatchObject({
       incomeNetMinor: 70_000,
       incomeGrossMinor: 95_000,
+      consultantShareIncomeNetMinor: 0,
+      companyShareIncomeNetMinor: 70_000,
+      companyShareIncomeGrossMinor: 95_000,
     });
+  });
+
+  it("splits manual income by what it credited the consultant", () => {
+    // 10 000 kr + 25% VAT where the consultant's 60% share applies.
+    const manualIncome = {
+      ...consultantShare,
+      invoiceId: null,
+      invoiceConsultantId: null,
+      netMinor: 1_000_000,
+      grossMinor: 1_250_000,
+      consultantBalanceDeltaMinor: 600_000,
+    };
+    expect(consultantIncomeShareMinor(manualIncome)).toBe(600_000);
+    expect(transactionPeriodTotals([manualIncome])).toMatchObject({
+      incomeNetMinor: 1_000_000,
+      incomeGrossMinor: 1_250_000,
+      consultantShareIncomeNetMinor: 600_000,
+      companyShareIncomeNetMinor: 400_000,
+      companyShareIncomeGrossMinor: 650_000,
+    });
+  });
+
+  it("gives expenses and company rows no consultant income share", () => {
+    expect(consultantIncomeShareMinor(consultantExpense)).toBe(0);
+    expect(consultantIncomeShareMinor(companyShare)).toBe(0);
+    expect(consultantIncomeShareMinor(consultantShare)).toBe(30_000);
+  });
+
+  it("reconciles the shares with the totals and the overview", () => {
+    const totals = transactionPeriodTotals([
+      companyShare,
+      consultantShare,
+      consultantExpense,
+      companyExpense,
+    ]);
+    expect(
+      totals.consultantShareIncomeNetMinor + totals.companyShareIncomeNetMinor,
+    ).toBe(totals.incomeNetMinor);
+    expect(
+      totals.consultantShareIncomeNetMinor +
+        totals.companyShareIncomeGrossMinor,
+    ).toBe(totals.incomeGrossMinor);
+    // Consultant balance = consultant share - consultant-funded expenses.
+    expect(
+      totals.consultantShareIncomeNetMinor -
+        totals.consultantFundedExpenseNetMinor,
+    ).toBe(20_000);
+    // Retained company result = company share - company-funded expenses.
+    expect(
+      totals.companyShareIncomeNetMinor - totals.companyFundedExpenseNetMinor,
+    ).toBe(66_000);
   });
 });

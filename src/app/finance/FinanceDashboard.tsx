@@ -34,6 +34,7 @@ import {
   belongsToConsultant,
   belongsToConsultantLedger,
   transactionPeriodTotals,
+  consultantIncomeShareMinor,
   belongsToFixedConsultantResult,
   calculateShareMinor,
   companyBalanceDeltaMinor,
@@ -1491,10 +1492,38 @@ export function FinanceDashboard({
         }))
       : summaryTransactions,
   );
+  // For a flexible or hybrid consultant the overview's income is their
+  // share, the same figure as "Income (consultant share)" in Income and
+  // expenses. Fixed-salary consultants have no share, so their income is the
+  // whole invoice income they bring in.
+  const selectedConsultantEarnsShare =
+    selectedConsultant !== "all" &&
+    selectedConsultant !== "company" &&
+    earnsInvoiceShare(selectedModel);
+  const consultantShareIncome = selectedConsultantEarnsShare
+    ? summaryTransactions.map((transaction) => ({
+        ...transaction,
+        netMinor: consultantIncomeShareMinor(transaction),
+      }))
+    : summaryTransactions;
+  const netIncomeMinor = selectedConsultantEarnsShare
+    ? consultantShareIncome.reduce(
+        (sum, transaction) => sum + transaction.netMinor,
+        0,
+      )
+    : totals.incomeMinor;
   const netIncomeHistory = transactionFinanceHistory(
-    summaryTransactions,
+    consultantShareIncome.filter(
+      (transaction) =>
+        !selectedConsultantEarnsShare || transaction.netMinor !== 0,
+    ),
     "income",
   );
+  const netIncomeTitle = selectedConsultantEarnsShare
+    ? t("netIncomeConsultantShare")
+    : selectedConsultant !== "all" && selectedConsultant !== "company"
+      ? t("netIncomeFromConsultant")
+      : t("netIncome");
   const organizationVatPayable = vatPayableMinor(
     data.transactions,
     data.vatSettlements,
@@ -1642,6 +1671,17 @@ export function FinanceDashboard({
   const transactionListTotals = transactionPeriodTotals(
     transactionListTransactions,
   );
+  // Split income like expenses for consultants whose income is shared with
+  // the company. Fixed-salary consultants have no share, so they only get
+  // Total income (unless the period holds income from an earlier agreement
+  // that did credit them).
+  const transactionListShowsIncomeShares =
+    managerConsultantTransactionList &&
+    (earnsInvoiceShare(
+      data.users.find((user) => user.id === transactionConsultantFilter)
+        ?.compensationModel,
+    ) ||
+      transactionListTotals.consultantShareIncomeNetMinor !== 0);
   const transactionListBalanceChange = (
     transaction: FinancePageData["transactions"][number],
   ) =>
@@ -1826,6 +1866,21 @@ export function FinanceDashboard({
     grossMinor?: number;
   }> = manager
     ? [
+        ...(transactionListShowsIncomeShares
+          ? [
+              {
+                label: "incomeConsultantShare" as const,
+                netMinor: transactionListTotals.consultantShareIncomeNetMinor,
+                // The consultant share carries no VAT.
+                grossMinor: transactionListTotals.consultantShareIncomeNetMinor,
+              },
+              {
+                label: "incomeCompanyShare" as const,
+                netMinor: transactionListTotals.companyShareIncomeNetMinor,
+                grossMinor: transactionListTotals.companyShareIncomeGrossMinor,
+              },
+            ]
+          : []),
         {
           label: "totalIncome",
           netMinor: transactionListTotals.incomeNetMinor,
@@ -1906,13 +1961,8 @@ export function FinanceDashboard({
                   type="button"
                   onClick={() => setFinanceHistory("netIncome")}
                 >
-                  <span>
-                    {selectedConsultant !== "all" &&
-                    selectedConsultant !== "company"
-                      ? t("netIncomeFromConsultant")
-                      : t("netIncome")}
-                  </span>
-                  <strong>{formatSek(totals.incomeMinor, locale)}</strong>
+                  <span>{netIncomeTitle}</span>
+                  <strong>{formatSek(netIncomeMinor, locale)}</strong>
                   <small>{t("viewHistory")}</small>
                 </button>
               ) : (
@@ -1930,7 +1980,15 @@ export function FinanceDashboard({
             <div className="metric">
               {manager ? (
                 <>
-                  <span>{t("netExpenses")}</span>
+                  {/* Every expense booked on the consultant, whatever its
+                      funding, like Total expenses in Income and expenses.
+                      The expense funding filter only narrows the charts. */}
+                  <span>
+                    {selectedConsultant !== "all" &&
+                    selectedConsultant !== "company"
+                      ? t("totalExpenses")
+                      : t("netExpenses")}
+                  </span>
                   <strong>{formatSek(totals.expenseMinor, locale)}</strong>
                 </>
               ) : (
@@ -3249,11 +3307,7 @@ export function FinanceDashboard({
       )}
       {financeHistory === "netIncome" && (
         <FinanceHistoryModal
-          title={
-            selectedConsultant !== "all" && selectedConsultant !== "company"
-              ? t("netIncomeFromConsultant")
-              : t("netIncome")
-          }
+          title={netIncomeTitle}
           description={t("netIncomeHistoryDescription")}
           entries={netIncomeHistory}
           locale={locale}
