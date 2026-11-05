@@ -2,6 +2,7 @@ import {
   exportPeriodBounds,
   type ExportPeriod,
 } from "@/domain/reports/time-report-export";
+import type { CompensationModel } from "@/domain/types";
 import {
   isSalaryRelatedExpenseCode,
   SALARY_RELATED_EXPENSE_CODES,
@@ -10,16 +11,40 @@ import {
 /**
  * One consultant's income and expenses per month, laid out like their
  * compensation sheet: income first, then expenses other than salary, then
- * salary and what comes with it, and what is left. Every amount is what
- * moved the consultant's balance, so the closing balance always equals the
- * opening balance plus the result.
+ * salary and what comes with it, and what is left.
+ *
+ * Consultants with a balance (flexible and hybrid) get the `balance` view:
+ * every amount is what moved their balance, so the closing balance always
+ * equals the opening balance plus the result. Fixed salary consultants have
+ * no balance, so they get the `company` view: what the company earned
+ * through them and everything it spent on them, whoever funded it.
  */
+
+export type FinanceReportView = "balance" | "company";
+
+/**
+ * Fixed salary consultants have no balance, so their report shows what the
+ * company earned and spent through them. The agreement in force at the end
+ * of the period decides; without one, the model on the user does.
+ */
+export function reportViewFor(
+  agreements: ReadonlyArray<{ model: CompensationModel; validFrom: string }>,
+  periodEnd: string,
+  userModel: CompensationModel | null | undefined,
+): FinanceReportView {
+  const current = [...agreements]
+    .filter((agreement) => agreement.validFrom <= periodEnd)
+    .sort((left, right) => right.validFrom.localeCompare(left.validFrom))[0];
+  return (current?.model ?? userModel) === "fixed" ? "company" : "balance";
+}
 
 export type ReportTransaction = {
   direction: "income" | "expense";
   categoryId: string;
   invoiceId: string | null;
   date: string;
+  /** Excluding VAT; negative on reversals. */
+  netMinor: number;
   consultantBalanceDeltaMinor: number;
 };
 
@@ -103,7 +128,9 @@ export function buildFinanceReport({
   workedEntries,
   language,
   labels,
+  view = "balance",
 }: {
+  view?: FinanceReportView;
   period: ExportPeriod;
   categories: readonly ReportCategory[];
   transactions: readonly ReportTransaction[];
@@ -207,11 +234,19 @@ export function buildFinanceReport({
     (transaction) => transaction.consultantBalanceDeltaMinor,
   );
 
+  // The balance view counts what moved the balance (an expense lowers it,
+  // so it is negated); the company view counts the amount excluding VAT.
+  const amount = (transaction: ReportTransaction) =>
+    view === "company"
+      ? transaction.netMinor
+      : transaction.direction === "expense"
+        ? -transaction.consultantBalanceDeltaMinor
+        : transaction.consultantBalanceDeltaMinor;
+
   /** One row per category with any amount in the period, by name. */
   const categoryRows = (
     rows: readonly ReportTransaction[],
     style: ReportRowStyle,
-    sign: 1 | -1,
     order: (left: string, right: string) => number,
   ) =>
     [...new Set(rows.map((transaction) => transaction.categoryId))]
@@ -220,7 +255,7 @@ export function buildFinanceReport({
         values: perMonth(
           rows.filter((transaction) => transaction.categoryId === categoryId),
           (transaction) => transaction.date,
-          (transaction) => sign * transaction.consultantBalanceDeltaMinor,
+          amount,
         ),
       }))
       .filter(({ values }) => values.some((value) => value !== 0))
@@ -237,10 +272,13 @@ export function buildFinanceReport({
     return index < 0 ? SALARY_RELATED_EXPENSE_CODES.length : index;
   };
 
+  // In the company view every income row is shown by category, invoices
+  // included; the balance view shows invoice income as the share instead.
   const otherIncomeRows = categoryRows(
-    income.filter((transaction) => transaction.invoiceId === null),
+    view === "company"
+      ? income
+      : income.filter((transaction) => transaction.invoiceId === null),
     "income",
-    1,
     byName,
   );
   const expenses = transactions.filter(
@@ -251,13 +289,11 @@ export function buildFinanceReport({
   const expenseRows = categoryRows(
     expenses.filter((transaction) => !salaryRelated(transaction)),
     "expense",
-    -1,
     byName,
   );
   const salaryRows = categoryRows(
     expenses.filter(salaryRelated),
     "expense",
-    -1,
     (left, right) =>
       salaryOrder(left) - salaryOrder(right) || byName(left, right),
   );
@@ -271,7 +307,9 @@ export function buildFinanceReport({
       ),
     );
   const totalIncome = months.map(
-    (_, index) => share[index]! + columnSums(otherIncomeRows)[index]!,
+    (_, index) =>
+      (view === "company" ? 0 : share[index]!) +
+      columnSums(otherIncomeRows)[index]!,
   );
   const totalExpenses = columnSums([...expenseRows, ...salaryRows]);
   const result = months.map(
@@ -289,7 +327,9 @@ export function buildFinanceReport({
     months,
     showTotal: !period.month,
     rows: [
-      row(labels.openingBalance, "balance", opening, "money", opening[0]!),
+      ...(view === "balance"
+        ? [row(labels.openingBalance, "balance", opening, "money", opening[0]!)]
+        : []),
       row(
         labels.workedHours,
         "info",
@@ -308,9 +348,11 @@ export function buildFinanceReport({
       ),
       row(labels.invoiced, "info", invoiced),
       row(labels.paidInvoices, "info", paidInvoices),
-      row(shareLabel, "share", share),
+      ...(view === "balance" ? [row(shareLabel, "share", share)] : []),
       ...otherIncomeRows,
-      ...(otherIncomeRows.length
+      // What the company earned is the point of the company view, so its
+      // total is always there; the balance view only needs it beside the share.
+      ...(view === "company" || otherIncomeRows.length
         ? [row(labels.totalIncome, "subtotal", totalIncome)]
         : []),
       { kind: "separator", tone: "income" },
@@ -319,13 +361,17 @@ export function buildFinanceReport({
       ...salaryRows,
       row(labels.totalExpenses, "totalExpenses", totalExpenses),
       row(labels.result, "result", result),
-      row(
-        labels.closingBalance,
-        "balance",
-        closing,
-        "money",
-        closing[closing.length - 1]!,
-      ),
+      ...(view === "balance"
+        ? [
+            row(
+              labels.closingBalance,
+              "balance",
+              closing,
+              "money",
+              closing[closing.length - 1]!,
+            ),
+          ]
+        : []),
     ],
   };
 }

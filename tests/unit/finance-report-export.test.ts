@@ -7,6 +7,7 @@ import {
 import {
   buildFinanceReport,
   financeReportFileName,
+  reportViewFor,
   type FinanceReport,
   type ReportRow,
   type ReportTransaction,
@@ -70,18 +71,21 @@ const income = (
   categoryId,
   invoiceId,
   date,
+  netMinor: minor,
   consultantBalanceDeltaMinor: minor,
 });
 const expense = (
   date: string,
   categoryId: string,
   minor: number,
+  funding: "consultant" | "company" = "consultant",
 ): ReportTransaction => ({
   direction: "expense",
   categoryId,
   invoiceId: null,
   date,
-  consultantBalanceDeltaMinor: -minor,
+  netMinor: minor,
+  consultantBalanceDeltaMinor: funding === "company" ? 0 : -minor,
 });
 
 const transactions = [
@@ -100,11 +104,17 @@ const transactions = [
   expense("2026-08-02", "c-phone", -299_00),
 ];
 
-function report(month?: number, language: "en" | "sv" = "en") {
+function report(
+  month?: number,
+  language: "en" | "sv" = "en",
+  view: "balance" | "company" = "balance",
+  extra: ReportTransaction[] = [],
+) {
   return buildFinanceReport({
+    view,
     period: { year: 2026, month },
     categories,
-    transactions,
+    transactions: [...transactions, ...extra],
     invoices: [
       {
         status: "paid",
@@ -233,6 +243,68 @@ describe("buildFinanceReport", () => {
     expect(values(report(6, "sv")).map((row) => row.label)).toContain(
       "Arbetsgivaravgifter",
     );
+  });
+});
+
+describe("company view for fixed salary consultants", () => {
+  // The company books the paid invoice itself, without a consultant.
+  const invoiceIncome = income("2026-07-03", 91_800_00, "inv-1");
+  const companyFunded = expense(
+    "2026-07-20",
+    "c-insurance",
+    1_200_00,
+    "company",
+  );
+
+  it("shows what was earned and every expense, without balance or share", () => {
+    const built = report(undefined, "en", "company", [
+      invoiceIncome,
+      companyFunded,
+    ]);
+    const shown = built.rows.map((row) =>
+      row.kind === "separator" ? `--${row.tone}` : row.label,
+    );
+    expect(shown).not.toContain("Balance at start");
+    expect(shown).not.toContain("Balance at end");
+    expect(shown.some((label) => label.startsWith("Your share"))).toBe(false);
+    expect(shown.slice(0, 7)).toEqual([
+      "Worked hours",
+      "Hourly rate",
+      "Invoiced",
+      "Paid invoices",
+      "Assignment income",
+      "Other income",
+      "Total income",
+    ]);
+    expect(find(built, "Assignment income").values[6]).toBe(
+      82_620_00 + 91_800_00,
+    );
+    // Company-funded insurance counts in July, consultant-funded in August.
+    expect(find(built, "Insurance").values.slice(6, 8)).toEqual([
+      1_200_00, 450_00,
+    ]);
+    expect(find(built, "Total expenses").values[6]).toBe(
+      55_000_00 + 299_00 + 1_200_00,
+    );
+    expect(find(built, "Remaining").values[6]).toBe(
+      82_620_00 + 91_800_00 - (55_000_00 + 299_00 + 1_200_00),
+    );
+  });
+
+  it("leaves company-funded expenses out of the balance view", () => {
+    const built = report(7, "en", "balance", [companyFunded]);
+    expect(values(built).map((row) => row.label)).not.toContain("Insurance");
+  });
+
+  it("picks the view from the agreement in force at the end", () => {
+    const agreements = [
+      { model: "flexible" as const, validFrom: "2025-01-01" },
+      { model: "fixed" as const, validFrom: "2026-06-01" },
+    ];
+    expect(reportViewFor(agreements, "2026-12-31", "flexible")).toBe("company");
+    expect(reportViewFor(agreements, "2026-05-31", "fixed")).toBe("balance");
+    expect(reportViewFor([], "2026-12-31", "fixed")).toBe("company");
+    expect(reportViewFor([], "2026-12-31", null)).toBe("balance");
   });
 });
 
