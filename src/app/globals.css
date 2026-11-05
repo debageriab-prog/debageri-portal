@@ -2856,12 +2856,15 @@ th.actions-heading {
 }
 .transaction-period-summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
 .transaction-period-summary-pair {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.transaction-period-summary-row-start {
+  grid-column-start: 1;
 }
 .transaction-period-summary > div {
   display: grid;

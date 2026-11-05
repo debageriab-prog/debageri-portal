@@ -584,9 +584,32 @@ export function belongsToConsultantLedger(
   );
 }
 
+/**
+ * The consultant's share of an income row: what it credited to their balance.
+ * Paid invoices book this share as its own row (the company share, with the
+ * VAT, is booked without a consultant); manual income with "apply share" keeps
+ * the whole amount on one row and credits only the share. Rows without a
+ * consultant, and fixed-salary income, have no consultant share.
+ */
+export function consultantIncomeShareMinor(
+  transaction: Pick<
+    FinancialTransaction,
+    "consultantId" | "direction" | "consultantBalanceDeltaMinor"
+  >,
+) {
+  return transaction.direction === "income" && transaction.consultantId !== null
+    ? transaction.consultantBalanceDeltaMinor
+    : 0;
+}
+
 export type TransactionPeriodTotals = {
   incomeNetMinor: number;
   incomeGrossMinor: number;
+  /** Income credited to consultants. It carries no VAT. */
+  consultantShareIncomeNetMinor: number;
+  /** Income the company keeps, with all of the VAT. */
+  companyShareIncomeNetMinor: number;
+  companyShareIncomeGrossMinor: number;
   expenseNetMinor: number;
   expenseGrossMinor: number;
   consultantFundedExpenseNetMinor: number;
@@ -596,20 +619,30 @@ export type TransactionPeriodTotals = {
 };
 
 /**
- * Sums a transaction list. Expenses without a consultant are company funded,
- * as are consultant expenses marked `funding: "company"`.
+ * Sums a transaction list. Income splits into the consultant share (see
+ * `consultantIncomeShareMinor`) and the company share, which is the rest.
+ * Expenses without a consultant are company funded, as are consultant
+ * expenses marked `funding: "company"`.
  */
 export function transactionPeriodTotals(
   transactions: Array<
     Pick<
       FinancialTransaction,
-      "consultantId" | "direction" | "funding" | "netMinor" | "grossMinor"
+      | "consultantId"
+      | "direction"
+      | "funding"
+      | "netMinor"
+      | "grossMinor"
+      | "consultantBalanceDeltaMinor"
     >
   >,
 ): TransactionPeriodTotals {
   const totals: TransactionPeriodTotals = {
     incomeNetMinor: 0,
     incomeGrossMinor: 0,
+    consultantShareIncomeNetMinor: 0,
+    companyShareIncomeNetMinor: 0,
+    companyShareIncomeGrossMinor: 0,
     expenseNetMinor: 0,
     expenseGrossMinor: 0,
     consultantFundedExpenseNetMinor: 0,
@@ -619,8 +652,14 @@ export function transactionPeriodTotals(
   };
   for (const transaction of transactions) {
     if (transaction.direction === "income") {
+      const consultantShare = consultantIncomeShareMinor(transaction);
       totals.incomeNetMinor += transaction.netMinor;
       totals.incomeGrossMinor += transaction.grossMinor;
+      totals.consultantShareIncomeNetMinor += consultantShare;
+      totals.companyShareIncomeNetMinor +=
+        transaction.netMinor - consultantShare;
+      totals.companyShareIncomeGrossMinor +=
+        transaction.grossMinor - consultantShare;
       continue;
     }
     totals.expenseNetMinor += transaction.netMinor;
