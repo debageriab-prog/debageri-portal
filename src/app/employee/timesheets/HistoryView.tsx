@@ -467,13 +467,14 @@ export function HistoryView({
     );
   }
 
-  async function exportExcel() {
+  async function exportReport(format: "xlsx" | "pdf") {
     if (!exportUserId || (mode !== "month" && mode !== "year")) return;
     const [exportYear, exportMonth] =
       mode === "month" ? month.split("-").map(Number) : [year];
     const query = new URLSearchParams({
       userId: exportUserId,
       year: String(exportYear),
+      format,
     });
     if (exportMonth) query.set("month", String(exportMonth));
     setExporting(true);
@@ -487,7 +488,9 @@ export function HistoryView({
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
-      link.download = encoded ? decodeURIComponent(encoded) : "TimeReport.xlsx";
+      link.download = encoded
+        ? decodeURIComponent(encoded)
+        : `TimeReport.${format}`;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1_000);
     } catch {
@@ -730,15 +733,25 @@ export function HistoryView({
             </label>
           ) : null}
           {exportUserId && (mode === "month" || mode === "year") && (
-            <button
-              className="button secondary history-export"
-              type="button"
-              title={t("exportExcelHint")}
-              disabled={exporting || !(mode === "year" ? year : month)}
-              onClick={() => void exportExcel()}
-            >
-              {t("exportExcel")}
-            </button>
+            <div className="history-export">
+              {(["xlsx", "pdf"] as const).map((format) => (
+                <button
+                  key={format}
+                  className="table-action icon-action"
+                  type="button"
+                  aria-label={t(
+                    format === "xlsx" ? "exportExcel" : "exportPdf",
+                  )}
+                  title={t(
+                    format === "xlsx" ? "exportExcelHint" : "exportPdfHint",
+                  )}
+                  disabled={exporting || !(mode === "year" ? year : month)}
+                  onClick={() => void exportReport(format)}
+                >
+                  <ActionIcon type={format === "xlsx" ? "excel" : "pdf"} />
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </section>

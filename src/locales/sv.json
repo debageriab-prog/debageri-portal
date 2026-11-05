@@ -646,6 +646,7 @@
   "exportPdf": "Exportera PDF",
   "exportExcel": "Exportera Excel",
   "exportExcelHint": "Laddar ner vald period med en flik per tidkod.",
+  "exportPdfHint": "Laddar ner vald period som PDF med en sida per tidkod.",
   "timeReportExportFailed": "Tidrapporten kunde inte exporteras.",
   "dayOfMonth": "Dag i månaden",
   "totalPossible": "Möjligt totalt",

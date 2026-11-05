@@ -28,6 +28,26 @@ export type ExportSheet = {
 
 export const WORKDAY_MINUTES = 480;
 
+/** Header colours per month, January first, shared by Excel and PDF. */
+export const MONTH_COLORS = [
+  "D9EAD3",
+  "B4A7D6",
+  "A4C2F4",
+  "FCE5CD",
+  "F4CCCC",
+  "CCCCCC",
+  "EAD1DC",
+  "E6B8AF",
+  "D9D2E9",
+  "FFE599",
+  "F4CCCC",
+  "A4C2F4",
+];
+export const CLOSED_COLOR = "E06666";
+export const MISSING_COLOR = "999999";
+export const TOTAL_COLOR = "B6D7A8";
+export const MUTED_TEXT_COLOR = "B7B7B7";
+
 const pad = (value: number) => String(value).padStart(2, "0");
 
 export const isValidExportPeriod = ({ year, month }: ExportPeriod) =>
@@ -152,12 +172,18 @@ export function buildExportSheets(
   });
 }
 
+export type ExportFormat = "xlsx" | "pdf";
+
 /** TimeReport_ConsultantName_Year_Month, or without the month for a year. */
-export function exportFileName(displayName: string, period: ExportPeriod) {
+export function exportFileName(
+  displayName: string,
+  period: ExportPeriod,
+  format: ExportFormat = "xlsx",
+) {
   const name =
     displayName.normalize("NFC").replace(/[^\p{L}\p{N}]+/gu, "") ||
     "Consultant";
-  return `TimeReport_${name}_${period.year}${period.month ? `_${pad(period.month)}` : ""}.xlsx`;
+  return `TimeReport_${name}_${period.year}${period.month ? `_${pad(period.month)}` : ""}.${format}`;
 }
 
 /**

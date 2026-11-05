@@ -10,10 +10,16 @@ import {
   exportPeriodBounds,
   reportVisibleTo,
   type ExportEntry,
+  type ExportFormat,
   type ExportPeriod,
 } from "@/domain/reports/time-report-export";
 import {
+  PDF_CONTENT_TYPE,
+  timeReportPdf,
+} from "@/server/export/time-report-pdf";
+import {
   timeReportWorkbook,
+  XLSX_CONTENT_TYPE,
   type WorkbookLabels,
 } from "@/server/export/time-report-workbook";
 
@@ -41,7 +47,7 @@ export const canExportTimeReports = (actor: Actor) =>
   can(actor, "time.reports.export");
 
 /**
- * Builds the Excel report for one person and period. People export their own
+ * Builds the Excel or PDF report for one person and period. People export their own
  * time with `my.time.export`; staff export someone they can open on the time
  * reports page with `time.reports.export`.
  */
@@ -51,6 +57,7 @@ export async function exportTimeReport(
   userId: string,
   period: ExportPeriod,
   labels: WorkbookLabels & { emptySheet: string },
+  format: ExportFormat = "xlsx",
 ) {
   const own = userId === actor.id && canExportOwnTimeReport(actor);
   if (!own && !canExportTimeReports(actor))
@@ -101,11 +108,20 @@ export async function exportTimeReport(
     holidaySnapshot.docs.map((doc) => String(doc.data().date)),
     labels.emptySheet,
   );
+  const displayName = String(user.displayName ?? user.email ?? "");
+  const fileName = exportFileName(displayName, period, format);
+  if (format === "xlsx")
+    return {
+      fileName,
+      contentType: XLSX_CONTENT_TYPE,
+      data: timeReportWorkbook(sheets, labels),
+    };
+  const periodLabel = period.month
+    ? `${labels.monthNames[period.month - 1]} ${period.year}`
+    : String(period.year);
   return {
-    fileName: exportFileName(
-      String(user.displayName ?? user.email ?? ""),
-      period,
-    ),
-    data: timeReportWorkbook(sheets, labels),
+    fileName,
+    contentType: PDF_CONTENT_TYPE,
+    data: timeReportPdf(sheets, labels, `${displayName} · ${periodLabel}`),
   };
 }

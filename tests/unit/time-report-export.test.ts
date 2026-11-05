@@ -8,6 +8,12 @@ import {
   sheetNames,
   type ExportEntry,
 } from "@/domain/reports/time-report-export";
+import { inflateSync } from "node:zlib";
+import {
+  pdfText,
+  textWidth,
+  timeReportPdf,
+} from "@/server/export/time-report-pdf";
 import {
   crc32,
   timeReportWorkbook,
@@ -129,6 +135,9 @@ describe("exportFileName", () => {
     expect(exportFileName("Anna-Lena Berg", { year: 2026 })).toBe(
       "TimeReport_AnnaLenaBerg_2026.xlsx",
     );
+    expect(exportFileName("Anna Berg", { year: 2026 }, "pdf")).toBe(
+      "TimeReport_AnnaBerg_2026.pdf",
+    );
   });
 
   it("accepts only real periods", () => {
@@ -200,5 +209,89 @@ describe("timeReportWorkbook", () => {
       'name="R&amp;D &lt;&quot;x&quot;&gt;"',
     );
     expect(files.get("xl/worksheets/sheet1.xml")).toContain("<t>A &amp; B</t>");
+  });
+});
+
+describe("timeReportPdf", () => {
+  const labels = {
+    dayOfMonth: "Dag i månaden",
+    total: "Totalt",
+    totalPossible: "Möjligt totalt",
+    monthNames: Array.from({ length: 12 }, (_, index) => `M${index + 1}`),
+  };
+
+  function pages(pdf: Buffer) {
+    const source = pdf.toString("latin1");
+    const boxes = [...source.matchAll(/\/MediaBox \[0 0 (\d+) (\d+)\]/g)].map(
+      (match) => [Number(match[1]), Number(match[2])],
+    );
+    const streams = [...source.matchAll(/stream\n([\s\S]*?)\nendstream/g)].map(
+      (match) =>
+        inflateSync(Buffer.from(match[1]!, "latin1")).toString("latin1"),
+    );
+    return { source, boxes, streams };
+  }
+
+  it("prints one landscape page per time code for a year", () => {
+    const sheets = buildExportSheets(
+      [worked("2026-05-04", 450), vacation("2026-05-05", 480)],
+      { year: 2026 },
+      [],
+      "Worked",
+    );
+    const { source, boxes, streams } = pages(
+      timeReportPdf(sheets, labels, "Åsa Öberg · 2026"),
+    );
+    expect(source.startsWith("%PDF-1.4")).toBe(true);
+    expect(source.trimEnd().endsWith("%%EOF")).toBe(true);
+    expect(source).toContain("/Count 2");
+    expect(boxes).toEqual([
+      [842, 595],
+      [842, 595],
+    ]);
+    expect(streams[0]).toContain("(Development) Tj");
+    expect(streams[0]).toContain("(7.5) Tj");
+    expect(streams[0]).toContain("(M12) Tj");
+    expect(streams[1]).toContain("(Vacation) Tj");
+    // Latin-1 text stays as single bytes for WinAnsiEncoding.
+    expect(streams[0]).toContain("(\xc5sa \xd6berg \xb7 2026) Tj");
+    expect(streams[0]).toContain("(Dag i m\xe5naden) Tj");
+  });
+
+  it("prints a month on a portrait page with working xref offsets", () => {
+    const pdf = timeReportPdf(
+      buildExportSheets([], { year: 2026, month: 5 }, [], "Worked"),
+      labels,
+      "Anna · Maj 2026",
+    );
+    const source = pdf.toString("latin1");
+    const start = Number(/startxref\n(\d+)/.exec(source)![1]);
+    expect(source.slice(start, start + 4)).toBe("xref");
+    const offsets = [...source.slice(start).matchAll(/(\d{10}) 00000 n/g)];
+    expect(offsets.length).toBeGreaterThan(0);
+    offsets.forEach((match, index) =>
+      expect(source.slice(Number(match[1]))).toMatch(
+        new RegExp(`^${index + 1} 0 obj`),
+      ),
+    );
+    expect(pages(pdf).boxes).toEqual([[595, 842]]);
+  });
+
+  it("escapes and replaces what Helvetica cannot show", () => {
+    expect(pdfText("Kod (A) € \u{1F600} å")).toBe("Kod (A) ? ? å");
+    expect(textWidth("ii", 10)).toBeCloseTo(4.44);
+    const pdf = timeReportPdf(
+      buildExportSheets(
+        [{ ...worked("2026-05-04", 60), name: "R(a)d" }],
+        { year: 2026, month: 5 },
+        [],
+        "Worked",
+      ),
+      labels,
+      String.raw`Team\Anna`,
+    );
+    const [stream] = pages(pdf).streams;
+    expect(stream).toContain(String.raw`(R\(a\)d) Tj`);
+    expect(stream).toContain(String.raw`(Team\\Anna) Tj`);
   });
 });

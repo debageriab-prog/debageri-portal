@@ -1,5 +1,12 @@
 import { deflateRawSync } from "node:zlib";
-import type { ExportSheet } from "@/domain/reports/time-report-export";
+import {
+  CLOSED_COLOR,
+  MISSING_COLOR,
+  MONTH_COLORS,
+  MUTED_TEXT_COLOR,
+  TOTAL_COLOR,
+  type ExportSheet,
+} from "@/domain/reports/time-report-export";
 
 /**
  * Writes the time report as an .xlsx file: a zip of SpreadsheetML parts with
@@ -16,21 +23,6 @@ export type WorkbookLabels = {
 
 export const XLSX_CONTENT_TYPE =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
-const MONTH_FILLS = [
-  "D9EAD3",
-  "B4A7D6",
-  "A4C2F4",
-  "FCE5CD",
-  "F4CCCC",
-  "CCCCCC",
-  "EAD1DC",
-  "E6B8AF",
-  "D9D2E9",
-  "FFE599",
-  "F4CCCC",
-  "A4C2F4",
-];
 
 const STYLE = {
   label: 1,
@@ -52,11 +44,11 @@ const xf = (font: number, fillId: number, border: number) =>
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><color rgb="FFB7B7B7"/><name val="Calibri"/></font></fonts>
-<fills count="${5 + MONTH_FILLS.length}"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>${fill("E06666")}${fill("999999")}${fill("B6D7A8")}${MONTH_FILLS.map(fill).join("")}</fills>
+<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><color rgb="FF${MUTED_TEXT_COLOR}"/><name val="Calibri"/></font></fonts>
+<fills count="${5 + MONTH_COLORS.length}"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>${fill(CLOSED_COLOR)}${fill(MISSING_COLOR)}${fill(TOTAL_COLOR)}${MONTH_COLORS.map(fill).join("")}</fills>
 <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="${8 + MONTH_FILLS.length}"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>${xf(1, 0, 1)}${xf(0, 0, 1)}${xf(0, 2, 1)}${xf(0, 3, 1)}${xf(1, 4, 1)}${xf(2, 0, 0)}${xf(2, 0, 0)}${MONTH_FILLS.map((_, index) => xf(1, 5 + index, 1)).join("")}</cellXfs>
+<cellXfs count="${8 + MONTH_COLORS.length}"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>${xf(1, 0, 1)}${xf(0, 0, 1)}${xf(0, 2, 1)}${xf(0, 3, 1)}${xf(1, 4, 1)}${xf(2, 0, 0)}${xf(2, 0, 0)}${MONTH_COLORS.map((_, index) => xf(1, 5 + index, 1)).join("")}</cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
 

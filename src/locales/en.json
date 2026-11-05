@@ -646,6 +646,7 @@
   "exportPdf": "Export PDF",
   "exportExcel": "Export Excel",
   "exportExcelHint": "Downloads the selected period with one tab per time code.",
+  "exportPdfHint": "Downloads the selected period as a PDF with one page per time code.",
   "timeReportExportFailed": "The time report could not be exported.",
   "dayOfMonth": "Day of month",
   "totalPossible": "Total possible",

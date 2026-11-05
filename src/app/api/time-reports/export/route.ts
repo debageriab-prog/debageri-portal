@@ -3,7 +3,6 @@ import { z } from "zod";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getServerLocale, getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
-import { XLSX_CONTENT_TYPE } from "@/server/export/time-report-workbook";
 import {
   exportTimeReport,
   TimeReportExportError,
@@ -13,6 +12,7 @@ const querySchema = z.object({
   userId: z.string().min(1).max(128),
   year: z.coerce.number().int().min(2000).max(2100),
   month: z.coerce.number().int().min(1).max(12).optional(),
+  format: z.enum(["xlsx", "pdf"]).default("xlsx"),
 });
 
 function monthNames(locale: string) {
@@ -34,13 +34,14 @@ export async function GET(request: Request) {
     userId: params.get("userId") ?? undefined,
     year: params.get("year") ?? undefined,
     month: params.get("month") || undefined,
+    format: params.get("format") || undefined,
   });
   if (!parsed.success)
     return NextResponse.json({ error: "invalidInput" }, { status: 400 });
-  const { userId, year, month } = parsed.data;
+  const { userId, year, month, format } = parsed.data;
   const [t, locale] = await Promise.all([getTranslator(), getServerLocale()]);
   try {
-    const { fileName, data } = await exportTimeReport(
+    const { fileName, contentType, data } = await exportTimeReport(
       getAdminServices().db,
       actor,
       userId,
@@ -52,11 +53,12 @@ export async function GET(request: Request) {
         monthNames: monthNames(locale),
         emptySheet: t("worked"),
       },
+      format,
     );
     const asciiName = fileName.normalize("NFD").replace(/[^\x20-\x7e]/g, "");
     return new Response(new Uint8Array(data), {
       headers: {
-        "content-type": XLSX_CONTENT_TYPE,
+        "content-type": contentType,
         "content-disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
         "cache-control": "private, no-store",
       },
