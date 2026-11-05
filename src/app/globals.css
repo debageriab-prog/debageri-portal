@@ -2870,6 +2870,13 @@ th.actions-heading {
 .month-stepper .field {
   min-width: 0;
 }
+.time-report-filters {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.time-report-filters .month-stepper .field {
+  flex: 1 1 0;
+  width: 100%;
+}
 .month-step-button {
   width: 2.4rem;
   min-width: 2.4rem;
@@ -3003,14 +3010,6 @@ th.actions-heading {
   border-radius: 4px;
 }
 
-.consultant-dashboard-controls {
-  margin: 18px 0;
-}
-
-.consultant-dashboard-controls .week-mode-picker {
-  grid-template-columns: repeat(3, minmax(100px, 1fr));
-}
-
 .consultant-dashboard {
   display: grid;
   gap: 18px;
@@ -3127,15 +3126,6 @@ th.actions-heading {
   gap: 16px;
   padding-top: 20px;
 }
-.report-user-filter {
-  display: flex;
-  align-items: end;
-  gap: 14px;
-}
-.report-user-filter label {
-  width: min(420px, 100%);
-}
-
 @media (max-width: 900px) {
   html,
   body {
@@ -3441,13 +3431,6 @@ th.actions-heading {
   .chart-legend {
     width: 100%;
   }
-  .report-user-filter {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .report-user-filter label {
-    width: 100%;
-  }
   .consultant-chart-grid,
   .consultant-chart-grid.income-chart-grid,
   .consultant-summary-chart {
@@ -3553,8 +3536,7 @@ th.actions-heading {
   }
   .week-mode-picker,
   .history-controls .week-mode-picker,
-  .history-controls .history-mode-picker,
-  .consultant-dashboard-controls .week-mode-picker {
+  .history-controls .history-mode-picker {
     grid-template-columns: 1fr;
   }
   .timesheet-table-header {

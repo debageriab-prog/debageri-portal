@@ -94,3 +94,36 @@ describe("HistoryView files column", () => {
     );
   });
 });
+
+describe("HistoryView with a page-owned period", () => {
+  const yearSheets = Array.from({ length: 12 }, (_, index) => ({
+    ...sheet("approved"),
+    id: `sheet-${index + 1}`,
+    isoWeek: index + 2,
+    periodStart: `2026-01-${String(index + 5).padStart(2, "0")}`,
+    periodEnd: `2026-01-${String(index + 5).padStart(2, "0")}`,
+  }));
+  const html = renderToStaticMarkup(
+    createElement(HistoryView, {
+      sheets: yearSheets,
+      entries: [],
+      currentYear: 2026,
+      currentWeek: 44,
+      currentMonth: "2026-11",
+      reportingStartDate: null,
+      employmentEndDate: null,
+      holidayDates: [],
+      readOnly: true,
+      period: { mode: "year", year: 2026, month: "2026-11" },
+    }),
+  );
+
+  it("hides its own period controls", () => {
+    expect(html).not.toContain("history-controls");
+  });
+
+  it("shows the reports ten at a time", () => {
+    expect(html.match(/<tr>/g)).toHaveLength(11);
+    expect(html).toContain("page 1 of 2");
+  });
+});

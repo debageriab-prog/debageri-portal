@@ -2,20 +2,25 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { can } from "@/domain/access/permissions";
 import { getIsoWeek } from "@/lib/dates/iso-week";
 import { verifySession } from "@/server/auth/session";
-import { HistoryView } from "@/app/employee/timesheets/HistoryView";
-import { ConsultantDashboard } from "./ConsultantDashboard";
-import { ConsultantSelect } from "./ConsultantSelect";
+import { isMonth } from "@/lib/dates/month";
+import { TimeReportsView, type ReportPeriod } from "./TimeReportsView";
 import { getTranslator } from "@/lib/localization/server";
 import { reportVisibleTo } from "@/domain/reports/time-report-export";
 
 export default async function TimeReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ userId?: string }>;
+  searchParams: Promise<{
+    userId?: string;
+    period?: string;
+    year?: string;
+    month?: string;
+  }>;
 }) {
   const actor = (await verifySession())!;
   const t = await getTranslator();
-  const { userId } = await searchParams;
+  const params = await searchParams;
+  const { userId } = params;
   const { db } = getAdminServices();
   const [usersSnapshot, timeCodeSnapshot] = await Promise.all([
     db
@@ -180,6 +185,17 @@ export default async function TimeReportsPage({
 
   const today = new Date().toISOString().slice(0, 10);
   const current = getIsoWeek(today);
+  const requestedYear = Number(params.year);
+  const initialPeriod: ReportPeriod = {
+    mode: params.period === "year" ? "year" : "month",
+    year:
+      Number.isInteger(requestedYear) &&
+      requestedYear >= 2000 &&
+      requestedYear <= 2100
+        ? requestedYear
+        : Number(today.slice(0, 4)),
+    month: isMonth(params.month) ? params.month : today.slice(0, 7),
+  };
   return (
     <>
       <div className="topbar">
@@ -191,52 +207,49 @@ export default async function TimeReportsPage({
           </p>
         </div>
       </div>
-      <section className="card">
-        <div className="report-user-filter">
-          <ConsultantSelect
-            users={users}
-            selectedUserId={selected?.id}
-            label={
-              actor.role === "admin"
-                ? t("consultantOrManager")
-                : t("consultant")
-            }
-          />
-        </div>
-      </section>
-      {!selected && (
-        <ConsultantDashboard
-          consultants={users}
-          entries={entries}
-          holidayDates={holidayDates}
-          currentYear={current.isoYear}
-          currentWeek={current.isoWeek}
-          currentMonth={today.slice(0, 7)}
-          showEstimatedIncome={showIncome}
-        />
-      )}
-      {selected && (
-        <HistoryView
-          sheets={sheets}
-          entries={entries}
-          currentYear={current.isoYear}
-          currentWeek={current.isoWeek}
-          currentMonth={today.slice(0, 7)}
-          reportingStartDate={selected.reportingStartDate}
-          employmentEndDate={selected.employmentEndDate}
-          holidayDates={holidayDates}
-          readOnly
-          initialMode="month"
-          avatarUserId={selected.id}
-          showEstimatedIncome={showIncome && selected.role !== "employee"}
-          hourlyRate={selected.hourlyRate}
-          exportUserId={
-            can(actor, "time.reports.export") ? selected.id : undefined
-          }
-          title={String(selected.displayName)}
-          description={t("selectedReportDescription")}
-        />
-      )}
+      <TimeReportsView
+        users={users}
+        selectedUserId={selected?.id}
+        consultantLabel={
+          actor.role === "admin" ? t("consultantOrManager") : t("consultant")
+        }
+        initialPeriod={initialPeriod}
+        exportUserId={
+          selected && can(actor, "time.reports.export")
+            ? selected.id
+            : undefined
+        }
+        dashboard={
+          selected
+            ? undefined
+            : {
+                consultants: users,
+                entries,
+                holidayDates,
+                showEstimatedIncome: showIncome,
+              }
+        }
+        history={
+          selected
+            ? {
+                sheets,
+                entries,
+                currentYear: current.isoYear,
+                currentWeek: current.isoWeek,
+                currentMonth: today.slice(0, 7),
+                reportingStartDate: selected.reportingStartDate,
+                employmentEndDate: selected.employmentEndDate,
+                holidayDates,
+                readOnly: true,
+                avatarUserId: selected.id,
+                showEstimatedIncome: showIncome && selected.role !== "employee",
+                hourlyRate: selected.hourlyRate,
+                title: String(selected.displayName),
+                description: t("selectedReportDescription"),
+              }
+            : undefined
+        }
+      />
     </>
   );
 }

@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { formatDuration } from "@/lib/durations/duration";
-import { getIsoWeekDates } from "@/lib/dates/iso-week";
 import { ConsultantAvatar } from "./ConsultantAvatar";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
@@ -12,6 +11,7 @@ import {
   type ReportedTotals,
 } from "@/domain/reports/aggregate";
 import { isAfterEmployment } from "@/domain/timesheets/rules";
+import type { ReportPeriod } from "./TimeReportsView";
 
 type Consultant = {
   id: string;
@@ -43,36 +43,25 @@ export function ConsultantDashboard({
   consultants,
   entries,
   holidayDates,
-  currentYear,
-  currentWeek,
-  currentMonth,
+  period,
   showEstimatedIncome,
 }: {
   consultants: Consultant[];
   entries: DashboardEntry[];
   holidayDates: string[];
-  currentYear: number;
-  currentWeek: number;
-  currentMonth: string;
+  period: ReportPeriod;
   showEstimatedIncome: boolean;
 }) {
   const { t } = useLocale();
-  const [mode, setMode] = useState<"year" | "month" | "week">("month");
-  const [year, setYear] = useState(currentYear);
-  const [week, setWeek] = useState(currentWeek);
-  const [month, setMonth] = useState(currentMonth);
+  const { mode, year, month } = period;
   const [start, end] = useMemo(() => {
     if (mode === "year") return [`${year}-01-01`, `${year}-12-31`];
-    if (mode === "week") {
-      const dates = getIsoWeekDates(year, week);
-      return [dates[0]!, dates[6]!];
-    }
     const [monthYear, monthNumber] = month.split("-").map(Number);
     const lastDay = new Date(
       Date.UTC(monthYear!, monthNumber!, 0),
     ).getUTCDate();
     return [`${month}-01`, `${month}-${String(lastDay).padStart(2, "0")}`];
-  }, [mode, month, week, year]);
+  }, [mode, month, year]);
 
   function expectedMinutes(consultant: Consultant) {
     let expected = 0;
@@ -279,59 +268,6 @@ export function ConsultantDashboard({
 
   return (
     <>
-      <section className="card history-controls consultant-dashboard-controls">
-        <div className="week-mode-picker">
-          {(["year", "month", "week"] as const).map((item) => (
-            <button
-              key={item}
-              className={mode === item ? "selected" : ""}
-              onClick={() => setMode(item)}
-            >
-              {item === "year"
-                ? t("year")
-                : item === "month"
-                  ? t("month")
-                  : t("week")}
-            </button>
-          ))}
-        </div>
-        {mode === "month" ? (
-          <label>
-            {t("month")}
-            <input
-              className="field"
-              type="month"
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
-            />
-          </label>
-        ) : (
-          <div className="actions">
-            <label>
-              {t("year")}
-              <input
-                className="field compact-field"
-                type="number"
-                value={year}
-                onChange={(event) => setYear(Number(event.target.value))}
-              />
-            </label>
-            {mode === "week" && (
-              <label>
-                {t("week")}
-                <input
-                  className="field compact-field"
-                  type="number"
-                  min="1"
-                  max="53"
-                  value={week}
-                  onChange={(event) => setWeek(Number(event.target.value))}
-                />
-              </label>
-            )}
-          </div>
-        )}
-      </section>
       <section className="consultant-dashboard">
         {reports.length > 1 && (
           <article className="card consultant-report-card">
