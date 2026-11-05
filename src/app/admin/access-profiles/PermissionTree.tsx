@@ -16,6 +16,8 @@ const tips: Partial<Record<PermissionKey, MessageKey>> = {
   "finance.ledger.export": "permissionTip_export",
   "time.reports.export": "permissionTip_timeExport",
   "my.time.export": "permissionTip_timeExport",
+  "finance.overview.export": "permissionTip_financeExport",
+  "my.finance.export": "permissionTip_financeExport",
 };
 
 export const permissionLabel = (key: PermissionKey) =>

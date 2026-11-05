@@ -514,6 +514,8 @@ describe("finance calculations", () => {
     expect(isSalaryRelatedExpenseCode("salary")).toBe(true);
     expect(isSalaryRelatedExpenseCode("SALARY_TAX")).toBe(true);
     expect(isSalaryRelatedExpenseCode("employer_tax")).toBe(true);
+    expect(isSalaryRelatedExpenseCode("bonus_tax")).toBe(true);
+    expect(isSalaryRelatedExpenseCode("pension")).toBe(true);
     expect(isSalaryRelatedExpenseCode("travel")).toBe(false);
   });
 

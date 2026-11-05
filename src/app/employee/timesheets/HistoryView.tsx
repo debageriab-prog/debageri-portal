@@ -14,6 +14,7 @@ import { ConsultantAvatar } from "@/app/time-reports/ConsultantAvatar";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
+import { ReportExportButtons } from "@/components/ui/ReportExportButtons";
 import { DetailSection, DetailSummary } from "@/components/ui/DetailView";
 import { aggregateReportedDays } from "@/domain/reports/aggregate";
 import {
@@ -183,8 +184,6 @@ export function HistoryView({
   const [viewing, setViewing] = useState<HistorySheet | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [previewing, setPreviewing] = useState<PreviewTarget | null>(null);
-  const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState("");
 
   const weeklySheets = sheets.filter(
     (sheet) => sheet.isoYear === year && sheet.isoWeek === week,
@@ -467,39 +466,6 @@ export function HistoryView({
     );
   }
 
-  async function exportReport(format: "xlsx" | "pdf") {
-    if (!exportUserId || (mode !== "month" && mode !== "year")) return;
-    const [exportYear, exportMonth] =
-      mode === "month" ? month.split("-").map(Number) : [year];
-    const query = new URLSearchParams({
-      userId: exportUserId,
-      year: String(exportYear),
-      format,
-    });
-    if (exportMonth) query.set("month", String(exportMonth));
-    setExporting(true);
-    setExportError("");
-    try {
-      const response = await appCheckFetch(`/api/time-reports/export?${query}`);
-      if (!response.ok) throw new Error(String(response.status));
-      const encoded = /filename\*=UTF-8''([^;]+)/.exec(
-        response.headers.get("content-disposition") ?? "",
-      )?.[1];
-      const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = encoded
-        ? decodeURIComponent(encoded)
-        : `TimeReport.${format}`;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1_000);
-    } catch {
-      setExportError(t("timeReportExportFailed"));
-    } finally {
-      setExporting(false);
-    }
-  }
-
   async function remove() {
     if (!deleting) return;
     const response = await appCheckFetch(
@@ -733,29 +699,24 @@ export function HistoryView({
             </label>
           ) : null}
           {exportUserId && (mode === "month" || mode === "year") && (
-            <div className="history-export">
-              {(["xlsx", "pdf"] as const).map((format) => (
-                <button
-                  key={format}
-                  className="table-action icon-action"
-                  type="button"
-                  aria-label={t(
-                    format === "xlsx" ? "exportExcel" : "exportPdf",
-                  )}
-                  title={t(
-                    format === "xlsx" ? "exportExcelHint" : "exportPdfHint",
-                  )}
-                  disabled={exporting || !(mode === "year" ? year : month)}
-                  onClick={() => void exportReport(format)}
-                >
-                  <ActionIcon type={format === "xlsx" ? "excel" : "pdf"} />
-                </button>
-              ))}
-            </div>
+            <ReportExportButtons
+              endpoint="/api/time-reports/export"
+              query={{
+                userId: exportUserId,
+                ...(mode === "month"
+                  ? {
+                      year: month.slice(0, 4),
+                      month: String(Number(month.slice(5, 7))),
+                    }
+                  : { year: String(year) }),
+              }}
+              hints={{ xlsx: "exportExcelHint", pdf: "exportPdfHint" }}
+              errorKey="timeReportExportFailed"
+              disabled={!(mode === "year" ? year : month)}
+            />
           )}
         </div>
       </section>
-      {exportError && <p className="notice notice-error">{exportError}</p>}
       {mode !== "latest" && (
         <section
           className={`card month-summary year-summary${income ? " income-summary" : ""}`}

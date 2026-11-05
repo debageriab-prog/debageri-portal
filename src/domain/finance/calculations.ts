@@ -4,7 +4,18 @@ import type {
   PortalUser,
 } from "@/domain/types";
 
-const salaryExpenseCodes = new Set(["salary", "salary_tax", "employer_tax"]);
+/** Salary and what comes with it, in the order reports list them. */
+export const SALARY_RELATED_EXPENSE_CODES = [
+  "salary",
+  "salary_tax",
+  "employer_tax",
+  "bonus",
+  "bonus_tax",
+  "pension",
+  "pension_tax",
+] as const;
+
+const salaryExpenseCodes = new Set<string>(SALARY_RELATED_EXPENSE_CODES);
 
 export function isSalaryRelatedExpenseCode(code: string) {
   return salaryExpenseCodes.has(code.trim().toLowerCase());

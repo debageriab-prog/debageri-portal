@@ -62,6 +62,7 @@ import {
 } from "./transaction-navigation";
 import { AttachmentClip, AttachmentDownloads } from "./FinanceAttachments";
 import { ActionIcon } from "@/components/ui/ActionIcon";
+import { ReportExportButtons } from "@/components/ui/ReportExportButtons";
 import {
   DetailFacts,
   DetailSection,
@@ -1314,6 +1315,17 @@ export function FinanceDashboard({
   );
   const [expenseFundingFilter, setExpenseFundingFilter] =
     useState<ExpenseFundingFilter>("all");
+  // Whose report the export buttons download: a chosen consultant for finance
+  // staff, or yourself in My finances.
+  const reportUserId = manager
+    ? can(actor, "finance.overview.export") &&
+      selectedConsultant !== "all" &&
+      selectedConsultant !== "company"
+      ? selectedConsultant
+      : null
+    : can(actor, "my.finance.export")
+      ? actor.id
+      : null;
   const [financeHistory, setFinanceHistory] = useState<
     | "netIncome"
     | "vatPayable"
@@ -2215,6 +2227,25 @@ export function FinanceDashboard({
                       }
                     />
                   )}
+                  {reportUserId &&
+                    (chartPeriod === "month" || chartPeriod === "year") && (
+                      <ReportExportButtons
+                        endpoint="/api/finance/report"
+                        query={{
+                          userId: reportUserId,
+                          year: chartAnchor.slice(0, 4),
+                          ...(chartPeriod === "month"
+                            ? { month: String(Number(chartAnchor.slice(5, 7))) }
+                            : {}),
+                        }}
+                        hints={{
+                          xlsx: "financeExportExcelHint",
+                          pdf: "financeExportPdfHint",
+                        }}
+                        errorKey="financeReportExportFailed"
+                        disabled={!/^\d{4}-\d{2}$/.test(chartAnchor)}
+                      />
+                    )}
                   {chartPeriod === "range" && (
                     <>
                       <label className="compact-date-field">

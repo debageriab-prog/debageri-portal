@@ -14,10 +14,8 @@ import {
   textWidth,
   timeReportPdf,
 } from "@/server/export/time-report-pdf";
-import {
-  crc32,
-  timeReportWorkbook,
-} from "@/server/export/time-report-workbook";
+import { timeReportWorkbook } from "@/server/export/time-report-workbook";
+import { crc32 } from "@/server/export/xlsx-package";
 
 const worked = (date: string, minutes: number): ExportEntry => ({
   date,

@@ -7,6 +7,7 @@ export const PERMISSION_KEYS = [
   "finance.ledger.delete",
   "finance.ledger.import",
   "finance.ledger.export",
+  "finance.overview.export",
   "finance.invoices.view",
   "finance.invoices.add",
   "finance.invoices.edit",
@@ -47,6 +48,7 @@ export const PERMISSION_KEYS = [
   "my.time.income",
   "my.time.export",
   "my.finance",
+  "my.finance.export",
   "my.transactions",
   "my.invoices",
   "my.contracts",
@@ -96,7 +98,7 @@ export const PERMISSION_TREE: PermissionGroup[] = [
   {
     id: "finance",
     nodes: [
-      { key: "my.finance" },
+      { key: "my.finance", children: [{ key: "my.finance.export" }] },
       { key: "my.transactions" },
       { key: "my.invoices" },
       {
@@ -107,6 +109,7 @@ export const PERMISSION_TREE: PermissionGroup[] = [
           { key: "finance.ledger.delete" },
           { key: "finance.ledger.import" },
           { key: "finance.ledger.export" },
+          { key: "finance.overview.export" },
         ],
       },
       {
@@ -194,6 +197,7 @@ PERMISSION_TREE.forEach((group) => indexParents(group.nodes));
 /** Finance and contract records of one's own only exist for consultants. */
 const consultantOnly: readonly PermissionKey[] = [
   "my.finance",
+  "my.finance.export",
   "my.transactions",
   "my.invoices",
   "my.contracts",
@@ -395,6 +399,7 @@ const accountantPermissions: PermissionKey[] = [
   "finance.ledger.delete",
   "finance.ledger.import",
   "finance.ledger.export",
+  "finance.overview.export",
   "finance.invoices.view",
   "finance.invoices.add",
   "finance.invoices.edit",
