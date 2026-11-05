@@ -171,6 +171,12 @@ function today() {
 type FinancePeriod = "month" | "year" | "all" | "range";
 type ExpenseFundingFilter = "all" | "company" | "consultant";
 
+const expenseTotalLabels = new Set([
+  "totalConsultantFundedExpenses",
+  "totalCompanyFundedExpenses",
+  "totalExpenses",
+]);
+
 function inFinancePeriod(
   date: string,
   period: FinancePeriod,
@@ -1774,8 +1780,8 @@ export function FinanceDashboard({
       .write(`<!doctype html><html lang="${locale.slice(0, 2)}"><head><title>${escapeHtml(t("incomeExpenseManagement"))}</title><style>
       body{font:12px Arial,sans-serif;color:#172033;margin:24px}h1{font-size:22px} .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}.summary div{border:1px solid #ccd3dd;border-radius:6px;padding:10px}.summary span{display:block;color:#526070;margin-bottom:5px}.summary strong{font-size:14px}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #dfe4ea;padding:8px;text-align:left}th{background:#f3f5f7}@page{size:landscape;margin:12mm}
     </style></head><body><h1>${escapeHtml(t("incomeExpenseManagement"))}</h1>
-      <div class="summary" style="grid-template-columns:repeat(${transactionTotalsSummary.length},1fr)">
-        ${transactionTotalsSummary.map(({ label, netMinor, grossMinor }) => `<div><span>${escapeHtml(t(label))}</span><strong>${escapeHtml(formatTotalWithVat(netMinor, grossMinor))}</strong></div>`).join("")}
+      <div class="summary" style="grid-template-columns:repeat(${Math.min(transactionTotalsSummary.length, 3)},1fr)">
+        ${transactionTotalsSummary.map(({ label, netMinor, grossMinor }, index) => `<div${startsExpenseRow(index) ? ' style="grid-column-start:1"' : ""}><span>${escapeHtml(t(label))}</span><strong>${escapeHtml(formatTotalWithVat(netMinor, grossMinor))}</strong></div>`).join("")}
       </div><table><thead><tr><th>${escapeHtml(t("date"))}</th><th>${escapeHtml(t("type"))}</th><th>${escapeHtml(t("category"))}</th><th>${escapeHtml(t("consultant"))}</th><th>${escapeHtml(t("description"))}</th><th>${escapeHtml(t("netAmount"))}</th><th>${escapeHtml(t("totalIncludingVat"))}</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>{window.print();window.close()}<\/script></body></html>`);
     printWindow.document.close();
   }
@@ -1918,6 +1924,13 @@ export function FinanceDashboard({
           netMinor: transactionListTotals.expenseNetMinor,
         },
       ];
+  // With more than two totals, income fills the first row and expenses
+  // start on a row of their own.
+  const firstExpenseTotal = transactionTotalsSummary.findIndex(({ label }) =>
+    expenseTotalLabels.has(label),
+  );
+  const startsExpenseRow = (index: number) =>
+    transactionTotalsSummary.length > 2 && index === firstExpenseTotal;
   function formatTotalWithVat(netMinor: number, grossMinor?: number) {
     if (grossMinor === undefined) return formatSekCompact(netMinor, locale);
     return t("amountPlusVat")
@@ -2758,12 +2771,21 @@ export function FinanceDashboard({
             className={`transaction-period-summary${transactionTotalsSummary.length === 2 ? " transaction-period-summary-pair" : ""}`}
             aria-label={t("periodTotals")}
           >
-            {transactionTotalsSummary.map(({ label, netMinor, grossMinor }) => (
-              <div key={label}>
-                <span>{t(label)}</span>
-                <strong>{formatTotalWithVat(netMinor, grossMinor)}</strong>
-              </div>
-            ))}
+            {transactionTotalsSummary.map(
+              ({ label, netMinor, grossMinor }, index) => (
+                <div
+                  key={label}
+                  className={
+                    startsExpenseRow(index)
+                      ? "transaction-period-summary-row-start"
+                      : undefined
+                  }
+                >
+                  <span>{t(label)}</span>
+                  <strong>{formatTotalWithVat(netMinor, grossMinor)}</strong>
+                </div>
+              ),
+            )}
           </section>
         </>
       )}
