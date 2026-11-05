@@ -167,8 +167,9 @@ export function TimeReportsView({
             </button>
           </div>
         </div>
-        {exportUserId && (
-          <div className="finance-filter-control">
+        {/* Always present, so the other filters keep their width without it. */}
+        {exportUserId ? (
+          <div className="finance-filter-control time-report-export">
             <span>{t("export")}</span>
             <ReportExportButtons
               endpoint="/api/time-reports/export"
@@ -186,6 +187,8 @@ export function TimeReportsView({
               disabled={!yearValid}
             />
           </div>
+        ) : (
+          <div className="time-report-export" aria-hidden="true" />
         )}
       </section>
       {dashboard && <ConsultantDashboard {...dashboard} period={period} />}
