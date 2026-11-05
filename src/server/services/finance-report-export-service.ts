@@ -141,6 +141,8 @@ export async function exportFinanceReport(
     period,
     language: locale === "sv-SE" ? "sv" : "en",
     view,
+    // Staff see what the company paid for the consultant too.
+    includeCompanyFunded: !own,
     labels: { ...text, share: own ? text.ownShare : text.share },
     categories: categorySnapshot.docs.map((doc) => ({
       id: doc.id,
@@ -161,6 +163,7 @@ export async function exportFinanceReport(
         invoiceId: data.invoiceId ?? null,
         date: String(data.date),
         netMinor: Number(data.netMinor ?? 0),
+        funding: data.funding ?? null,
         consultantBalanceDeltaMinor: Number(
           data.consultantBalanceDeltaMinor ?? 0,
         ),

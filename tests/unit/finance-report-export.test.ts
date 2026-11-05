@@ -29,6 +29,8 @@ const labels = {
   totalExpenses: "Total expenses",
   result: "Remaining",
   closingBalance: "Balance at end",
+  companyFunded: "Paid by the company",
+  companyFundedTotal: "Total paid by the company",
 };
 
 const categories = [
@@ -86,6 +88,7 @@ const expense = (
   date,
   netMinor: minor,
   consultantBalanceDeltaMinor: funding === "company" ? 0 : -minor,
+  funding,
 });
 
 const transactions = [
@@ -109,9 +112,11 @@ function report(
   language: "en" | "sv" = "en",
   view: "balance" | "company" = "balance",
   extra: ReportTransaction[] = [],
+  includeCompanyFunded = false,
 ) {
   return buildFinanceReport({
     view,
+    includeCompanyFunded,
     period: { year: 2026, month },
     categories,
     transactions: [...transactions, ...extra],
@@ -294,6 +299,41 @@ describe("company view for fixed salary consultants", () => {
   it("leaves company-funded expenses out of the balance view", () => {
     const built = report(7, "en", "balance", [companyFunded]);
     expect(values(built).map((row) => row.label)).not.toContain("Insurance");
+  });
+
+  it("lists company-funded expenses apart for staff, after the balance", () => {
+    const companySalary = expense(
+      "2026-07-25",
+      "c-salary",
+      5_000_00,
+      "company",
+    );
+    const built = report(
+      7,
+      "en",
+      "balance",
+      [companyFunded, companySalary],
+      true,
+    );
+    const shown = built.rows.map((row) =>
+      row.kind === "separator" ? `--${row.label ?? row.tone}` : row.label,
+    );
+    expect(shown.slice(shown.indexOf("Balance at end"))).toEqual([
+      "Balance at end",
+      "--Paid by the company",
+      "Insurance",
+      "Salary",
+      "Total paid by the company",
+    ]);
+    expect(find(built, "Total paid by the company").values).toEqual([6_200_00]);
+    // The balance part is untouched: same expenses, same result.
+    const without = report(7, "en", "balance", [companyFunded, companySalary]);
+    expect(find(built, "Total expenses").values).toEqual(
+      find(without, "Total expenses").values,
+    );
+    expect(find(built, "Balance at end").values).toEqual(
+      find(without, "Balance at end").values,
+    );
   });
 
   it("picks the view from the agreement in force at the end", () => {

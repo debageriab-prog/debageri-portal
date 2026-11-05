@@ -41,6 +41,8 @@ export async function GET(request: Request) {
         totalExpenses: t("financeReportTotalExpenses"),
         result: t("financeReportResult"),
         closingBalance: t("financeReportClosingBalance"),
+        companyFunded: t("financeReportCompanyFunded"),
+        companyFundedTotal: t("financeReportCompanyFundedTotal"),
       },
       locale,
       format,

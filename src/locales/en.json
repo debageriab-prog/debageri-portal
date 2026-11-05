@@ -659,6 +659,8 @@
   "financeReportTotalExpenses": "Total expenses",
   "financeReportResult": "Remaining (income - expenses)",
   "financeReportClosingBalance": "Balance at end",
+  "financeReportCompanyFunded": "Paid by the company",
+  "financeReportCompanyFundedTotal": "Total paid by the company",
   "financeReportExportFailed": "The financial report could not be exported.",
   "financeExportExcelHint": "Downloads the selected month or year as Excel: income, other expenses and salary-related expenses.",
   "financeExportPdfHint": "Downloads the selected month or year as a PDF: income, other expenses and salary-related expenses.",

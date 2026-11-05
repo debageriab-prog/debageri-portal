@@ -84,8 +84,8 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   xf(2, 0, 1, "right"),
   xf(1, 0, 1, "left"),
   xf(3, 0, 1, "right", MONEY_FORMAT),
-  xf(0, 2, 1, "left"),
-  xf(0, 3, 1, "left"),
+  xf(1, 2, 1, "left"),
+  xf(1, 3, 1, "left"),
   xf(1, 0, 1, "left"),
   xf(4, 0, 1, "right", MONEY_FORMAT),
   xf(1, 4, 2, "left"),
@@ -148,7 +148,12 @@ export function financeReportWorkbook(
     if (row.kind === "separator") {
       const style =
         row.tone === "income" ? STYLE.incomeSeparator : STYLE.expenseSeparator;
-      for (let col = 0; col < columns; col += 1)
+      cells.push(
+        row.label
+          ? text(`A${r}`, style, row.label)
+          : `<c r="A${r}" s="${style}"/>`,
+      );
+      for (let col = 1; col < columns; col += 1)
         cells.push(`<c r="${column(col)}${r}" s="${style}"/>`);
     } else {
       const styles = rowStyles(row);

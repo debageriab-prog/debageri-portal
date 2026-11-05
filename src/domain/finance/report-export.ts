@@ -46,6 +46,7 @@ export type ReportTransaction = {
   /** Excluding VAT; negative on reversals. */
   netMinor: number;
   consultantBalanceDeltaMinor: number;
+  funding?: "company" | "consultant" | null;
 };
 
 export type ReportInvoice = {
@@ -81,6 +82,8 @@ export type FinanceReportLabels = {
   totalExpenses: string;
   result: string;
   closingBalance: string;
+  companyFunded: string;
+  companyFundedTotal: string;
 };
 
 export type ReportUnit = "money" | "hours" | "rate";
@@ -96,7 +99,7 @@ export type ReportRowStyle =
   | "result";
 
 export type ReportRow =
-  | { kind: "separator"; tone: "income" | "expenses" }
+  | { kind: "separator"; tone: "income" | "expenses"; label?: string }
   | {
       kind: "values";
       label: string;
@@ -129,8 +132,15 @@ export function buildFinanceReport({
   language,
   labels,
   view = "balance",
+  includeCompanyFunded = false,
 }: {
   view?: FinanceReportView;
+  /**
+   * Adds what the company paid for the consultant as its own section after
+   * the balance view, for staff. It is kept apart so the result still equals
+   * the change in the consultant's balance.
+   */
+  includeCompanyFunded?: boolean;
   period: ExportPeriod;
   categories: readonly ReportCategory[];
   transactions: readonly ReportTransaction[];
@@ -248,6 +258,7 @@ export function buildFinanceReport({
     rows: readonly ReportTransaction[],
     style: ReportRowStyle,
     order: (left: string, right: string) => number,
+    value: (transaction: ReportTransaction) => number = amount,
   ) =>
     [...new Set(rows.map((transaction) => transaction.categoryId))]
       .map((categoryId) => ({
@@ -255,7 +266,7 @@ export function buildFinanceReport({
         values: perMonth(
           rows.filter((transaction) => transaction.categoryId === categoryId),
           (transaction) => transaction.date,
-          amount,
+          value,
         ),
       }))
       .filter(({ values }) => values.some((value) => value !== 0))
@@ -297,6 +308,30 @@ export function buildFinanceReport({
     (left, right) =>
       salaryOrder(left) - salaryOrder(right) || byName(left, right),
   );
+
+  const companyFundedExpenses = expenses.filter(
+    (transaction) => transaction.funding === "company",
+  );
+  const companyFundedRows =
+    view === "balance" && includeCompanyFunded
+      ? [
+          ...categoryRows(
+            companyFundedExpenses.filter(
+              (transaction) => !salaryRelated(transaction),
+            ),
+            "expense",
+            byName,
+            (transaction) => transaction.netMinor,
+          ),
+          ...categoryRows(
+            companyFundedExpenses.filter(salaryRelated),
+            "expense",
+            (left, right) =>
+              salaryOrder(left) - salaryOrder(right) || byName(left, right),
+            (transaction) => transaction.netMinor,
+          ),
+        ]
+      : [];
 
   const columnSums = (rows: ReportRow[]) =>
     months.map((_, index) =>
@@ -369,6 +404,21 @@ export function buildFinanceReport({
               closing,
               "money",
               closing[closing.length - 1]!,
+            ),
+          ]
+        : []),
+      ...(companyFundedRows.length
+        ? [
+            {
+              kind: "separator" as const,
+              tone: "expenses" as const,
+              label: labels.companyFunded,
+            },
+            ...companyFundedRows,
+            row(
+              labels.companyFundedTotal,
+              "totalExpenses",
+              columnSums(companyFundedRows),
             ),
           ]
         : []),

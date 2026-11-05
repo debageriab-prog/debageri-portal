@@ -120,7 +120,11 @@ export function financeReportPdf(
     if (row.kind === "separator") {
       const fill =
         row.tone === "income" ? C.incomeSeparator : C.expenseSeparator;
-      cell(margin, r, labelWidth + columns * columnWidth, "", { fill });
+      cell(margin, r, labelWidth + columns * columnWidth, row.label ?? "", {
+        fill,
+        bold: true,
+        align: "left",
+      });
       return;
     }
     const options = rowOptions(row);
