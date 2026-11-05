@@ -93,7 +93,10 @@ describe("permissionTreeFor", () => {
     ]);
     expect(tree[0]!.nodes).toEqual([
       { key: "my.time.report" },
-      { key: "my.time.history", children: [{ key: "my.time.income" }] },
+      {
+        key: "my.time.history",
+        children: [{ key: "my.time.income" }, { key: "my.time.export" }],
+      },
     ]);
   });
 

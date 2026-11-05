@@ -6,16 +6,7 @@ import { HistoryView } from "@/app/employee/timesheets/HistoryView";
 import { ConsultantDashboard } from "./ConsultantDashboard";
 import { ConsultantSelect } from "./ConsultantSelect";
 import { getTranslator } from "@/lib/localization/server";
-
-function visibleUser(actorRole: string, user: FirebaseFirestore.DocumentData) {
-  const role = String(user.role);
-  if (["employee", "consultant"].includes(role)) return true;
-  return (
-    actorRole === "admin" &&
-    ["manager", "accountant"].includes(role) &&
-    user.reportsTime === true
-  );
-}
+import { reportVisibleTo } from "@/domain/reports/time-report-export";
 
 export default async function TimeReportsPage({
   searchParams,
@@ -68,7 +59,7 @@ export default async function TimeReportsPage({
         hourlyRate: incomeRate(hourlyRateFor(doc.id)),
       };
     })
-    .filter((user) => visibleUser(actor.role, user))
+    .filter((user) => reportVisibleTo(actor.role, user))
     .sort((left, right) =>
       String(left.displayName).localeCompare(String(right.displayName)),
     );
@@ -239,6 +230,9 @@ export default async function TimeReportsPage({
           avatarUserId={selected.id}
           showEstimatedIncome={showIncome && selected.role !== "employee"}
           hourlyRate={selected.hourlyRate}
+          exportUserId={
+            can(actor, "time.reports.export") ? selected.id : undefined
+          }
           title={String(selected.displayName)}
           description={t("selectedReportDescription")}
         />

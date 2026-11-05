@@ -28,6 +28,7 @@ export const PERMISSION_KEYS = [
   "finance.aiExtraction",
   "time.reports.view",
   "time.reports.viewIncome",
+  "time.reports.export",
   "time.approvals.review",
   "time.reminders.view",
   "time.reminders.send",
@@ -44,6 +45,7 @@ export const PERMISSION_KEYS = [
   "my.time.report",
   "my.time.history",
   "my.time.income",
+  "my.time.export",
   "my.finance",
   "my.transactions",
   "my.invoices",
@@ -72,11 +74,14 @@ export const PERMISSION_TREE: PermissionGroup[] = [
       { key: "my.time.report" },
       {
         key: "my.time.history",
-        children: [{ key: "my.time.income" }],
+        children: [{ key: "my.time.income" }, { key: "my.time.export" }],
       },
       {
         key: "time.reports.view",
-        children: [{ key: "time.reports.viewIncome" }],
+        children: [
+          { key: "time.reports.viewIncome" },
+          { key: "time.reports.export" },
+        ],
       },
       { key: "time.approvals.review" },
       {
@@ -365,11 +370,13 @@ const ownTimePermissions: PermissionKey[] = [
   "my.time.report",
   "my.time.history",
   "my.time.income",
+  "my.time.export",
 ];
 
 const managerPermissions: PermissionKey[] = [
   "time.reports.view",
   "time.reports.viewIncome",
+  "time.reports.export",
   "time.approvals.review",
   "time.reminders.view",
   "time.reminders.send",
@@ -407,6 +414,7 @@ const accountantPermissions: PermissionKey[] = [
   "finance.aiExtraction",
   "time.reports.view",
   "time.reports.viewIncome",
+  "time.reports.export",
   "time.reminders.view",
   "time.reminders.send",
   "time.reminders.schedule",

@@ -130,6 +130,7 @@ export default async function HistoryPage() {
       showEstimatedIncome={showIncome}
       incomeAgreements={incomeAgreements}
       hourlyRate={showIncome ? hourlyRate : 0}
+      exportUserId={can(user, "my.time.export") ? user.id : undefined}
     />
   );
 }

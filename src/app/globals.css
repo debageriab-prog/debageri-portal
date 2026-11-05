@@ -2406,6 +2406,16 @@ th.actions-heading {
   grid-template-columns: repeat(4, minmax(90px, 1fr));
 }
 
+.history-filters {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+}
+
+.history-filters .button {
+  white-space: nowrap;
+}
+
 .history-controls label {
   display: grid;
   gap: 5px;
@@ -3362,6 +3372,9 @@ th.actions-heading {
   .history-controls {
     align-items: stretch;
     flex-direction: column;
+  }
+  .history-filters {
+    flex-wrap: wrap;
   }
   .week-mode-picker,
   .history-controls .week-mode-picker,
