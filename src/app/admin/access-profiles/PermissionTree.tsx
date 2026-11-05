@@ -14,6 +14,8 @@ import type { MessageKey } from "@/lib/localization/messages";
 
 const tips: Partial<Record<PermissionKey, MessageKey>> = {
   "finance.ledger.export": "permissionTip_export",
+  "time.reports.export": "permissionTip_timeExport",
+  "my.time.export": "permissionTip_timeExport",
 };
 
 export const permissionLabel = (key: PermissionKey) =>

@@ -2406,6 +2406,50 @@ th.actions-heading {
   grid-template-columns: repeat(4, minmax(90px, 1fr));
 }
 
+.history-filters {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+}
+
+.history-export {
+  display: flex;
+  gap: 6px;
+}
+
+.history-export .table-action.icon-action {
+  width: 2.6rem;
+  height: 2.6rem;
+}
+
+.history-export .table-action:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.file-type-icon {
+  width: 1.6rem;
+  height: 1.6rem;
+  stroke-width: 1.5;
+}
+
+.file-type-icon text {
+  fill: currentColor;
+  stroke: none;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 6.4px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+
+.file-type-excel {
+  color: var(--success);
+}
+
+.file-type-pdf {
+  color: var(--danger);
+}
+
 .history-controls label {
   display: grid;
   gap: 5px;
@@ -3362,6 +3406,9 @@ th.actions-heading {
   .history-controls {
     align-items: stretch;
     flex-direction: column;
+  }
+  .history-filters {
+    flex-wrap: wrap;
   }
   .week-mode-picker,
   .history-controls .week-mode-picker,

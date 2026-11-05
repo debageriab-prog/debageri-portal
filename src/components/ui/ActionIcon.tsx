@@ -8,9 +8,25 @@ export type ActionIconType =
   | "copy"
   | "copied"
   | "previous"
-  | "next";
+  | "next"
+  | "excel"
+  | "pdf";
 
 export function ActionIcon({ type }: { type: ActionIconType }) {
+  if (type === "excel" || type === "pdf")
+    return (
+      <svg
+        className={`action-icon-svg file-type-icon file-type-${type}`}
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+      >
+        <path d="M5 20V4a1 1 0 0 1 1-1h8l5 5v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1Z" />
+        <path d="M14 3v5h5" />
+        <text x="12" y="17.6" textAnchor="middle">
+          {type === "excel" ? "XLS" : "PDF"}
+        </text>
+      </svg>
+    );
   if (type === "previous")
     return (
       <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">

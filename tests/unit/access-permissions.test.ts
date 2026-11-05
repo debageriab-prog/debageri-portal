@@ -42,6 +42,7 @@ const matrix: Array<[PermissionKey, manager: boolean, accountant: boolean]> = [
   ["finance.categories.edit", false, false],
   ["time.reports.view", true, true],
   ["time.reports.viewIncome", true, true],
+  ["time.reports.export", true, true],
   ["time.approvals.review", true, false],
   ["time.reminders.view", true, true],
   ["time.reminders.send", true, true],

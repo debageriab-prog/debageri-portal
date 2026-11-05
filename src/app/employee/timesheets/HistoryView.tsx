@@ -142,6 +142,7 @@ export function HistoryView({
   showEstimatedIncome = false,
   incomeAgreements,
   hourlyRate = 0,
+  exportUserId,
 }: {
   sheets: HistorySheet[];
   entries: HistoryEntry[];
@@ -162,6 +163,8 @@ export function HistoryView({
   /** Set for a consultant's own view; limits income to these agreements. */
   incomeAgreements?: IncomeAgreement[];
   hourlyRate?: number;
+  /** Whose time the Excel export downloads; leave out to hide the button. */
+  exportUserId?: string;
 }) {
   const { t } = useLocale();
   const displayTitle = title ?? t("history");
@@ -180,6 +183,8 @@ export function HistoryView({
   const [viewing, setViewing] = useState<HistorySheet | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [previewing, setPreviewing] = useState<PreviewTarget | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   const weeklySheets = sheets.filter(
     (sheet) => sheet.isoYear === year && sheet.isoWeek === week,
@@ -462,6 +467,39 @@ export function HistoryView({
     );
   }
 
+  async function exportReport(format: "xlsx" | "pdf") {
+    if (!exportUserId || (mode !== "month" && mode !== "year")) return;
+    const [exportYear, exportMonth] =
+      mode === "month" ? month.split("-").map(Number) : [year];
+    const query = new URLSearchParams({
+      userId: exportUserId,
+      year: String(exportYear),
+      format,
+    });
+    if (exportMonth) query.set("month", String(exportMonth));
+    setExporting(true);
+    setExportError("");
+    try {
+      const response = await appCheckFetch(`/api/time-reports/export?${query}`);
+      if (!response.ok) throw new Error(String(response.status));
+      const encoded = /filename\*=UTF-8''([^;]+)/.exec(
+        response.headers.get("content-disposition") ?? "",
+      )?.[1];
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = encoded
+        ? decodeURIComponent(encoded)
+        : `TimeReport.${format}`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    } catch {
+      setExportError(t("timeReportExportFailed"));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function remove() {
     if (!deleting) return;
     const response = await appCheckFetch(
@@ -649,18 +687,8 @@ export function HistoryView({
             {t("week")}
           </button>
         </div>
-        {mode === "year" ? (
-          <label>
-            {t("year")}
-            <input
-              className="field compact-field"
-              type="number"
-              value={year}
-              onChange={(event) => setYear(Number(event.target.value))}
-            />
-          </label>
-        ) : mode === "week" ? (
-          <div className="actions">
+        <div className="history-filters">
+          {mode === "year" ? (
             <label>
               {t("year")}
               <input
@@ -670,30 +698,64 @@ export function HistoryView({
                 onChange={(event) => setYear(Number(event.target.value))}
               />
             </label>
+          ) : mode === "week" ? (
+            <div className="actions">
+              <label>
+                {t("year")}
+                <input
+                  className="field compact-field"
+                  type="number"
+                  value={year}
+                  onChange={(event) => setYear(Number(event.target.value))}
+                />
+              </label>
+              <label>
+                {t("week")}
+                <input
+                  className="field compact-field"
+                  type="number"
+                  min="1"
+                  max="53"
+                  value={week}
+                  onChange={(event) => setWeek(Number(event.target.value))}
+                />
+              </label>
+            </div>
+          ) : mode === "month" ? (
             <label>
-              {t("week")}
+              {t("month")}
               <input
-                className="field compact-field"
-                type="number"
-                min="1"
-                max="53"
-                value={week}
-                onChange={(event) => setWeek(Number(event.target.value))}
+                className="field"
+                type="month"
+                value={month}
+                onChange={(event) => setMonth(event.target.value)}
               />
             </label>
-          </div>
-        ) : mode === "month" ? (
-          <label>
-            {t("month")}
-            <input
-              className="field"
-              type="month"
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
-            />
-          </label>
-        ) : null}
+          ) : null}
+          {exportUserId && (mode === "month" || mode === "year") && (
+            <div className="history-export">
+              {(["xlsx", "pdf"] as const).map((format) => (
+                <button
+                  key={format}
+                  className="table-action icon-action"
+                  type="button"
+                  aria-label={t(
+                    format === "xlsx" ? "exportExcel" : "exportPdf",
+                  )}
+                  title={t(
+                    format === "xlsx" ? "exportExcelHint" : "exportPdfHint",
+                  )}
+                  disabled={exporting || !(mode === "year" ? year : month)}
+                  onClick={() => void exportReport(format)}
+                >
+                  <ActionIcon type={format === "xlsx" ? "excel" : "pdf"} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
+      {exportError && <p className="notice notice-error">{exportError}</p>}
       {mode !== "latest" && (
         <section
           className={`card month-summary year-summary${income ? " income-summary" : ""}`}
