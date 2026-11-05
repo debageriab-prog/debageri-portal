@@ -2408,21 +2408,28 @@ th.actions-heading {
 
 .history-filters {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: end;
   gap: 12px;
 }
 
-.history-export {
+.report-export-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.report-export {
   display: flex;
   gap: 6px;
 }
 
-.history-export .table-action.icon-action {
+.report-export .table-action.icon-action {
   width: 2.6rem;
   height: 2.6rem;
 }
 
-.history-export .table-action:disabled {
+.report-export .table-action:disabled {
   cursor: wait;
   opacity: 0.6;
 }

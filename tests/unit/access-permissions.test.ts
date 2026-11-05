@@ -21,6 +21,7 @@ const matrix: Array<[PermissionKey, manager: boolean, accountant: boolean]> = [
   ["finance.ledger.delete", false, true],
   ["finance.ledger.import", false, true],
   ["finance.ledger.export", false, true],
+  ["finance.overview.export", false, true],
   ["finance.invoices.view", false, true],
   ["finance.invoices.add", false, true],
   ["finance.invoices.edit", false, true],
