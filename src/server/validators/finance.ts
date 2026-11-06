@@ -106,7 +106,7 @@ export const updateArticleSchema = z
 
 export const invoiceLineSchema = z.object({
   /** The article the row is made from; its details are copied on save. */
-  articleId: z.string().min(1).max(128).nullable().default(null),
+  articleId: z.string().min(1).max(128),
   articleNumber: z.string().trim().max(20).default(""),
   description: z.string().trim().min(1).max(200),
   quantityThousandths: z.number().int().min(-1_000_000_000).max(1_000_000_000),
@@ -136,8 +136,8 @@ const invoiceFields = {
     .max(10_000)
     .nullable()
     .default(null),
-  /** Invoice rows; empty for invoices recorded with one amount. */
-  lines: z.array(invoiceLineSchema).max(30).default([]),
+  /** Invoice rows, each made from an invoice article. */
+  lines: z.array(invoiceLineSchema).min(1).max(30),
   ourReference: z.string().trim().max(120).default(""),
   yourReference: z.string().trim().max(120).default(""),
   /** The text printed under the rows on the generated invoice. */

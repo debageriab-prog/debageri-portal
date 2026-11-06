@@ -85,7 +85,10 @@ date. Two articles may share a number only when their scope or validity
 differs. A row made from an article stores `articleId` with a copy of the
 article's details, taken on the server when the invoice is saved, so later
 price changes leave saved invoices alone. All article rows on an invoice
-must share its VAT rate.
+must share its VAT rate. Invoices made in the portal always use articles for
+their rows; only CSV imports and older invoices have rows without one.
+"Fill from approved hours" only sets the quantity of the invoice's hourly
+article (unit `h`) to the consultant's approved worked hours in the period.
 Sending emails the PDF to the customer's finance email and sets `sentAt`; from
 then on the invoice keeps those copies and can no longer be edited, only
 voided.

@@ -339,7 +339,7 @@ const emptyLine = (): LineDraft => ({
   articleNumber: "",
   description: "",
   quantity: "1",
-  unit: "st",
+  unit: "",
   unitPrice: "",
 });
 const draftFrom = (line: Omit<InvoiceLine, "amountMinor">): LineDraft => ({
@@ -376,7 +376,11 @@ function lineFromDraft(draft: LineDraft) {
   } catch {
     return null;
   }
-  if (!draft.description.trim() || !Number.isFinite(quantityThousandths))
+  if (
+    !draft.articleId ||
+    !draft.description.trim() ||
+    !Number.isFinite(quantityThousandths)
+  )
     return null;
   return withLineAmount({
     articleId: draft.articleId || null,
@@ -516,7 +520,7 @@ export function InvoiceForm({
           ? line
           : article
             ? draftFromArticle(article, line.quantity, line.key)
-            : { ...line, articleId: "" },
+            : { ...emptyLine(), key: line.key, quantity: line.quantity },
       ),
     );
     if (article) setVatPercent(String(article.vatRateBps / 100));
@@ -589,6 +593,7 @@ export function InvoiceForm({
   /** Fills the form from an AI reading of a file or forwarded email. */
   function applyExtraction(extraction: FinanceExtraction, name: string) {
     let filled = 0;
+    let readNetMinor: number | null = null;
     const foreignAmounts = extraction.currency !== "SEK";
     if (extraction.invoiceNumber) {
       setInvoiceNumber(extraction.invoiceNumber);
@@ -627,15 +632,9 @@ export function InvoiceForm({
       extraction.netMinor !== null &&
       extraction.netMinor > 0
     ) {
-      // A read invoice has one amount; it becomes one row.
-      setLines([
-        {
-          ...emptyLine(),
-          description: extraction.description || t("invoiceLineDefault"),
-          unitPrice: (extraction.netMinor / 100).toFixed(2),
-        },
-      ]);
-      filled++;
+      // Rows come from articles, so the amount read from the file is only
+      // shown for comparison.
+      readNetMinor = extraction.netMinor;
     }
     if (!foreignAmounts)
       setRounding(
@@ -672,6 +671,13 @@ export function InvoiceForm({
       return;
     }
     const messages = [t("aiFilledFromFile").replace("{name}", name)];
+    if (readNetMinor !== null)
+      messages.push(
+        t("aiNetForArticles").replace(
+          "{amount}",
+          formatSek(readNetMinor, locale),
+        ),
+      );
     if (
       !foreignAmounts &&
       extraction.netMinor !== null &&
@@ -722,11 +728,38 @@ export function InvoiceForm({
       );
   });
 
-  /** Replaces the rows with the consultant's approved hours in the period. */
+  /**
+   * The hourly article that approved hours are billed on: the one already
+   * on a row, else the consultant's own hourly article, else the only
+   * hourly article for this invoice.
+   */
+  function hourlyTarget() {
+    const isHourly = (item: InvoiceArticle | undefined) =>
+      item?.unit.trim().toLowerCase() === "h";
+    const onRow = lines.find((line) =>
+      isHourly(articleById.get(line.articleId)),
+    );
+    if (onRow) return { article: articleById.get(onRow.articleId)!, onRow };
+    const hourly = availableArticles.filter(isHourly);
+    const own = hourly.filter((item) => item.consultantScope === consultantId);
+    const article =
+      own.length === 1 ? own[0] : hourly.length === 1 ? hourly[0] : undefined;
+    return article ? { article, onRow: undefined } : null;
+  }
+
+  /**
+   * Sets the hourly article's quantity to the consultant's approved worked
+   * hours in the period, adding that row when no row has it yet.
+   */
   async function fillFromHours() {
     setHoursNotice(null);
     if (!consultantId || !periodFrom || !periodTo) {
       setHoursNotice({ tone: "warning", text: t("invoiceHoursNeedPeriod") });
+      return;
+    }
+    const target = hourlyTarget();
+    if (!target) {
+      setHoursNotice({ tone: "warning", text: t("invoiceHoursNeedArticle") });
       return;
     }
     setHoursBusy(true);
@@ -743,7 +776,6 @@ export function InvoiceForm({
       });
       const result = (await response.json().catch(() => ({}))) as {
         error?: string;
-        lines?: Array<Omit<InvoiceLine, "amountMinor">>;
         approvedMinutes?: number;
         pendingMinutes?: number;
       };
@@ -758,35 +790,27 @@ export function InvoiceForm({
         });
         return;
       }
-      if (!result.lines?.length) {
+      const approvedMinutes = result.approvedMinutes ?? 0;
+      if (!approvedMinutes) {
         setHoursNotice({ tone: "warning", text: t("invoiceHoursNone") });
         return;
       }
-      // One hourly article bills all the hours at its price: the
-      // consultant's own if there is exactly one, else the only one that
-      // applies. Otherwise each time code gives a row at its own rate.
-      const hourlyArticles = availableArticles.filter(
-        (item) => item.unit.trim().toLowerCase() === "h",
-      );
-      const ownHourly = hourlyArticles.filter(
-        (item) => item.consultantScope === consultantId,
-      );
-      const hourlyArticle =
-        ownHourly.length === 1
-          ? ownHourly[0]
-          : hourlyArticles.length === 1
-            ? hourlyArticles[0]
-            : undefined;
-      if (hourlyArticle) {
-        const totalThousandths = result.lines.reduce(
-          (sum, line) => sum + line.quantityThousandths,
-          0,
-        );
-        setLines([
-          draftFromArticle(hourlyArticle, String(totalThousandths / 1000)),
-        ]);
-        setVatPercent(String(hourlyArticle.vatRateBps / 100));
-      } else setLines(result.lines.map(draftFrom));
+      // Minutes to hours with up to three decimals, as the quantity field
+      // takes them.
+      const quantity = String(Math.round((approvedMinutes * 1000) / 60) / 1000);
+      setLines((current) => {
+        if (target.onRow)
+          return current.map((line) =>
+            line.key === target.onRow!.key ? { ...line, quantity } : line,
+          );
+        const row = draftFromArticle(target.article, quantity);
+        // An empty first row is used; otherwise the hours get a row of
+        // their own under the others.
+        return current.length === 1 && !current[0]!.articleId
+          ? [{ ...row, key: current[0]!.key }]
+          : [...current, row];
+      });
+      setVatPercent(String(target.article.vatRateBps / 100));
       const consultantName =
         users.find((user) => user.id === consultantId)?.displayName ?? "";
       if (!invoiceText.trim())
@@ -810,15 +834,15 @@ export function InvoiceForm({
           ? {
               tone: "warning",
               text: t("invoiceHoursPending")
-                .replace("{approved}", hours(result.approvedMinutes ?? 0))
-                .replace("{pending}", hours(result.pendingMinutes)),
+                .replace("{approved}", hours(approvedMinutes))
+                .replace("{pending}", hours(result.pendingMinutes))
+                .replace("{article}", target.article.description),
             }
           : {
               tone: "success",
-              text: t("invoiceHoursFilled").replace(
-                "{approved}",
-                hours(result.approvedMinutes ?? 0),
-              ),
+              text: t("invoiceHoursFilled")
+                .replace("{approved}", hours(approvedMinutes))
+                .replace("{article}", target.article.description),
             },
       );
     } catch {
@@ -1087,62 +1111,35 @@ export function InvoiceForm({
                   {lines.map((line, index) => (
                     <tr key={line.key}>
                       <td className="invoice-line-article">
-                        {articles.length > 0 && (
-                          <select
-                            className="field"
-                            aria-label={t("invoiceLineChooseArticle")}
-                            value={line.articleId}
-                            onChange={(event) =>
-                              chooseArticle(line.key, event.target.value)
-                            }
-                          >
-                            <option value="">{t("invoiceLineCustom")}</option>
-                            {availableArticles.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.articleNumber} {"·"} {item.description}
-                              </option>
-                            ))}
-                            {line.articleId &&
-                              !availableArticles.some(
-                                (item) => item.id === line.articleId,
-                              ) && (
-                                <option value={line.articleId}>
-                                  {line.articleNumber} {"·"} {line.description}{" "}
-                                  ({t("articleNotValidHere")})
-                                </option>
-                              )}
-                          </select>
-                        )}
-                        {!line.articleId && (
-                          <input
-                            className="field"
-                            aria-label={t("invoiceLineArticle")}
-                            placeholder={t("invoiceLineArticle")}
-                            value={line.articleNumber}
-                            maxLength={20}
-                            onChange={(event) =>
-                              updateLine(line.key, {
-                                articleNumber: event.target.value,
-                              })
-                            }
-                          />
-                        )}
-                      </td>
-                      <td>
-                        <input
+                        <select
                           className="field"
-                          aria-label={t("invoiceLineDescription")}
-                          readOnly={Boolean(line.articleId)}
-                          value={line.description}
-                          maxLength={200}
+                          aria-label={t("invoiceLineChooseArticle")}
+                          value={line.articleId}
                           required
                           onChange={(event) =>
-                            updateLine(line.key, {
-                              description: event.target.value,
-                            })
+                            chooseArticle(line.key, event.target.value)
                           }
-                        />
+                        >
+                          <option value="">
+                            {t("invoiceLineSelectArticle")}
+                          </option>
+                          {availableArticles.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.articleNumber} {"·"} {item.description}
+                            </option>
+                          ))}
+                          {line.articleId &&
+                            !availableArticles.some(
+                              (item) => item.id === line.articleId,
+                            ) && (
+                              <option value={line.articleId}>
+                                {line.articleNumber} {"·"} {line.description} (
+                                {t("articleNotValidHere")})
+                              </option>
+                            )}
+                        </select>
                       </td>
+                      <td>{line.articleId ? line.description : "—"}</td>
                       <td className="invoice-line-quantity">
                         <input
                           className="field numeric"
@@ -1158,33 +1155,16 @@ export function InvoiceForm({
                         />
                       </td>
                       <td className="invoice-line-unit">
-                        <input
-                          className="field"
-                          aria-label={t("invoiceLineUnit")}
-                          readOnly={Boolean(line.articleId)}
-                          list="invoice-units"
-                          value={line.unit}
-                          maxLength={10}
-                          onChange={(event) =>
-                            updateLine(line.key, { unit: event.target.value })
-                          }
-                        />
+                        {line.articleId ? line.unit : ""}
                       </td>
-                      <td className="invoice-line-price">
-                        <input
-                          className="field numeric"
-                          inputMode="decimal"
-                          aria-label={t("invoiceLineUnitPrice")}
-                          readOnly={Boolean(line.articleId)}
-                          value={line.unitPrice}
-                          placeholder="0.00"
-                          required
-                          onChange={(event) =>
-                            updateLine(line.key, {
-                              unitPrice: event.target.value,
-                            })
-                          }
-                        />
+                      <td className="invoice-line-price numeric">
+                        {line.articleId
+                          ? formatSek(
+                              articleById.get(line.articleId)?.unitPriceMinor ??
+                                Math.round(Number(line.unitPrice) * 100),
+                              locale,
+                            )
+                          : ""}
                       </td>
                       <td className="invoice-line-amount numeric">
                         {parsedLines[index]
@@ -1211,11 +1191,6 @@ export function InvoiceForm({
                   ))}
                 </tbody>
               </table>
-              <datalist id="invoice-units">
-                {INVOICE_UNITS.map((unit) => (
-                  <option key={unit} value={unit} />
-                ))}
-              </datalist>
             </div>
             <div className="invoice-lines-actions">
               <button
@@ -1236,6 +1211,12 @@ export function InvoiceForm({
               </button>
               <InfoTip text={t("invoiceHoursFillTip")} />
             </div>
+            {!availableArticles.length && (
+              <p className="notice notice-warning">
+                {t("invoiceNoArticles")}{" "}
+                <Link href="/finance/articles/new">{t("addArticle")}</Link>
+              </p>
+            )}
             {mixedArticleVat && (
               <p className="notice notice-error">
                 {t("invoiceArticlesMixedVat")}
