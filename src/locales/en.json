@@ -1568,10 +1568,6 @@
   "customerInvoice": "Customer invoice",
   "invoicePdfGeneratedAt": "PDF generated",
   "invoiceSentAt": "Sent to customer",
-  "generateInvoicePdf": "Generate PDF",
-  "regenerateInvoicePdf": "Generate PDF again",
-  "downloadInvoicePdf": "Download invoice PDF",
-  "invoicePdfGenerated": "Invoice PDF generated.",
   "invoiceSavedPdfFailed": "The invoice was saved, but its PDF could not be generated.",
   "sendInvoice": "Send to customer",
   "resendInvoice": "Send again",
@@ -1653,8 +1649,7 @@
   "invoiceHoursNeedArticle": "Choose an hourly article (unit h) on a row first. Fill from approved hours only sets its quantity.",
   "aiNetForArticles": "The file's amount excluding VAT is {amount}. Choose the articles and quantities for the rows.",
   "generateInvoicePdfAttach": "Generate PDF invoice and attach",
-  "regenerateInvoicePdfAttach": "Generate PDF invoice again",
-  "generateInvoicePdfAttachTip": "Makes the invoice PDF from the form as it is now, so you can look at it before saving. Saving stores it with the invoice, made from the saved details; it doesn't count toward the 3 files.",
+  "generateInvoicePdfAttachTip": "Makes the invoice PDF from the form as it is now, so you can look at it before saving. To make a new one, remove the attached PDF first. Saving stores it with the invoice, made from the saved details; it doesn't count toward the 3 files.",
   "generatedInvoicePdf": "Invoice PDF",
-  "generatedInvoicePdfStale": "The form has changed since the PDF was made. Saving makes it again from the saved details, or generate it again to look at it first."
+  "generatedInvoicePdfStale": "The form has changed since the PDF was made. Saving makes it again from the saved details; to look at it first, remove it and generate it again."
 }

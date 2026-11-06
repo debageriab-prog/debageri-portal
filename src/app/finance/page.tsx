@@ -121,7 +121,7 @@ export default async function FinancePage({
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
-    organizationLedger || myFinance || myTransactions
+    organizationLedger || myFinance || myTransactions || organizationInvoices
       ? db
           .collection("financeAttachments")
           .where("organizationId", "==", organizationId)
@@ -179,8 +179,23 @@ export default async function FinancePage({
     string,
     Array<{ id: string; name: string; contentType: string }>
   >();
+  // Invoice files are for staff only; consultants never see them.
+  const invoiceAttachments = new Map<
+    string,
+    Array<{ id: string; name: string; contentType: string }>
+  >();
   for (const document of financeAttachmentsSnapshot?.docs ?? []) {
     const data = document.data();
+    if (data.entityType === "invoice" && manager) {
+      const files = invoiceAttachments.get(String(data.entityId)) ?? [];
+      files.push({
+        id: document.id,
+        name: String(data.name),
+        contentType: String(data.contentType),
+      });
+      invoiceAttachments.set(String(data.entityId), files);
+      continue;
+    }
     if (data.entityType !== "transaction") continue;
     const attachments = transactionAttachments.get(String(data.entityId)) ?? [];
     attachments.push({
@@ -242,6 +257,7 @@ export default async function FinancePage({
         grossMinor: Number(data.grossMinor),
         shareBps: Number(data.shareBps ?? 0),
         customerId: manager ? String(data.customerId ?? "") : "",
+        attachments: invoiceAttachments.get(document.id) ?? [],
         ocrReference: manager ? (data.ocrReference ?? null) : null,
         pdfGeneratedAt: manager ? (data.pdfGeneratedAt ?? null) : null,
         sentAt: manager ? (data.sentAt ?? null) : null,

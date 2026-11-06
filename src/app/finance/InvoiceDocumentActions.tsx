@@ -35,29 +35,6 @@ const FIX_LINKS: Partial<Record<string, { href: string; label: MessageKey }>> =
     },
   };
 
-/** Saves the invoice PDF under the name the server gives it. */
-export async function downloadInvoicePdf(invoiceId: string) {
-  const response = await appCheckFetch(
-    `/api/finance/invoices/${encodeURIComponent(invoiceId)}/pdf`,
-  );
-  if (!response.ok) {
-    const result = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
-    return result.error ?? "financeOperationFailed";
-  }
-  const encoded = /filename\*=UTF-8''([^;]+)/.exec(
-    response.headers.get("content-disposition") ?? "",
-  )?.[1];
-  const objectUrl = URL.createObjectURL(await response.blob());
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = encoded ? decodeURIComponent(encoded) : "Faktura.pdf";
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
-  return null;
-}
-
 /**
  * The customer invoice section of the invoice details: generate, download
  * and send the PDF, correct an unsent invoice, or void it.
@@ -139,27 +116,6 @@ export function InvoiceDocumentActions({
     }
   }
 
-  const generate = () =>
-    run("generate", async () => {
-      const result = await post("generateInvoicePdf");
-      setState((current) => ({
-        ...current,
-        pdfGeneratedAt: result.generatedAt ?? new Date().toISOString(),
-      }));
-      setNotice({ tone: "success", text: t("invoicePdfGenerated") });
-      router.refresh();
-    });
-
-  const download = () =>
-    run("download", async () => {
-      const code = await downloadInvoicePdf(invoice.id);
-      if (code) throw new Error(code);
-      setState((current) => ({
-        ...current,
-        pdfGeneratedAt: current.pdfGeneratedAt ?? new Date().toISOString(),
-      }));
-    });
-
   const send = () =>
     run("send", async () => {
       const result = await post("sendInvoiceToCustomer");
@@ -221,30 +177,6 @@ export function InvoiceDocumentActions({
       </dl>
       {!voided && (
         <div className="invoice-document-actions">
-          {canEdit && (
-            <button
-              className="button secondary"
-              type="button"
-              disabled={busy !== null}
-              onClick={() => void generate()}
-            >
-              {busy === "generate"
-                ? t("loading")
-                : state.pdfGeneratedAt
-                  ? t("regenerateInvoicePdf")
-                  : t("generateInvoicePdf")}
-            </button>
-          )}
-          <button
-            className="table-action icon-action"
-            type="button"
-            aria-label={t("downloadInvoicePdf")}
-            title={t("downloadInvoicePdf")}
-            disabled={busy !== null}
-            onClick={() => void download()}
-          >
-            <ActionIcon type="pdf" />
-          </button>
           {canSend && (
             <button
               className="button"

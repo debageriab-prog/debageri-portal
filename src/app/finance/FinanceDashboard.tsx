@@ -19,10 +19,7 @@ import type { InvoiceArticle } from "@/domain/finance/invoice-articles";
 import { InvoiceManagementTabs } from "./InvoiceManagementTabs";
 import { ArticleList } from "./ArticleList";
 import { CustomerDetails } from "./CustomerDetails";
-import {
-  downloadInvoicePdf,
-  InvoiceDocumentActions,
-} from "./InvoiceDocumentActions";
+import { InvoiceDocumentActions } from "./InvoiceDocumentActions";
 import { shiftMonth } from "@/lib/dates/month";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
@@ -141,6 +138,8 @@ export interface FinancePageData {
     grossMinor: number;
     shareBps: number;
     customerId: string;
+    /** Staff only; empty for consultants. */
+    attachments: Array<{ id: string; name: string; contentType: string }>;
     ocrReference: string | null;
     pdfGeneratedAt: string | null;
     sentAt: string | null;
@@ -1328,15 +1327,6 @@ export function FinanceDashboard({
   const canEditLedger = can(actor, "finance.ledger.edit");
   const canDeleteLedger = can(actor, "finance.ledger.delete");
   const canEditInvoices = can(actor, "finance.invoices.edit");
-  const [rowPdfError, setRowPdfError] = useState("");
-  async function downloadRowPdf(invoiceId: string) {
-    setRowPdfError("");
-    const code = await downloadInvoicePdf(invoiceId).catch(
-      () => "financeOperationFailed",
-    );
-    if (code)
-      setRowPdfError(t(`financeError_${code}` as Parameters<typeof t>[0]));
-  }
   const canEditCustomers = can(actor, "finance.customers.edit");
   const canEditCategories = can(actor, "finance.categories.edit");
   const [busy, setBusy] = useState(false);
@@ -2607,11 +2597,6 @@ export function FinanceDashboard({
               </div>
             </section>
           )}
-          {rowPdfError && (
-            <p className="notice notice-error" role="alert">
-              {rowPdfError}
-            </p>
-          )}
           <section className="card table-wrap">
             <table>
               <thead>
@@ -2626,6 +2611,7 @@ export function FinanceDashboard({
                     {manager ? t("totalIncludingVat") : t("myInvoiceShare")}
                   </th>
                   <th>{t("status")}</th>
+                  {manager && <th>{t("attachments")}</th>}
                   {manager && (
                     <th>
                       <span className="sr-only">{t("actions")}</span>
@@ -2658,6 +2644,24 @@ export function FinanceDashboard({
                     <td>{t(invoice.status)}</td>
                     {manager && (
                       <td>
+                        {invoice.attachments.length ? (
+                          <div className="table-attachment-clips">
+                            {invoice.attachments.map((attachment) => (
+                              <AttachmentClip
+                                key={attachment.id}
+                                entityType="invoice"
+                                entityId={invoice.id}
+                                attachment={attachment}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                    )}
+                    {manager && (
+                      <td>
                         <div className="row-actions">
                           <button
                             className="icon-button"
@@ -2688,17 +2692,7 @@ export function FinanceDashboard({
                                 <ActionIcon type="edit" />
                               </Link>
                             ))}
-                          {invoice.status !== "void" && (
-                            <button
-                              className="table-action icon-action"
-                              type="button"
-                              aria-label={t("downloadInvoicePdf")}
-                              title={t("downloadInvoicePdf")}
-                              onClick={() => void downloadRowPdf(invoice.id)}
-                            >
-                              <ActionIcon type="pdf" />
-                            </button>
-                          )}
+
                           {canEditInvoices && invoice.status === "issued" && (
                             <button
                               className="table-action"

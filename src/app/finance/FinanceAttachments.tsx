@@ -236,7 +236,8 @@ export function FinanceAttachments({
           <button
             className="button secondary"
             type="button"
-            disabled={generated.busy}
+            // One invoice PDF at a time: remove it to make a new one.
+            disabled={generated.busy || hasPdf}
             onClick={() => {
               if (removedGeneratedIds.length) {
                 onRemovedAttachmentIdsChange(
@@ -249,11 +250,7 @@ export function FinanceAttachments({
               generated.onGenerate();
             }}
           >
-            {generated.busy
-              ? t("loading")
-              : hasPdf
-                ? t("regenerateInvoicePdfAttach")
-                : t("generateInvoicePdfAttach")}
+            {generated.busy ? t("loading") : t("generateInvoicePdfAttach")}
           </button>
           <InfoTip text={t("generateInvoicePdfAttachTip")} />
         </div>
