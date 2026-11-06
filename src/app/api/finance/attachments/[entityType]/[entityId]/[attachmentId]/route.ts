@@ -121,5 +121,13 @@ export async function DELETE(
     .file(String(value.fileData.storagePath))
     .delete({ ignoreNotFound: true });
   await value.attachment.ref.delete();
+  // Removing the generated invoice PDF means the invoice has none until it
+  // is generated again.
+  if (value.fileData.generated === true && p.entityType === "invoice")
+    await value.db.collection("invoices").doc(p.entityId).update({
+      pdfStoragePath: null,
+      pdfAttachmentId: null,
+      pdfGeneratedAt: null,
+    });
   return NextResponse.json({ ok: true });
 }

@@ -15,6 +15,11 @@ import {
   useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import type { InvoiceArticle } from "@/domain/finance/invoice-articles";
+import { InvoiceManagementTabs } from "./InvoiceManagementTabs";
+import { ArticleList } from "./ArticleList";
+import { CustomerDetails } from "./CustomerDetails";
+import { InvoiceDocumentActions } from "./InvoiceDocumentActions";
 import { shiftMonth } from "@/lib/dates/month";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
@@ -89,7 +94,21 @@ export interface FinancePageData {
     name: string;
     contactPerson: string;
     financeEmail: string;
+    financeBccEmail: string;
+    customerNumber: string;
+    orgNumber: string;
+    vatNumber: string;
+    addressLine: string;
+    postalCode: string;
+    city: string;
+    country: string;
+    defaultYourReference: string;
+    paymentTermsDays: number | null;
+    invoiceLocale: "sv-SE" | "en-SE";
   }>;
+  articles: InvoiceArticle[];
+  /** The company's default payment terms, for customers without their own. */
+  paymentTermsDays: number;
   categories: Array<{
     id: string;
     code: string;
@@ -119,6 +138,14 @@ export interface FinancePageData {
     roundingMinor: number;
     grossMinor: number;
     shareBps: number;
+    customerId: string;
+    useGenerator: boolean;
+    /** Staff only; empty for consultants. */
+    attachments: Array<{ id: string; name: string; contentType: string }>;
+    ocrReference: string | null;
+    pdfGeneratedAt: string | null;
+    sentAt: string | null;
+    sentTo: string | null;
   }>;
   transactions: Array<{
     id: string;
@@ -164,7 +191,12 @@ type Actor = {
   permissions: PermissionKey[];
 };
 type FinanceSection =
-  "overview" | "invoices" | "categories" | "transactions" | "customers";
+  | "overview"
+  | "invoices"
+  | "categories"
+  | "transactions"
+  | "customers"
+  | "articles";
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -1347,6 +1379,9 @@ export function FinanceDashboard({
       ) ?? null,
   );
   const [invoiceConsultantFilter, setInvoiceConsultantFilter] = useState("all");
+  const [viewingCustomer, setViewingCustomer] = useState<
+    FinancePageData["customers"][number] | null
+  >(null);
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const linkedTransaction =
     data.transactions.find(
@@ -1875,6 +1910,7 @@ export function FinanceDashboard({
     categories: t("categoryManagement"),
     transactions: t("incomeExpenseManagement"),
     customers: t("customerManagement"),
+    articles: t("invoiceManagement"),
   }[section];
   // Managers see each total excluding VAT with its VAT beside it, for
   // example "100 000 kr (+25 000 kr VAT)". Consultants see net amounts only.
@@ -2407,16 +2443,27 @@ export function FinanceDashboard({
                   <td>{customer.contactPerson}</td>
                   <td>{customer.financeEmail}</td>
                   <td>
-                    {canEditCustomers && (
-                      <Link
-                        className="table-action icon-action"
-                        aria-label={t("edit")}
-                        title={t("edit")}
-                        href={`/finance/customers/${customer.id}/edit`}
+                    <div className="row-actions">
+                      <button
+                        className="icon-button"
+                        type="button"
+                        aria-label={t("viewDetails")}
+                        title={t("viewDetails")}
+                        onClick={() => setViewingCustomer(customer)}
                       >
-                        <ActionIcon type="edit" />
-                      </Link>
-                    )}
+                        i
+                      </button>
+                      {canEditCustomers && (
+                        <Link
+                          className="table-action icon-action"
+                          aria-label={t("edit")}
+                          title={t("edit")}
+                          href={`/finance/customers/${customer.id}/edit`}
+                        >
+                          <ActionIcon type="edit" />
+                        </Link>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -2475,6 +2522,23 @@ export function FinanceDashboard({
             </tbody>
           </table>
         </section>
+      )}
+
+      {manager && (section === "invoices" || section === "articles") && (
+        <InvoiceManagementTabs
+          active={section}
+          showInvoices={can(actor, "finance.invoices.view")}
+          showArticles={can(actor, "finance.articles.view")}
+        />
+      )}
+
+      {manager && section === "articles" && (
+        <ArticleList
+          articles={data.articles}
+          users={data.users}
+          canAdd={can(actor, "finance.articles.add")}
+          canEdit={can(actor, "finance.articles.edit")}
+        />
       )}
 
       {section === "invoices" && (
@@ -2549,6 +2613,7 @@ export function FinanceDashboard({
                     {manager ? t("totalIncludingVat") : t("myInvoiceShare")}
                   </th>
                   <th>{t("status")}</th>
+                  {manager && <th>{t("attachments")}</th>}
                   {manager && (
                     <th>
                       <span className="sr-only">{t("actions")}</span>
@@ -2581,6 +2646,24 @@ export function FinanceDashboard({
                     <td>{t(invoice.status)}</td>
                     {manager && (
                       <td>
+                        {invoice.attachments.length ? (
+                          <div className="table-attachment-clips">
+                            {invoice.attachments.map((attachment) => (
+                              <AttachmentClip
+                                key={attachment.id}
+                                entityType="invoice"
+                                entityId={invoice.id}
+                                attachment={attachment}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                    )}
+                    {manager && (
+                      <td>
                         <div className="row-actions">
                           <button
                             className="icon-button"
@@ -2591,23 +2674,46 @@ export function FinanceDashboard({
                           >
                             i
                           </button>
+                          {canEditInvoices &&
+                            (invoice.status === "issued" && !invoice.sentAt ? (
+                              <Link
+                                className="table-action icon-action"
+                                href={`/finance/invoices/${encodeURIComponent(invoice.id)}/edit`}
+                                aria-label={t("editInvoice")}
+                                title={t("editInvoice")}
+                              >
+                                <ActionIcon type="edit" />
+                              </Link>
+                            ) : (
+                              <Link
+                                className="table-action icon-action"
+                                href={`/finance/invoices/${encodeURIComponent(invoice.id)}/edit`}
+                                aria-label={t("viewInvoiceAndFiles")}
+                                title={t("viewInvoiceAndFiles")}
+                              >
+                                <ActionIcon type="edit" />
+                              </Link>
+                            ))}
+
                           {canEditInvoices && (
-                            <Link
-                              className="table-action icon-action"
-                              href={`/finance/invoices/${encodeURIComponent(invoice.id)}/attachments`}
-                              aria-label={t("editInvoiceAttachments")}
-                              title={t("editInvoiceAttachments")}
-                            >
-                              <ActionIcon type="edit" />
-                            </Link>
-                          )}
-                          {canEditInvoices && invoice.status === "issued" && (
                             <button
-                              className="table-action"
+                              className="table-action icon-action"
                               type="button"
+                              aria-label={
+                                invoice.status === "issued"
+                                  ? t("markAsPaid")
+                                  : t(invoice.status)
+                              }
+                              title={
+                                invoice.status === "issued"
+                                  ? t("markAsPaid")
+                                  : t(invoice.status)
+                              }
+                              // Paid and void invoices keep the icon, switched off.
+                              disabled={invoice.status !== "issued"}
                               onClick={() => setPayingInvoice(invoice)}
                             >
-                              {t("markAsPaid")}
+                              <ActionIcon type="paid" />
                             </button>
                           )}
                         </div>
@@ -3091,6 +3197,18 @@ export function FinanceDashboard({
         </div>
       )}
 
+      {viewingCustomer && (
+        <CustomerDetails
+          customer={viewingCustomer}
+          defaultPaymentTermsDays={data.paymentTermsDays}
+          invoices={data.invoices.filter(
+            (invoice) => invoice.customerId === viewingCustomer.id,
+          )}
+          canEdit={canEditCustomers}
+          onClose={() => setViewingCustomer(null)}
+        />
+      )}
+
       {viewingInvoice && (
         <div
           className="modal-backdrop"
@@ -3243,6 +3361,30 @@ export function FinanceDashboard({
             <AttachmentDownloads
               entityType="invoice"
               entityId={viewingInvoice.id}
+            />
+            <InvoiceDocumentActions
+              key={viewingInvoice.id}
+              invoice={viewingInvoice}
+              customerId={viewingInvoice.customerId}
+              bccEmail={
+                data.customers.find(
+                  (customer) => customer.id === viewingInvoice.customerId,
+                )?.financeBccEmail ?? ""
+              }
+              canEdit={canEditInvoices}
+              canSend={
+                can(actor, "finance.invoices.send") &&
+                viewingInvoice.useGenerator
+              }
+              canVoid={
+                can(actor, "finance.invoices.delete") &&
+                viewingInvoice.status !== "void"
+              }
+              initialError={
+                searchParams.get("invoice") === viewingInvoice.id
+                  ? searchParams.get("pdfError")
+                  : null
+              }
             />
             <footer className="modal-actions">
               <button

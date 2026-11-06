@@ -15,6 +15,27 @@ import {
   previousDay,
 } from "@/domain/finance/compensation";
 import { validInvoicePeriod } from "@/domain/finance/invoice-period";
+import {
+  invoiceSettingsFrom,
+  nextNumberAfter,
+} from "@/domain/finance/invoice-settings";
+import {
+  invoiceTotals,
+  withLineAmount,
+  type InvoiceLine,
+} from "@/domain/finance/invoice-lines";
+import {
+  ARTICLE_FOR_ALL,
+  ARTICLE_FOR_COMPANY,
+  articleAppliesTo,
+  articleValidOn,
+  validityOverlaps,
+} from "@/domain/finance/invoice-articles";
+import {
+  formatOrgNumber,
+  ocrReferenceFor,
+  validOrgNumber,
+} from "@/domain/finance/swedish-identifiers";
 
 export class FinanceError extends Error {
   constructor(
@@ -273,10 +294,65 @@ export async function setCompensationValidTo(
   await batch.commit();
 }
 
+export type CustomerInput = {
+  name: string;
+  contactPerson: string;
+  financeEmail: string;
+  financeBccEmail: string;
+  customerNumber: string;
+  orgNumber: string;
+  vatNumber: string;
+  addressLine: string;
+  postalCode: string;
+  city: string;
+  country: string;
+  defaultYourReference: string;
+  paymentTermsDays: number | null;
+  invoiceLocale: "sv-SE" | "en-SE";
+};
+
+function customerFields(input: CustomerInput) {
+  return {
+    name: input.name,
+    contactPerson: input.contactPerson,
+    financeEmail: input.financeEmail,
+    financeBccEmail: input.financeBccEmail,
+    orgNumber: input.orgNumber
+      ? validOrgNumber(input.orgNumber)
+        ? formatOrgNumber(input.orgNumber)
+        : input.orgNumber
+      : "",
+    vatNumber: input.vatNumber.replace(/\s/g, "").toUpperCase(),
+    addressLine: input.addressLine,
+    postalCode: input.postalCode,
+    city: input.city,
+    country: input.country,
+    defaultYourReference: input.defaultYourReference,
+    paymentTermsDays: input.paymentTermsDays,
+    invoiceLocale: input.invoiceLocale,
+  };
+}
+
+async function customerNumberTaken(
+  db: Firestore,
+  organizationId: string,
+  customerNumber: string,
+  exceptId?: string,
+) {
+  if (!customerNumber) return false;
+  const snapshot = await db
+    .collection("financeCustomers")
+    .where("organizationId", "==", organizationId)
+    .where("customerNumber", "==", customerNumber)
+    .limit(2)
+    .get();
+  return snapshot.docs.some((document) => document.id !== exceptId);
+}
+
 export async function createCustomer(
   db: Firestore,
   actor: PortalUser,
-  input: { name: string; contactPerson: string; financeEmail: string },
+  input: CustomerInput,
 ) {
   requireFinancePermission(actor, "finance.customers.add");
   const duplicate = await db
@@ -286,36 +362,53 @@ export async function createCustomer(
     .limit(1)
     .get();
   if (!duplicate.empty) throw new FinanceError("customerDuplicate", 409);
+  if (await customerNumberTaken(db, actor.organizationId, input.customerNumber))
+    throw new FinanceError("customerNumberDuplicate", 409);
   const reference = db.collection("financeCustomers").doc();
-  const batch = db.batch();
-  batch.create(reference, {
-    organizationId: actor.organizationId,
-    ...input,
-    createdAt: FieldValue.serverTimestamp(),
-    createdBy: actor.id,
-    updatedAt: FieldValue.serverTimestamp(),
+  const organization = db.collection("organizations").doc(actor.organizationId);
+  await db.runTransaction(async (transaction) => {
+    const settings = invoiceSettingsFrom(
+      (await transaction.get(organization)).data()?.invoicing,
+    );
+    const customerNumber =
+      input.customerNumber || String(settings.nextCustomerNumber);
+    transaction.set(
+      organization,
+      {
+        invoicing: {
+          nextCustomerNumber: nextNumberAfter(
+            settings.nextCustomerNumber,
+            customerNumber,
+          ),
+        },
+      },
+      { merge: true },
+    );
+    transaction.create(reference, {
+      organizationId: actor.organizationId,
+      ...customerFields(input),
+      customerNumber,
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: actor.id,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    transaction.create(db.collection("auditLogs").doc(), {
+      organizationId: actor.organizationId,
+      actorUserId: actor.id,
+      action: "financeCustomer.created",
+      entityType: "financeCustomer",
+      entityId: reference.id,
+      timestamp: FieldValue.serverTimestamp(),
+      metadata: { customerNumber },
+    });
   });
-  audit(
-    db,
-    batch,
-    actor,
-    "financeCustomer.created",
-    "financeCustomer",
-    reference.id,
-  );
-  await batch.commit();
   return reference.id;
 }
 
 export async function updateCustomer(
   db: Firestore,
   actor: PortalUser,
-  input: {
-    customerId: string;
-    name: string;
-    contactPerson: string;
-    financeEmail: string;
-  },
+  input: CustomerInput & { customerId: string },
 ) {
   requireFinancePermission(actor, "finance.customers.edit");
   const reference = db.collection("financeCustomers").doc(input.customerId);
@@ -333,11 +426,21 @@ export async function updateCustomer(
     .get();
   if (duplicate.docs.some((document) => document.id !== input.customerId))
     throw new FinanceError("customerDuplicate", 409);
+  const customerNumber =
+    input.customerNumber || String(snapshot.data()?.customerNumber ?? "");
+  if (
+    await customerNumberTaken(
+      db,
+      actor.organizationId,
+      customerNumber,
+      input.customerId,
+    )
+  )
+    throw new FinanceError("customerNumberDuplicate", 409);
   const batch = db.batch();
   batch.update(reference, {
-    name: input.name,
-    contactPerson: input.contactPerson,
-    financeEmail: input.financeEmail,
+    ...customerFields(input),
+    customerNumber,
     updatedAt: FieldValue.serverTimestamp(),
     updatedBy: actor.id,
   });
@@ -436,41 +539,266 @@ export async function createCategory(
   return ref.id;
 }
 
-export async function createInvoice(
+export type ArticleInput = {
+  articleNumber: string;
+  description: string;
+  unit: string;
+  unitPriceMinor: number;
+  consultantScope: string;
+  vatRateBps: number;
+  validFrom: string;
+  validTo: string | null;
+};
+
+/**
+ * Checks an article's consultant and that no other article with the same
+ * number and consultant scope is valid on any of the same days.
+ */
+async function checkArticle(
   db: Firestore,
   actor: PortalUser,
-  input: {
-    invoiceNumber: string;
+  input: ArticleInput,
+  exceptId?: string,
+) {
+  if (input.validTo && input.validTo < input.validFrom)
+    throw new FinanceError("articleDatesInvalid");
+  if (
+    input.consultantScope !== ARTICLE_FOR_ALL &&
+    input.consultantScope !== ARTICLE_FOR_COMPANY
+  ) {
+    const user = await db.collection("users").doc(input.consultantScope).get();
+    if (
+      !user.exists ||
+      user.data()?.organizationId !== actor.organizationId ||
+      user.data()?.role !== "consultant"
+    )
+      throw new FinanceError("consultantInvalid", 404);
+  }
+  const sameNumber = await db
+    .collection("invoiceArticles")
+    .where("organizationId", "==", actor.organizationId)
+    .where("articleNumber", "==", input.articleNumber)
+    .get();
+  if (
+    sameNumber.docs.some(
+      (document) =>
+        document.id !== exceptId &&
+        document.data().consultantScope === input.consultantScope &&
+        validityOverlaps(
+          {
+            validFrom: String(document.data().validFrom),
+            validTo: document.data().validTo ?? null,
+          },
+          input,
+        ),
+    )
+  )
+    throw new FinanceError("articleOverlap", 409);
+}
+
+export async function createInvoiceArticle(
+  db: Firestore,
+  actor: PortalUser,
+  input: ArticleInput,
+) {
+  requireFinancePermission(actor, "finance.articles.add");
+  await checkArticle(db, actor, input);
+  const reference = db.collection("invoiceArticles").doc();
+  const batch = db.batch();
+  batch.create(reference, {
+    organizationId: actor.organizationId,
+    ...articleFields(input),
+    createdAt: FieldValue.serverTimestamp(),
+    createdBy: actor.id,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  audit(
+    db,
+    batch,
+    actor,
+    "invoiceArticle.created",
+    "invoiceArticle",
+    reference.id,
+    {
+      articleNumber: input.articleNumber,
+      unitPriceMinor: input.unitPriceMinor,
+    },
+  );
+  await batch.commit();
+  return reference.id;
+}
+
+/**
+ * Changes an article. Invoices keep the copy of the details they were
+ * saved with, so this only affects new and edited invoices.
+ */
+export async function updateInvoiceArticle(
+  db: Firestore,
+  actor: PortalUser,
+  input: ArticleInput & { articleId: string },
+) {
+  requireFinancePermission(actor, "finance.articles.edit");
+  const reference = db.collection("invoiceArticles").doc(input.articleId);
+  const snapshot = await reference.get();
+  if (
+    !snapshot.exists ||
+    snapshot.data()?.organizationId !== actor.organizationId
+  )
+    throw new FinanceError("articleMissing", 404);
+  await checkArticle(db, actor, input, input.articleId);
+  const batch = db.batch();
+  batch.update(reference, {
+    ...articleFields(input),
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: actor.id,
+  });
+  audit(
+    db,
+    batch,
+    actor,
+    "invoiceArticle.updated",
+    "invoiceArticle",
+    reference.id,
+    {
+      articleNumber: input.articleNumber,
+      unitPriceMinor: input.unitPriceMinor,
+      previousUnitPriceMinor: snapshot.data()?.unitPriceMinor ?? null,
+    },
+  );
+  await batch.commit();
+}
+
+function articleFields(input: ArticleInput) {
+  return {
+    articleNumber: input.articleNumber,
+    description: input.description,
+    unit: input.unit,
+    unitPriceMinor: input.unitPriceMinor,
+    consultantScope: input.consultantScope,
+    vatRateBps: input.vatRateBps,
+    validFrom: input.validFrom,
+    validTo: input.validTo,
+  };
+}
+
+/**
+ * Rows made from an article take its number, description, unit and price
+ * as they are on the server, and the article must suit the invoice: right
+ * consultant, valid on the invoice date and with the invoice's VAT rate.
+ */
+async function resolvedLines(
+  db: Firestore,
+  actor: PortalUser,
+  lines: Array<Omit<InvoiceLine, "amountMinor">>,
+  invoice: {
     consultantId: string | null;
-    customerId: string;
     issueDate: string;
-    dueDate: string;
-    periodFrom?: string | null;
-    periodTo?: string | null;
-    netMinor: number;
     vatRateBps: number;
-    /** Öresavrundning, included in the invoice total. */
-    roundingMinor?: number;
-    visibleDescription: string;
-    internalNote: string;
-    shareBpsOverride: number | null;
-    importKey?: string | null;
   },
 ) {
-  requireFinancePermission(actor, "finance.invoices.add");
+  const ids = [
+    ...new Set(lines.map((line) => line.articleId).filter(Boolean)),
+  ] as string[];
+  if (!ids.length)
+    return lines.map((line) => withLineAmount({ ...line, articleId: null }));
+  const snapshots = await db.getAll(
+    ...ids.map((id) => db.collection("invoiceArticles").doc(id)),
+  );
+  const articles = new Map(
+    snapshots
+      .filter(
+        (snapshot) =>
+          snapshot.exists &&
+          snapshot.data()?.organizationId === actor.organizationId,
+      )
+      .map((snapshot) => [snapshot.id, snapshot.data()!]),
+  );
+  return lines.map((line) => {
+    if (!line.articleId) return withLineAmount({ ...line, articleId: null });
+    const article = articles.get(line.articleId);
+    if (!article) throw new FinanceError("articleMissing", 404);
+    const range = {
+      validFrom: String(article.validFrom),
+      validTo: article.validTo ?? null,
+    };
+    if (
+      !articleAppliesTo(
+        { consultantScope: String(article.consultantScope) },
+        invoice.consultantId,
+      ) ||
+      !articleValidOn(range, invoice.issueDate)
+    )
+      throw new FinanceError("invoiceArticleNotApplicable", 409);
+    if (Number(article.vatRateBps) !== invoice.vatRateBps)
+      throw new FinanceError("invoiceArticleVatMismatch", 409);
+    return withLineAmount({
+      articleId: line.articleId,
+      articleNumber: String(article.articleNumber),
+      description: String(article.description),
+      quantityThousandths: line.quantityThousandths,
+      unit: String(article.unit),
+      unitPriceMinor: Number(article.unitPriceMinor),
+    });
+  });
+}
+
+export type InvoiceInput = {
+  invoiceNumber: string;
+  consultantId: string | null;
+  customerId: string;
+  issueDate: string;
+  dueDate: string;
+  periodFrom?: string | null;
+  periodTo?: string | null;
+  /** Used when there are no `lines`; otherwise the rows make the net. */
+  netMinor: number;
+  vatRateBps: number;
+  /** Öresavrundning, included in the invoice total. */
+  roundingMinor?: number;
+  visibleDescription: string;
+  internalNote: string;
+  shareBpsOverride: number | null;
+  importKey?: string | null;
+  lines?: Array<Omit<InvoiceLine, "amountMinor">>;
+  ourReference?: string;
+  yourReference?: string;
+  invoiceText?: string;
+  /** Rows from articles and a generated PDF; off for outside invoices. */
+  useGenerator?: boolean;
+};
+
+function invoiceAmounts(
+  lines: InvoiceLine[],
+  input: { netMinor: number; vatRateBps: number },
+  roundingMinor: number,
+) {
+  if (lines.length)
+    return invoiceTotals(lines, input.vatRateBps, roundingMinor);
+  const vatMinor = calculateVatMinor(input.netMinor, input.vatRateBps);
+  return {
+    netMinor: input.netMinor,
+    vatMinor,
+    roundingMinor,
+    grossMinor: input.netMinor + vatMinor + roundingMinor,
+  };
+}
+
+/**
+ * Checks an invoice and works out what it stores: amounts from its rows,
+ * the customer copy, the consultant's share and the OCR reference.
+ */
+async function preparedInvoice(
+  db: Firestore,
+  actor: PortalUser,
+  input: InvoiceInput,
+  ocrEnabled: boolean,
+) {
   if (input.dueDate < input.issueDate)
     throw new FinanceError("invoiceDateInvalid");
   const periodFrom = input.periodFrom ?? null;
   const periodTo = input.periodTo ?? null;
   if (!validInvoicePeriod(periodFrom, periodTo))
     throw new FinanceError("invoicePeriodInvalid");
-  const duplicate = await db
-    .collection("invoices")
-    .where("organizationId", "==", actor.organizationId)
-    .where("invoiceNumber", "==", input.invoiceNumber)
-    .limit(1)
-    .get();
-  if (!duplicate.empty) throw new FinanceError("invoiceDuplicate", 409);
 
   const customer = await db
     .collection("financeCustomers")
@@ -501,40 +829,266 @@ export async function createInvoice(
       ? (input.shareBpsOverride ?? agreement.shareBps)
       : 0;
   }
-  const vatMinor = calculateVatMinor(input.netMinor, input.vatRateBps);
-  const roundingMinor = input.roundingMinor ?? 0;
-  const ref = db.collection("invoices").doc();
-  const batch = db.batch();
-  batch.create(ref, {
-    organizationId: actor.organizationId,
-    ...input,
-    customerName: customerData.name,
-    customerContactPerson: customerData.contactPerson,
-    customerFinanceEmail: customerData.financeEmail,
-    currency: "SEK",
-    periodFrom,
-    periodTo,
-    vatMinor,
-    roundingMinor,
-    grossMinor: input.netMinor + vatMinor + roundingMinor,
-    compensationModel: model,
-    shareBps,
-    status: "issued",
-    paidDate: null,
-    incomeTransactionId: null,
-    incomeTransactionIds: [],
-    createdAt: FieldValue.serverTimestamp(),
-    createdBy: actor.id,
-    updatedAt: FieldValue.serverTimestamp(),
-    importKey: input.importKey ?? null,
-  });
-  audit(db, batch, actor, "invoice.created", "invoice", ref.id, {
+  // Invoices from another system have one amount and no rows.
+  const useGenerator = input.useGenerator === true;
+  const lines = useGenerator
+    ? await resolvedLines(db, actor, input.lines ?? [], input)
+    : [];
+  const totals = invoiceAmounts(lines, input, input.roundingMinor ?? 0);
+  if (totals.netMinor <= 0) throw new FinanceError("invoiceAmountInvalid");
+  return {
     invoiceNumber: input.invoiceNumber,
     consultantId: input.consultantId,
-    netMinor: input.netMinor,
+    customerId: input.customerId,
+    issueDate: input.issueDate,
+    dueDate: input.dueDate,
+    vatRateBps: input.vatRateBps,
+    visibleDescription: input.visibleDescription,
+    internalNote: input.internalNote,
+    shareBpsOverride: input.shareBpsOverride,
+    customerName: String(customerData.name),
+    customerContactPerson: String(customerData.contactPerson),
+    customerFinanceEmail: String(customerData.financeEmail),
+    customerNumber: String(customerData.customerNumber ?? ""),
+    periodFrom,
+    periodTo,
+    ...totals,
+    lines,
+    useGenerator,
+    ourReference: input.ourReference ?? "",
+    yourReference: input.yourReference ?? "",
+    invoiceText: input.invoiceText ?? "",
+    ocrReference: ocrEnabled ? ocrReferenceFor(input.invoiceNumber) : null,
+    compensationModel: model,
+    shareBps,
+  };
+}
+
+/** Checks an invoice like saving it would, without writing anything. */
+export async function prepareInvoice(
+  db: Firestore,
+  actor: PortalUser,
+  input: InvoiceInput,
+) {
+  const settings = invoiceSettingsFrom(
+    (
+      await db.collection("organizations").doc(actor.organizationId).get()
+    ).data()?.invoicing,
+  );
+  return preparedInvoice(db, actor, input, settings.ocrEnabled);
+}
+
+async function invoiceNumberTaken(
+  transaction: FirebaseFirestore.Transaction,
+  db: Firestore,
+  organizationId: string,
+  invoiceNumber: string,
+  exceptId?: string,
+) {
+  const duplicate = await transaction.get(
+    db
+      .collection("invoices")
+      .where("organizationId", "==", organizationId)
+      .where("invoiceNumber", "==", invoiceNumber)
+      .limit(2),
+  );
+  return duplicate.docs.some((document) => document.id !== exceptId);
+}
+
+/** Moves the invoice counter past `invoiceNumber` inside a transaction. */
+function advanceInvoiceCounter(
+  transaction: FirebaseFirestore.Transaction,
+  organization: FirebaseFirestore.DocumentReference,
+  stored: unknown,
+  invoiceNumber: string,
+) {
+  const current = invoiceSettingsFrom(stored).nextInvoiceNumber;
+  const next = nextNumberAfter(current, invoiceNumber);
+  if (next !== current)
+    transaction.set(
+      organization,
+      { invoicing: { nextInvoiceNumber: next } },
+      { merge: true },
+    );
+}
+
+export async function createInvoice(
+  db: Firestore,
+  actor: PortalUser,
+  input: InvoiceInput,
+) {
+  requireFinancePermission(actor, "finance.invoices.add");
+  const organization = db.collection("organizations").doc(actor.organizationId);
+  const settings = invoiceSettingsFrom(
+    (await organization.get()).data()?.invoicing,
+  );
+  const invoice = await preparedInvoice(db, actor, input, settings.ocrEnabled);
+  const ref = db.collection("invoices").doc();
+  await db.runTransaction(async (transaction) => {
+    const organizationSnapshot = await transaction.get(organization);
+    if (
+      await invoiceNumberTaken(
+        transaction,
+        db,
+        actor.organizationId,
+        input.invoiceNumber,
+      )
+    )
+      throw new FinanceError("invoiceDuplicate", 409);
+    advanceInvoiceCounter(
+      transaction,
+      organization,
+      organizationSnapshot.data()?.invoicing,
+      input.invoiceNumber,
+    );
+    transaction.create(ref, {
+      organizationId: actor.organizationId,
+      ...invoice,
+      currency: "SEK",
+      status: "issued",
+      paidDate: null,
+      incomeTransactionId: null,
+      incomeTransactionIds: [],
+      pdfStoragePath: null,
+      pdfGeneratedAt: null,
+      sentAt: null,
+      sentTo: null,
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: actor.id,
+      updatedAt: FieldValue.serverTimestamp(),
+      importKey: input.importKey ?? null,
+    });
+    transaction.create(db.collection("auditLogs").doc(), {
+      organizationId: actor.organizationId,
+      actorUserId: actor.id,
+      action: "invoice.created",
+      entityType: "invoice",
+      entityId: ref.id,
+      timestamp: FieldValue.serverTimestamp(),
+      metadata: {
+        invoiceNumber: input.invoiceNumber,
+        consultantId: input.consultantId,
+        netMinor: invoice.netMinor,
+      },
+    });
+  });
+  return ref.id;
+}
+
+/**
+ * Corrects an issued invoice that has not been sent to the customer. A sent
+ * or paid invoice is corrected by voiding it and issuing a new one.
+ */
+export async function updateInvoice(
+  db: Firestore,
+  actor: PortalUser,
+  input: InvoiceInput & { invoiceId: string },
+) {
+  requireFinancePermission(actor, "finance.invoices.edit");
+  const reference = db.collection("invoices").doc(input.invoiceId);
+  const existing = await reference.get();
+  const data = existing.data();
+  if (!existing.exists || data?.organizationId !== actor.organizationId)
+    throw new FinanceError("invoiceMissing", 404);
+  if (data.status !== "issued" || data.sentAt)
+    throw new FinanceError("invoiceLocked", 409);
+  const organization = db.collection("organizations").doc(actor.organizationId);
+  const settings = invoiceSettingsFrom(
+    (await organization.get()).data()?.invoicing,
+  );
+  const invoice = await preparedInvoice(db, actor, input, settings.ocrEnabled);
+  await db.runTransaction(async (transaction) => {
+    const [fresh, organizationSnapshot] = await Promise.all([
+      transaction.get(reference),
+      transaction.get(organization),
+    ]);
+    if (fresh.data()?.status !== "issued" || fresh.data()?.sentAt)
+      throw new FinanceError("invoiceLocked", 409);
+    if (
+      await invoiceNumberTaken(
+        transaction,
+        db,
+        actor.organizationId,
+        input.invoiceNumber,
+        input.invoiceId,
+      )
+    )
+      throw new FinanceError("invoiceDuplicate", 409);
+    advanceInvoiceCounter(
+      transaction,
+      organization,
+      organizationSnapshot.data()?.invoicing,
+      input.invoiceNumber,
+    );
+    transaction.update(reference, {
+      ...invoice,
+      // The old PDF no longer matches; it is made again on demand.
+      pdfStoragePath: null,
+      pdfGeneratedAt: null,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: actor.id,
+    });
+    transaction.create(db.collection("auditLogs").doc(), {
+      organizationId: actor.organizationId,
+      actorUserId: actor.id,
+      action: "invoice.updated",
+      entityType: "invoice",
+      entityId: reference.id,
+      timestamp: FieldValue.serverTimestamp(),
+      metadata: {
+        invoiceNumber: input.invoiceNumber,
+        previousInvoiceNumber: data.invoiceNumber,
+        netMinor: invoice.netMinor,
+        previousNetMinor: data.netMinor,
+      },
+    });
+  });
+}
+
+const INVOICE_LABEL_FIELDS = [
+  "ourReference",
+  "yourReference",
+  "invoiceText",
+  "visibleDescription",
+  "internalNote",
+] as const;
+
+/**
+ * Changes the texts of a paid invoice. Its amounts, rows, dates and the
+ * ledger entries made when it was paid stay as they are, and so does the
+ * PDF that was sent.
+ */
+export async function updateInvoiceLabels(
+  db: Firestore,
+  actor: PortalUser,
+  input: Record<(typeof INVOICE_LABEL_FIELDS)[number], string> & {
+    invoiceId: string;
+  },
+) {
+  requireFinancePermission(actor, "finance.invoices.edit");
+  const reference = db.collection("invoices").doc(input.invoiceId);
+  const snapshot = await reference.get();
+  const data = snapshot.data();
+  if (!snapshot.exists || data?.organizationId !== actor.organizationId)
+    throw new FinanceError("invoiceMissing", 404);
+  if (data.status !== "paid") throw new FinanceError("invoiceLocked", 409);
+  const changed = INVOICE_LABEL_FIELDS.filter(
+    (field) => String(data[field] ?? "") !== input[field],
+  );
+  if (!changed.length) return;
+  const batch = db.batch();
+  batch.update(reference, {
+    ...Object.fromEntries(changed.map((field) => [field, input[field]])),
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: actor.id,
+  });
+  audit(db, batch, actor, "invoice.labelsUpdated", "invoice", reference.id, {
+    fields: changed,
+    previous: Object.fromEntries(
+      changed.map((field) => [field, String(data[field] ?? "")]),
+    ),
   });
   await batch.commit();
-  return ref.id;
 }
 
 export async function markInvoicePaid(

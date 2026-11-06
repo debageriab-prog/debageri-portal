@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { CustomerForm } from "../../../FinanceForms";
-import { financeFormContext } from "../../../form-data";
+import { editableCustomer, financeFormContext } from "../../../form-data";
 
 export default async function EditCustomerPage({
   params,
@@ -13,14 +13,5 @@ export default async function EditCustomerPage({
   const data = document.data();
   if (!document.exists || data?.organizationId !== actor.organizationId)
     notFound();
-  return (
-    <CustomerForm
-      customer={{
-        id: document.id,
-        name: String(data.name),
-        contactPerson: String(data.contactPerson),
-        financeEmail: String(data.financeEmail),
-      }}
-    />
-  );
+  return <CustomerForm customer={editableCustomer(document.id, data)} />;
 }

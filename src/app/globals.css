@@ -3975,3 +3975,108 @@ td.amount-cell {
 .detail-collapsible-body {
   padding: 0 16px 16px;
 }
+
+/* Company invoice settings and the invoice row editor. */
+.invoice-settings-form {
+  display: grid;
+  gap: 18px;
+}
+.invoice-settings-form .access-section .form-grid {
+  margin-bottom: 0;
+}
+.invoice-lines {
+  display: grid;
+  gap: 10px;
+}
+.invoice-lines-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 6px;
+}
+.invoice-lines-table th {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+.invoice-lines-table td {
+  padding: 0 6px;
+  vertical-align: middle;
+}
+.invoice-lines-table .numeric {
+  text-align: right;
+}
+.invoice-lines-table .invoice-line-article {
+  width: 190px;
+}
+.invoice-lines-table .invoice-line-article .field + .field {
+  margin-top: 6px;
+}
+.invoice-lines-table input[readonly] {
+  background: transparent;
+  border-color: transparent;
+}
+.page-tabs {
+  margin-bottom: 4px;
+}
+.invoice-lines-table .invoice-line-quantity {
+  width: 100px;
+}
+.invoice-lines-table .invoice-line-unit {
+  width: 90px;
+}
+.invoice-lines-table .invoice-line-price {
+  width: 130px;
+}
+.invoice-lines-table .invoice-line-amount {
+  width: 130px;
+  white-space: nowrap;
+}
+.invoice-lines-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.invoice-document-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+}
+.invoice-confirm {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+.invoice-confirm p {
+  margin: 0;
+}
+.invoice-document .notice {
+  margin-top: 12px;
+}
+.invoice-settings-summary {
+  display: grid;
+  gap: 16px;
+}
+.invoice-settings-summary .week-head p {
+  margin: 0;
+}
+.generated-pdf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 4px 0 12px;
+}
+.attachment-list .detail-tag {
+  flex: 0 0 auto;
+}
+/* Locked fields read as fixed values, apart from the ones still editable. */
+.field:disabled {
+  background: #f4efe9;
+  color: var(--muted);
+  cursor: not-allowed;
+}

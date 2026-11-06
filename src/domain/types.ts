@@ -1,3 +1,4 @@
+import type { InvoiceLine } from "@/domain/finance/invoice-lines";
 import type { PermissionKey } from "@/domain/access/permissions";
 
 export type UserRole =
@@ -99,6 +100,19 @@ export interface FinanceCustomer {
   name: string;
   contactPerson: string;
   financeEmail: string;
+  /** Gets a hidden copy of every email sent to the finance email. */
+  financeBccEmail?: string;
+  /** Invoice details; blank on customers added before invoice generation. */
+  customerNumber?: string;
+  orgNumber?: string;
+  vatNumber?: string;
+  addressLine?: string;
+  postalCode?: string;
+  city?: string;
+  country?: string;
+  defaultYourReference?: string;
+  paymentTermsDays?: number | null;
+  invoiceLocale?: "sv-SE" | "en-SE";
 }
 
 export interface Invoice {
@@ -127,6 +141,20 @@ export interface Invoice {
   visibleDescription: string;
   internalNote: string;
   incomeTransactionIds?: string[];
+  roundingMinor?: number;
+  /** Invoice rows; missing on invoices recorded with one amount. */
+  lines?: InvoiceLine[];
+  /** Made with the invoice generator; missing (false) on older invoices. */
+  useGenerator?: boolean;
+  ourReference?: string;
+  yourReference?: string;
+  invoiceText?: string;
+  ocrReference?: string | null;
+  /** Generated PDF in Storage, and when it was emailed to the customer. */
+  pdfStoragePath?: string | null;
+  pdfGeneratedAt?: string | null;
+  sentAt?: string | null;
+  sentTo?: string | null;
 }
 
 export interface FinancialTransaction {

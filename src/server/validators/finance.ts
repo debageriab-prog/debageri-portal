@@ -34,6 +34,18 @@ const customerFields = {
   name: z.string().trim().min(2).max(160),
   contactPerson: z.string().trim().min(2).max(160),
   financeEmail: z.email().max(254),
+  financeBccEmail: z.union([z.literal(""), z.email().max(254)]).default(""),
+  /** Blank on a new customer takes the next number from the settings. */
+  customerNumber: z.string().trim().max(20).default(""),
+  orgNumber: z.string().trim().max(20).default(""),
+  vatNumber: z.string().trim().max(20).default(""),
+  addressLine: z.string().trim().max(160).default(""),
+  postalCode: z.string().trim().max(20).default(""),
+  city: z.string().trim().max(80).default(""),
+  country: z.string().trim().max(80).default(""),
+  defaultYourReference: z.string().trim().max(120).default(""),
+  paymentTermsDays: z.number().int().min(0).max(365).nullable().default(null),
+  invoiceLocale: z.enum(["sv-SE", "en-SE"]).default("sv-SE"),
 };
 
 export const customerSchema = z.object({
@@ -66,8 +78,44 @@ export const categorySchema = z.object({
   direction: z.enum(["income", "expense"]),
 });
 
-export const invoiceSchema = z.object({
-  action: z.literal("createInvoice"),
+const articleFields = {
+  articleNumber: z.string().trim().min(1).max(20),
+  description: z.string().trim().min(1).max(200),
+  unit: z.string().trim().min(1).max(10),
+  unitPriceMinor: z.number().int().min(-10_000_000_000).max(10_000_000_000),
+  /** `all`, `company` or a consultant's user ID. */
+  consultantScope: z.string().trim().min(1).max(128),
+  vatRateBps,
+  validFrom: date,
+  validTo: date.nullable().default(null),
+};
+
+const validRange = (value: { validFrom: string; validTo: string | null }) =>
+  !value.validTo || value.validTo >= value.validFrom;
+
+export const articleSchema = z
+  .object({ action: z.literal("createArticle"), ...articleFields })
+  .refine(validRange, { path: ["validTo"], message: "articleDatesInvalid" });
+
+export const updateArticleSchema = z
+  .object({
+    action: z.literal("updateArticle"),
+    articleId: z.string().min(1).max(128),
+    ...articleFields,
+  })
+  .refine(validRange, { path: ["validTo"], message: "articleDatesInvalid" });
+
+export const invoiceLineSchema = z.object({
+  /** The article the row is made from; its details are copied on save. */
+  articleId: z.string().min(1).max(128),
+  articleNumber: z.string().trim().max(20).default(""),
+  description: z.string().trim().min(1).max(200),
+  quantityThousandths: z.number().int().min(-1_000_000_000).max(1_000_000_000),
+  unit: z.string().trim().max(10).default(""),
+  unitPriceMinor: z.number().int().min(-10_000_000_000).max(10_000_000_000),
+});
+
+const invoiceFields = {
   invoiceNumber: z.string().trim().min(1).max(60),
   consultantId: z.string().min(1).max(128).nullable(),
   customerId: z.string().min(1).max(128),
@@ -76,6 +124,7 @@ export const invoiceSchema = z.object({
   /** Optional service period the invoice covers; both or neither. */
   periodFrom: date.nullable().default(null),
   periodTo: date.nullable().default(null),
+  /** Ignored when `lines` are given; the rows then make up the net. */
   netMinor: minor,
   vatRateBps,
   roundingMinor: rounding,
@@ -88,8 +137,77 @@ export const invoiceSchema = z.object({
     .max(10_000)
     .nullable()
     .default(null),
-  /** The forwarded email the invoice is made from. */
-  incomingEmailId: z.string().min(1).max(128).nullable().default(null),
+  /** Invoice rows, each made from an invoice article. */
+  /**
+   * Made with the portal's invoice generator: rows from articles and a PDF.
+   * Off for invoices whose file comes from another system.
+   */
+  useGenerator: z.boolean().default(false),
+  /** Rows made from articles; only with the invoice generator. */
+  lines: z.array(invoiceLineSchema).max(30).default([]),
+  ourReference: z.string().trim().max(120).default(""),
+  yourReference: z.string().trim().max(120).default(""),
+  /** The text printed under the rows on the generated invoice. */
+  invoiceText: z.string().trim().max(1_000).default(""),
+  /** Generate the PDF right after saving. */
+  generatePdf: z.boolean().default(false),
+};
+
+/** The invoice generator needs at least one row. */
+const generatorRows = (value: { useGenerator: boolean; lines: unknown[] }) =>
+  !value.useGenerator || value.lines.length > 0;
+
+export const invoiceSchema = z
+  .object({
+    action: z.literal("createInvoice"),
+    ...invoiceFields,
+    /** The forwarded email the invoice is made from. */
+    incomingEmailId: z.string().min(1).max(128).nullable().default(null),
+  })
+  .refine(generatorRows, { path: ["lines"] });
+
+export const updateInvoiceSchema = z
+  .object({
+    action: z.literal("updateInvoice"),
+    invoiceId: z.string().min(1).max(128),
+    ...invoiceFields,
+  })
+  .refine(generatorRows, { path: ["lines"] });
+
+/** The invoice as it is in the form, for a PDF preview before saving. */
+export const previewInvoicePdfSchema = z.object({
+  action: z.literal("previewInvoicePdf"),
+  /** The invoice being edited, if it is saved already. */
+  invoiceId: z.string().min(1).max(128).nullable().default(null),
+  ...invoiceFields,
+});
+
+/** The texts a paid invoice can still change; amounts and dates stay. */
+export const updateInvoiceLabelsSchema = z.object({
+  action: z.literal("updateInvoiceLabels"),
+  invoiceId: z.string().min(1).max(128),
+  ourReference: z.string().trim().max(120).default(""),
+  yourReference: z.string().trim().max(120).default(""),
+  invoiceText: z.string().trim().max(1_000).default(""),
+  visibleDescription: z.string().trim().max(300).default(""),
+  internalNote: z.string().trim().max(1_000).default(""),
+});
+
+export const generateInvoicePdfSchema = z.object({
+  action: z.literal("generateInvoicePdf"),
+  invoiceId: z.string().min(1).max(128),
+});
+
+export const sendInvoiceSchema = z.object({
+  action: z.literal("sendInvoiceToCustomer"),
+  invoiceId: z.string().min(1).max(128),
+});
+
+export const invoiceHoursSchema = z.object({
+  action: z.literal("invoiceHours"),
+  consultantId: z.string().min(1).max(128),
+  periodFrom: date,
+  periodTo: date,
 });
 
 export const paymentSchema = z.object({
@@ -213,6 +331,14 @@ export const financeActionSchema = z.discriminatedUnion("action", [
   categorySchema,
   updateCategorySchema,
   invoiceSchema,
+  updateInvoiceSchema,
+  generateInvoicePdfSchema,
+  updateInvoiceLabelsSchema,
+  previewInvoicePdfSchema,
+  sendInvoiceSchema,
+  articleSchema,
+  updateArticleSchema,
+  invoiceHoursSchema,
   paymentSchema,
   transactionSchema,
   updateTransactionSchema,

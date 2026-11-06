@@ -2,7 +2,7 @@
 
 import { DateInput } from "@/components/ui/DateInput";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
@@ -20,6 +20,27 @@ import {
   consultantServicesNote,
 } from "@/domain/finance/invoice-period";
 import { receiptVatRateBps } from "@/domain/receipts";
+import { ActionIcon } from "@/components/ui/ActionIcon";
+import { addDays } from "@/domain/finance/invoice-settings";
+import {
+  ARTICLE_FOR_ALL,
+  ARTICLE_FOR_COMPANY,
+  articlesForInvoice,
+  type InvoiceArticle,
+} from "@/domain/finance/invoice-articles";
+
+import {
+  INVOICE_UNITS,
+  invoiceTotals,
+  formatQuantity,
+  kronorRoundingMinor,
+  lineAmountMinor,
+  linesForInvoice,
+  MAX_INVOICE_LINES,
+  parseQuantity,
+  withLineAmount,
+  type InvoiceLine,
+} from "@/domain/finance/invoice-lines";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { FinanceCsvImport } from "./FinanceCsvImport";
 import { transactionMonthMismatch } from "./transaction-navigation";
@@ -50,7 +71,6 @@ const COMPANY_ONLY = "company";
 type TransactionField = "direction" | "categoryId" | "consultantId" | "funding";
 
 type User = { id: string; displayName: string };
-type Customer = { id: string; name: string };
 type Category = {
   id: string;
   code: string;
@@ -142,7 +162,8 @@ function FieldError({ message }: { message?: string }) {
 }
 
 function useFinanceSubmit(
-  successPath: string,
+  successPath:
+    string | ((result: { id?: string; pdfError?: string }) => string),
   accounting?: {
     entityType: AccountingEntityType;
     recipients: string[];
@@ -177,6 +198,7 @@ function useFinanceSubmit(
       const result = (await response.json().catch(() => ({}))) as {
         error?: string;
         id?: string;
+        pdfError?: string;
       };
       if (!response.ok) {
         const key =
@@ -221,7 +243,9 @@ function useFinanceSubmit(
         }
       }
       prompt.offer(attachment?.entityId ?? result.id, () => {
-        router.push(successPath);
+        router.push(
+          typeof successPath === "string" ? successPath : successPath(result),
+        );
         router.refresh();
       });
     } catch {
@@ -262,38 +286,215 @@ function IncomingEmailNotice({
   );
 }
 
+/** An invoice customer with what the form fills in from it. */
+export type InvoiceCustomer = {
+  id: string;
+  name: string;
+  defaultYourReference: string;
+  paymentTermsDays: number | null;
+};
+
+/** An unsent invoice as the form edits it. */
+export type EditableInvoice = {
+  id: string;
+  invoiceNumber: string;
+  customerId: string;
+  consultantId: string | null;
+  issueDate: string;
+  dueDate: string;
+  periodFrom: string | null;
+  periodTo: string | null;
+  netMinor: number;
+  vatRateBps: number;
+  roundingMinor: number;
+  shareBpsOverride: number | null;
+  visibleDescription: string;
+  internalNote: string;
+  lines: InvoiceLine[];
+  ourReference: string;
+  yourReference: string;
+  invoiceText: string;
+  /** Made with the invoice generator; false for invoices from elsewhere. */
+  useGenerator: boolean;
+};
+
+/** Defaults for new invoices from the company invoice settings. */
+export type InvoiceDefaults = {
+  nextInvoiceNumber: number;
+  defaultOurReference: string;
+  paymentTermsDays: number;
+};
+
+type LineDraft = {
+  key: number;
+  /** The article the row comes from; empty for a row typed by hand. */
+  articleId: string;
+  articleNumber: string;
+  description: string;
+  quantity: string;
+  unit: string;
+  unitPrice: string;
+};
+
+let lineKey = 0;
+const emptyLine = (): LineDraft => ({
+  key: ++lineKey,
+  articleId: "",
+  articleNumber: "",
+  description: "",
+  quantity: "1",
+  unit: "",
+  unitPrice: "",
+});
+const draftFrom = (line: Omit<InvoiceLine, "amountMinor">): LineDraft => ({
+  key: ++lineKey,
+  articleId: line.articleId ?? "",
+  articleNumber: line.articleNumber,
+  description: line.description,
+  quantity: String(line.quantityThousandths / 1000),
+  unit: line.unit,
+  unitPrice: (line.unitPriceMinor / 100).toFixed(2),
+});
+
+/** A row filled from an article, with the quantity it already has. */
+const draftFromArticle = (
+  article: InvoiceArticle,
+  quantity = "1",
+  key = ++lineKey,
+): LineDraft => ({
+  key,
+  articleId: article.id,
+  articleNumber: article.articleNumber,
+  description: article.description,
+  quantity,
+  unit: article.unit,
+  unitPrice: (article.unitPriceMinor / 100).toFixed(2),
+});
+
+/** A row as the server takes it, or null while it is not filled in. */
+function lineFromDraft(draft: LineDraft) {
+  const quantityThousandths = parseQuantity(draft.quantity);
+  let unitPriceMinor: number;
+  try {
+    unitPriceMinor = parseSignedSek(draft.unitPrice);
+  } catch {
+    return null;
+  }
+  if (
+    !draft.articleId ||
+    !draft.description.trim() ||
+    !Number.isFinite(quantityThousandths)
+  )
+    return null;
+  return withLineAmount({
+    articleId: draft.articleId || null,
+    articleNumber: draft.articleNumber.trim(),
+    description: draft.description.trim(),
+    quantityThousandths,
+    unit: draft.unit.trim(),
+    unitPriceMinor,
+  });
+}
+
 export function InvoiceForm({
   users,
   customers,
   aiEnabled = false,
   accountingRecipients = [],
   incomingEmail,
+  invoice,
+  defaults,
+  articles = [],
+  locked = null,
 }: {
   users: User[];
-  customers: Customer[];
+  customers: InvoiceCustomer[];
+  /** Every invoice article; the rows offer those that suit the invoice. */
+  articles?: InvoiceArticle[];
+  /**
+   * Why a saved invoice can't change: it's paid, sent or void. Its details
+   * are shown but disabled, and only its files can be changed.
+   */
+  locked?: "paid" | "sent" | "void" | null;
   aiEnabled?: boolean;
   /** Accounting contacts to offer emailing the new invoice to. */
   accountingRecipients?: string[];
   /** A forwarded email whose AI reading and files fill the form. */
   incomingEmail?: IncomingEmailSource;
+  /** The unsent invoice being corrected; a new invoice when missing. */
+  invoice?: EditableInvoice;
+  defaults: InvoiceDefaults;
 }) {
   const { t, locale } = useLocale();
-  const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [customerId, setCustomerId] = useState("");
-  const [consultantId, setConsultantId] = useState("");
-  const [issueDate, setIssueDate] = useState(today());
-  const [dueDate, setDueDate] = useState(today());
-  const [periodFrom, setPeriodFrom] = useState("");
-  const [periodTo, setPeriodTo] = useState("");
+  const editing = Boolean(invoice);
+  const lockedRouter = useRouter();
+  // Locked invoices keep amounts, rows and dates; a paid one can still have
+  // its references, texts and notes changed.
+  const fieldsLocked = Boolean(locked);
+  const labelsLocked = Boolean(locked) && locked !== "paid";
+  const [filesBusy, setFilesBusy] = useState(false);
+  const [filesError, setFilesError] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState(
+    invoice?.invoiceNumber ?? String(defaults.nextInvoiceNumber),
+  );
+  const [customerId, setCustomerId] = useState(invoice?.customerId ?? "");
+  const [consultantId, setConsultantId] = useState(invoice?.consultantId ?? "");
+  const [issueDate, setIssueDate] = useState(invoice?.issueDate ?? today());
+  const [dueDate, setDueDate] = useState(
+    invoice?.dueDate ?? addDays(today(), defaults.paymentTermsDays),
+  );
+  // Until the due date is typed in, it follows the invoice date and terms.
+  const [dueDateTouched, setDueDateTouched] = useState(editing);
+  const [periodFrom, setPeriodFrom] = useState(invoice?.periodFrom ?? "");
+  const [periodTo, setPeriodTo] = useState(invoice?.periodTo ?? "");
   // The last description and note generated from customer, consultant and
   // period; replaced on change until the user types their own.
   const [autoDescription, setAutoDescription] = useState("");
   const [autoInternalNote, setAutoInternalNote] = useState("");
-  const [netAmount, setNetAmount] = useState("");
-  const [vatPercent, setVatPercent] = useState("25");
-  const [rounding, setRounding] = useState("");
-  const [visibleDescription, setVisibleDescription] = useState("");
-  const [internalNote, setInternalNote] = useState("");
+  // New invoices start without the generator; saved ones keep their choice.
+  const [useGenerator, setUseGenerator] = useState(
+    invoice?.useGenerator ?? false,
+  );
+  const [netAmount, setNetAmount] = useState(
+    invoice && !invoice.useGenerator ? (invoice.netMinor / 100).toFixed(2) : "",
+  );
+  const [lines, setLines] = useState<LineDraft[]>(() =>
+    invoice ? linesForInvoice(invoice).map(draftFrom) : [emptyLine()],
+  );
+  const [vatPercent, setVatPercent] = useState(
+    invoice ? String(invoice.vatRateBps / 100) : "25",
+  );
+  const [rounding, setRounding] = useState(
+    invoice?.roundingMinor ? (invoice.roundingMinor / 100).toFixed(2) : "",
+  );
+  const [visibleDescription, setVisibleDescription] = useState(
+    invoice?.visibleDescription ?? "",
+  );
+  const [internalNote, setInternalNote] = useState(invoice?.internalNote ?? "");
+  const [ourReference, setOurReference] = useState(
+    invoice?.ourReference ?? defaults.defaultOurReference,
+  );
+  const [yourReference, setYourReference] = useState(
+    invoice?.yourReference ?? "",
+  );
+  const [yourReferenceTouched, setYourReferenceTouched] = useState(editing);
+  const [invoiceText, setInvoiceText] = useState(invoice?.invoiceText ?? "");
+  const [hoursBusy, setHoursBusy] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [sharePercent, setSharePercent] = useState(
+    invoice?.shareBpsOverride != null
+      ? String(invoice.shareBpsOverride / 100)
+      : "",
+  );
+  // The PDF made from the form before saving, and the form it was made from.
+  const [generatedPdf, setGeneratedPdf] = useState<File | null>(null);
+  const [generatedFor, setGeneratedFor] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generatedError, setGeneratedError] = useState("");
+  const [hoursNotice, setHoursNotice] = useState<{
+    tone: "success" | "warning" | "error";
+    text: string;
+  } | null>(null);
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
     [],
@@ -309,22 +510,101 @@ export function InvoiceForm({
     : "/finance?section=invoices";
   const [emailFilesFailed, setEmailFilesFailed] = useState(false);
   const { busy, error, submit, accountingDialog } = useFinanceSubmit(
-    returnHref,
-    { entityType: "invoice", recipients: accountingRecipients },
+    (result) =>
+      result.id
+        ? `/finance?section=invoices&invoice=${encodeURIComponent(result.id)}${
+            result.pdfError
+              ? `&pdfError=${encodeURIComponent(result.pdfError)}`
+              : ""
+          }`
+        : returnHref,
+    {
+      entityType: "invoice",
+      recipients: editing ? [] : accountingRecipients,
+    },
   );
-  const amountMinor = (parse: (value: string) => number, value: string) => {
+  const parsedLines = lines.map(lineFromDraft);
+  // Articles for the chosen consultant (or the company) on the invoice date.
+  const availableArticles = articlesForInvoice(
+    articles,
+    consultantId || null,
+    issueDate,
+  );
+  const articleById = new Map(articles.map((item) => [item.id, item]));
+  const articleRows = lines.filter((line) => line.articleId);
+  const articleVatRates = [
+    ...new Set(
+      articleRows
+        .map((line) => articleById.get(line.articleId)?.vatRateBps)
+        .filter((rate): rate is number => rate !== undefined),
+    ),
+  ];
+  // Rows from articles decide the VAT; mixed rates can't be on one invoice.
+  const articleVatLocked = articleVatRates.length === 1;
+  const mixedArticleVat = articleVatRates.length > 1;
+  const unavailableArticleRows = articleRows.filter(
+    (line) => !availableArticles.some((item) => item.id === line.articleId),
+  );
+
+  /** Fills a row from an article, or frees it for typing by hand. */
+  function chooseArticle(key: number, articleId: string) {
+    const article = articleById.get(articleId);
+    setLines((current) =>
+      current.map((line) =>
+        line.key !== key
+          ? line
+          : article
+            ? draftFromArticle(article, line.quantity, line.key)
+            : { ...emptyLine(), key: line.key, quantity: line.quantity },
+      ),
+    );
+    if (article) setVatPercent(String(article.vatRateBps / 100));
+  }
+  const roundingMinor = (() => {
     try {
-      return parse(value);
+      return parseSignedSek(rounding);
     } catch {
       return 0;
     }
-  };
-  const netMinor = amountMinor(parseSek, netAmount || "0");
-  const roundingMinor = amountMinor(parseSignedSek, rounding);
+  })();
   const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
-  const vatMinor = Number.isFinite(vatRateBps)
-    ? calculateVatMinor(netMinor, vatRateBps)
-    : 0;
+  const enteredNetMinor = (() => {
+    try {
+      return parseSek(netAmount || "0");
+    } catch {
+      return 0;
+    }
+  })();
+  // With the generator the rows make the net; otherwise it is typed in from
+  // the invoice made elsewhere.
+  const totals = useGenerator
+    ? invoiceTotals(
+        parsedLines.filter((line): line is InvoiceLine => line !== null),
+        Number.isFinite(vatRateBps) ? vatRateBps : 0,
+        roundingMinor,
+      )
+    : (() => {
+        const vatMinor = calculateVatMinor(
+          enteredNetMinor,
+          Number.isFinite(vatRateBps) ? vatRateBps : 0,
+        );
+        return {
+          netMinor: enteredNetMinor,
+          vatMinor,
+          roundingMinor,
+          grossMinor: enteredNetMinor + vatMinor + roundingMinor,
+        };
+      })();
+
+  const termsFor = (id: string) =>
+    customers.find((customer) => customer.id === id)?.paymentTermsDays ??
+    defaults.paymentTermsDays;
+
+  function updateLine(key: number, change: Partial<LineDraft>) {
+    setLines((current) =>
+      current.map((line) => (line.key === key ? { ...line, ...change } : line)),
+    );
+  }
 
   /**
    * Refreshes the generated consultant description and internal note after a
@@ -370,6 +650,7 @@ export function InvoiceForm({
   /** Fills the form from an AI reading of a file or forwarded email. */
   function applyExtraction(extraction: FinanceExtraction, name: string) {
     let filled = 0;
+    let readNetMinor: number | null = null;
     const foreignAmounts = extraction.currency !== "SEK";
     if (extraction.invoiceNumber) {
       setInvoiceNumber(extraction.invoiceNumber);
@@ -400,6 +681,7 @@ export function InvoiceForm({
     }
     if (extraction.dueDate) {
       setDueDate(extraction.dueDate);
+      setDueDateTouched(true);
       filled++;
     }
     if (
@@ -407,8 +689,10 @@ export function InvoiceForm({
       extraction.netMinor !== null &&
       extraction.netMinor > 0
     ) {
+      // Rows come from articles, so the amount read from the file is only
+      // shown for comparison.
+      readNetMinor = extraction.netMinor;
       setNetAmount((extraction.netMinor / 100).toFixed(2));
-      filled++;
     }
     if (!foreignAmounts)
       setRounding(
@@ -445,6 +729,13 @@ export function InvoiceForm({
       return;
     }
     const messages = [t("aiFilledFromFile").replace("{name}", name)];
+    if (readNetMinor !== null && useGenerator)
+      messages.push(
+        t("aiNetForArticles").replace(
+          "{amount}",
+          formatSek(readNetMinor, locale),
+        ),
+      );
     if (
       !foreignAmounts &&
       extraction.netMinor !== null &&
@@ -495,46 +786,338 @@ export function InvoiceForm({
       );
   });
 
+  /**
+   * The hourly article that approved hours are billed on: the one already
+   * on a row, else the consultant's own hourly article, else the only
+   * hourly article for this invoice.
+   */
+  function hourlyTarget() {
+    const isHourly = (item: InvoiceArticle | undefined) =>
+      item?.unit.trim().toLowerCase() === "h";
+    const onRow = lines.find((line) =>
+      isHourly(articleById.get(line.articleId)),
+    );
+    if (onRow) return { article: articleById.get(onRow.articleId)!, onRow };
+    const hourly = availableArticles.filter(isHourly);
+    const own = hourly.filter((item) => item.consultantScope === consultantId);
+    const article =
+      own.length === 1 ? own[0] : hourly.length === 1 ? hourly[0] : undefined;
+    return article ? { article, onRow: undefined } : null;
+  }
+
+  /**
+   * Sets the hourly article's quantity to the consultant's approved worked
+   * hours in the period, adding that row when no row has it yet.
+   */
+  async function fillFromHours() {
+    setHoursNotice(null);
+    if (!consultantId || !periodFrom || !periodTo) {
+      setHoursNotice({ tone: "warning", text: t("invoiceHoursNeedPeriod") });
+      return;
+    }
+    const target = hourlyTarget();
+    if (!target) {
+      setHoursNotice({ tone: "warning", text: t("invoiceHoursNeedArticle") });
+      return;
+    }
+    setHoursBusy(true);
+    try {
+      const response = await appCheckFetch("/api/finance", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "invoiceHours",
+          consultantId,
+          periodFrom,
+          periodTo,
+        }),
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        approvedMinutes?: number;
+        pendingMinutes?: number;
+      };
+      if (!response.ok) {
+        setHoursNotice({
+          tone: "error",
+          text: t(
+            `financeError_${result.error ?? "financeOperationFailed"}` as Parameters<
+              typeof t
+            >[0],
+          ),
+        });
+        return;
+      }
+      const approvedMinutes = result.approvedMinutes ?? 0;
+      if (!approvedMinutes) {
+        setHoursNotice({ tone: "warning", text: t("invoiceHoursNone") });
+        return;
+      }
+      // Minutes to hours with up to three decimals, as the quantity field
+      // takes them.
+      const quantity = String(Math.round((approvedMinutes * 1000) / 60) / 1000);
+      setLines((current) => {
+        if (target.onRow)
+          return current.map((line) =>
+            line.key === target.onRow!.key ? { ...line, quantity } : line,
+          );
+        const row = draftFromArticle(target.article, quantity);
+        // An empty first row is used; otherwise the hours get a row of
+        // their own under the others.
+        return current.length === 1 && !current[0]!.articleId
+          ? [{ ...row, key: current[0]!.key }]
+          : [...current, row];
+      });
+      setVatPercent(String(target.article.vatRateBps / 100));
+      const consultantName =
+        users.find((user) => user.id === consultantId)?.displayName ?? "";
+      if (!invoiceText.trim())
+        setInvoiceText(
+          [
+            t("invoiceHoursText")
+              .replace("{from}", periodFrom)
+              .replace("{to}", periodTo),
+            t("invoiceHoursConsultant").replace("{name}", consultantName),
+            yourReference,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        );
+      const hours = (minutes: number) =>
+        new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(
+          minutes / 60,
+        );
+      setHoursNotice(
+        result.pendingMinutes
+          ? {
+              tone: "warning",
+              text: t("invoiceHoursPending")
+                .replace("{approved}", hours(approvedMinutes))
+                .replace("{pending}", hours(result.pendingMinutes))
+                .replace("{article}", target.article.description),
+            }
+          : {
+              tone: "success",
+              text: t("invoiceHoursFilled")
+                .replace("{approved}", hours(approvedMinutes))
+                .replace("{article}", target.article.description),
+            },
+      );
+    } catch {
+      setHoursNotice({ tone: "error", text: t("serverUnavailable") });
+    } finally {
+      setHoursBusy(false);
+    }
+  }
+
+  /** Stops on rows that can't be saved, saying why. */
+  function rowsReady() {
+    if (!useGenerator) return true;
+    if (mixedArticleVat) {
+      setHoursNotice({ tone: "error", text: t("invoiceArticlesMixedVat") });
+      return false;
+    }
+    if (parsedLines.some((line) => line === null)) {
+      setHoursNotice({ tone: "error", text: t("invoiceLinesIncomplete") });
+      return false;
+    }
+    return true;
+  }
+
+  /** The invoice as the form has it, in the shape the API takes. */
+  function invoicePayload() {
+    return {
+      invoiceNumber,
+      consultantId: consultantId || null,
+      customerId,
+      issueDate,
+      dueDate,
+      periodFrom: periodFrom || null,
+      periodTo: periodTo || null,
+      useGenerator,
+      netMinor: Math.max(totals.netMinor, 0),
+      vatRateBps,
+      roundingMinor,
+      visibleDescription,
+      internalNote,
+      shareBpsOverride: sharePercent
+        ? Math.round(Number(sharePercent) * 100)
+        : null,
+      lines: (useGenerator ? parsedLines : []).map((line) => ({
+        articleId: line!.articleId ?? null,
+        articleNumber: line!.articleNumber,
+        description: line!.description,
+        quantityThousandths: line!.quantityThousandths,
+        unit: line!.unit,
+        unitPriceMinor: line!.unitPriceMinor,
+      })),
+      ourReference,
+      yourReference,
+      invoiceText,
+    };
+  }
+
+  /**
+   * Makes the invoice PDF from the form as it is now and attaches it, so it
+   * can be looked at, removed or made again before saving.
+   */
+  async function generatePdf() {
+    setGeneratedError("");
+    if (!formRef.current?.reportValidity() || !rowsReady()) return;
+    const payload = invoicePayload();
+    setGenerating(true);
+    try {
+      const response = await appCheckFetch("/api/finance", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "previewInvoicePdf",
+          invoiceId: invoice?.id ?? null,
+          ...payload,
+        }),
+      });
+      if (!response.ok) {
+        const result = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setGeneratedError(
+          t(
+            `financeError_${result.error ?? "financeOperationFailed"}` as Parameters<
+              typeof t
+            >[0],
+          ),
+        );
+        return;
+      }
+      const encoded = /filename\*=UTF-8''([^;]+)/.exec(
+        response.headers.get("content-disposition") ?? "",
+      )?.[1];
+      const name = encoded
+        ? decodeURIComponent(encoded)
+        : `${t("invoicePdf_title")} ${invoiceNumber}.pdf`;
+      setGeneratedPdf(
+        new File([await response.blob()], name, { type: "application/pdf" }),
+      );
+      setGeneratedFor(JSON.stringify(payload));
+    } catch {
+      setGeneratedError(t("serverUnavailable"));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  /** Saves only the file changes of an invoice that can't be edited. */
+  async function saveFilesOnly(invoiceId: string) {
+    setFilesBusy(true);
+    setFilesError("");
+    try {
+      if (!labelsLocked) {
+        const response = await appCheckFetch("/api/finance", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "updateInvoiceLabels",
+            invoiceId,
+            ourReference,
+            yourReference,
+            invoiceText,
+            visibleDescription,
+            internalNote,
+          }),
+        });
+        if (!response.ok) {
+          const failed = (await response.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          setFilesError(
+            t(
+              `financeError_${failed.error ?? "financeOperationFailed"}` as Parameters<
+                typeof t
+              >[0],
+            ),
+          );
+          return;
+        }
+      }
+      const result = await saveFinanceAttachmentChanges(
+        "invoice",
+        invoiceId,
+        attachmentFiles,
+        removedAttachmentIds,
+      );
+      if (!result.ok) {
+        setFilesError(
+          t(
+            `financeError_${result.error ?? "attachmentUploadFailed"}` as Parameters<
+              typeof t
+            >[0],
+          ),
+        );
+        return;
+      }
+      lockedRouter.push(
+        `/finance?section=invoices&invoice=${encodeURIComponent(invoiceId)}`,
+      );
+      lockedRouter.refresh();
+    } catch {
+      setFilesError(t("serverUnavailable"));
+    } finally {
+      setFilesBusy(false);
+    }
+  }
+
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    if (locked && invoice) {
+      void saveFilesOnly(invoice.id);
+      return;
+    }
+    if (!rowsReady()) return;
     void submit(
       {
-        action: "createInvoice",
-        invoiceNumber,
-        consultantId: consultantId || null,
-        customerId,
-        issueDate,
-        dueDate,
-        periodFrom: periodFrom || null,
-        periodTo: periodTo || null,
-        netMinor: parseSek(netAmount),
-        vatRateBps,
-        roundingMinor,
-        visibleDescription,
-        internalNote,
-        shareBpsOverride: form.get("sharePercent")
-          ? Math.round(Number(form.get("sharePercent")) * 100)
-          : null,
+        action: editing ? "updateInvoice" : "createInvoice",
+        ...(invoice ? { invoiceId: invoice.id } : {}),
+        ...invoicePayload(),
+        // The attached PDF is made again from the saved invoice.
+        generatePdf: Boolean(generatedPdf),
         ...(incomingEmail ? { incomingEmailId: incomingEmail.id } : {}),
       },
-      { entityType: "invoice", files: attachmentFiles, removedAttachmentIds },
+      {
+        entityType: "invoice",
+        entityId: invoice?.id,
+        files: attachmentFiles,
+        removedAttachmentIds,
+      },
     );
   }
   return (
     <FormPage
-      title={t("addInvoice")}
-      description={t("newInvoiceDescription")}
+      title={
+        locked ? t("viewInvoice") : editing ? t("editInvoice") : t("addInvoice")
+      }
+      description={
+        locked
+          ? t("viewInvoiceDescription")
+          : editing
+            ? t("editInvoiceDescription")
+            : t("newInvoiceDescription")
+      }
       backHref={returnHref}
       backLabel={
         incomingEmail ? t("backToIncomingEmails") : t("backToInvoices")
       }
       notice={
-        incomingEmail && (
-          <IncomingEmailNotice
-            email={incomingEmail}
-            filesFailed={emailFilesFailed}
-          />
+        locked ? (
+          <p className="notice notice-warning">
+            {t(`invoiceLocked_${locked}`)}
+          </p>
+        ) : (
+          incomingEmail && (
+            <IncomingEmailNotice
+              email={incomingEmail}
+              filesFailed={emailFilesFailed}
+            />
+          )
         )
       }
     >
@@ -544,13 +1127,14 @@ export function InvoiceForm({
           <Link href="/finance/customers/new">{t("addCustomer")}</Link>
         </p>
       ) : (
-        <form className="form-grid" onSubmit={onSubmit}>
+        <form className="form-grid" ref={formRef} onSubmit={onSubmit}>
           <label>
             {t("invoiceNumber")}
             <InfoTip text={t("invoiceNumberTip")} />
             <input
               className="field"
               name="invoiceNumber"
+              disabled={fieldsLocked}
               value={invoiceNumber}
               onChange={(event) => setInvoiceNumber(event.target.value)}
               required
@@ -562,10 +1146,17 @@ export function InvoiceForm({
             <select
               className="field"
               name="customerId"
+              disabled={fieldsLocked}
               value={customerId}
               onChange={(event) => {
-                setCustomerId(event.target.value);
-                updateGeneratedTexts({ customerId: event.target.value });
+                const id = event.target.value;
+                setCustomerId(id);
+                updateGeneratedTexts({ customerId: id });
+                const customer = customers.find((item) => item.id === id);
+                if (!yourReferenceTouched)
+                  setYourReference(customer?.defaultYourReference ?? "");
+                if (!dueDateTouched)
+                  setDueDate(addDays(issueDate, termsFor(id)));
               }}
               required
             >
@@ -583,6 +1174,7 @@ export function InvoiceForm({
             <select
               className="field"
               name="consultantId"
+              disabled={fieldsLocked}
               value={consultantId}
               onChange={(event) => {
                 setConsultantId(event.target.value);
@@ -603,6 +1195,7 @@ export function InvoiceForm({
             <DateInput
               className="field"
               name="periodFrom"
+              disabled={fieldsLocked}
               value={periodFrom}
               max={periodTo || undefined}
               required={Boolean(periodTo)}
@@ -618,6 +1211,7 @@ export function InvoiceForm({
             <DateInput
               className="field"
               name="periodTo"
+              disabled={fieldsLocked}
               value={periodTo}
               min={periodFrom || undefined}
               required={Boolean(periodFrom)}
@@ -633,8 +1227,13 @@ export function InvoiceForm({
             <DateInput
               className="field"
               name="issueDate"
+              disabled={fieldsLocked}
               value={issueDate}
-              onChange={(event) => setIssueDate(event.target.value)}
+              onChange={(event) => {
+                setIssueDate(event.target.value);
+                if (!dueDateTouched && event.target.value)
+                  setDueDate(addDays(event.target.value, termsFor(customerId)));
+              }}
               required
             />
           </label>
@@ -644,26 +1243,294 @@ export function InvoiceForm({
             <DateInput
               className="field"
               name="dueDate"
+              disabled={fieldsLocked}
               value={dueDate}
               min={issueDate}
-              onChange={(event) => setDueDate(event.target.value)}
+              onChange={(event) => {
+                setDueDate(event.target.value);
+                setDueDateTouched(true);
+              }}
               required
             />
           </label>
           <label>
-            {t("netAmountSek")}
-            <InfoTip text={t("netAmountSekTip")} />
+            {t("ourReference")}
+            <InfoTip text={t("ourReferenceTip")} />
             <input
               className="field"
-              type="number"
-              name="netAmount"
-              min="0.01"
-              step="0.01"
-              value={netAmount}
-              onChange={(event) => setNetAmount(event.target.value)}
-              required
+              name="ourReference"
+              disabled={labelsLocked}
+              value={ourReference}
+              maxLength={120}
+              onChange={(event) => setOurReference(event.target.value)}
             />
           </label>
+          <label>
+            {t("yourReference")}
+            <InfoTip text={t("yourReferenceTip")} />
+            <input
+              className="field"
+              name="yourReference"
+              disabled={labelsLocked}
+              value={yourReference}
+              maxLength={120}
+              onChange={(event) => {
+                setYourReference(event.target.value);
+                setYourReferenceTouched(true);
+              }}
+            />
+          </label>
+
+          <label className="checkbox-row form-wide">
+            <input
+              type="checkbox"
+              checked={useGenerator}
+              disabled={fieldsLocked}
+              onChange={(event) => {
+                setUseGenerator(event.target.checked);
+                // A PDF made from rows no longer fits an invoice without them.
+                if (!event.target.checked) {
+                  setGeneratedPdf(null);
+                  setGeneratedFor("");
+                }
+              }}
+            />
+            <span>{t("useInvoiceGenerator")}</span>
+            <InfoTip text={t("useInvoiceGeneratorTip")} />
+          </label>
+
+          {!useGenerator && (
+            <label>
+              {t("netAmountSek")}
+              <InfoTip text={t("netAmountSekTip")} />
+              <input
+                className="field"
+                type="number"
+                name="netAmount"
+                disabled={fieldsLocked}
+                min="0.01"
+                step="0.01"
+                value={netAmount}
+                onChange={(event) => setNetAmount(event.target.value)}
+                required
+              />
+            </label>
+          )}
+
+          {useGenerator && (
+            <fieldset className="access-section form-wide invoice-lines">
+              <legend>{t("invoiceLines")}</legend>
+              <div className="table-wrap">
+                <table className="invoice-lines-table">
+                  <thead>
+                    <tr>
+                      <th className="invoice-line-article">
+                        {articles.length
+                          ? t("invoiceLineChooseArticle")
+                          : t("invoiceLineArticle")}
+                      </th>
+                      <th>{t("invoiceLineDescription")}</th>
+                      <th className="invoice-line-quantity numeric">
+                        {t("invoiceLineQuantity")}
+                      </th>
+                      <th className="invoice-line-unit">
+                        {t("invoiceLineUnit")}
+                      </th>
+                      <th className="invoice-line-price numeric">
+                        {t("invoiceLineUnitPrice")}
+                      </th>
+                      <th className="invoice-line-amount numeric">
+                        {t("invoiceLineAmount")}
+                      </th>
+                      <th>
+                        <span className="sr-only">{t("actions")}</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((line, index) =>
+                      locked ? (
+                        <tr key={line.key}>
+                          <td className="invoice-line-article">
+                            {line.articleNumber || "—"}
+                          </td>
+                          <td>{line.description || "—"}</td>
+                          <td className="invoice-line-quantity numeric">
+                            {formatQuantity(
+                              parseQuantity(line.quantity),
+                              locale,
+                            )}
+                          </td>
+                          <td className="invoice-line-unit">{line.unit}</td>
+                          <td className="invoice-line-price numeric">
+                            {formatSek(
+                              Math.round(Number(line.unitPrice) * 100),
+                              locale,
+                            )}
+                          </td>
+                          <td className="invoice-line-amount numeric">
+                            {formatSek(
+                              lineAmountMinor(
+                                parseQuantity(line.quantity),
+                                Math.round(Number(line.unitPrice) * 100),
+                              ),
+                              locale,
+                            )}
+                          </td>
+                          <td />
+                        </tr>
+                      ) : (
+                        <tr key={line.key}>
+                          <td className="invoice-line-article">
+                            <select
+                              className="field"
+                              aria-label={t("invoiceLineChooseArticle")}
+                              value={line.articleId}
+                              required
+                              onChange={(event) =>
+                                chooseArticle(line.key, event.target.value)
+                              }
+                            >
+                              <option value="">
+                                {t("invoiceLineSelectArticle")}
+                              </option>
+                              {availableArticles.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.articleNumber} {"·"} {item.description}
+                                </option>
+                              ))}
+                              {line.articleId &&
+                                !availableArticles.some(
+                                  (item) => item.id === line.articleId,
+                                ) && (
+                                  <option value={line.articleId}>
+                                    {line.articleNumber} {"·"}{" "}
+                                    {line.description} (
+                                    {t("articleNotValidHere")})
+                                  </option>
+                                )}
+                            </select>
+                          </td>
+                          <td>{line.articleId ? line.description : "—"}</td>
+                          <td className="invoice-line-quantity">
+                            <input
+                              className="field numeric"
+                              inputMode="decimal"
+                              aria-label={t("invoiceLineQuantity")}
+                              value={line.quantity}
+                              required
+                              onChange={(event) =>
+                                updateLine(line.key, {
+                                  quantity: event.target.value,
+                                })
+                              }
+                            />
+                          </td>
+                          <td className="invoice-line-unit">
+                            {line.articleId ? line.unit : ""}
+                          </td>
+                          <td className="invoice-line-price numeric">
+                            {line.articleId
+                              ? formatSek(
+                                  articleById.get(line.articleId)
+                                    ?.unitPriceMinor ??
+                                    Math.round(Number(line.unitPrice) * 100),
+                                  locale,
+                                )
+                              : ""}
+                          </td>
+                          <td className="invoice-line-amount numeric">
+                            {parsedLines[index]
+                              ? formatSek(
+                                  parsedLines[index].amountMinor,
+                                  locale,
+                                )
+                              : "—"}
+                          </td>
+                          <td>
+                            <button
+                              className="table-action icon-action"
+                              type="button"
+                              aria-label={t("invoiceLineRemove")}
+                              title={t("invoiceLineRemove")}
+                              disabled={lines.length === 1}
+                              onClick={() =>
+                                setLines((current) =>
+                                  current.filter(
+                                    (item) => item.key !== line.key,
+                                  ),
+                                )
+                              }
+                            >
+                              <ActionIcon type="delete" />
+                            </button>
+                          </td>
+                        </tr>
+                      ),
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {!locked && (
+                <div className="invoice-lines-actions">
+                  <button
+                    className="button secondary"
+                    type="button"
+                    disabled={lines.length >= MAX_INVOICE_LINES}
+                    onClick={() =>
+                      setLines((current) => [...current, emptyLine()])
+                    }
+                  >
+                    {t("invoiceLineAdd")}
+                  </button>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    disabled={hoursBusy}
+                    onClick={() => void fillFromHours()}
+                  >
+                    {hoursBusy ? t("loading") : t("invoiceHoursFill")}
+                  </button>
+                  <InfoTip text={t("invoiceHoursFillTip")} />
+                </div>
+              )}
+              {!locked && !availableArticles.length && (
+                <p className="notice notice-warning">
+                  {t("invoiceNoArticles")}{" "}
+                  <Link href="/finance/articles/new">{t("addArticle")}</Link>
+                </p>
+              )}
+              {mixedArticleVat && (
+                <p className="notice notice-error">
+                  {t("invoiceArticlesMixedVat")}
+                </p>
+              )}
+              {!locked && unavailableArticleRows.length > 0 && (
+                <p className="notice notice-warning">
+                  {t("invoiceArticleNotApplicableRow")}
+                </p>
+              )}
+              {hoursNotice && (
+                <p className={`notice notice-${hoursNotice.tone}`}>
+                  {hoursNotice.text}
+                </p>
+              )}
+              <label>
+                {t("invoiceText")}
+                <InfoTip text={t("invoiceTextTip")} />
+                <textarea
+                  className="field"
+                  name="invoiceText"
+                  disabled={labelsLocked}
+                  rows={4}
+                  maxLength={1000}
+                  value={invoiceText}
+                  onChange={(event) => setInvoiceText(event.target.value)}
+                />
+              </label>
+            </fieldset>
+          )}
+
           <label>
             {t("vatPercent")}
             <InfoTip text={t("vatPercentTip")} />
@@ -671,10 +1538,12 @@ export function InvoiceForm({
               className="field"
               type="number"
               name="vatPercent"
+              disabled={fieldsLocked}
               min="0"
               max="100"
               step="0.01"
               value={vatPercent}
+              readOnly={useGenerator && articleVatLocked}
               onChange={(event) => setVatPercent(event.target.value)}
               required
             />
@@ -689,6 +1558,7 @@ export function InvoiceForm({
               max={MAX_ROUNDING_MINOR / 100}
               step="0.01"
               value={rounding}
+              disabled={fieldsLocked}
               placeholder="0.00"
               onChange={(event) => setRounding(event.target.value)}
             />
@@ -700,9 +1570,12 @@ export function InvoiceForm({
               className="field"
               type="number"
               name="sharePercent"
+              disabled={fieldsLocked}
               min="0"
               max="100"
               step="0.01"
+              value={sharePercent}
+              onChange={(event) => setSharePercent(event.target.value)}
             />
           </label>
           <label>
@@ -711,6 +1584,7 @@ export function InvoiceForm({
             <input
               className="field"
               name="visibleDescription"
+              disabled={labelsLocked}
               value={visibleDescription}
               onChange={(event) => setVisibleDescription(event.target.value)}
             />
@@ -721,6 +1595,7 @@ export function InvoiceForm({
             <input
               className="field"
               name="internalNote"
+              disabled={labelsLocked}
               value={internalNote}
               onChange={(event) => setInternalNote(event.target.value)}
             />
@@ -731,33 +1606,65 @@ export function InvoiceForm({
           >
             <div>
               <span>{t("netAmount")}</span>
-              <strong>{formatSek(netMinor, locale)}</strong>
+              <strong>{formatSek(totals.netMinor, locale)}</strong>
             </div>
             <div>
               <span>{t("vatAmount")}</span>
-              <strong>{formatSek(vatMinor, locale)}</strong>
+              <strong>{formatSek(totals.vatMinor, locale)}</strong>
             </div>
-            {roundingMinor !== 0 && (
-              <div>
-                <span>{t("rounding")}</span>
-                <strong>{formatSek(roundingMinor, locale)}</strong>
-              </div>
-            )}
+            <div>
+              <span>{t("rounding")}</span>
+              <strong>{formatSek(roundingMinor, locale)}</strong>
+            </div>
             <div>
               <span>{t("totalIncludingVat")}</span>
-              <strong>
-                {formatSek(netMinor + vatMinor + roundingMinor, locale)}
-              </strong>
+              <strong>{formatSek(totals.grossMinor, locale)}</strong>
             </div>
           </div>
+          {!locked && useGenerator && (
+            <div className="form-wide invoice-lines-actions">
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() =>
+                  setRounding(
+                    (
+                      kronorRoundingMinor(totals.netMinor + totals.vatMinor) /
+                      100
+                    ).toFixed(2),
+                  )
+                }
+              >
+                {t("roundToKronor")}
+              </button>
+            </div>
+          )}
           <FinanceAttachments
             entityType="invoice"
+            entityId={invoice?.id}
+            generated={
+              locked || !useGenerator
+                ? undefined
+                : {
+                    file: generatedPdf,
+                    busy: generating,
+                    stale:
+                      Boolean(generatedPdf) &&
+                      generatedFor !== JSON.stringify(invoicePayload()),
+                    error: generatedError,
+                    onGenerate: () => void generatePdf(),
+                    onRemove: () => {
+                      setGeneratedPdf(null);
+                      setGeneratedFor("");
+                    },
+                  }
+            }
             files={attachmentFiles}
             onFilesChange={setAttachmentFiles}
             removedAttachmentIds={removedAttachmentIds}
             onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
             ai={
-              aiEnabled
+              aiEnabled && !locked
                 ? {
                     busyKey: aiBusyKey,
                     processedKeys: aiProcessedKeys,
@@ -768,11 +1675,23 @@ export function InvoiceForm({
           />
           <AiNotices notice={aiNotice} currencyWarning={aiCurrencyWarning} />
           <div className="form-wide actions">
-            <button className="button" disabled={busy || aiBusyKey !== null}>
-              {t("createInvoice")}
+            <button
+              className="button"
+              disabled={busy || aiBusyKey !== null || generating || filesBusy}
+            >
+              {locked
+                ? labelsLocked
+                  ? t("saveAttachments")
+                  : t("saveChanges")
+                : editing
+                  ? t("saveInvoice")
+                  : t("createInvoice")}
             </button>
           </div>
           {error && <p className="form-wide notice notice-error">{error}</p>}
+          {filesError && (
+            <p className="form-wide notice notice-error">{filesError}</p>
+          )}
           {accountingDialog}
         </form>
       )}
@@ -1762,15 +2681,31 @@ export function TransactionForm({
   );
 }
 
+export type EditableCustomer = {
+  id: string;
+  name: string;
+  contactPerson: string;
+  financeEmail: string;
+  financeBccEmail: string;
+  customerNumber: string;
+  orgNumber: string;
+  vatNumber: string;
+  addressLine: string;
+  postalCode: string;
+  city: string;
+  country: string;
+  defaultYourReference: string;
+  paymentTermsDays: number | null;
+  invoiceLocale: "sv-SE" | "en-SE";
+};
+
 export function CustomerForm({
   customer,
+  nextCustomerNumber,
 }: {
-  customer?: {
-    id: string;
-    name: string;
-    contactPerson: string;
-    financeEmail: string;
-  };
+  customer?: EditableCustomer;
+  /** Shown as the number a new customer gets when left blank. */
+  nextCustomerNumber?: number;
 }) {
   const { t } = useLocale();
   const { busy, error, submit } = useFinanceSubmit(
@@ -1779,12 +2714,25 @@ export function CustomerForm({
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const text = (name: string) => String(form.get(name) ?? "").trim();
+    const terms = text("paymentTermsDays");
     void submit({
       action: customer ? "updateCustomer" : "createCustomer",
       ...(customer ? { customerId: customer.id } : {}),
-      name: form.get("name"),
-      contactPerson: form.get("contactPerson"),
-      financeEmail: form.get("financeEmail"),
+      name: text("name"),
+      contactPerson: text("contactPerson"),
+      financeEmail: text("financeEmail"),
+      financeBccEmail: text("financeBccEmail"),
+      customerNumber: text("customerNumber"),
+      orgNumber: text("orgNumber"),
+      vatNumber: text("vatNumber"),
+      addressLine: text("addressLine"),
+      postalCode: text("postalCode"),
+      city: text("city"),
+      country: text("country"),
+      defaultYourReference: text("defaultYourReference"),
+      paymentTermsDays: terms ? Math.round(Number(terms)) : null,
+      invoiceLocale: text("invoiceLocale") === "en-SE" ? "en-SE" : "sv-SE",
     });
   }
   return (
@@ -1825,6 +2773,115 @@ export function CustomerForm({
             required
           />
         </label>
+        <label>
+          {t("financeBccEmail")}
+          <InfoTip text={t("financeBccEmailTip")} />
+          <input
+            className="field"
+            type="email"
+            name="financeBccEmail"
+            defaultValue={customer?.financeBccEmail}
+          />
+        </label>
+        <label>
+          {t("customerNumber")}
+          <InfoTip text={t("customerNumberTip")} />
+          <input
+            className="field"
+            name="customerNumber"
+            defaultValue={customer?.customerNumber}
+            placeholder={
+              nextCustomerNumber ? String(nextCustomerNumber) : undefined
+            }
+          />
+        </label>
+        <fieldset className="access-section form-wide">
+          <legend>{t("customerInvoiceDetails")}</legend>
+          <div className="form-grid">
+            <label className="form-wide">
+              {t("invoiceSetting_addressLine")}
+              <input
+                className="field"
+                name="addressLine"
+                defaultValue={customer?.addressLine}
+              />
+            </label>
+            <label>
+              {t("invoiceSetting_postalCode")}
+              <input
+                className="field"
+                name="postalCode"
+                defaultValue={customer?.postalCode}
+              />
+            </label>
+            <label>
+              {t("invoiceSetting_city")}
+              <input
+                className="field"
+                name="city"
+                defaultValue={customer?.city}
+              />
+            </label>
+            <label>
+              {t("invoiceSetting_country")}
+              <input
+                className="field"
+                name="country"
+                defaultValue={customer?.country || "Sverige"}
+              />
+            </label>
+            <label>
+              {t("invoiceSetting_orgNumber")}
+              <input
+                className="field"
+                name="orgNumber"
+                defaultValue={customer?.orgNumber}
+              />
+            </label>
+            <label>
+              {t("invoiceSetting_vatNumber")}
+              <InfoTip text={t("customerVatNumberTip")} />
+              <input
+                className="field"
+                name="vatNumber"
+                defaultValue={customer?.vatNumber}
+              />
+            </label>
+            <label>
+              {t("defaultYourReference")}
+              <InfoTip text={t("defaultYourReferenceTip")} />
+              <input
+                className="field"
+                name="defaultYourReference"
+                defaultValue={customer?.defaultYourReference}
+              />
+            </label>
+            <label>
+              {t("customerPaymentTermsDays")}
+              <InfoTip text={t("customerPaymentTermsDaysTip")} />
+              <input
+                className="field"
+                type="number"
+                min="0"
+                max="365"
+                step="1"
+                name="paymentTermsDays"
+                defaultValue={customer?.paymentTermsDays ?? ""}
+              />
+            </label>
+            <label>
+              {t("invoiceLanguage")}
+              <select
+                className="field"
+                name="invoiceLocale"
+                defaultValue={customer?.invoiceLocale ?? "sv-SE"}
+              >
+                <option value="sv-SE">Svenska</option>
+                <option value="en-SE">English</option>
+              </select>
+            </label>
+          </div>
+        </fieldset>
         <div className="form-wide actions">
           <button className="button" disabled={busy}>
             {t("saveCustomer")}
@@ -1861,5 +2918,170 @@ function FinanceImport({ kind }: { kind: "invoices" | "transactions" }) {
           : ["transactions", "income", "expenses"]
       }
     />
+  );
+}
+
+/** An invoice article as its form edits it. */
+export type EditableArticle = InvoiceArticle;
+
+export function ArticleForm({
+  article,
+  users,
+}: {
+  article?: EditableArticle;
+  users: User[];
+}) {
+  const { t } = useLocale();
+  const { busy, error, submit } = useFinanceSubmit("/finance?section=articles");
+  const [validFrom, setValidFrom] = useState(article?.validFrom ?? today());
+  const [validTo, setValidTo] = useState(article?.validTo ?? "");
+  const [priceError, setPriceError] = useState("");
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const text = (name: string) => String(form.get(name) ?? "").trim();
+    let unitPriceMinor: number;
+    try {
+      unitPriceMinor = parseSignedSek(text("unitPrice"));
+    } catch {
+      setPriceError(t("articlePriceInvalid"));
+      return;
+    }
+    setPriceError("");
+    void submit({
+      action: article ? "updateArticle" : "createArticle",
+      ...(article ? { articleId: article.id } : {}),
+      articleNumber: text("articleNumber"),
+      description: text("description"),
+      unit: text("unit"),
+      unitPriceMinor,
+      consultantScope: text("consultantScope") || ARTICLE_FOR_ALL,
+      vatRateBps: Math.round(Number(text("vatPercent") || 0) * 100),
+      validFrom,
+      validTo: validTo || null,
+    });
+  }
+  return (
+    <FormPage
+      title={t(article ? "editArticle" : "addArticle")}
+      description={t(
+        article ? "editArticleDescription" : "newArticleDescription",
+      )}
+      backHref="/finance?section=articles"
+      backLabel={t("backToArticles")}
+    >
+      <form className="form-grid" onSubmit={onSubmit}>
+        <label>
+          {t("invoiceLineArticle")}
+          <InfoTip text={t("articleNumberTip")} />
+          <input
+            className="field"
+            name="articleNumber"
+            maxLength={20}
+            defaultValue={article?.articleNumber}
+            required
+          />
+        </label>
+        <label>
+          {t("invoiceLineDescription")}
+          <InfoTip text={t("articleDescriptionTip")} />
+          <input
+            className="field"
+            name="description"
+            maxLength={200}
+            defaultValue={article?.description}
+            required
+          />
+        </label>
+        <label>
+          {t("invoiceLineUnit")}
+          <input
+            className="field"
+            name="unit"
+            list="article-units"
+            maxLength={10}
+            defaultValue={article?.unit ?? "h"}
+            required
+          />
+          <datalist id="article-units">
+            {INVOICE_UNITS.map((unit) => (
+              <option key={unit} value={unit} />
+            ))}
+          </datalist>
+        </label>
+        <label>
+          {t("invoiceLineUnitPrice")}
+          <input
+            className="field"
+            name="unitPrice"
+            inputMode="decimal"
+            placeholder="0.00"
+            defaultValue={
+              article ? (article.unitPriceMinor / 100).toFixed(2) : undefined
+            }
+            required
+          />
+          <FieldError message={priceError} />
+        </label>
+        <label>
+          {t("vatPercent")}
+          <input
+            className="field"
+            type="number"
+            name="vatPercent"
+            min="0"
+            max="100"
+            step="0.01"
+            defaultValue={article ? article.vatRateBps / 100 : 25}
+            required
+          />
+        </label>
+        <label>
+          {t("articleConsultant")}
+          <InfoTip text={t("articleConsultantTip")} />
+          <select
+            className="field"
+            name="consultantScope"
+            defaultValue={article?.consultantScope ?? ARTICLE_FOR_ALL}
+          >
+            <option value={ARTICLE_FOR_ALL}>{t("articleForAll")}</option>
+            <option value={ARTICLE_FOR_COMPANY}>{t("companyOnly")}</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.displayName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {t("articleValidFrom")}
+          <DateInput
+            className="field"
+            name="validFrom"
+            value={validFrom}
+            max={validTo || undefined}
+            onChange={(event) => setValidFrom(event.target.value)}
+            required
+          />
+        </label>
+        <label>
+          {t("articleValidTo")}
+          <InfoTip text={t("articleValidToTip")} />
+          <DateInput
+            className="field"
+            name="validTo"
+            value={validTo}
+            min={validFrom || undefined}
+            onChange={(event) => setValidTo(event.target.value)}
+          />
+        </label>
+        <div className="form-wide actions">
+          <button className="button" disabled={busy}>
+            {t("saveArticle")}
+          </button>
+        </div>
+        {error && <p className="form-wide notice notice-error">{error}</p>}
+      </form>
+    </FormPage>
   );
 }

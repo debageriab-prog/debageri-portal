@@ -12,6 +12,8 @@ import {
   createFinancialTransaction,
   createExpenseCopies,
   createInvoice,
+  createInvoiceArticle,
+  updateInvoiceArticle,
   createVatSettlement,
   updateVatSettlement,
   deleteFinancialTransaction,
@@ -24,9 +26,19 @@ import {
   updateCategory,
   updateCustomer,
   updateFinancialTransaction,
+  updateInvoice,
+  updateInvoiceLabels,
   voidFinancialTransaction,
   voidInvoice,
 } from "@/server/services/finance-service";
+import {
+  approvedInvoiceHours,
+  generateInvoicePdf,
+  previewInvoicePdf,
+  sendInvoiceToCustomer,
+} from "@/server/services/invoice-document-service";
+import { downloadResponse } from "@/server/export/download";
+import { PDF_CONTENT_TYPE } from "@/server/export/invoice-pdf";
 import {
   expensableReceipt,
   linkReceiptExpense,
@@ -57,6 +69,29 @@ async function linkEmail(
   );
 }
 
+/**
+ * Generates the PDF of an invoice that was just saved. The invoice stays
+ * saved either way; a failure is returned as its error code.
+ */
+async function pdfAfterSave(
+  db: Firestore,
+  storage: ReturnType<typeof getAdminServices>["storage"],
+  actor: PortalUser,
+  invoiceId: string,
+) {
+  try {
+    await generateInvoicePdf(db, storage, actor, invoiceId);
+    return undefined;
+  } catch (error) {
+    if (error instanceof FinanceError) return error.code;
+    console.error("Invoice PDF after save failed", {
+      invoiceId,
+      errorClass: error instanceof Error ? error.name : "unknown",
+    });
+    return "financeOperationFailed";
+  }
+}
+
 function transactionAmounts(data: {
   amountMode: TransactionAmountMode;
   amountMinor: number;
@@ -84,7 +119,7 @@ export async function POST(request: Request) {
   );
   if (!parsed.success)
     return NextResponse.json({ error: "invalidInput" }, { status: 400 });
-  const { db } = getAdminServices();
+  const { db, storage } = getAdminServices();
   try {
     if (parsed.data.action !== "enableFinance") {
       const organization = await db
@@ -127,8 +162,74 @@ export async function POST(request: Request) {
             type: "invoice",
             id,
           });
+        if (invoice.generatePdf)
+          return NextResponse.json({
+            ok: true,
+            id,
+            pdfError: await pdfAfterSave(db, storage, actor, id),
+          });
         break;
       }
+      case "updateInvoice":
+        await updateInvoice(db, actor, parsed.data);
+        id = parsed.data.invoiceId;
+        if (parsed.data.generatePdf)
+          return NextResponse.json({
+            ok: true,
+            id,
+            pdfError: await pdfAfterSave(db, storage, actor, id),
+          });
+        break;
+      case "generateInvoicePdf": {
+        const result = await generateInvoicePdf(
+          db,
+          storage,
+          actor,
+          parsed.data.invoiceId,
+        );
+        return NextResponse.json({
+          ok: true,
+          id: parsed.data.invoiceId,
+          generatedAt: result.generatedAt,
+        });
+      }
+      case "sendInvoiceToCustomer": {
+        const result = await sendInvoiceToCustomer(
+          db,
+          storage,
+          actor,
+          parsed.data.invoiceId,
+        );
+        return NextResponse.json({
+          ok: true,
+          id: parsed.data.invoiceId,
+          ...result,
+        });
+      }
+      case "updateInvoiceLabels":
+        await updateInvoiceLabels(db, actor, parsed.data);
+        id = parsed.data.invoiceId;
+        break;
+      case "createArticle":
+        id = await createInvoiceArticle(db, actor, parsed.data);
+        break;
+      case "updateArticle":
+        await updateInvoiceArticle(db, actor, parsed.data);
+        id = parsed.data.articleId;
+        break;
+      case "previewInvoicePdf": {
+        const preview = await previewInvoicePdf(db, actor, parsed.data);
+        return downloadResponse(
+          preview.fileName,
+          PDF_CONTENT_TYPE,
+          preview.pdf,
+        );
+      }
+      case "invoiceHours":
+        return NextResponse.json({
+          ok: true,
+          ...(await approvedInvoiceHours(db, actor, parsed.data)),
+        });
       case "markInvoicePaid":
         id = await markInvoicePaid(db, actor, parsed.data);
         break;

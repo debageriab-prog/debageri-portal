@@ -246,6 +246,31 @@ async function seedFinance() {
     financeEnabled: true,
     timezone: "Europe/Stockholm",
     createdAt: now,
+    // Fictional company details for generated invoices; the numbers only
+    // pass the check digits.
+    invoicing: {
+      legalName: "Debageri Test AB",
+      addressLine: "Testgatan 1",
+      postalCode: "411 01",
+      city: "Göteborg",
+      country: "Sverige",
+      phone: "+46 31 000 00 00",
+      email: "faktura@debageri.test",
+      website: "",
+      orgNumber: "556677-8899",
+      vatNumber: "SE556677889901",
+      fSkatt: true,
+      bankgiro: "123-4566",
+      iban: "",
+      bic: "",
+      bankName: "",
+      paymentTermsDays: 30,
+      lateInterestText: "Referensränta + 8,0 %",
+      defaultOurReference: "Alva Admin",
+      nextInvoiceNumber: 20,
+      nextCustomerNumber: 3,
+      ocrEnabled: true,
+    },
   });
   const categories = [
     [
@@ -268,11 +293,46 @@ async function seedFinance() {
       createdAt: now,
       createdBy: "seed-admin",
     });
+  const articles = [
+    [
+      "seed-article-hours-cleo",
+      "2",
+      "Timmar",
+      "h",
+      850_00,
+      "seed-consultant-flexible",
+    ],
+    ["seed-article-hours", "1", "Konsulttimmar", "h", 1_100_00, "all"],
+    ["seed-article-licence", "10", "Licens", "st", 500_00, "company"],
+  ] as const;
+  for (const [id, articleNumber, description, unit, price, scope] of articles)
+    batch.set(db.collection("invoiceArticles").doc(id), {
+      organizationId: org,
+      articleNumber,
+      description,
+      unit,
+      unitPriceMinor: price,
+      consultantScope: scope,
+      vatRateBps: 2500,
+      validFrom: "2026-01-01",
+      validTo: null,
+      createdAt: now,
+    });
   batch.set(db.collection("financeCustomers").doc("seed-customer"), {
     organizationId: org,
     name: "Norrsken Fiktiv AB",
     contactPerson: "Kim Exempel",
     financeEmail: "faktura@norrsken.test",
+    customerNumber: "2",
+    addressLine: "Exempelvägen 52",
+    postalCode: "111 34",
+    city: "STOCKHOLM",
+    country: "Sverige",
+    orgNumber: "",
+    vatNumber: "",
+    defaultYourReference: "Job nr 52982",
+    paymentTermsDays: 30,
+    invoiceLocale: "sv-SE",
     createdAt: now,
   });
   const agreements = [

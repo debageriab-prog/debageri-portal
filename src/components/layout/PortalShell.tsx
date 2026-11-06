@@ -325,7 +325,10 @@ export function PortalShell({
   const pathFinanceSection = pathname.startsWith("/finance/")
     ? (pathname.split("/")[2] ?? null)
     : null;
-  const financeSection = searchParams.get("section") ?? pathFinanceSection;
+  const rawFinanceSection = searchParams.get("section") ?? pathFinanceSection;
+  // Articles are a tab of invoice management.
+  const financeSection =
+    rawFinanceSection === "articles" ? "invoices" : rawFinanceSection;
   const activeItemHref = groups
     .flatMap((group) => group.items)
     .filter((item) =>

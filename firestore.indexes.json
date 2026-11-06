@@ -92,6 +92,14 @@
       ]
     },
     {
+      "collectionGroup": "financeCustomers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "customerNumber", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "financeCategories",
       "queryScope": "COLLECTION",
       "fields": [
