@@ -27,6 +27,7 @@ import {
   updateCustomer,
   updateFinancialTransaction,
   updateInvoice,
+  updateInvoiceLabels,
   voidFinancialTransaction,
   voidInvoice,
 } from "@/server/services/finance-service";
@@ -205,6 +206,10 @@ export async function POST(request: Request) {
           ...result,
         });
       }
+      case "updateInvoiceLabels":
+        await updateInvoiceLabels(db, actor, parsed.data);
+        id = parsed.data.invoiceId;
+        break;
       case "createArticle":
         id = await createInvoiceArticle(db, actor, parsed.data);
         break;

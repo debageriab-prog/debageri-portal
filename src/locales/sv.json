@@ -1651,5 +1651,12 @@
   "generateInvoicePdfAttach": "Skapa PDF-faktura och bifoga",
   "generateInvoicePdfAttachTip": "Skapar fakturans PDF från formuläret som det är nu, så att du kan granska den innan du sparar. Ta bort den bifogade PDF:en först för att skapa en ny. När du sparar lagras den med fakturan, skapad från de sparade uppgifterna; den räknas inte in i de 3 filerna.",
   "generatedInvoicePdf": "Faktura-PDF",
-  "generatedInvoicePdfStale": "Formuläret har ändrats sedan PDF:en skapades. När du sparar skapas den igen från de sparade uppgifterna; ta bort den och skapa den igen för att granska den först."
+  "generatedInvoicePdfStale": "Formuläret har ändrats sedan PDF:en skapades. När du sparar skapas den igen från de sparade uppgifterna; ta bort den och skapa den igen för att granska den först.",
+  "viewInvoice": "Faktura",
+  "viewInvoiceDescription": "Fakturans uppgifter och filer.",
+  "viewInvoiceAndFiles": "Öppna faktura och filer",
+  "invoiceLocked_paid": "Fakturan är betald, så belopp, rader och datum kan inte ändras. Du kan fortfarande ändra referenser, texter och anteckningar samt lägga till eller ta bort filer.",
+  "invoiceLocked_sent": "Fakturan har skickats till kunden, så den kan inte ändras. Du kan bara lägga till eller ta bort filer. Makulera den och skapa en ny faktura för att rätta den.",
+  "invoiceLocked_void": "Fakturan är makulerad, så den kan inte ändras. Du kan bara lägga till eller ta bort filer.",
+  "saveAttachments": "Spara filer"
 }

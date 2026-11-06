@@ -95,6 +95,11 @@ must share its VAT rate. Invoices made in the portal always use articles for
 their rows; only CSV imports and older invoices have rows without one.
 "Fill from approved hours" only sets the quantity of the invoice's hourly
 article (unit `h`) to the consultant's approved worked hours in the period.
+Paid, sent and void invoices open on the same edit page with their amounts,
+rows and dates disabled and their files still editable. A paid invoice can
+also change its references, invoice text, consultant-visible description and
+internal note (`updateInvoiceLabels`, audited as `invoice.labelsUpdated`);
+its ledger entries and sent PDF stay as they were.
 Sending emails the PDF to the customer's finance email and sets `sentAt`; from
 then on the invoice keeps those copies and can no longer be edited, only
 voided.

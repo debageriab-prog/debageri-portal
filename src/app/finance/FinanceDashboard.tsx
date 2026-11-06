@@ -2685,9 +2685,9 @@ export function FinanceDashboard({
                             ) : (
                               <Link
                                 className="table-action icon-action"
-                                href={`/finance/invoices/${encodeURIComponent(invoice.id)}/attachments`}
-                                aria-label={t("editInvoiceAttachments")}
-                                title={t("editInvoiceAttachments")}
+                                href={`/finance/invoices/${encodeURIComponent(invoice.id)}/edit`}
+                                aria-label={t("viewInvoiceAndFiles")}
+                                title={t("viewInvoiceAndFiles")}
                               >
                                 <ActionIcon type="edit" />
                               </Link>

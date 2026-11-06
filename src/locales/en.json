@@ -1651,5 +1651,12 @@
   "generateInvoicePdfAttach": "Generate PDF invoice and attach",
   "generateInvoicePdfAttachTip": "Makes the invoice PDF from the form as it is now, so you can look at it before saving. To make a new one, remove the attached PDF first. Saving stores it with the invoice, made from the saved details; it doesn't count toward the 3 files.",
   "generatedInvoicePdf": "Invoice PDF",
-  "generatedInvoicePdfStale": "The form has changed since the PDF was made. Saving makes it again from the saved details; to look at it first, remove it and generate it again."
+  "generatedInvoicePdfStale": "The form has changed since the PDF was made. Saving makes it again from the saved details; to look at it first, remove it and generate it again.",
+  "viewInvoice": "Invoice",
+  "viewInvoiceDescription": "The invoice's details and files.",
+  "viewInvoiceAndFiles": "Open invoice and files",
+  "invoiceLocked_paid": "This invoice is paid, so its amounts, rows and dates can't be changed. You can still change the references, texts and notes, and add or remove files.",
+  "invoiceLocked_sent": "This invoice has been sent to the customer, so it can't be changed. You can only add or remove files. To correct it, void it and create a new invoice.",
+  "invoiceLocked_void": "This invoice is void, so it can't be changed. You can only add or remove files.",
+  "saveAttachments": "Save files"
 }

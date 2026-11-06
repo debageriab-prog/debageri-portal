@@ -32,7 +32,9 @@ import {
 import {
   INVOICE_UNITS,
   invoiceTotals,
+  formatQuantity,
   kronorRoundingMinor,
+  lineAmountMinor,
   linesForInvoice,
   MAX_INVOICE_LINES,
   parseQuantity,
@@ -401,11 +403,17 @@ export function InvoiceForm({
   invoice,
   defaults,
   articles = [],
+  locked = null,
 }: {
   users: User[];
   customers: InvoiceCustomer[];
   /** Every invoice article; the rows offer those that suit the invoice. */
   articles?: InvoiceArticle[];
+  /**
+   * Why a saved invoice can't change: it's paid, sent or void. Its details
+   * are shown but disabled, and only its files can be changed.
+   */
+  locked?: "paid" | "sent" | "void" | null;
   aiEnabled?: boolean;
   /** Accounting contacts to offer emailing the new invoice to. */
   accountingRecipients?: string[];
@@ -417,6 +425,13 @@ export function InvoiceForm({
 }) {
   const { t, locale } = useLocale();
   const editing = Boolean(invoice);
+  const lockedRouter = useRouter();
+  // Locked invoices keep amounts, rows and dates; a paid one can still have
+  // its references, texts and notes changed.
+  const fieldsLocked = Boolean(locked);
+  const labelsLocked = Boolean(locked) && locked !== "paid";
+  const [filesBusy, setFilesBusy] = useState(false);
+  const [filesError, setFilesError] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState(
     invoice?.invoiceNumber ?? String(defaults.nextInvoiceNumber),
   );
@@ -957,8 +972,72 @@ export function InvoiceForm({
     }
   }
 
+  /** Saves only the file changes of an invoice that can't be edited. */
+  async function saveFilesOnly(invoiceId: string) {
+    setFilesBusy(true);
+    setFilesError("");
+    try {
+      if (!labelsLocked) {
+        const response = await appCheckFetch("/api/finance", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "updateInvoiceLabels",
+            invoiceId,
+            ourReference,
+            yourReference,
+            invoiceText,
+            visibleDescription,
+            internalNote,
+          }),
+        });
+        if (!response.ok) {
+          const failed = (await response.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          setFilesError(
+            t(
+              `financeError_${failed.error ?? "financeOperationFailed"}` as Parameters<
+                typeof t
+              >[0],
+            ),
+          );
+          return;
+        }
+      }
+      const result = await saveFinanceAttachmentChanges(
+        "invoice",
+        invoiceId,
+        attachmentFiles,
+        removedAttachmentIds,
+      );
+      if (!result.ok) {
+        setFilesError(
+          t(
+            `financeError_${result.error ?? "attachmentUploadFailed"}` as Parameters<
+              typeof t
+            >[0],
+          ),
+        );
+        return;
+      }
+      lockedRouter.push(
+        `/finance?section=invoices&invoice=${encodeURIComponent(invoiceId)}`,
+      );
+      lockedRouter.refresh();
+    } catch {
+      setFilesError(t("serverUnavailable"));
+    } finally {
+      setFilesBusy(false);
+    }
+  }
+
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (locked && invoice) {
+      void saveFilesOnly(invoice.id);
+      return;
+    }
     if (!rowsReady()) return;
     void submit(
       {
@@ -979,20 +1058,32 @@ export function InvoiceForm({
   }
   return (
     <FormPage
-      title={editing ? t("editInvoice") : t("addInvoice")}
+      title={
+        locked ? t("viewInvoice") : editing ? t("editInvoice") : t("addInvoice")
+      }
       description={
-        editing ? t("editInvoiceDescription") : t("newInvoiceDescription")
+        locked
+          ? t("viewInvoiceDescription")
+          : editing
+            ? t("editInvoiceDescription")
+            : t("newInvoiceDescription")
       }
       backHref={returnHref}
       backLabel={
         incomingEmail ? t("backToIncomingEmails") : t("backToInvoices")
       }
       notice={
-        incomingEmail && (
-          <IncomingEmailNotice
-            email={incomingEmail}
-            filesFailed={emailFilesFailed}
-          />
+        locked ? (
+          <p className="notice notice-warning">
+            {t(`invoiceLocked_${locked}`)}
+          </p>
+        ) : (
+          incomingEmail && (
+            <IncomingEmailNotice
+              email={incomingEmail}
+              filesFailed={emailFilesFailed}
+            />
+          )
         )
       }
     >
@@ -1009,6 +1100,7 @@ export function InvoiceForm({
             <input
               className="field"
               name="invoiceNumber"
+              disabled={fieldsLocked}
               value={invoiceNumber}
               onChange={(event) => setInvoiceNumber(event.target.value)}
               required
@@ -1020,6 +1112,7 @@ export function InvoiceForm({
             <select
               className="field"
               name="customerId"
+              disabled={fieldsLocked}
               value={customerId}
               onChange={(event) => {
                 const id = event.target.value;
@@ -1047,6 +1140,7 @@ export function InvoiceForm({
             <select
               className="field"
               name="consultantId"
+              disabled={fieldsLocked}
               value={consultantId}
               onChange={(event) => {
                 setConsultantId(event.target.value);
@@ -1067,6 +1161,7 @@ export function InvoiceForm({
             <DateInput
               className="field"
               name="periodFrom"
+              disabled={fieldsLocked}
               value={periodFrom}
               max={periodTo || undefined}
               required={Boolean(periodTo)}
@@ -1082,6 +1177,7 @@ export function InvoiceForm({
             <DateInput
               className="field"
               name="periodTo"
+              disabled={fieldsLocked}
               value={periodTo}
               min={periodFrom || undefined}
               required={Boolean(periodFrom)}
@@ -1097,6 +1193,7 @@ export function InvoiceForm({
             <DateInput
               className="field"
               name="issueDate"
+              disabled={fieldsLocked}
               value={issueDate}
               onChange={(event) => {
                 setIssueDate(event.target.value);
@@ -1112,6 +1209,7 @@ export function InvoiceForm({
             <DateInput
               className="field"
               name="dueDate"
+              disabled={fieldsLocked}
               value={dueDate}
               min={issueDate}
               onChange={(event) => {
@@ -1127,6 +1225,7 @@ export function InvoiceForm({
             <input
               className="field"
               name="ourReference"
+              disabled={labelsLocked}
               value={ourReference}
               maxLength={120}
               onChange={(event) => setOurReference(event.target.value)}
@@ -1138,6 +1237,7 @@ export function InvoiceForm({
             <input
               className="field"
               name="yourReference"
+              disabled={labelsLocked}
               value={yourReference}
               maxLength={120}
               onChange={(event) => {
@@ -1177,110 +1277,144 @@ export function InvoiceForm({
                   </tr>
                 </thead>
                 <tbody>
-                  {lines.map((line, index) => (
-                    <tr key={line.key}>
-                      <td className="invoice-line-article">
-                        <select
-                          className="field"
-                          aria-label={t("invoiceLineChooseArticle")}
-                          value={line.articleId}
-                          required
-                          onChange={(event) =>
-                            chooseArticle(line.key, event.target.value)
-                          }
-                        >
-                          <option value="">
-                            {t("invoiceLineSelectArticle")}
-                          </option>
-                          {availableArticles.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.articleNumber} {"·"} {item.description}
+                  {lines.map((line, index) =>
+                    locked ? (
+                      <tr key={line.key}>
+                        <td className="invoice-line-article">
+                          {line.articleNumber || "—"}
+                        </td>
+                        <td>{line.description || "—"}</td>
+                        <td className="invoice-line-quantity numeric">
+                          {formatQuantity(parseQuantity(line.quantity), locale)}
+                        </td>
+                        <td className="invoice-line-unit">{line.unit}</td>
+                        <td className="invoice-line-price numeric">
+                          {formatSek(
+                            Math.round(Number(line.unitPrice) * 100),
+                            locale,
+                          )}
+                        </td>
+                        <td className="invoice-line-amount numeric">
+                          {formatSek(
+                            lineAmountMinor(
+                              parseQuantity(line.quantity),
+                              Math.round(Number(line.unitPrice) * 100),
+                            ),
+                            locale,
+                          )}
+                        </td>
+                        <td />
+                      </tr>
+                    ) : (
+                      <tr key={line.key}>
+                        <td className="invoice-line-article">
+                          <select
+                            className="field"
+                            aria-label={t("invoiceLineChooseArticle")}
+                            value={line.articleId}
+                            required
+                            onChange={(event) =>
+                              chooseArticle(line.key, event.target.value)
+                            }
+                          >
+                            <option value="">
+                              {t("invoiceLineSelectArticle")}
                             </option>
-                          ))}
-                          {line.articleId &&
-                            !availableArticles.some(
-                              (item) => item.id === line.articleId,
-                            ) && (
-                              <option value={line.articleId}>
-                                {line.articleNumber} {"·"} {line.description} (
-                                {t("articleNotValidHere")})
+                            {availableArticles.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.articleNumber} {"·"} {item.description}
                               </option>
-                            )}
-                        </select>
-                      </td>
-                      <td>{line.articleId ? line.description : "—"}</td>
-                      <td className="invoice-line-quantity">
-                        <input
-                          className="field numeric"
-                          inputMode="decimal"
-                          aria-label={t("invoiceLineQuantity")}
-                          value={line.quantity}
-                          required
-                          onChange={(event) =>
-                            updateLine(line.key, {
-                              quantity: event.target.value,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="invoice-line-unit">
-                        {line.articleId ? line.unit : ""}
-                      </td>
-                      <td className="invoice-line-price numeric">
-                        {line.articleId
-                          ? formatSek(
-                              articleById.get(line.articleId)?.unitPriceMinor ??
-                                Math.round(Number(line.unitPrice) * 100),
-                              locale,
-                            )
-                          : ""}
-                      </td>
-                      <td className="invoice-line-amount numeric">
-                        {parsedLines[index]
-                          ? formatSek(parsedLines[index].amountMinor, locale)
-                          : "—"}
-                      </td>
-                      <td>
-                        <button
-                          className="table-action icon-action"
-                          type="button"
-                          aria-label={t("invoiceLineRemove")}
-                          title={t("invoiceLineRemove")}
-                          disabled={lines.length === 1}
-                          onClick={() =>
-                            setLines((current) =>
-                              current.filter((item) => item.key !== line.key),
-                            )
-                          }
-                        >
-                          <ActionIcon type="delete" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                            ))}
+                            {line.articleId &&
+                              !availableArticles.some(
+                                (item) => item.id === line.articleId,
+                              ) && (
+                                <option value={line.articleId}>
+                                  {line.articleNumber} {"·"} {line.description}{" "}
+                                  ({t("articleNotValidHere")})
+                                </option>
+                              )}
+                          </select>
+                        </td>
+                        <td>{line.articleId ? line.description : "—"}</td>
+                        <td className="invoice-line-quantity">
+                          <input
+                            className="field numeric"
+                            inputMode="decimal"
+                            aria-label={t("invoiceLineQuantity")}
+                            value={line.quantity}
+                            required
+                            onChange={(event) =>
+                              updateLine(line.key, {
+                                quantity: event.target.value,
+                              })
+                            }
+                          />
+                        </td>
+                        <td className="invoice-line-unit">
+                          {line.articleId ? line.unit : ""}
+                        </td>
+                        <td className="invoice-line-price numeric">
+                          {line.articleId
+                            ? formatSek(
+                                articleById.get(line.articleId)
+                                  ?.unitPriceMinor ??
+                                  Math.round(Number(line.unitPrice) * 100),
+                                locale,
+                              )
+                            : ""}
+                        </td>
+                        <td className="invoice-line-amount numeric">
+                          {parsedLines[index]
+                            ? formatSek(parsedLines[index].amountMinor, locale)
+                            : "—"}
+                        </td>
+                        <td>
+                          <button
+                            className="table-action icon-action"
+                            type="button"
+                            aria-label={t("invoiceLineRemove")}
+                            title={t("invoiceLineRemove")}
+                            disabled={lines.length === 1}
+                            onClick={() =>
+                              setLines((current) =>
+                                current.filter((item) => item.key !== line.key),
+                              )
+                            }
+                          >
+                            <ActionIcon type="delete" />
+                          </button>
+                        </td>
+                      </tr>
+                    ),
+                  )}
                 </tbody>
               </table>
             </div>
-            <div className="invoice-lines-actions">
-              <button
-                className="button secondary"
-                type="button"
-                disabled={lines.length >= MAX_INVOICE_LINES}
-                onClick={() => setLines((current) => [...current, emptyLine()])}
-              >
-                {t("invoiceLineAdd")}
-              </button>
-              <button
-                className="button secondary"
-                type="button"
-                disabled={hoursBusy}
-                onClick={() => void fillFromHours()}
-              >
-                {hoursBusy ? t("loading") : t("invoiceHoursFill")}
-              </button>
-              <InfoTip text={t("invoiceHoursFillTip")} />
-            </div>
-            {!availableArticles.length && (
+            {!locked && (
+              <div className="invoice-lines-actions">
+                <button
+                  className="button secondary"
+                  type="button"
+                  disabled={lines.length >= MAX_INVOICE_LINES}
+                  onClick={() =>
+                    setLines((current) => [...current, emptyLine()])
+                  }
+                >
+                  {t("invoiceLineAdd")}
+                </button>
+                <button
+                  className="button secondary"
+                  type="button"
+                  disabled={hoursBusy}
+                  onClick={() => void fillFromHours()}
+                >
+                  {hoursBusy ? t("loading") : t("invoiceHoursFill")}
+                </button>
+                <InfoTip text={t("invoiceHoursFillTip")} />
+              </div>
+            )}
+            {!locked && !availableArticles.length && (
               <p className="notice notice-warning">
                 {t("invoiceNoArticles")}{" "}
                 <Link href="/finance/articles/new">{t("addArticle")}</Link>
@@ -1291,7 +1425,7 @@ export function InvoiceForm({
                 {t("invoiceArticlesMixedVat")}
               </p>
             )}
-            {unavailableArticleRows.length > 0 && (
+            {!locked && unavailableArticleRows.length > 0 && (
               <p className="notice notice-warning">
                 {t("invoiceArticleNotApplicableRow")}
               </p>
@@ -1307,6 +1441,7 @@ export function InvoiceForm({
               <textarea
                 className="field"
                 name="invoiceText"
+                disabled={labelsLocked}
                 rows={4}
                 maxLength={1000}
                 value={invoiceText}
@@ -1322,6 +1457,7 @@ export function InvoiceForm({
               className="field"
               type="number"
               name="vatPercent"
+              disabled={fieldsLocked}
               min="0"
               max="100"
               step="0.01"
@@ -1341,6 +1477,7 @@ export function InvoiceForm({
               max={MAX_ROUNDING_MINOR / 100}
               step="0.01"
               value={rounding}
+              disabled={fieldsLocked}
               placeholder="0.00"
               onChange={(event) => setRounding(event.target.value)}
             />
@@ -1352,6 +1489,7 @@ export function InvoiceForm({
               className="field"
               type="number"
               name="sharePercent"
+              disabled={fieldsLocked}
               min="0"
               max="100"
               step="0.01"
@@ -1365,6 +1503,7 @@ export function InvoiceForm({
             <input
               className="field"
               name="visibleDescription"
+              disabled={labelsLocked}
               value={visibleDescription}
               onChange={(event) => setVisibleDescription(event.target.value)}
             />
@@ -1375,6 +1514,7 @@ export function InvoiceForm({
             <input
               className="field"
               name="internalNote"
+              disabled={labelsLocked}
               value={internalNote}
               onChange={(event) => setInternalNote(event.target.value)}
             />
@@ -1400,43 +1540,50 @@ export function InvoiceForm({
               <strong>{formatSek(totals.grossMinor, locale)}</strong>
             </div>
           </div>
-          <div className="form-wide invoice-lines-actions">
-            <button
-              className="button secondary"
-              type="button"
-              onClick={() =>
-                setRounding(
-                  (
-                    kronorRoundingMinor(totals.netMinor + totals.vatMinor) / 100
-                  ).toFixed(2),
-                )
-              }
-            >
-              {t("roundToKronor")}
-            </button>
-          </div>
+          {!locked && (
+            <div className="form-wide invoice-lines-actions">
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() =>
+                  setRounding(
+                    (
+                      kronorRoundingMinor(totals.netMinor + totals.vatMinor) /
+                      100
+                    ).toFixed(2),
+                  )
+                }
+              >
+                {t("roundToKronor")}
+              </button>
+            </div>
+          )}
           <FinanceAttachments
             entityType="invoice"
             entityId={invoice?.id}
-            generated={{
-              file: generatedPdf,
-              busy: generating,
-              stale:
-                Boolean(generatedPdf) &&
-                generatedFor !== JSON.stringify(invoicePayload()),
-              error: generatedError,
-              onGenerate: () => void generatePdf(),
-              onRemove: () => {
-                setGeneratedPdf(null);
-                setGeneratedFor("");
-              },
-            }}
+            generated={
+              locked
+                ? undefined
+                : {
+                    file: generatedPdf,
+                    busy: generating,
+                    stale:
+                      Boolean(generatedPdf) &&
+                      generatedFor !== JSON.stringify(invoicePayload()),
+                    error: generatedError,
+                    onGenerate: () => void generatePdf(),
+                    onRemove: () => {
+                      setGeneratedPdf(null);
+                      setGeneratedFor("");
+                    },
+                  }
+            }
             files={attachmentFiles}
             onFilesChange={setAttachmentFiles}
             removedAttachmentIds={removedAttachmentIds}
             onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
             ai={
-              aiEnabled
+              aiEnabled && !locked
                 ? {
                     busyKey: aiBusyKey,
                     processedKeys: aiProcessedKeys,
@@ -1449,12 +1596,21 @@ export function InvoiceForm({
           <div className="form-wide actions">
             <button
               className="button"
-              disabled={busy || aiBusyKey !== null || generating}
+              disabled={busy || aiBusyKey !== null || generating || filesBusy}
             >
-              {editing ? t("saveInvoice") : t("createInvoice")}
+              {locked
+                ? labelsLocked
+                  ? t("saveAttachments")
+                  : t("saveChanges")
+                : editing
+                  ? t("saveInvoice")
+                  : t("createInvoice")}
             </button>
           </div>
           {error && <p className="form-wide notice notice-error">{error}</p>}
+          {filesError && (
+            <p className="form-wide notice notice-error">{filesError}</p>
+          )}
           {accountingDialog}
         </form>
       )}

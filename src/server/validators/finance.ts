@@ -167,6 +167,17 @@ export const previewInvoicePdfSchema = z.object({
   ...invoiceFields,
 });
 
+/** The texts a paid invoice can still change; amounts and dates stay. */
+export const updateInvoiceLabelsSchema = z.object({
+  action: z.literal("updateInvoiceLabels"),
+  invoiceId: z.string().min(1).max(128),
+  ourReference: z.string().trim().max(120).default(""),
+  yourReference: z.string().trim().max(120).default(""),
+  invoiceText: z.string().trim().max(1_000).default(""),
+  visibleDescription: z.string().trim().max(300).default(""),
+  internalNote: z.string().trim().max(1_000).default(""),
+});
+
 export const generateInvoicePdfSchema = z.object({
   action: z.literal("generateInvoicePdf"),
   invoiceId: z.string().min(1).max(128),
@@ -307,6 +318,7 @@ export const financeActionSchema = z.discriminatedUnion("action", [
   invoiceSchema,
   updateInvoiceSchema,
   generateInvoicePdfSchema,
+  updateInvoiceLabelsSchema,
   previewInvoicePdfSchema,
   sendInvoiceSchema,
   articleSchema,

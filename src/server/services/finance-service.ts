@@ -1036,6 +1036,52 @@ export async function updateInvoice(
   });
 }
 
+const INVOICE_LABEL_FIELDS = [
+  "ourReference",
+  "yourReference",
+  "invoiceText",
+  "visibleDescription",
+  "internalNote",
+] as const;
+
+/**
+ * Changes the texts of a paid invoice. Its amounts, rows, dates and the
+ * ledger entries made when it was paid stay as they are, and so does the
+ * PDF that was sent.
+ */
+export async function updateInvoiceLabels(
+  db: Firestore,
+  actor: PortalUser,
+  input: Record<(typeof INVOICE_LABEL_FIELDS)[number], string> & {
+    invoiceId: string;
+  },
+) {
+  requireFinancePermission(actor, "finance.invoices.edit");
+  const reference = db.collection("invoices").doc(input.invoiceId);
+  const snapshot = await reference.get();
+  const data = snapshot.data();
+  if (!snapshot.exists || data?.organizationId !== actor.organizationId)
+    throw new FinanceError("invoiceMissing", 404);
+  if (data.status !== "paid") throw new FinanceError("invoiceLocked", 409);
+  const changed = INVOICE_LABEL_FIELDS.filter(
+    (field) => String(data[field] ?? "") !== input[field],
+  );
+  if (!changed.length) return;
+  const batch = db.batch();
+  batch.update(reference, {
+    ...Object.fromEntries(changed.map((field) => [field, input[field]])),
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: actor.id,
+  });
+  audit(db, batch, actor, "invoice.labelsUpdated", "invoice", reference.id, {
+    fields: changed,
+    previous: Object.fromEntries(
+      changed.map((field) => [field, String(data[field] ?? "")]),
+    ),
+  });
+  await batch.commit();
+}
+
 export async function markInvoicePaid(
   db: Firestore,
   actor: PortalUser,

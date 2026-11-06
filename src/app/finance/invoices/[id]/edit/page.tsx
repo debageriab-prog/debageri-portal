@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import type { InvoiceLine } from "@/domain/finance/invoice-lines";
 import { InvoiceForm } from "../../../FinanceForms";
 import {
@@ -21,9 +21,16 @@ export default async function EditInvoicePage({
   const data = document.data();
   if (!document.exists || data?.organizationId !== actor.organizationId)
     notFound();
-  // Sent, paid and void invoices are corrected by voiding them.
-  if (data.status !== "issued" || data.sentAt)
-    redirect(`/finance/invoices/${encodeURIComponent(id)}/attachments`);
+  // Paid, sent and void invoices are shown but their amounts, rows and
+  // dates stay; a paid one can still change its texts, and all take files.
+  const locked =
+    data.status === "paid"
+      ? ("paid" as const)
+      : data.status === "void"
+        ? ("void" as const)
+        : data.sentAt
+          ? ("sent" as const)
+          : null;
   const text = (value: unknown) => (typeof value === "string" ? value : "");
   return (
     <InvoiceForm
@@ -31,6 +38,7 @@ export default async function EditInvoicePage({
       customers={await invoiceCustomers(db, actor.organizationId)}
       defaults={await invoiceDefaults(db, actor.organizationId)}
       articles={await invoiceArticles(db, actor.organizationId)}
+      locked={locked}
       invoice={{
         id,
         invoiceNumber: text(data.invoiceNumber),

@@ -4074,3 +4074,9 @@ td.amount-cell {
 .attachment-list .detail-tag {
   flex: 0 0 auto;
 }
+/* Locked fields read as fixed values, apart from the ones still editable. */
+.field:disabled {
+  background: #f4efe9;
+  color: var(--muted);
+  cursor: not-allowed;
+}
