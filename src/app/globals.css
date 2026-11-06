@@ -4064,3 +4064,13 @@ td.amount-cell {
 .invoice-settings-summary .week-head p {
   margin: 0;
 }
+.generated-pdf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 4px 0 12px;
+}
+.attachment-list .detail-tag {
+  flex: 0 0 auto;
+}

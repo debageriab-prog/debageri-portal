@@ -37,7 +37,9 @@ import { smtpSettings } from "@/server/services/accounting-email-service";
 import {
   FinanceError,
   financeIsEnabled,
+  prepareInvoice,
   requireFinancePermission,
+  type InvoiceInput,
 } from "@/server/services/finance-service";
 import { decryptPassword } from "@/server/services/reminder-service";
 
@@ -276,19 +278,12 @@ function render(
   };
 }
 
-/**
- * Makes the invoice PDF, stores it with the invoice and records which
- * company and customer details it was made with.
- */
-export async function generateInvoicePdf(
+/** Renders an invoice's PDF after checking the details it needs. */
+async function renderFor(
   db: Firestore,
-  storage: Storage,
   actor: PortalUser,
-  invoiceId: string,
+  data: FirebaseFirestore.DocumentData,
 ) {
-  requireFinancePermission(actor, "finance.invoices.edit");
-  const { reference, data } = await loadInvoice(db, actor, invoiceId);
-  if (data.status === "void") throw new FinanceError("invoiceLocked", 409);
   const { issuer, customer } = await documentDetails(db, actor, data);
   const problems = invoiceDocumentProblems(issuer, customer);
   if (problems.length)
@@ -304,7 +299,56 @@ export async function generateInvoicePdf(
       : issuer.ocrEnabled
         ? ocrReferenceFor(String(data.invoiceNumber))
         : null;
-  const { pdf, fileName } = render(data, issuer, customer, ocrReference);
+  return {
+    issuer,
+    customer,
+    ocrReference,
+    ...render(data, issuer, customer, ocrReference),
+  };
+}
+
+/**
+ * The PDF an invoice would get with the details in the form, before it is
+ * saved; nothing is stored. Saving makes the real one from the saved data.
+ */
+export async function previewInvoicePdf(
+  db: Firestore,
+  actor: PortalUser,
+  input: InvoiceInput & { invoiceId?: string | null },
+) {
+  if (
+    !can(actor, "finance.invoices.add") &&
+    !can(actor, "finance.invoices.edit")
+  )
+    throw new FinanceError("forbidden", 403);
+  if (!(await financeIsEnabled(db, actor.organizationId)))
+    throw new FinanceError("financeDisabled", 409);
+  const invoice = await prepareInvoice(db, actor, input);
+  const { pdf, fileName } = await renderFor(db, actor, {
+    ...invoice,
+    sentAt: null,
+  });
+  return { pdf, fileName };
+}
+
+/**
+ * Makes the invoice PDF, stores it with the invoice and records which
+ * company and customer details it was made with.
+ */
+export async function generateInvoicePdf(
+  db: Firestore,
+  storage: Storage,
+  actor: PortalUser,
+  invoiceId: string,
+) {
+  requireFinancePermission(actor, "finance.invoices.edit");
+  const { reference, data } = await loadInvoice(db, actor, invoiceId);
+  if (data.status === "void") throw new FinanceError("invoiceLocked", 409);
+  const { issuer, customer, ocrReference, pdf, fileName } = await renderFor(
+    db,
+    actor,
+    data,
+  );
   const path = generatedPath(actor.organizationId, invoiceId);
   await storage
     .bucket()
@@ -317,9 +361,27 @@ export async function generateInvoicePdf(
       },
     });
   const generatedAt = new Date().toISOString();
+  // The PDF is also one of the invoice's attachments, so it shows and
+  // downloads with the other files; it does not count toward their limit.
+  const attachmentId = String(
+    data.pdfAttachmentId || `${invoiceId}-invoice-pdf`,
+  );
   const batch = db.batch();
+  batch.set(db.collection("financeAttachments").doc(attachmentId), {
+    organizationId: actor.organizationId,
+    entityType: "invoice",
+    entityId: invoiceId,
+    name: fileName,
+    size: pdf.length,
+    contentType: PDF_CONTENT_TYPE,
+    storagePath: path,
+    generated: true,
+    createdAt: FieldValue.serverTimestamp(),
+    createdBy: actor.id,
+  });
   batch.update(reference, {
     pdfStoragePath: path,
+    pdfAttachmentId: attachmentId,
     pdfFileName: fileName,
     pdfGeneratedAt: generatedAt,
     ocrReference,

@@ -1,5 +1,6 @@
 "use client";
 
+import { InfoTip } from "@/components/ui/InfoTip";
 import { useEffect, useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { appCheckFetch } from "@/lib/firebase/client";
@@ -30,6 +31,19 @@ type Attachment = {
   name: string;
   size: number;
   contentType: string;
+  /** The invoice PDF the portal made; it doesn't count toward the limit. */
+  generated?: boolean;
+};
+
+/** The invoice PDF made in the form before saving, shown with the files. */
+export type GeneratedInvoicePdf = {
+  file: File | null;
+  busy: boolean;
+  /** The form changed after the PDF was made. */
+  stale: boolean;
+  error: string;
+  onGenerate(): void;
+  onRemove(): void;
 };
 
 export async function uploadFinanceAttachments(
@@ -164,9 +178,12 @@ export function FinanceAttachments({
   removedAttachmentIds,
   onRemovedAttachmentIdsChange,
   ai,
+  generated,
 }: {
   entityType: FinanceEntityType;
   entityId?: string;
+  /** Offers making the invoice PDF and attaching it, for invoices. */
+  generated?: GeneratedInvoicePdf;
   files: File[];
   onFilesChange(files: File[]): void;
   removedAttachmentIds: string[];
@@ -187,6 +204,9 @@ export function FinanceAttachments({
   );
   const [confirmation, setConfirmation] = useState("");
   const [previewing, setPreviewing] = useState<PreviewTarget | null>(null);
+  // A removed stored invoice PDF, kept apart so a new one made before
+  // saving (which reuses its place) is not removed along with it.
+  const [removedGeneratedIds, setRemovedGeneratedIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!entityId) return;
@@ -200,16 +220,95 @@ export function FinanceAttachments({
       .catch(() => setError(t("financeError_attachmentLoadFailed")));
   }, [entityId, entityType, t]);
 
-  const remaining = Math.max(0, 3 - existing.length - files.length);
+  const uploaded = existing.filter((attachment) => !attachment.generated);
+  const remaining = Math.max(0, 3 - uploaded.length - files.length);
+  // A newly made PDF replaces the stored one when the invoice is saved.
+  const shownExisting = generated?.file ? uploaded : existing;
+  const hasPdf = Boolean(
+    generated?.file || existing.some((attachment) => attachment.generated),
+  );
   return (
     <fieldset className="form-wide attachment-fieldset">
       <legend>{t("attachments")}</legend>
       <p className="muted">{t("financeAttachmentsHelp")}</p>
-      {existing.length > 0 && (
+      {generated && (
+        <div className="generated-pdf-actions">
+          <button
+            className="button secondary"
+            type="button"
+            disabled={generated.busy}
+            onClick={() => {
+              if (removedGeneratedIds.length) {
+                onRemovedAttachmentIdsChange(
+                  removedAttachmentIds.filter(
+                    (id) => !removedGeneratedIds.includes(id),
+                  ),
+                );
+                setRemovedGeneratedIds([]);
+              }
+              generated.onGenerate();
+            }}
+          >
+            {generated.busy
+              ? t("loading")
+              : hasPdf
+                ? t("regenerateInvoicePdfAttach")
+                : t("generateInvoicePdfAttach")}
+          </button>
+          <InfoTip text={t("generateInvoicePdfAttachTip")} />
+        </div>
+      )}
+      {generated?.file && (
+        <ul className="attachment-list pending-attachment-list">
+          <li>
+            <span>{generated.file.name}</span>
+            <span className="detail-tag detail-tag-neutral">
+              {t("generatedInvoicePdf")}
+            </span>
+            <PreviewButton
+              name={generated.file.name}
+              onClick={() =>
+                setPreviewing({
+                  name: generated.file!.name,
+                  contentType: "application/pdf",
+                  blob: generated.file!,
+                })
+              }
+            />
+            <button
+              className="attachment-remove"
+              type="button"
+              aria-label={t("removeAttachment").replace(
+                "{name}",
+                generated.file.name,
+              )}
+              title={t("removeAttachment").replace(
+                "{name}",
+                generated.file.name,
+              )}
+              onClick={generated.onRemove}
+            >
+              <FileRemoveIcon />
+            </button>
+          </li>
+        </ul>
+      )}
+      {generated?.stale && (
+        <p className="notice notice-warning">{t("generatedInvoicePdfStale")}</p>
+      )}
+      {generated?.error && (
+        <p className="notice notice-error">{generated.error}</p>
+      )}
+      {shownExisting.length > 0 && (
         <ul className="attachment-list editable-attachment-list">
-          {existing.map((attachment) => (
+          {shownExisting.map((attachment) => (
             <li key={attachment.id}>
               <span className="stored-attachment-name">{attachment.name}</span>
+              {attachment.generated && (
+                <span className="detail-tag detail-tag-neutral">
+                  {t("generatedInvoicePdf")}
+                </span>
+              )}
               {ai && (
                 <AiProcessButton
                   name={attachment.name}
@@ -398,6 +497,11 @@ export function FinanceAttachments({
                     ...removedAttachmentIds,
                     confirmingRemoval.id,
                   ]);
+                  if (confirmingRemoval.generated)
+                    setRemovedGeneratedIds((ids) => [
+                      ...ids,
+                      confirmingRemoval.id,
+                    ]);
                   setConfirmingRemoval(null);
                   setConfirmation("");
                 }}

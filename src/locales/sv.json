@@ -1565,8 +1565,6 @@
   "invoiceHoursConsultant": "Konsult: {name}",
   "roundToKronor": "Avrunda till hela kronor",
   "saveInvoice": "Spara faktura",
-  "createAndGeneratePdf": "Skapa och generera PDF",
-  "saveAndGeneratePdf": "Spara och generera PDF",
   "customerInvoice": "Kundfaktura",
   "invoicePdfGeneratedAt": "PDF skapad",
   "invoiceSentAt": "Skickad till kund",
@@ -1653,5 +1651,10 @@
   "invoiceLineSelectArticle": "Välj en artikel",
   "invoiceNoArticles": "Det finns inga fakturaartiklar för den här konsulten på fakturadatumet. Lägg till en först.",
   "invoiceHoursNeedArticle": "Välj först en timartikel (enhet h) på en rad. Fyll i från godkända timmar sätter bara dess antal.",
-  "aiNetForArticles": "Filens belopp exklusive moms är {amount}. Välj artiklar och antal för raderna."
+  "aiNetForArticles": "Filens belopp exklusive moms är {amount}. Välj artiklar och antal för raderna.",
+  "generateInvoicePdfAttach": "Skapa PDF-faktura och bifoga",
+  "regenerateInvoicePdfAttach": "Skapa PDF-fakturan igen",
+  "generateInvoicePdfAttachTip": "Skapar fakturans PDF från formuläret som det är nu, så att du kan granska den innan du sparar. När du sparar lagras den med fakturan, skapad från de sparade uppgifterna; den räknas inte in i de 3 filerna.",
+  "generatedInvoicePdf": "Faktura-PDF",
+  "generatedInvoicePdfStale": "Formuläret har ändrats sedan PDF:en skapades. När du sparar skapas den igen från de sparade uppgifterna, eller skapa den igen för att granska den först."
 }

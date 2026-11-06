@@ -69,7 +69,12 @@ rows; older invoices without rows print as one row. With OCR on, the
 `ocrReference` is the invoice number plus a length digit and a Luhn check
 digit. The PDF is made on the server with the built-in PDF writer and stored at
 `organizations/{org}/finance/invoice/{id}/generated-invoice.pdf`; generating
-again overwrites it. When the invoice has an OCR number, the last page ends
+again overwrites it. The PDF is also a `financeAttachments` record with
+`generated: true` (ID `{invoiceId}-invoice-pdf`), so it lists and downloads
+with the invoice's files without counting toward their limit of three, and
+removing it clears the invoice's PDF. On the invoice form, "Generate PDF
+invoice and attach" shows a preview made from the unsaved form; saving makes
+the stored PDF from the saved invoice. When the invoice has an OCR number, the last page ends
 with a bankgiro payment slip ("Inbetalning/Girering AVI") whose code line
 follows Bankgirot's layout for a fixed amount: bankgiro, amount with its
 check digit and OCR number, read from the right and ending in `#41#`. It is

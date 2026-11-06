@@ -159,6 +159,14 @@ export const updateInvoiceSchema = z.object({
   ...invoiceFields,
 });
 
+/** The invoice as it is in the form, for a PDF preview before saving. */
+export const previewInvoicePdfSchema = z.object({
+  action: z.literal("previewInvoicePdf"),
+  /** The invoice being edited, if it is saved already. */
+  invoiceId: z.string().min(1).max(128).nullable().default(null),
+  ...invoiceFields,
+});
+
 export const generateInvoicePdfSchema = z.object({
   action: z.literal("generateInvoicePdf"),
   invoiceId: z.string().min(1).max(128),
@@ -299,6 +307,7 @@ export const financeActionSchema = z.discriminatedUnion("action", [
   invoiceSchema,
   updateInvoiceSchema,
   generateInvoicePdfSchema,
+  previewInvoicePdfSchema,
   sendInvoiceSchema,
   articleSchema,
   updateArticleSchema,

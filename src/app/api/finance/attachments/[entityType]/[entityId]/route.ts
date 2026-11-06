@@ -92,6 +92,7 @@ export async function GET(
       name: String(document.data().name),
       size: Number(document.data().size),
       contentType: String(document.data().contentType),
+      generated: document.data().generated === true,
     })),
   });
 }
@@ -113,7 +114,11 @@ export async function POST(
     .where("entityType", "==", entityType)
     .where("entityId", "==", entityId)
     .get();
-  if (!files.length || existing.size + files.length > MAX_FILES)
+  // The generated invoice PDF does not use up one of the uploads.
+  const uploadedCount = existing.docs.filter(
+    (document) => document.data().generated !== true,
+  ).length;
+  if (!files.length || uploadedCount + files.length > MAX_FILES)
     return NextResponse.json({ error: "attachmentLimit" }, { status: 400 });
   if (files.some((file) => file.size > MAX_BYTES))
     return NextResponse.json({ error: "attachmentTooLarge" }, { status: 400 });

@@ -1565,8 +1565,6 @@
   "invoiceHoursConsultant": "Consultant: {name}",
   "roundToKronor": "Round to whole kronor",
   "saveInvoice": "Save invoice",
-  "createAndGeneratePdf": "Create and generate PDF",
-  "saveAndGeneratePdf": "Save and generate PDF",
   "customerInvoice": "Customer invoice",
   "invoicePdfGeneratedAt": "PDF generated",
   "invoiceSentAt": "Sent to customer",
@@ -1653,5 +1651,10 @@
   "invoiceLineSelectArticle": "Choose an article",
   "invoiceNoArticles": "There are no invoice articles for this consultant on the invoice date. Add one first.",
   "invoiceHoursNeedArticle": "Choose an hourly article (unit h) on a row first. Fill from approved hours only sets its quantity.",
-  "aiNetForArticles": "The file's amount excluding VAT is {amount}. Choose the articles and quantities for the rows."
+  "aiNetForArticles": "The file's amount excluding VAT is {amount}. Choose the articles and quantities for the rows.",
+  "generateInvoicePdfAttach": "Generate PDF invoice and attach",
+  "regenerateInvoicePdfAttach": "Generate PDF invoice again",
+  "generateInvoicePdfAttachTip": "Makes the invoice PDF from the form as it is now, so you can look at it before saving. Saving stores it with the invoice, made from the saved details; it doesn't count toward the 3 files.",
+  "generatedInvoicePdf": "Invoice PDF",
+  "generatedInvoicePdfStale": "The form has changed since the PDF was made. Saving makes it again from the saved details, or generate it again to look at it first."
 }

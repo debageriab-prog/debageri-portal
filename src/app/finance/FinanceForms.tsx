@@ -2,7 +2,7 @@
 
 import { DateInput } from "@/components/ui/DateInput";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
@@ -456,6 +456,17 @@ export function InvoiceForm({
   const [yourReferenceTouched, setYourReferenceTouched] = useState(editing);
   const [invoiceText, setInvoiceText] = useState(invoice?.invoiceText ?? "");
   const [hoursBusy, setHoursBusy] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [sharePercent, setSharePercent] = useState(
+    invoice?.shareBpsOverride != null
+      ? String(invoice.shareBpsOverride / 100)
+      : "",
+  );
+  // The PDF made from the form before saving, and the form it was made from.
+  const [generatedPdf, setGeneratedPdf] = useState<File | null>(null);
+  const [generatedFor, setGeneratedFor] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generatedError, setGeneratedError] = useState("");
   const [hoursNotice, setHoursNotice] = useState<{
     tone: "success" | "warning" | "error";
     text: string;
@@ -852,60 +863,118 @@ export function InvoiceForm({
     }
   }
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const submitter = (event.nativeEvent as SubmitEvent)
-      .submitter as HTMLButtonElement | null;
-    const form = new FormData(event.currentTarget);
+  /** Stops on rows that can't be saved, saying why. */
+  function rowsReady() {
     if (mixedArticleVat) {
       setHoursNotice({ tone: "error", text: t("invoiceArticlesMixedVat") });
-      return;
+      return false;
     }
     if (parsedLines.some((line) => line === null)) {
       setHoursNotice({ tone: "error", text: t("invoiceLinesIncomplete") });
-      return;
+      return false;
     }
-    const shareValue = form.get("sharePercent");
+    return true;
+  }
+
+  /** The invoice as the form has it, in the shape the API takes. */
+  function invoicePayload() {
+    return {
+      invoiceNumber,
+      consultantId: consultantId || null,
+      customerId,
+      issueDate,
+      dueDate,
+      periodFrom: periodFrom || null,
+      periodTo: periodTo || null,
+      netMinor: Math.max(totals.netMinor, 0),
+      vatRateBps,
+      roundingMinor,
+      visibleDescription,
+      internalNote,
+      shareBpsOverride: sharePercent
+        ? Math.round(Number(sharePercent) * 100)
+        : null,
+      lines: parsedLines.map((line) => ({
+        articleId: line!.articleId ?? null,
+        articleNumber: line!.articleNumber,
+        description: line!.description,
+        quantityThousandths: line!.quantityThousandths,
+        unit: line!.unit,
+        unitPriceMinor: line!.unitPriceMinor,
+      })),
+      ourReference,
+      yourReference,
+      invoiceText,
+    };
+  }
+
+  /**
+   * Makes the invoice PDF from the form as it is now and attaches it, so it
+   * can be looked at, removed or made again before saving.
+   */
+  async function generatePdf() {
+    setGeneratedError("");
+    if (!formRef.current?.reportValidity() || !rowsReady()) return;
+    const payload = invoicePayload();
+    setGenerating(true);
+    try {
+      const response = await appCheckFetch("/api/finance", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "previewInvoicePdf",
+          invoiceId: invoice?.id ?? null,
+          ...payload,
+        }),
+      });
+      if (!response.ok) {
+        const result = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setGeneratedError(
+          t(
+            `financeError_${result.error ?? "financeOperationFailed"}` as Parameters<
+              typeof t
+            >[0],
+          ),
+        );
+        return;
+      }
+      const encoded = /filename\*=UTF-8''([^;]+)/.exec(
+        response.headers.get("content-disposition") ?? "",
+      )?.[1];
+      const name = encoded
+        ? decodeURIComponent(encoded)
+        : `${t("invoicePdf_title")} ${invoiceNumber}.pdf`;
+      setGeneratedPdf(
+        new File([await response.blob()], name, { type: "application/pdf" }),
+      );
+      setGeneratedFor(JSON.stringify(payload));
+    } catch {
+      setGeneratedError(t("serverUnavailable"));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!rowsReady()) return;
     void submit(
       {
         action: editing ? "updateInvoice" : "createInvoice",
         ...(invoice ? { invoiceId: invoice.id } : {}),
-        invoiceNumber,
-        consultantId: consultantId || null,
-        customerId,
-        issueDate,
-        dueDate,
-        periodFrom: periodFrom || null,
-        periodTo: periodTo || null,
-        netMinor: Math.max(totals.netMinor, 0),
-        vatRateBps,
-        roundingMinor,
-        visibleDescription,
-        internalNote,
-        shareBpsOverride: shareValue
-          ? Math.round(Number(shareValue) * 100)
-          : null,
-        lines: parsedLines.map((line) => ({
-          articleId: line!.articleId ?? null,
-          articleNumber: line!.articleNumber,
-          description: line!.description,
-          quantityThousandths: line!.quantityThousandths,
-          unit: line!.unit,
-          unitPriceMinor: line!.unitPriceMinor,
-        })),
-        ourReference,
-        yourReference,
-        invoiceText,
-        generatePdf: submitter?.value === "generate",
+        ...invoicePayload(),
+        // The attached PDF is made again from the saved invoice.
+        generatePdf: Boolean(generatedPdf),
         ...(incomingEmail ? { incomingEmailId: incomingEmail.id } : {}),
       },
-      editing
-        ? undefined
-        : {
-            entityType: "invoice",
-            files: attachmentFiles,
-            removedAttachmentIds,
-          },
+      {
+        entityType: "invoice",
+        entityId: invoice?.id,
+        files: attachmentFiles,
+        removedAttachmentIds,
+      },
     );
   }
   return (
@@ -933,7 +1002,7 @@ export function InvoiceForm({
           <Link href="/finance/customers/new">{t("addCustomer")}</Link>
         </p>
       ) : (
-        <form className="form-grid" onSubmit={onSubmit}>
+        <form className="form-grid" ref={formRef} onSubmit={onSubmit}>
           <label>
             {t("invoiceNumber")}
             <InfoTip text={t("invoiceNumberTip")} />
@@ -1286,11 +1355,8 @@ export function InvoiceForm({
               min="0"
               max="100"
               step="0.01"
-              defaultValue={
-                invoice?.shareBpsOverride != null
-                  ? invoice.shareBpsOverride / 100
-                  : undefined
-              }
+              value={sharePercent}
+              onChange={(event) => setSharePercent(event.target.value)}
             />
           </label>
           <label>
@@ -1349,39 +1415,43 @@ export function InvoiceForm({
               {t("roundToKronor")}
             </button>
           </div>
-          {!editing && (
-            <FinanceAttachments
-              entityType="invoice"
-              files={attachmentFiles}
-              onFilesChange={setAttachmentFiles}
-              removedAttachmentIds={removedAttachmentIds}
-              onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
-              ai={
-                aiEnabled
-                  ? {
-                      busyKey: aiBusyKey,
-                      processedKeys: aiProcessedKeys,
-                      onProcess: processWithAi,
-                    }
-                  : undefined
-              }
-            />
-          )}
+          <FinanceAttachments
+            entityType="invoice"
+            entityId={invoice?.id}
+            generated={{
+              file: generatedPdf,
+              busy: generating,
+              stale:
+                Boolean(generatedPdf) &&
+                generatedFor !== JSON.stringify(invoicePayload()),
+              error: generatedError,
+              onGenerate: () => void generatePdf(),
+              onRemove: () => {
+                setGeneratedPdf(null);
+                setGeneratedFor("");
+              },
+            }}
+            files={attachmentFiles}
+            onFilesChange={setAttachmentFiles}
+            removedAttachmentIds={removedAttachmentIds}
+            onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
+            ai={
+              aiEnabled
+                ? {
+                    busyKey: aiBusyKey,
+                    processedKeys: aiProcessedKeys,
+                    onProcess: processWithAi,
+                  }
+                : undefined
+            }
+          />
           <AiNotices notice={aiNotice} currencyWarning={aiCurrencyWarning} />
           <div className="form-wide actions">
             <button
-              className="button secondary"
-              value="save"
-              disabled={busy || aiBusyKey !== null}
+              className="button"
+              disabled={busy || aiBusyKey !== null || generating}
             >
               {editing ? t("saveInvoice") : t("createInvoice")}
-            </button>
-            <button
-              className="button"
-              value="generate"
-              disabled={busy || aiBusyKey !== null}
-            >
-              {editing ? t("saveAndGeneratePdf") : t("createAndGeneratePdf")}
             </button>
           </div>
           {error && <p className="form-wide notice notice-error">{error}</p>}

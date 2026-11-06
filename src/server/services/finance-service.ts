@@ -855,6 +855,20 @@ async function preparedInvoice(
   };
 }
 
+/** Checks an invoice like saving it would, without writing anything. */
+export async function prepareInvoice(
+  db: Firestore,
+  actor: PortalUser,
+  input: InvoiceInput,
+) {
+  const settings = invoiceSettingsFrom(
+    (
+      await db.collection("organizations").doc(actor.organizationId).get()
+    ).data()?.invoicing,
+  );
+  return preparedInvoice(db, actor, input, settings.ocrEnabled);
+}
+
 async function invoiceNumberTaken(
   transaction: FirebaseFirestore.Transaction,
   db: Firestore,

@@ -33,8 +33,11 @@ import {
 import {
   approvedInvoiceHours,
   generateInvoicePdf,
+  previewInvoicePdf,
   sendInvoiceToCustomer,
 } from "@/server/services/invoice-document-service";
+import { downloadResponse } from "@/server/export/download";
+import { PDF_CONTENT_TYPE } from "@/server/export/invoice-pdf";
 import {
   expensableReceipt,
   linkReceiptExpense,
@@ -209,6 +212,14 @@ export async function POST(request: Request) {
         await updateInvoiceArticle(db, actor, parsed.data);
         id = parsed.data.articleId;
         break;
+      case "previewInvoicePdf": {
+        const preview = await previewInvoicePdf(db, actor, parsed.data);
+        return downloadResponse(
+          preview.fileName,
+          PDF_CONTENT_TYPE,
+          preview.pdf,
+        );
+      }
       case "invoiceHours":
         return NextResponse.json({
           ok: true,
