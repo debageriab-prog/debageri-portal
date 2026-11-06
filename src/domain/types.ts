@@ -142,6 +142,8 @@ export interface Invoice {
   roundingMinor?: number;
   /** Invoice rows; missing on invoices recorded with one amount. */
   lines?: InvoiceLine[];
+  /** Made with the invoice generator; missing (false) on older invoices. */
+  useGenerator?: boolean;
   ourReference?: string;
   yourReference?: string;
   invoiceText?: string;

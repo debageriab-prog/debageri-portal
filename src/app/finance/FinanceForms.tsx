@@ -314,6 +314,8 @@ export type EditableInvoice = {
   ourReference: string;
   yourReference: string;
   invoiceText: string;
+  /** Made with the invoice generator; false for invoices from elsewhere. */
+  useGenerator: boolean;
 };
 
 /** Defaults for new invoices from the company invoice settings. */
@@ -449,6 +451,14 @@ export function InvoiceForm({
   // period; replaced on change until the user types their own.
   const [autoDescription, setAutoDescription] = useState("");
   const [autoInternalNote, setAutoInternalNote] = useState("");
+  // New invoices use the generator unless they come from a forwarded email;
+  // saved ones only when they were made with it.
+  const [useGenerator, setUseGenerator] = useState(
+    invoice ? invoice.useGenerator : !incomingEmail,
+  );
+  const [netAmount, setNetAmount] = useState(
+    invoice && !invoice.useGenerator ? (invoice.netMinor / 100).toFixed(2) : "",
+  );
   const [lines, setLines] = useState<LineDraft[]>(() =>
     invoice ? linesForInvoice(invoice).map(draftFrom) : [emptyLine()],
   );
@@ -559,11 +569,33 @@ export function InvoiceForm({
     }
   })();
   const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
-  const totals = invoiceTotals(
-    parsedLines.filter((line): line is InvoiceLine => line !== null),
-    Number.isFinite(vatRateBps) ? vatRateBps : 0,
-    roundingMinor,
-  );
+  const enteredNetMinor = (() => {
+    try {
+      return parseSek(netAmount || "0");
+    } catch {
+      return 0;
+    }
+  })();
+  // With the generator the rows make the net; otherwise it is typed in from
+  // the invoice made elsewhere.
+  const totals = useGenerator
+    ? invoiceTotals(
+        parsedLines.filter((line): line is InvoiceLine => line !== null),
+        Number.isFinite(vatRateBps) ? vatRateBps : 0,
+        roundingMinor,
+      )
+    : (() => {
+        const vatMinor = calculateVatMinor(
+          enteredNetMinor,
+          Number.isFinite(vatRateBps) ? vatRateBps : 0,
+        );
+        return {
+          netMinor: enteredNetMinor,
+          vatMinor,
+          roundingMinor,
+          grossMinor: enteredNetMinor + vatMinor + roundingMinor,
+        };
+      })();
 
   const termsFor = (id: string) =>
     customers.find((customer) => customer.id === id)?.paymentTermsDays ??
@@ -661,6 +693,7 @@ export function InvoiceForm({
       // Rows come from articles, so the amount read from the file is only
       // shown for comparison.
       readNetMinor = extraction.netMinor;
+      setNetAmount((extraction.netMinor / 100).toFixed(2));
     }
     if (!foreignAmounts)
       setRounding(
@@ -697,7 +730,7 @@ export function InvoiceForm({
       return;
     }
     const messages = [t("aiFilledFromFile").replace("{name}", name)];
-    if (readNetMinor !== null)
+    if (readNetMinor !== null && useGenerator)
       messages.push(
         t("aiNetForArticles").replace(
           "{amount}",
@@ -880,6 +913,7 @@ export function InvoiceForm({
 
   /** Stops on rows that can't be saved, saying why. */
   function rowsReady() {
+    if (!useGenerator) return true;
     if (mixedArticleVat) {
       setHoursNotice({ tone: "error", text: t("invoiceArticlesMixedVat") });
       return false;
@@ -901,6 +935,7 @@ export function InvoiceForm({
       dueDate,
       periodFrom: periodFrom || null,
       periodTo: periodTo || null,
+      useGenerator,
       netMinor: Math.max(totals.netMinor, 0),
       vatRateBps,
       roundingMinor,
@@ -909,7 +944,7 @@ export function InvoiceForm({
       shareBpsOverride: sharePercent
         ? Math.round(Number(sharePercent) * 100)
         : null,
-      lines: parsedLines.map((line) => ({
+      lines: (useGenerator ? parsedLines : []).map((line) => ({
         articleId: line!.articleId ?? null,
         articleNumber: line!.articleNumber,
         description: line!.description,
@@ -1247,208 +1282,255 @@ export function InvoiceForm({
             />
           </label>
 
-          <fieldset className="access-section form-wide invoice-lines">
-            <legend>{t("invoiceLines")}</legend>
-            <div className="table-wrap">
-              <table className="invoice-lines-table">
-                <thead>
-                  <tr>
-                    <th className="invoice-line-article">
-                      {articles.length
-                        ? t("invoiceLineChooseArticle")
-                        : t("invoiceLineArticle")}
-                    </th>
-                    <th>{t("invoiceLineDescription")}</th>
-                    <th className="invoice-line-quantity numeric">
-                      {t("invoiceLineQuantity")}
-                    </th>
-                    <th className="invoice-line-unit">
-                      {t("invoiceLineUnit")}
-                    </th>
-                    <th className="invoice-line-price numeric">
-                      {t("invoiceLineUnitPrice")}
-                    </th>
-                    <th className="invoice-line-amount numeric">
-                      {t("invoiceLineAmount")}
-                    </th>
-                    <th>
-                      <span className="sr-only">{t("actions")}</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((line, index) =>
-                    locked ? (
-                      <tr key={line.key}>
-                        <td className="invoice-line-article">
-                          {line.articleNumber || "—"}
-                        </td>
-                        <td>{line.description || "—"}</td>
-                        <td className="invoice-line-quantity numeric">
-                          {formatQuantity(parseQuantity(line.quantity), locale)}
-                        </td>
-                        <td className="invoice-line-unit">{line.unit}</td>
-                        <td className="invoice-line-price numeric">
-                          {formatSek(
-                            Math.round(Number(line.unitPrice) * 100),
-                            locale,
-                          )}
-                        </td>
-                        <td className="invoice-line-amount numeric">
-                          {formatSek(
-                            lineAmountMinor(
-                              parseQuantity(line.quantity),
-                              Math.round(Number(line.unitPrice) * 100),
-                            ),
-                            locale,
-                          )}
-                        </td>
-                        <td />
-                      </tr>
-                    ) : (
-                      <tr key={line.key}>
-                        <td className="invoice-line-article">
-                          <select
-                            className="field"
-                            aria-label={t("invoiceLineChooseArticle")}
-                            value={line.articleId}
-                            required
-                            onChange={(event) =>
-                              chooseArticle(line.key, event.target.value)
-                            }
-                          >
-                            <option value="">
-                              {t("invoiceLineSelectArticle")}
-                            </option>
-                            {availableArticles.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.articleNumber} {"·"} {item.description}
-                              </option>
-                            ))}
-                            {line.articleId &&
-                              !availableArticles.some(
-                                (item) => item.id === line.articleId,
-                              ) && (
-                                <option value={line.articleId}>
-                                  {line.articleNumber} {"·"} {line.description}{" "}
-                                  ({t("articleNotValidHere")})
-                                </option>
-                              )}
-                          </select>
-                        </td>
-                        <td>{line.articleId ? line.description : "—"}</td>
-                        <td className="invoice-line-quantity">
-                          <input
-                            className="field numeric"
-                            inputMode="decimal"
-                            aria-label={t("invoiceLineQuantity")}
-                            value={line.quantity}
-                            required
-                            onChange={(event) =>
-                              updateLine(line.key, {
-                                quantity: event.target.value,
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="invoice-line-unit">
-                          {line.articleId ? line.unit : ""}
-                        </td>
-                        <td className="invoice-line-price numeric">
-                          {line.articleId
-                            ? formatSek(
-                                articleById.get(line.articleId)
-                                  ?.unitPriceMinor ??
-                                  Math.round(Number(line.unitPrice) * 100),
-                                locale,
-                              )
-                            : ""}
-                        </td>
-                        <td className="invoice-line-amount numeric">
-                          {parsedLines[index]
-                            ? formatSek(parsedLines[index].amountMinor, locale)
-                            : "—"}
-                        </td>
-                        <td>
-                          <button
-                            className="table-action icon-action"
-                            type="button"
-                            aria-label={t("invoiceLineRemove")}
-                            title={t("invoiceLineRemove")}
-                            disabled={lines.length === 1}
-                            onClick={() =>
-                              setLines((current) =>
-                                current.filter((item) => item.key !== line.key),
-                              )
-                            }
-                          >
-                            <ActionIcon type="delete" />
-                          </button>
-                        </td>
-                      </tr>
-                    ),
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {!locked && (
-              <div className="invoice-lines-actions">
-                <button
-                  className="button secondary"
-                  type="button"
-                  disabled={lines.length >= MAX_INVOICE_LINES}
-                  onClick={() =>
-                    setLines((current) => [...current, emptyLine()])
-                  }
-                >
-                  {t("invoiceLineAdd")}
-                </button>
-                <button
-                  className="button secondary"
-                  type="button"
-                  disabled={hoursBusy}
-                  onClick={() => void fillFromHours()}
-                >
-                  {hoursBusy ? t("loading") : t("invoiceHoursFill")}
-                </button>
-                <InfoTip text={t("invoiceHoursFillTip")} />
-              </div>
-            )}
-            {!locked && !availableArticles.length && (
-              <p className="notice notice-warning">
-                {t("invoiceNoArticles")}{" "}
-                <Link href="/finance/articles/new">{t("addArticle")}</Link>
-              </p>
-            )}
-            {mixedArticleVat && (
-              <p className="notice notice-error">
-                {t("invoiceArticlesMixedVat")}
-              </p>
-            )}
-            {!locked && unavailableArticleRows.length > 0 && (
-              <p className="notice notice-warning">
-                {t("invoiceArticleNotApplicableRow")}
-              </p>
-            )}
-            {hoursNotice && (
-              <p className={`notice notice-${hoursNotice.tone}`}>
-                {hoursNotice.text}
-              </p>
-            )}
+          <label className="checkbox-row form-wide">
+            <input
+              type="checkbox"
+              checked={useGenerator}
+              disabled={fieldsLocked}
+              onChange={(event) => {
+                setUseGenerator(event.target.checked);
+                // A PDF made from rows no longer fits an invoice without them.
+                if (!event.target.checked) {
+                  setGeneratedPdf(null);
+                  setGeneratedFor("");
+                }
+              }}
+            />
+            <span>{t("useInvoiceGenerator")}</span>
+            <InfoTip text={t("useInvoiceGeneratorTip")} />
+          </label>
+
+          {!useGenerator && (
             <label>
-              {t("invoiceText")}
-              <InfoTip text={t("invoiceTextTip")} />
-              <textarea
+              {t("netAmountSek")}
+              <InfoTip text={t("netAmountSekTip")} />
+              <input
                 className="field"
-                name="invoiceText"
-                disabled={labelsLocked}
-                rows={4}
-                maxLength={1000}
-                value={invoiceText}
-                onChange={(event) => setInvoiceText(event.target.value)}
+                type="number"
+                name="netAmount"
+                disabled={fieldsLocked}
+                min="0.01"
+                step="0.01"
+                value={netAmount}
+                onChange={(event) => setNetAmount(event.target.value)}
+                required
               />
             </label>
-          </fieldset>
+          )}
+
+          {useGenerator && (
+            <fieldset className="access-section form-wide invoice-lines">
+              <legend>{t("invoiceLines")}</legend>
+              <div className="table-wrap">
+                <table className="invoice-lines-table">
+                  <thead>
+                    <tr>
+                      <th className="invoice-line-article">
+                        {articles.length
+                          ? t("invoiceLineChooseArticle")
+                          : t("invoiceLineArticle")}
+                      </th>
+                      <th>{t("invoiceLineDescription")}</th>
+                      <th className="invoice-line-quantity numeric">
+                        {t("invoiceLineQuantity")}
+                      </th>
+                      <th className="invoice-line-unit">
+                        {t("invoiceLineUnit")}
+                      </th>
+                      <th className="invoice-line-price numeric">
+                        {t("invoiceLineUnitPrice")}
+                      </th>
+                      <th className="invoice-line-amount numeric">
+                        {t("invoiceLineAmount")}
+                      </th>
+                      <th>
+                        <span className="sr-only">{t("actions")}</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((line, index) =>
+                      locked ? (
+                        <tr key={line.key}>
+                          <td className="invoice-line-article">
+                            {line.articleNumber || "—"}
+                          </td>
+                          <td>{line.description || "—"}</td>
+                          <td className="invoice-line-quantity numeric">
+                            {formatQuantity(
+                              parseQuantity(line.quantity),
+                              locale,
+                            )}
+                          </td>
+                          <td className="invoice-line-unit">{line.unit}</td>
+                          <td className="invoice-line-price numeric">
+                            {formatSek(
+                              Math.round(Number(line.unitPrice) * 100),
+                              locale,
+                            )}
+                          </td>
+                          <td className="invoice-line-amount numeric">
+                            {formatSek(
+                              lineAmountMinor(
+                                parseQuantity(line.quantity),
+                                Math.round(Number(line.unitPrice) * 100),
+                              ),
+                              locale,
+                            )}
+                          </td>
+                          <td />
+                        </tr>
+                      ) : (
+                        <tr key={line.key}>
+                          <td className="invoice-line-article">
+                            <select
+                              className="field"
+                              aria-label={t("invoiceLineChooseArticle")}
+                              value={line.articleId}
+                              required
+                              onChange={(event) =>
+                                chooseArticle(line.key, event.target.value)
+                              }
+                            >
+                              <option value="">
+                                {t("invoiceLineSelectArticle")}
+                              </option>
+                              {availableArticles.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.articleNumber} {"·"} {item.description}
+                                </option>
+                              ))}
+                              {line.articleId &&
+                                !availableArticles.some(
+                                  (item) => item.id === line.articleId,
+                                ) && (
+                                  <option value={line.articleId}>
+                                    {line.articleNumber} {"·"}{" "}
+                                    {line.description} (
+                                    {t("articleNotValidHere")})
+                                  </option>
+                                )}
+                            </select>
+                          </td>
+                          <td>{line.articleId ? line.description : "—"}</td>
+                          <td className="invoice-line-quantity">
+                            <input
+                              className="field numeric"
+                              inputMode="decimal"
+                              aria-label={t("invoiceLineQuantity")}
+                              value={line.quantity}
+                              required
+                              onChange={(event) =>
+                                updateLine(line.key, {
+                                  quantity: event.target.value,
+                                })
+                              }
+                            />
+                          </td>
+                          <td className="invoice-line-unit">
+                            {line.articleId ? line.unit : ""}
+                          </td>
+                          <td className="invoice-line-price numeric">
+                            {line.articleId
+                              ? formatSek(
+                                  articleById.get(line.articleId)
+                                    ?.unitPriceMinor ??
+                                    Math.round(Number(line.unitPrice) * 100),
+                                  locale,
+                                )
+                              : ""}
+                          </td>
+                          <td className="invoice-line-amount numeric">
+                            {parsedLines[index]
+                              ? formatSek(
+                                  parsedLines[index].amountMinor,
+                                  locale,
+                                )
+                              : "—"}
+                          </td>
+                          <td>
+                            <button
+                              className="table-action icon-action"
+                              type="button"
+                              aria-label={t("invoiceLineRemove")}
+                              title={t("invoiceLineRemove")}
+                              disabled={lines.length === 1}
+                              onClick={() =>
+                                setLines((current) =>
+                                  current.filter(
+                                    (item) => item.key !== line.key,
+                                  ),
+                                )
+                              }
+                            >
+                              <ActionIcon type="delete" />
+                            </button>
+                          </td>
+                        </tr>
+                      ),
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {!locked && (
+                <div className="invoice-lines-actions">
+                  <button
+                    className="button secondary"
+                    type="button"
+                    disabled={lines.length >= MAX_INVOICE_LINES}
+                    onClick={() =>
+                      setLines((current) => [...current, emptyLine()])
+                    }
+                  >
+                    {t("invoiceLineAdd")}
+                  </button>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    disabled={hoursBusy}
+                    onClick={() => void fillFromHours()}
+                  >
+                    {hoursBusy ? t("loading") : t("invoiceHoursFill")}
+                  </button>
+                  <InfoTip text={t("invoiceHoursFillTip")} />
+                </div>
+              )}
+              {!locked && !availableArticles.length && (
+                <p className="notice notice-warning">
+                  {t("invoiceNoArticles")}{" "}
+                  <Link href="/finance/articles/new">{t("addArticle")}</Link>
+                </p>
+              )}
+              {mixedArticleVat && (
+                <p className="notice notice-error">
+                  {t("invoiceArticlesMixedVat")}
+                </p>
+              )}
+              {!locked && unavailableArticleRows.length > 0 && (
+                <p className="notice notice-warning">
+                  {t("invoiceArticleNotApplicableRow")}
+                </p>
+              )}
+              {hoursNotice && (
+                <p className={`notice notice-${hoursNotice.tone}`}>
+                  {hoursNotice.text}
+                </p>
+              )}
+              <label>
+                {t("invoiceText")}
+                <InfoTip text={t("invoiceTextTip")} />
+                <textarea
+                  className="field"
+                  name="invoiceText"
+                  disabled={labelsLocked}
+                  rows={4}
+                  maxLength={1000}
+                  value={invoiceText}
+                  onChange={(event) => setInvoiceText(event.target.value)}
+                />
+              </label>
+            </fieldset>
+          )}
 
           <label>
             {t("vatPercent")}
@@ -1462,7 +1544,7 @@ export function InvoiceForm({
               max="100"
               step="0.01"
               value={vatPercent}
-              readOnly={articleVatLocked}
+              readOnly={useGenerator && articleVatLocked}
               onChange={(event) => setVatPercent(event.target.value)}
               required
             />
@@ -1540,7 +1622,7 @@ export function InvoiceForm({
               <strong>{formatSek(totals.grossMinor, locale)}</strong>
             </div>
           </div>
-          {!locked && (
+          {!locked && useGenerator && (
             <div className="form-wide invoice-lines-actions">
               <button
                 className="button secondary"
@@ -1562,7 +1644,7 @@ export function InvoiceForm({
             entityType="invoice"
             entityId={invoice?.id}
             generated={
-              locked
+              locked || !useGenerator
                 ? undefined
                 : {
                     file: generatedPdf,

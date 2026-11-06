@@ -61,6 +61,8 @@ export default async function EditInvoicePage({
         ourReference: text(data.ourReference),
         yourReference: text(data.yourReference),
         invoiceText: text(data.invoiceText),
+        // Invoices saved before the generator existed count as made elsewhere.
+        useGenerator: data.useGenerator === true,
       }}
     />
   );

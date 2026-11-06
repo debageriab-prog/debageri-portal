@@ -257,6 +257,7 @@ export default async function FinancePage({
         grossMinor: Number(data.grossMinor),
         shareBps: Number(data.shareBps ?? 0),
         customerId: manager ? String(data.customerId ?? "") : "",
+        useGenerator: data.useGenerator === true,
         attachments: invoiceAttachments.get(document.id) ?? [],
         ocrReference: manager ? (data.ocrReference ?? null) : null,
         pdfGeneratedAt: manager ? (data.pdfGeneratedAt ?? null) : null,

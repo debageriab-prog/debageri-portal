@@ -323,6 +323,8 @@ export async function previewInvoicePdf(
     throw new FinanceError("forbidden", 403);
   if (!(await financeIsEnabled(db, actor.organizationId)))
     throw new FinanceError("financeDisabled", 409);
+  if (input.useGenerator !== true)
+    throw new FinanceError("invoiceNotGenerated", 409);
   const invoice = await prepareInvoice(db, actor, input);
   const { pdf, fileName } = await renderFor(db, actor, {
     ...invoice,
@@ -344,6 +346,8 @@ export async function generateInvoicePdf(
   requireFinancePermission(actor, "finance.invoices.edit");
   const { reference, data } = await loadInvoice(db, actor, invoiceId);
   if (data.status === "void") throw new FinanceError("invoiceLocked", 409);
+  if (data.useGenerator !== true)
+    throw new FinanceError("invoiceNotGenerated", 409);
   const { issuer, customer, ocrReference, pdf, fileName } = await renderFor(
     db,
     actor,
@@ -448,6 +452,9 @@ export async function sendInvoiceToCustomer(
   requireFinancePermission(actor, "finance.invoices.send");
   const { reference, data } = await loadInvoice(db, actor, invoiceId);
   if (data.status === "void") throw new FinanceError("invoiceLocked", 409);
+  // Invoices made elsewhere are sent from there.
+  if (data.useGenerator !== true)
+    throw new FinanceError("invoiceNotGenerated", 409);
   const recipient = String(data.customerFinanceEmail ?? "").trim();
   if (!recipient) throw new FinanceError("customerEmailMissing", 409);
   const smtp = await smtpSettings(db, actor.organizationId);

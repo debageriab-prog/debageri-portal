@@ -1658,5 +1658,8 @@
   "invoiceLocked_paid": "Fakturan är betald, så belopp, rader och datum kan inte ändras. Du kan fortfarande ändra referenser, texter och anteckningar samt lägga till eller ta bort filer.",
   "invoiceLocked_sent": "Fakturan har skickats till kunden, så den kan inte ändras. Du kan bara lägga till eller ta bort filer. Makulera den och skapa en ny faktura för att rätta den.",
   "invoiceLocked_void": "Fakturan är makulerad, så den kan inte ändras. Du kan bara lägga till eller ta bort filer.",
-  "saveAttachments": "Spara filer"
+  "saveAttachments": "Spara filer",
+  "useInvoiceGenerator": "Använd fakturagenerator",
+  "useInvoiceGeneratorTip": "Bygg fakturan av artiklar och skapa dess PDF här. Lämna av när fakturan gjorts i ett annat system; ange då dess nettobelopp och bifoga dess fil.",
+  "financeError_invoiceNotGenerated": "Fakturan gjordes inte med fakturageneratorn, så portalen kan inte skapa eller skicka dess PDF."
 }

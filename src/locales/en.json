@@ -1658,5 +1658,8 @@
   "invoiceLocked_paid": "This invoice is paid, so its amounts, rows and dates can't be changed. You can still change the references, texts and notes, and add or remove files.",
   "invoiceLocked_sent": "This invoice has been sent to the customer, so it can't be changed. You can only add or remove files. To correct it, void it and create a new invoice.",
   "invoiceLocked_void": "This invoice is void, so it can't be changed. You can only add or remove files.",
-  "saveAttachments": "Save files"
+  "saveAttachments": "Save files",
+  "useInvoiceGenerator": "Use invoice generator",
+  "useInvoiceGeneratorTip": "Build the invoice from articles and generate its PDF here. Leave it off when the invoice was made in another system; then enter its net amount and attach its file.",
+  "financeError_invoiceNotGenerated": "This invoice wasn't made with the invoice generator, so the portal can't make or send its PDF."
 }

@@ -91,8 +91,12 @@ date. Two articles may share a number only when their scope or validity
 differs. A row made from an article stores `articleId` with a copy of the
 article's details, taken on the server when the invoice is saved, so later
 price changes leave saved invoices alone. All article rows on an invoice
-must share its VAT rate. Invoices made in the portal always use articles for
-their rows; only CSV imports and older invoices have rows without one.
+must share its VAT rate. `useGenerator` says an invoice was made with the
+invoice generator: its rows come from articles and the portal makes, stores
+and sends its PDF. Without it (CSV imports, invoices made in another system,
+and every invoice saved before the flag existed) the invoice has one typed
+net amount, no rows, and its file is attached by hand; the portal neither
+generates nor sends a PDF for it.
 "Fill from approved hours" only sets the quantity of the invoice's hourly
 article (unit `h`) to the consultant's approved worked hours in the period.
 Paid, sent and void invoices open on the same edit page with their amounts,

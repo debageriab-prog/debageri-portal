@@ -761,6 +761,8 @@ export type InvoiceInput = {
   ourReference?: string;
   yourReference?: string;
   invoiceText?: string;
+  /** Rows from articles and a generated PDF; off for outside invoices. */
+  useGenerator?: boolean;
 };
 
 function invoiceAmounts(
@@ -825,7 +827,11 @@ async function preparedInvoice(
       ? (input.shareBpsOverride ?? agreement.shareBps)
       : 0;
   }
-  const lines = await resolvedLines(db, actor, input.lines ?? [], input);
+  // Invoices from another system have one amount and no rows.
+  const useGenerator = input.useGenerator === true;
+  const lines = useGenerator
+    ? await resolvedLines(db, actor, input.lines ?? [], input)
+    : [];
   const totals = invoiceAmounts(lines, input, input.roundingMinor ?? 0);
   if (totals.netMinor <= 0) throw new FinanceError("invoiceAmountInvalid");
   return {
@@ -846,6 +852,7 @@ async function preparedInvoice(
     periodTo,
     ...totals,
     lines,
+    useGenerator,
     ourReference: input.ourReference ?? "",
     yourReference: input.yourReference ?? "",
     invoiceText: input.invoiceText ?? "",

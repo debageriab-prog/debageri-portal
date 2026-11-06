@@ -137,7 +137,13 @@ const invoiceFields = {
     .nullable()
     .default(null),
   /** Invoice rows, each made from an invoice article. */
-  lines: z.array(invoiceLineSchema).min(1).max(30),
+  /**
+   * Made with the portal's invoice generator: rows from articles and a PDF.
+   * Off for invoices whose file comes from another system.
+   */
+  useGenerator: z.boolean().default(false),
+  /** Rows made from articles; only with the invoice generator. */
+  lines: z.array(invoiceLineSchema).max(30).default([]),
   ourReference: z.string().trim().max(120).default(""),
   yourReference: z.string().trim().max(120).default(""),
   /** The text printed under the rows on the generated invoice. */
@@ -146,18 +152,26 @@ const invoiceFields = {
   generatePdf: z.boolean().default(false),
 };
 
-export const invoiceSchema = z.object({
-  action: z.literal("createInvoice"),
-  ...invoiceFields,
-  /** The forwarded email the invoice is made from. */
-  incomingEmailId: z.string().min(1).max(128).nullable().default(null),
-});
+/** The invoice generator needs at least one row. */
+const generatorRows = (value: { useGenerator: boolean; lines: unknown[] }) =>
+  !value.useGenerator || value.lines.length > 0;
 
-export const updateInvoiceSchema = z.object({
-  action: z.literal("updateInvoice"),
-  invoiceId: z.string().min(1).max(128),
-  ...invoiceFields,
-});
+export const invoiceSchema = z
+  .object({
+    action: z.literal("createInvoice"),
+    ...invoiceFields,
+    /** The forwarded email the invoice is made from. */
+    incomingEmailId: z.string().min(1).max(128).nullable().default(null),
+  })
+  .refine(generatorRows, { path: ["lines"] });
+
+export const updateInvoiceSchema = z
+  .object({
+    action: z.literal("updateInvoice"),
+    invoiceId: z.string().min(1).max(128),
+    ...invoiceFields,
+  })
+  .refine(generatorRows, { path: ["lines"] });
 
 /** The invoice as it is in the form, for a PDF preview before saving. */
 export const previewInvoicePdfSchema = z.object({

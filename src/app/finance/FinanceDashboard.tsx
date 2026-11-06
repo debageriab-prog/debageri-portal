@@ -138,6 +138,7 @@ export interface FinancePageData {
     grossMinor: number;
     shareBps: number;
     customerId: string;
+    useGenerator: boolean;
     /** Staff only; empty for consultants. */
     attachments: Array<{ id: string; name: string; contentType: string }>;
     ocrReference: string | null;
@@ -2693,13 +2694,25 @@ export function FinanceDashboard({
                               </Link>
                             ))}
 
-                          {canEditInvoices && invoice.status === "issued" && (
+                          {canEditInvoices && (
                             <button
-                              className="table-action"
+                              className="table-action icon-action"
                               type="button"
+                              aria-label={
+                                invoice.status === "issued"
+                                  ? t("markAsPaid")
+                                  : t(invoice.status)
+                              }
+                              title={
+                                invoice.status === "issued"
+                                  ? t("markAsPaid")
+                                  : t(invoice.status)
+                              }
+                              // Paid and void invoices keep the icon, switched off.
+                              disabled={invoice.status !== "issued"}
                               onClick={() => setPayingInvoice(invoice)}
                             >
-                              {t("markAsPaid")}
+                              <ActionIcon type="paid" />
                             </button>
                           )}
                         </div>
@@ -3353,7 +3366,10 @@ export function FinanceDashboard({
               invoice={viewingInvoice}
               customerId={viewingInvoice.customerId}
               canEdit={canEditInvoices}
-              canSend={can(actor, "finance.invoices.send")}
+              canSend={
+                can(actor, "finance.invoices.send") &&
+                viewingInvoice.useGenerator
+              }
               canVoid={
                 can(actor, "finance.invoices.delete") &&
                 viewingInvoice.status !== "void"
