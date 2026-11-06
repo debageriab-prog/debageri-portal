@@ -17,6 +17,7 @@ type Customer = {
   name: string;
   contactPerson: string;
   financeEmail: string;
+  financeBccEmail: string;
   customerNumber: string;
   orgNumber: string;
   vatNumber: string;
@@ -126,6 +127,7 @@ export function CustomerDetails({
               rows={[
                 [t("contactPerson"), customer.contactPerson],
                 [t("financeDepartmentEmail"), customer.financeEmail],
+                [t("financeBccEmail"), customer.financeBccEmail],
               ]}
             />
           </DetailSection>

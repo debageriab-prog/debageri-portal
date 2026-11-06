@@ -460,6 +460,19 @@ export async function sendInvoiceToCustomer(
   if (!recipient) throw new FinanceError("customerEmailMissing", 409);
   const smtp = await smtpSettings(db, actor.organizationId);
   if (!smtp) throw new FinanceError("emailNotConfigured", 409);
+  // The customer's current copy address, so a change applies to resends.
+  const customer = data.customerId
+    ? (
+        await db
+          .collection("financeCustomers")
+          .doc(String(data.customerId))
+          .get()
+      ).data()
+    : undefined;
+  const bcc =
+    customer?.organizationId === actor.organizationId
+      ? String(customer.financeBccEmail ?? "").trim()
+      : "";
 
   // Unsent invoices are made again so they match the current details.
   const { pdf, fileName } =
@@ -513,6 +526,7 @@ export async function sendInvoiceToCustomer(
         name: String(fresh.customerContactPerson || fresh.customerName),
         address: recipient,
       },
+      ...(bcc && bcc.toLowerCase() !== recipient.toLowerCase() ? { bcc } : {}),
       replyTo: issuer.email || actor.email || undefined,
       ...email,
       attachments: [
@@ -532,6 +546,7 @@ export async function sendInvoiceToCustomer(
   batch.update(reference, {
     sentAt,
     sentTo: recipient,
+    sentBcc: bcc || null,
     sentBy: actor.id,
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -545,6 +560,7 @@ export async function sendInvoiceToCustomer(
     metadata: {
       invoiceNumber: String(fresh.invoiceNumber),
       resent: Boolean(data.sentAt),
+      bcc: Boolean(bcc),
     },
   });
   await batch.commit();

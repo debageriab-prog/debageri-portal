@@ -100,6 +100,8 @@ export interface FinanceCustomer {
   name: string;
   contactPerson: string;
   financeEmail: string;
+  /** Gets a hidden copy of every email sent to the finance email. */
+  financeBccEmail?: string;
   /** Invoice details; blank on customers added before invoice generation. */
   customerNumber?: string;
   orgNumber?: string;

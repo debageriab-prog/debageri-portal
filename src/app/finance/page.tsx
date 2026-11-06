@@ -331,6 +331,7 @@ export default async function FinancePage({
         name: String(data.name),
         contactPerson: String(data.contactPerson),
         financeEmail: String(data.financeEmail),
+        financeBccEmail: text(data.financeBccEmail),
         customerNumber: text(data.customerNumber),
         orgNumber: text(data.orgNumber),
         vatNumber: text(data.vatNumber),

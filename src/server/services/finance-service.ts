@@ -298,6 +298,7 @@ export type CustomerInput = {
   name: string;
   contactPerson: string;
   financeEmail: string;
+  financeBccEmail: string;
   customerNumber: string;
   orgNumber: string;
   vatNumber: string;
@@ -315,6 +316,7 @@ function customerFields(input: CustomerInput) {
     name: input.name,
     contactPerson: input.contactPerson,
     financeEmail: input.financeEmail,
+    financeBccEmail: input.financeBccEmail,
     orgNumber: input.orgNumber
       ? validOrgNumber(input.orgNumber)
         ? formatOrgNumber(input.orgNumber)

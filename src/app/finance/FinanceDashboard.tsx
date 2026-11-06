@@ -94,6 +94,7 @@ export interface FinancePageData {
     name: string;
     contactPerson: string;
     financeEmail: string;
+    financeBccEmail: string;
     customerNumber: string;
     orgNumber: string;
     vatNumber: string;
@@ -3365,6 +3366,11 @@ export function FinanceDashboard({
               key={viewingInvoice.id}
               invoice={viewingInvoice}
               customerId={viewingInvoice.customerId}
+              bccEmail={
+                data.customers.find(
+                  (customer) => customer.id === viewingInvoice.customerId,
+                )?.financeBccEmail ?? ""
+              }
               canEdit={canEditInvoices}
               canSend={
                 can(actor, "finance.invoices.send") &&

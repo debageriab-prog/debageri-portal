@@ -2686,6 +2686,7 @@ export type EditableCustomer = {
   name: string;
   contactPerson: string;
   financeEmail: string;
+  financeBccEmail: string;
   customerNumber: string;
   orgNumber: string;
   vatNumber: string;
@@ -2721,6 +2722,7 @@ export function CustomerForm({
       name: text("name"),
       contactPerson: text("contactPerson"),
       financeEmail: text("financeEmail"),
+      financeBccEmail: text("financeBccEmail"),
       customerNumber: text("customerNumber"),
       orgNumber: text("orgNumber"),
       vatNumber: text("vatNumber"),
@@ -2769,6 +2771,16 @@ export function CustomerForm({
             name="financeEmail"
             defaultValue={customer?.financeEmail}
             required
+          />
+        </label>
+        <label>
+          {t("financeBccEmail")}
+          <InfoTip text={t("financeBccEmailTip")} />
+          <input
+            className="field"
+            type="email"
+            name="financeBccEmail"
+            defaultValue={customer?.financeBccEmail}
           />
         </label>
         <label>

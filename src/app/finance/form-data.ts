@@ -68,6 +68,7 @@ export function editableCustomer(
     name: text(data.name),
     contactPerson: text(data.contactPerson),
     financeEmail: text(data.financeEmail),
+    financeBccEmail: text(data.financeBccEmail),
     customerNumber: text(data.customerNumber),
     orgNumber: text(data.orgNumber),
     vatNumber: text(data.vatNumber),

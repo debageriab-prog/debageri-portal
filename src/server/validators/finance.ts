@@ -34,6 +34,7 @@ const customerFields = {
   name: z.string().trim().min(2).max(160),
   contactPerson: z.string().trim().min(2).max(160),
   financeEmail: z.email().max(254),
+  financeBccEmail: z.union([z.literal(""), z.email().max(254)]).default(""),
   /** Blank on a new customer takes the next number from the settings. */
   customerNumber: z.string().trim().max(20).default(""),
   orgNumber: z.string().trim().max(20).default(""),

@@ -42,6 +42,7 @@ const FIX_LINKS: Partial<Record<string, { href: string; label: MessageKey }>> =
 export function InvoiceDocumentActions({
   invoice,
   customerId,
+  bccEmail = "",
   canEdit,
   canSend,
   canVoid,
@@ -49,6 +50,8 @@ export function InvoiceDocumentActions({
 }: {
   invoice: Invoice;
   customerId?: string;
+  /** The customer's copy address, told in the send confirmation. */
+  bccEmail?: string;
   canEdit: boolean;
   canSend: boolean;
   canVoid: boolean;
@@ -230,6 +233,9 @@ export function InvoiceDocumentActions({
               .replace("{number}", invoice.invoiceNumber)
               .replace("{email}", invoice.customerFinanceEmail)}
           </p>
+          {bccEmail && (
+            <p>{t("sendInvoiceBccNote").replace("{email}", bccEmail)}</p>
+          )}
           <div className="actions">
             <button
               className="button secondary"

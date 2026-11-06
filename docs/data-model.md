@@ -104,7 +104,9 @@ rows and dates disabled and their files still editable. A paid invoice can
 also change its references, invoice text, consultant-visible description and
 internal note (`updateInvoiceLabels`, audited as `invoice.labelsUpdated`);
 its ledger entries and sent PDF stay as they were.
-Sending emails the PDF to the customer's finance email and sets `sentAt`; from
+Sending emails the PDF to the customer's finance email, with a BCC to the
+customer's current `financeBccEmail` when set, and sets `sentAt` (and
+`sentBcc`); from
 then on the invoice keeps those copies and can no longer be edited, only
 voided.
 
