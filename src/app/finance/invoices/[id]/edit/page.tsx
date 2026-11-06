@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
-import type { InvoiceLine } from "@/domain/finance/invoice-lines";
+import {
+  madeWithGenerator,
+  type InvoiceLine,
+} from "@/domain/finance/invoice-lines";
 import { InvoiceForm } from "../../../FinanceForms";
 import {
   financeFormContext,
@@ -61,8 +64,7 @@ export default async function EditInvoicePage({
         ourReference: text(data.ourReference),
         yourReference: text(data.yourReference),
         invoiceText: text(data.invoiceText),
-        // Invoices saved before the generator existed count as made elsewhere.
-        useGenerator: data.useGenerator === true,
+        useGenerator: madeWithGenerator(data),
       }}
     />
   );

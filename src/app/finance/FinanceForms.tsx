@@ -451,10 +451,9 @@ export function InvoiceForm({
   // period; replaced on change until the user types their own.
   const [autoDescription, setAutoDescription] = useState("");
   const [autoInternalNote, setAutoInternalNote] = useState("");
-  // New invoices use the generator unless they come from a forwarded email;
-  // saved ones only when they were made with it.
+  // New invoices start without the generator; saved ones keep their choice.
   const [useGenerator, setUseGenerator] = useState(
-    invoice ? invoice.useGenerator : !incomingEmail,
+    invoice?.useGenerator ?? false,
   );
   const [netAmount, setNetAmount] = useState(
     invoice && !invoice.useGenerator ? (invoice.netMinor / 100).toFixed(2) : "",

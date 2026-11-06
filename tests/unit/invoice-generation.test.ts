@@ -19,6 +19,7 @@ import {
   linesForInvoice,
   parseQuantity,
   withLineAmount,
+  madeWithGenerator,
 } from "@/domain/finance/invoice-lines";
 import {
   addDays,
@@ -189,5 +190,21 @@ describe("bankgiro code line", () => {
     expect(
       bankgiroCodeLine({ ...valid, amountMinor: 1_000_000_000_00 }),
     ).toBeNull();
+  });
+});
+
+describe("madeWithGenerator", () => {
+  const row = { articleId: "a1", articleNumber: "1", description: "Konsult" };
+  it("keeps the saved choice", () => {
+    expect(madeWithGenerator({ useGenerator: true, lines: [] })).toBe(true);
+    expect(madeWithGenerator({ useGenerator: false, lines: [row] })).toBe(
+      false,
+    );
+  });
+  it("counts older invoices with article rows as generator invoices", () => {
+    expect(madeWithGenerator({ lines: [row] })).toBe(true);
+    expect(madeWithGenerator({ lines: [] })).toBe(false);
+    expect(madeWithGenerator({})).toBe(false);
+    expect(madeWithGenerator({ lines: [{ articleNumber: "" }] })).toBe(false);
   });
 });

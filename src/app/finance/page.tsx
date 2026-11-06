@@ -1,3 +1,4 @@
+import { madeWithGenerator } from "@/domain/finance/invoice-lines";
 import { invoiceSettingsFrom } from "@/domain/finance/invoice-settings";
 import { redirect } from "next/navigation";
 import {
@@ -257,7 +258,7 @@ export default async function FinancePage({
         grossMinor: Number(data.grossMinor),
         shareBps: Number(data.shareBps ?? 0),
         customerId: manager ? String(data.customerId ?? "") : "",
-        useGenerator: data.useGenerator === true,
+        useGenerator: madeWithGenerator(data),
         attachments: invoiceAttachments.get(document.id) ?? [],
         ocrReference: manager ? (data.ocrReference ?? null) : null,
         pdfGeneratedAt: manager ? (data.pdfGeneratedAt ?? null) : null,

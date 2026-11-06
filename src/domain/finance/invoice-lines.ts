@@ -69,6 +69,28 @@ export function invoiceTotals(
   };
 }
 
+/**
+ * Whether a stored invoice was made with the invoice generator. The saved
+ * choice wins; invoices saved before the choice existed count as generator
+ * invoices only when they have article rows.
+ */
+export function madeWithGenerator(invoice: {
+  useGenerator?: unknown;
+  lines?: unknown;
+}): boolean {
+  if (typeof invoice.useGenerator === "boolean") return invoice.useGenerator;
+  return (
+    Array.isArray(invoice.lines) &&
+    invoice.lines.some(
+      (line) =>
+        typeof line === "object" &&
+        line !== null &&
+        typeof (line as { articleId?: unknown }).articleId === "string" &&
+        (line as { articleId: string }).articleId !== "",
+    )
+  );
+}
+
 /** Older invoices have one amount and no rows; they print as one row. */
 export function linesForInvoice(invoice: {
   lines?: readonly InvoiceLine[] | null;

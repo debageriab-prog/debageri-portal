@@ -7,6 +7,7 @@ import { can } from "@/domain/access/permissions";
 import { formatSek } from "@/domain/finance/calculations";
 import {
   linesForInvoice,
+  madeWithGenerator,
   withLineAmount,
   type InvoiceLine,
 } from "@/domain/finance/invoice-lines";
@@ -346,7 +347,7 @@ export async function generateInvoicePdf(
   requireFinancePermission(actor, "finance.invoices.edit");
   const { reference, data } = await loadInvoice(db, actor, invoiceId);
   if (data.status === "void") throw new FinanceError("invoiceLocked", 409);
-  if (data.useGenerator !== true)
+  if (!madeWithGenerator(data))
     throw new FinanceError("invoiceNotGenerated", 409);
   const { issuer, customer, ocrReference, pdf, fileName } = await renderFor(
     db,
@@ -453,7 +454,7 @@ export async function sendInvoiceToCustomer(
   const { reference, data } = await loadInvoice(db, actor, invoiceId);
   if (data.status === "void") throw new FinanceError("invoiceLocked", 409);
   // Invoices made elsewhere are sent from there.
-  if (data.useGenerator !== true)
+  if (!madeWithGenerator(data))
     throw new FinanceError("invoiceNotGenerated", 409);
   const recipient = String(data.customerFinanceEmail ?? "").trim();
   if (!recipient) throw new FinanceError("customerEmailMissing", 409);
