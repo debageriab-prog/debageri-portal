@@ -13,6 +13,7 @@ export const PERMISSION_KEYS = [
   "finance.invoices.edit",
   "finance.invoices.delete",
   "finance.invoices.import",
+  "finance.invoices.send",
   "finance.customers.view",
   "finance.customers.add",
   "finance.customers.edit",
@@ -119,6 +120,7 @@ export const PERMISSION_TREE: PermissionGroup[] = [
           { key: "finance.invoices.edit" },
           { key: "finance.invoices.delete" },
           { key: "finance.invoices.import" },
+          { key: "finance.invoices.send" },
         ],
       },
       {
@@ -405,6 +407,7 @@ const accountantPermissions: PermissionKey[] = [
   "finance.invoices.edit",
   "finance.invoices.delete",
   "finance.invoices.import",
+  "finance.invoices.send",
   "finance.customers.view",
   "finance.customers.add",
   "finance.customers.edit",

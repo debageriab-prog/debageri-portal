@@ -211,6 +211,11 @@ export default async function FinancePage({
         roundingMinor: Number(data.roundingMinor ?? 0),
         grossMinor: Number(data.grossMinor),
         shareBps: Number(data.shareBps ?? 0),
+        customerId: manager ? String(data.customerId ?? "") : "",
+        ocrReference: manager ? (data.ocrReference ?? null) : null,
+        pdfGeneratedAt: manager ? (data.pdfGeneratedAt ?? null) : null,
+        sentAt: manager ? (data.sentAt ?? null) : null,
+        sentTo: manager ? (data.sentTo ?? null) : null,
       };
     })
     .filter((invoice) => manager || invoice.consultantId === actor.id)

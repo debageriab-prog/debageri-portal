@@ -246,6 +246,31 @@ async function seedFinance() {
     financeEnabled: true,
     timezone: "Europe/Stockholm",
     createdAt: now,
+    // Fictional company details for generated invoices; the numbers only
+    // pass the check digits.
+    invoicing: {
+      legalName: "Debageri Test AB",
+      addressLine: "Testgatan 1",
+      postalCode: "411 01",
+      city: "Göteborg",
+      country: "Sverige",
+      phone: "+46 31 000 00 00",
+      email: "faktura@debageri.test",
+      website: "",
+      orgNumber: "556677-8899",
+      vatNumber: "SE556677889901",
+      fSkatt: true,
+      bankgiro: "123-4566",
+      iban: "",
+      bic: "",
+      bankName: "",
+      paymentTermsDays: 30,
+      lateInterestText: "Referensränta + 8,0 %",
+      defaultOurReference: "Alva Admin",
+      nextInvoiceNumber: 20,
+      nextCustomerNumber: 3,
+      ocrEnabled: true,
+    },
   });
   const categories = [
     [
@@ -273,6 +298,16 @@ async function seedFinance() {
     name: "Norrsken Fiktiv AB",
     contactPerson: "Kim Exempel",
     financeEmail: "faktura@norrsken.test",
+    customerNumber: "2",
+    addressLine: "Exempelvägen 52",
+    postalCode: "111 34",
+    city: "STOCKHOLM",
+    country: "Sverige",
+    orgNumber: "",
+    vatNumber: "",
+    defaultYourReference: "Job nr 52982",
+    paymentTermsDays: 30,
+    invoiceLocale: "sv-SE",
     createdAt: now,
   });
   const agreements = [

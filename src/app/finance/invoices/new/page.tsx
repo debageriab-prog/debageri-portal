@@ -3,7 +3,12 @@ import { aiExtractionEnabledFor } from "@/server/services/ai-service";
 import { convertibleIncomingEmail } from "@/server/services/incoming-email-service";
 import { accountingRecipientsFor } from "@/server/services/accounting-email-service";
 import { InvoiceForm } from "../../FinanceForms";
-import { financeFormContext, financeUsers } from "../../form-data";
+import {
+  financeFormContext,
+  financeUsers,
+  invoiceCustomers,
+  invoiceDefaults,
+} from "../../form-data";
 import type { IncomingEmailSource } from "../../incoming-email-prefill";
 
 export default async function NewInvoicePage({
@@ -22,19 +27,11 @@ export default async function NewInvoicePage({
     ).catch(() => undefined);
     if (!incomingEmail) redirect("/finance/incoming-emails");
   }
-  const customers = await db
-    .collection("financeCustomers")
-    .where("organizationId", "==", actor.organizationId)
-    .get();
   return (
     <InvoiceForm
       users={await financeUsers()}
-      customers={customers.docs
-        .map((document) => ({
-          id: document.id,
-          name: String(document.data().name),
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name))}
+      customers={await invoiceCustomers(db, actor.organizationId)}
+      defaults={await invoiceDefaults(db, actor.organizationId)}
       accountingRecipients={await accountingRecipientsFor(
         actor,
         db,

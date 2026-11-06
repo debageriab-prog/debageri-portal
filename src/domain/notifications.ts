@@ -29,11 +29,17 @@ export const ACCOUNTING_EMAIL_KINDS: AccountingEmailKind[] = [
   "accountingVatSettlement",
 ];
 
+/** The email that sends a generated invoice to the customer. */
+export type CustomerEmailKind = "customerInvoice";
+export const CUSTOMER_EMAIL_KINDS: CustomerEmailKind[] = ["customerInvoice"];
+
 /** Every email an admin can edit under Email templates. */
-export type EmailTemplateKind = NotificationKind | AccountingEmailKind;
+export type EmailTemplateKind =
+  NotificationKind | AccountingEmailKind | CustomerEmailKind;
 export const EMAIL_TEMPLATE_KINDS: EmailTemplateKind[] = [
   ...EMAIL_NOTIFICATION_KINDS,
   ...ACCOUNTING_EMAIL_KINDS,
+  ...CUSTOMER_EMAIL_KINDS,
 ];
 
 /** Every kind shown in the portal; only `NotificationKind`s are emailed. */
@@ -251,6 +257,15 @@ export const defaultEmailTemplates: Record<
         "Here are the details of the VAT payment for {{period}}.",
       ),
     },
+    customerInvoice: {
+      subject: "Invoice {{invoiceNumber}} from {{organizationName}}",
+      body: [
+        greeting["en-SE"],
+        "Attached is invoice {{invoiceNumber}} for {{total}}, due on {{dueDate}}.",
+        "Please pay to bankgiro {{bankgiro}} and give the reference {{paymentReference}}.",
+        accountingSignOff["en-SE"],
+      ].join("\n\n"),
+    },
   },
   "sv-SE": {
     receiptSubmitted: {
@@ -316,6 +331,15 @@ export const defaultEmailTemplates: Record<
         "Här är uppgifterna om momsbetalningen för {{period}}.",
       ),
     },
+    customerInvoice: {
+      subject: "Faktura {{invoiceNumber}} från {{organizationName}}",
+      body: [
+        greeting["sv-SE"],
+        "Bifogat finns faktura {{invoiceNumber}} på {{total}} med förfallodatum {{dueDate}}.",
+        "Betala till bankgiro {{bankgiro}} och ange referensen {{paymentReference}}.",
+        accountingSignOff["sv-SE"],
+      ].join("\n\n"),
+    },
   },
 };
 
@@ -377,6 +401,17 @@ export const emailPlaceholders: Record<EmailTemplateKind, string[]> = {
     "paymentDate",
     "amount",
     "reference",
+  ],
+  customerInvoice: [
+    "recipientName",
+    "organizationName",
+    "customer",
+    "invoiceNumber",
+    "issueDate",
+    "dueDate",
+    "total",
+    "bankgiro",
+    "paymentReference",
   ],
 };
 
@@ -501,7 +536,7 @@ export function customEmailTemplate(
  * every other value is one line.
  */
 export function buildAccountingEmail(
-  kind: AccountingEmailKind,
+  kind: AccountingEmailKind | CustomerEmailKind,
   locale: NotificationLocale,
   values: Record<string, string | undefined>,
   custom?: Partial<EmailTemplate> | null,

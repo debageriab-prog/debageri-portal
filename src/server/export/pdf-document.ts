@@ -19,9 +19,30 @@ const HELVETICA_WIDTHS = [
   500, 334, 260, 334, 584,
 ];
 
+/** Common typography outside Latin-1, by code point, as Latin-1 text. */
+const LATIN1_SUBSTITUTES = new Map<number, string>([
+  [0x2010, "-"], // hyphen
+  [0x2011, "-"], // non-breaking hyphen
+  [0x2012, "-"], // figure dash
+  [0x2013, "-"], // en dash
+  [0x2014, "-"], // em dash
+  [0x2212, "-"], // minus sign
+  [0x2018, "'"],
+  [0x2019, "'"],
+  [0x201c, '"'],
+  [0x201d, '"'],
+  [0x2026, "..."],
+  [0x2022, String.fromCharCode(0xb7)], // bullet as a middle dot
+  [0x202f, String.fromCharCode(0xa0)], // narrow no-break space
+  [0x2009, " "], // thin space
+]);
+
 /** Keeps what the standard fonts can show (Latin-1) and swaps the rest. */
 export function pdfText(value: string) {
-  return [...value.normalize("NFC")]
+  const substituted = [...value.normalize("NFC")]
+    .map((char) => LATIN1_SUBSTITUTES.get(char.codePointAt(0)!) ?? char)
+    .join("");
+  return [...substituted]
     .map((char) => {
       const code = char.codePointAt(0)!;
       return (code >= 32 && code <= 126) || (code >= 160 && code <= 255)
@@ -40,7 +61,16 @@ function charWidth(char: string) {
   return base >= 32 && base <= 126 ? HELVETICA_WIDTHS[base - 32]! : 556;
 }
 
-export function textWidth(value: string, size: number, bold = false) {
+/** Courier draws every character 600/1000 em wide. */
+const MONO_WIDTH = 600;
+
+export function textWidth(
+  value: string,
+  size: number,
+  bold = false,
+  mono = false,
+) {
+  if (mono) return ([...value].length * MONO_WIDTH * size) / 1000;
   const width = [...value].reduce((sum, char) => sum + charWidth(char), 0);
   return (width * size * (bold ? 1.05 : 1)) / 1000;
 }
@@ -58,6 +88,8 @@ const num = pdfNumber;
 
 export type TextOptions = {
   bold?: boolean;
+  /** Courier Bold, for machine-read lines; at 12 pt, ten characters per inch. */
+  mono?: boolean;
   color?: string;
   align?: "left" | "center" | "right";
   /** The box the text is aligned in, for center and right. */
@@ -90,12 +122,13 @@ export class PdfPage {
   ) {
     const {
       bold = false,
+      mono = false,
       color = "000000",
       align = "left",
       width = 0,
     } = options;
     const clean = pdfText(value);
-    const measured = textWidth(clean, size, bold);
+    const measured = textWidth(clean, size, bold, mono);
     const offset =
       align === "center"
         ? (width - measured) / 2
@@ -103,7 +136,7 @@ export class PdfPage {
           ? width - measured
           : 0;
     this.ops.push(
-      `BT /${bold ? "F2" : "F1"} ${num(size)} Tf ${rgb(color)} rg ${num(x + offset)} ${num(this.height - top - size)} Td (${escape(clean)}) Tj ET`,
+      `BT /${mono ? "F3" : bold ? "F2" : "F1"} ${num(size)} Tf ${rgb(color)} rg ${num(x + offset)} ${num(this.height - top - size)} Td (${escape(clean)}) Tj ET`,
     );
   }
 
@@ -149,9 +182,66 @@ export class PdfPage {
     );
   }
 
+  /** A straight line, measured from the top left like the text. */
+  line(
+    x1: number,
+    top1: number,
+    x2: number,
+    top2: number,
+    options: { color?: string; width?: number; dash?: number[] } = {},
+  ) {
+    const { color = "000000", width = 0.5, dash } = options;
+    const pattern = dash ? `[${dash.map(num).join(" ")}] 0 d ` : "";
+    this.ops.push(
+      `q ${num(width)} w ${pattern}${rgb(color)} RG ${num(x1)} ${num(this.height - top1)} m ${num(x2)} ${num(this.height - top2)} l S Q`,
+    );
+  }
+
+  /** A filled or outlined rectangle without text. */
+  rect(
+    x: number,
+    top: number,
+    width: number,
+    height: number,
+    options: { fill?: string; stroke?: string } = {},
+  ) {
+    const y = this.height - top - height;
+    const box = `${num(x)} ${num(y)} ${num(width)} ${num(height)} re`;
+    if (options.fill) this.ops.push(`q ${rgb(options.fill)} rg ${box} f Q`);
+    if (options.stroke)
+      this.ops.push(`q 0.5 w ${rgb(options.stroke)} RG ${box} S Q`);
+  }
+
   content() {
     return this.ops.join("\n");
   }
+}
+
+/** Splits text into lines no wider than `width`, keeping its own breaks. */
+export function wrapText(
+  value: string,
+  width: number,
+  size: number,
+  bold = false,
+) {
+  const lines: string[] = [];
+  for (const paragraph of value
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map(pdfText)) {
+    let current = "";
+    for (const word of paragraph.split(/ +/)) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (!current || textWidth(candidate, size, bold) <= width) {
+        current = candidate;
+        continue;
+      }
+      lines.push(current);
+      current = word;
+    }
+    lines.push(current);
+  }
+  return lines;
 }
 
 /** Wraps finished pages in a PDF with Helvetica and Helvetica-Bold. */
@@ -159,7 +249,7 @@ export function pdfDocument(pages: readonly PdfPage[]): Buffer {
   const objects: Buffer[] = [];
   const add = (body: Buffer | string) =>
     objects.push(typeof body === "string" ? Buffer.from(body, "latin1") : body);
-  const pageIds = pages.map((_, index) => 5 + index * 2);
+  const pageIds = pages.map((_, index) => 6 + index * 2);
   add("<< /Type /Catalog /Pages 2 0 R >>");
   add(
     `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pages.length} >>`,
@@ -170,10 +260,13 @@ export function pdfDocument(pages: readonly PdfPage[]): Buffer {
   add(
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
   );
+  add(
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>",
+  );
   pages.forEach((page, index) => {
     const content = deflateSync(Buffer.from(page.content(), "latin1"));
     add(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${pageIds[index]! + 1} 0 R >>`,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents ${pageIds[index]! + 1} 0 R >>`,
     );
     add(
       Buffer.concat([

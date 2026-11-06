@@ -27,6 +27,7 @@ const matrix: Array<[PermissionKey, manager: boolean, accountant: boolean]> = [
   ["finance.invoices.edit", false, true],
   ["finance.invoices.delete", false, true],
   ["finance.invoices.import", false, true],
+  ["finance.invoices.send", false, true],
   ["finance.customers.view", false, true],
   ["finance.customers.add", false, true],
   ["finance.customers.edit", false, true],

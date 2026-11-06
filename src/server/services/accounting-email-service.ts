@@ -74,7 +74,7 @@ export async function saveAccountingContacts(
   await batch.commit();
 }
 
-async function smtpSettings(db: Firestore, organizationId: string) {
+export async function smtpSettings(db: Firestore, organizationId: string) {
   const settings = (
     await db.collection("reminderSettings").doc(organizationId).get()
   ).data();

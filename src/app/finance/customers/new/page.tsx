@@ -1,7 +1,8 @@
 import { CustomerForm } from "../../FinanceForms";
-import { financeFormContext } from "../../form-data";
+import { financeFormContext, invoiceSettingsFor } from "../../form-data";
 
 export default async function NewCustomerPage() {
-  await financeFormContext("finance.customers.add");
-  return <CustomerForm />;
+  const { actor, db } = await financeFormContext("finance.customers.add");
+  const settings = await invoiceSettingsFor(db, actor.organizationId);
+  return <CustomerForm nextCustomerNumber={settings.nextCustomerNumber} />;
 }

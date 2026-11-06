@@ -15,6 +15,10 @@ import {
   useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  downloadInvoicePdf,
+  InvoiceDocumentActions,
+} from "./InvoiceDocumentActions";
 import { shiftMonth } from "@/lib/dates/month";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
@@ -119,6 +123,11 @@ export interface FinancePageData {
     roundingMinor: number;
     grossMinor: number;
     shareBps: number;
+    customerId: string;
+    ocrReference: string | null;
+    pdfGeneratedAt: string | null;
+    sentAt: string | null;
+    sentTo: string | null;
   }>;
   transactions: Array<{
     id: string;
@@ -1297,6 +1306,15 @@ export function FinanceDashboard({
   const canEditLedger = can(actor, "finance.ledger.edit");
   const canDeleteLedger = can(actor, "finance.ledger.delete");
   const canEditInvoices = can(actor, "finance.invoices.edit");
+  const [rowPdfError, setRowPdfError] = useState("");
+  async function downloadRowPdf(invoiceId: string) {
+    setRowPdfError("");
+    const code = await downloadInvoicePdf(invoiceId).catch(
+      () => "financeOperationFailed",
+    );
+    if (code)
+      setRowPdfError(t(`financeError_${code}` as Parameters<typeof t>[0]));
+  }
   const canEditCustomers = can(actor, "finance.customers.edit");
   const canEditCategories = can(actor, "finance.categories.edit");
   const [busy, setBusy] = useState(false);
@@ -2535,6 +2553,11 @@ export function FinanceDashboard({
               </div>
             </section>
           )}
+          {rowPdfError && (
+            <p className="notice notice-error" role="alert">
+              {rowPdfError}
+            </p>
+          )}
           <section className="card table-wrap">
             <table>
               <thead>
@@ -2591,15 +2614,36 @@ export function FinanceDashboard({
                           >
                             i
                           </button>
-                          {canEditInvoices && (
-                            <Link
+                          {canEditInvoices &&
+                            (invoice.status === "issued" && !invoice.sentAt ? (
+                              <Link
+                                className="table-action icon-action"
+                                href={`/finance/invoices/${encodeURIComponent(invoice.id)}/edit`}
+                                aria-label={t("editInvoice")}
+                                title={t("editInvoice")}
+                              >
+                                <ActionIcon type="edit" />
+                              </Link>
+                            ) : (
+                              <Link
+                                className="table-action icon-action"
+                                href={`/finance/invoices/${encodeURIComponent(invoice.id)}/attachments`}
+                                aria-label={t("editInvoiceAttachments")}
+                                title={t("editInvoiceAttachments")}
+                              >
+                                <ActionIcon type="edit" />
+                              </Link>
+                            ))}
+                          {invoice.status !== "void" && (
+                            <button
                               className="table-action icon-action"
-                              href={`/finance/invoices/${encodeURIComponent(invoice.id)}/attachments`}
-                              aria-label={t("editInvoiceAttachments")}
-                              title={t("editInvoiceAttachments")}
+                              type="button"
+                              aria-label={t("downloadInvoicePdf")}
+                              title={t("downloadInvoicePdf")}
+                              onClick={() => void downloadRowPdf(invoice.id)}
                             >
-                              <ActionIcon type="edit" />
-                            </Link>
+                              <ActionIcon type="pdf" />
+                            </button>
                           )}
                           {canEditInvoices && invoice.status === "issued" && (
                             <button
@@ -3243,6 +3287,22 @@ export function FinanceDashboard({
             <AttachmentDownloads
               entityType="invoice"
               entityId={viewingInvoice.id}
+            />
+            <InvoiceDocumentActions
+              key={viewingInvoice.id}
+              invoice={viewingInvoice}
+              customerId={viewingInvoice.customerId}
+              canEdit={canEditInvoices}
+              canSend={can(actor, "finance.invoices.send")}
+              canVoid={
+                can(actor, "finance.invoices.delete") &&
+                viewingInvoice.status !== "void"
+              }
+              initialError={
+                searchParams.get("invoice") === viewingInvoice.id
+                  ? searchParams.get("pdfError")
+                  : null
+              }
             />
             <footer className="modal-actions">
               <button

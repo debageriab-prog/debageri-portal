@@ -4,7 +4,7 @@ Every organization-owned document has `organizationId`. Dates are `YYYY-MM-DD` i
 
 | Collection                | ID / purpose                                                                               | Write owner              | Reads                       |
 | ------------------------- | ------------------------------------------------------------------------------------------ | ------------------------ | --------------------------- |
-| `organizations`           | organization ID; locale, timezone, schedule defaults                                       | admin service            | members                     |
+| `organizations`           | organization ID; locale, timezone, schedule defaults, `invoicing` company details          | admin service            | members                     |
 | `users`                   | Firebase UID; profile, role, reporting dates, `reportsTime`, active status, email `locale` | admin service            | role/capability based       |
 | `timeCodes`               | stable code ID; localized names, category, behavior, effective range                       | admin service            | members                     |
 | `timesheets`              | `{org}_{uid}_{isoYear}-W{ww}`; week state and trusted totals                               | trusted workflow         | self/assigned manager/admin |
@@ -15,7 +15,8 @@ Every organization-owned document has `organizationId`. Dates are `YYYY-MM-DD` i
 | `auditLogs`               | generated; immutable sensitive action record                                               | trusted services         | admin                       |
 | `compensationAgreements`  | effective-dated flexible/fixed/hybrid compensation and rates                               | admin service            | finance server only         |
 | `financeCategories`       | bilingual income/expense classifications                                                   | admin service            | finance server only         |
-| `invoices`                | consultant attribution, net/VAT/gross values, payment state                                | finance service          | admin/accountant server     |
+| `financeCustomers`        | customer name, contacts, customer number, address, org/VAT number, invoice defaults        | finance service          | finance server only         |
+| `invoices`                | consultant attribution, rows, net/VAT/gross values, OCR, PDF and sending, payment state    | finance service          | admin/accountant server     |
 | `financialTransactions`   | immutable income, expense, and reversal ledger in integer Ã¶re                             | finance service          | role-scoped finance server  |
 | `aiSettings`              | organization ID; AI on/off, provider, model, enabled sections, encrypted keys              | admin service            | server only                 |
 | `accountingEmailSettings` | per-organization accounting email addresses and which finance changes each receives        | accounting email service | server only (admin API)     |
@@ -54,6 +55,29 @@ consultant's access to My invoices comes from their access profile, whatever
 their compensation model. My finances also comes from the profile, but is never
 shown to fixed-salary consultants because they have no personal balance. The
 same goes for their Income and expenses page, which has its own permission.
+
+Generated invoices replace Fortnox. `organizations/{org}.invoicing` holds the
+company details printed on them (name, address, org and VAT number, F-skatt,
+bankgiro, IBAN/BIC, payment terms, late interest text) and the
+`nextInvoiceNumber` and `nextCustomerNumber` counters. Admins edit it under
+Administration > Organization. Creating an invoice suggests the counter; saving
+a plain number at or above it moves the counter past that number in the same
+transaction, so a changed number is fine. Invoices store `lines` (quantity in
+thousandths, unit price and amount in öre) and their net is the sum of the
+rows; older invoices without rows print as one row. With OCR on, the
+`ocrReference` is the invoice number plus a length digit and a Luhn check
+digit. The PDF is made on the server with the built-in PDF writer and stored at
+`organizations/{org}/finance/invoice/{id}/generated-invoice.pdf`; generating
+again overwrites it. When the invoice has an OCR number, the last page ends
+with a bankgiro payment slip ("Inbetalning/Girering AVI") whose code line
+follows Bankgirot's layout for a fixed amount: bankgiro, amount with its
+check digit and OCR number, read from the right and ending in `#41#`. It is
+set in Courier Bold 12, which has Bankgirot's pitch of ten characters per
+inch, so bank apps can scan it. Each generation copies the company details and the
+customer's address into the invoice (`issuerSnapshot`, `customerAddress`).
+Sending emails the PDF to the customer's finance email and sets `sentAt`; from
+then on the invoice keeps those copies and can no longer be edited, only
+voided.
 
 `accessProfiles` holds `organizationId`, `name`, `description`, `audience`
 (`consultant` or `staff`), `permissions` and `defaultForRole`. It is server-only:

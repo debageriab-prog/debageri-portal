@@ -5,6 +5,7 @@ import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
   ACCOUNTING_EMAIL_KINDS,
+  CUSTOMER_EMAIL_KINDS,
   defaultEmailTemplates,
   EMAIL_NOTIFICATION_KINDS,
   emailPlaceholders,
@@ -141,6 +142,13 @@ export function EmailTemplateForm({
             ))}
             <optgroup label={t("accountingEmailTemplates")}>
               {ACCOUNTING_EMAIL_KINDS.map((kind) => (
+                <option key={kind} value={kind}>
+                  {t(`emailTemplate_${kind}`)}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label={t("customerEmailTemplates")}>
+              {CUSTOMER_EMAIL_KINDS.map((kind) => (
                 <option key={kind} value={kind}>
                   {t(`emailTemplate_${kind}`)}
                 </option>

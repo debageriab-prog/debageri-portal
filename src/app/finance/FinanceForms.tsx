@@ -20,6 +20,18 @@ import {
   consultantServicesNote,
 } from "@/domain/finance/invoice-period";
 import { receiptVatRateBps } from "@/domain/receipts";
+import { ActionIcon } from "@/components/ui/ActionIcon";
+import { addDays } from "@/domain/finance/invoice-settings";
+import {
+  INVOICE_UNITS,
+  invoiceTotals,
+  kronorRoundingMinor,
+  linesForInvoice,
+  MAX_INVOICE_LINES,
+  parseQuantity,
+  withLineAmount,
+  type InvoiceLine,
+} from "@/domain/finance/invoice-lines";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { FinanceCsvImport } from "./FinanceCsvImport";
 import { transactionMonthMismatch } from "./transaction-navigation";
@@ -50,7 +62,6 @@ const COMPANY_ONLY = "company";
 type TransactionField = "direction" | "categoryId" | "consultantId" | "funding";
 
 type User = { id: string; displayName: string };
-type Customer = { id: string; name: string };
 type Category = {
   id: string;
   code: string;
@@ -142,7 +153,8 @@ function FieldError({ message }: { message?: string }) {
 }
 
 function useFinanceSubmit(
-  successPath: string,
+  successPath:
+    string | ((result: { id?: string; pdfError?: string }) => string),
   accounting?: {
     entityType: AccountingEntityType;
     recipients: string[];
@@ -177,6 +189,7 @@ function useFinanceSubmit(
       const result = (await response.json().catch(() => ({}))) as {
         error?: string;
         id?: string;
+        pdfError?: string;
       };
       if (!response.ok) {
         const key =
@@ -221,7 +234,9 @@ function useFinanceSubmit(
         }
       }
       prompt.offer(attachment?.entityId ?? result.id, () => {
-        router.push(successPath);
+        router.push(
+          typeof successPath === "string" ? successPath : successPath(result),
+        );
         router.refresh();
       });
     } catch {
@@ -262,38 +277,155 @@ function IncomingEmailNotice({
   );
 }
 
+/** An invoice customer with what the form fills in from it. */
+export type InvoiceCustomer = {
+  id: string;
+  name: string;
+  defaultYourReference: string;
+  paymentTermsDays: number | null;
+};
+
+/** An unsent invoice as the form edits it. */
+export type EditableInvoice = {
+  id: string;
+  invoiceNumber: string;
+  customerId: string;
+  consultantId: string | null;
+  issueDate: string;
+  dueDate: string;
+  periodFrom: string | null;
+  periodTo: string | null;
+  netMinor: number;
+  vatRateBps: number;
+  roundingMinor: number;
+  shareBpsOverride: number | null;
+  visibleDescription: string;
+  internalNote: string;
+  lines: InvoiceLine[];
+  ourReference: string;
+  yourReference: string;
+  invoiceText: string;
+};
+
+/** Defaults for new invoices from the company invoice settings. */
+export type InvoiceDefaults = {
+  nextInvoiceNumber: number;
+  defaultOurReference: string;
+  paymentTermsDays: number;
+};
+
+type LineDraft = {
+  key: number;
+  articleNumber: string;
+  description: string;
+  quantity: string;
+  unit: string;
+  unitPrice: string;
+};
+
+let lineKey = 0;
+const emptyLine = (): LineDraft => ({
+  key: ++lineKey,
+  articleNumber: "",
+  description: "",
+  quantity: "1",
+  unit: "st",
+  unitPrice: "",
+});
+const draftFrom = (line: Omit<InvoiceLine, "amountMinor">): LineDraft => ({
+  key: ++lineKey,
+  articleNumber: line.articleNumber,
+  description: line.description,
+  quantity: String(line.quantityThousandths / 1000),
+  unit: line.unit,
+  unitPrice: (line.unitPriceMinor / 100).toFixed(2),
+});
+
+/** A row as the server takes it, or null while it is not filled in. */
+function lineFromDraft(draft: LineDraft) {
+  const quantityThousandths = parseQuantity(draft.quantity);
+  let unitPriceMinor: number;
+  try {
+    unitPriceMinor = parseSignedSek(draft.unitPrice);
+  } catch {
+    return null;
+  }
+  if (!draft.description.trim() || !Number.isFinite(quantityThousandths))
+    return null;
+  return withLineAmount({
+    articleNumber: draft.articleNumber.trim(),
+    description: draft.description.trim(),
+    quantityThousandths,
+    unit: draft.unit.trim(),
+    unitPriceMinor,
+  });
+}
+
 export function InvoiceForm({
   users,
   customers,
   aiEnabled = false,
   accountingRecipients = [],
   incomingEmail,
+  invoice,
+  defaults,
 }: {
   users: User[];
-  customers: Customer[];
+  customers: InvoiceCustomer[];
   aiEnabled?: boolean;
   /** Accounting contacts to offer emailing the new invoice to. */
   accountingRecipients?: string[];
   /** A forwarded email whose AI reading and files fill the form. */
   incomingEmail?: IncomingEmailSource;
+  /** The unsent invoice being corrected; a new invoice when missing. */
+  invoice?: EditableInvoice;
+  defaults: InvoiceDefaults;
 }) {
   const { t, locale } = useLocale();
-  const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [customerId, setCustomerId] = useState("");
-  const [consultantId, setConsultantId] = useState("");
-  const [issueDate, setIssueDate] = useState(today());
-  const [dueDate, setDueDate] = useState(today());
-  const [periodFrom, setPeriodFrom] = useState("");
-  const [periodTo, setPeriodTo] = useState("");
+  const editing = Boolean(invoice);
+  const [invoiceNumber, setInvoiceNumber] = useState(
+    invoice?.invoiceNumber ?? String(defaults.nextInvoiceNumber),
+  );
+  const [customerId, setCustomerId] = useState(invoice?.customerId ?? "");
+  const [consultantId, setConsultantId] = useState(invoice?.consultantId ?? "");
+  const [issueDate, setIssueDate] = useState(invoice?.issueDate ?? today());
+  const [dueDate, setDueDate] = useState(
+    invoice?.dueDate ?? addDays(today(), defaults.paymentTermsDays),
+  );
+  // Until the due date is typed in, it follows the invoice date and terms.
+  const [dueDateTouched, setDueDateTouched] = useState(editing);
+  const [periodFrom, setPeriodFrom] = useState(invoice?.periodFrom ?? "");
+  const [periodTo, setPeriodTo] = useState(invoice?.periodTo ?? "");
   // The last description and note generated from customer, consultant and
   // period; replaced on change until the user types their own.
   const [autoDescription, setAutoDescription] = useState("");
   const [autoInternalNote, setAutoInternalNote] = useState("");
-  const [netAmount, setNetAmount] = useState("");
-  const [vatPercent, setVatPercent] = useState("25");
-  const [rounding, setRounding] = useState("");
-  const [visibleDescription, setVisibleDescription] = useState("");
-  const [internalNote, setInternalNote] = useState("");
+  const [lines, setLines] = useState<LineDraft[]>(() =>
+    invoice ? linesForInvoice(invoice).map(draftFrom) : [emptyLine()],
+  );
+  const [vatPercent, setVatPercent] = useState(
+    invoice ? String(invoice.vatRateBps / 100) : "25",
+  );
+  const [rounding, setRounding] = useState(
+    invoice?.roundingMinor ? (invoice.roundingMinor / 100).toFixed(2) : "",
+  );
+  const [visibleDescription, setVisibleDescription] = useState(
+    invoice?.visibleDescription ?? "",
+  );
+  const [internalNote, setInternalNote] = useState(invoice?.internalNote ?? "");
+  const [ourReference, setOurReference] = useState(
+    invoice?.ourReference ?? defaults.defaultOurReference,
+  );
+  const [yourReference, setYourReference] = useState(
+    invoice?.yourReference ?? "",
+  );
+  const [yourReferenceTouched, setYourReferenceTouched] = useState(editing);
+  const [invoiceText, setInvoiceText] = useState(invoice?.invoiceText ?? "");
+  const [hoursBusy, setHoursBusy] = useState(false);
+  const [hoursNotice, setHoursNotice] = useState<{
+    tone: "success" | "warning" | "error";
+    text: string;
+  } | null>(null);
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
     [],
@@ -309,22 +441,43 @@ export function InvoiceForm({
     : "/finance?section=invoices";
   const [emailFilesFailed, setEmailFilesFailed] = useState(false);
   const { busy, error, submit, accountingDialog } = useFinanceSubmit(
-    returnHref,
-    { entityType: "invoice", recipients: accountingRecipients },
+    (result) =>
+      result.id
+        ? `/finance?section=invoices&invoice=${encodeURIComponent(result.id)}${
+            result.pdfError
+              ? `&pdfError=${encodeURIComponent(result.pdfError)}`
+              : ""
+          }`
+        : returnHref,
+    {
+      entityType: "invoice",
+      recipients: editing ? [] : accountingRecipients,
+    },
   );
-  const amountMinor = (parse: (value: string) => number, value: string) => {
+  const parsedLines = lines.map(lineFromDraft);
+  const roundingMinor = (() => {
     try {
-      return parse(value);
+      return parseSignedSek(rounding);
     } catch {
       return 0;
     }
-  };
-  const netMinor = amountMinor(parseSek, netAmount || "0");
-  const roundingMinor = amountMinor(parseSignedSek, rounding);
+  })();
   const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
-  const vatMinor = Number.isFinite(vatRateBps)
-    ? calculateVatMinor(netMinor, vatRateBps)
-    : 0;
+  const totals = invoiceTotals(
+    parsedLines.filter((line): line is InvoiceLine => line !== null),
+    Number.isFinite(vatRateBps) ? vatRateBps : 0,
+    roundingMinor,
+  );
+
+  const termsFor = (id: string) =>
+    customers.find((customer) => customer.id === id)?.paymentTermsDays ??
+    defaults.paymentTermsDays;
+
+  function updateLine(key: number, change: Partial<LineDraft>) {
+    setLines((current) =>
+      current.map((line) => (line.key === key ? { ...line, ...change } : line)),
+    );
+  }
 
   /**
    * Refreshes the generated consultant description and internal note after a
@@ -400,6 +553,7 @@ export function InvoiceForm({
     }
     if (extraction.dueDate) {
       setDueDate(extraction.dueDate);
+      setDueDateTouched(true);
       filled++;
     }
     if (
@@ -407,7 +561,14 @@ export function InvoiceForm({
       extraction.netMinor !== null &&
       extraction.netMinor > 0
     ) {
-      setNetAmount((extraction.netMinor / 100).toFixed(2));
+      // A read invoice has one amount; it becomes one row.
+      setLines([
+        {
+          ...emptyLine(),
+          description: extraction.description || t("invoiceLineDefault"),
+          unitPrice: (extraction.netMinor / 100).toFixed(2),
+        },
+      ]);
       filled++;
     }
     if (!foreignAmounts)
@@ -495,12 +656,102 @@ export function InvoiceForm({
       );
   });
 
+  /** Replaces the rows with the consultant's approved hours in the period. */
+  async function fillFromHours() {
+    setHoursNotice(null);
+    if (!consultantId || !periodFrom || !periodTo) {
+      setHoursNotice({ tone: "warning", text: t("invoiceHoursNeedPeriod") });
+      return;
+    }
+    setHoursBusy(true);
+    try {
+      const response = await appCheckFetch("/api/finance", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "invoiceHours",
+          consultantId,
+          periodFrom,
+          periodTo,
+        }),
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        lines?: Array<Omit<InvoiceLine, "amountMinor">>;
+        approvedMinutes?: number;
+        pendingMinutes?: number;
+      };
+      if (!response.ok) {
+        setHoursNotice({
+          tone: "error",
+          text: t(
+            `financeError_${result.error ?? "financeOperationFailed"}` as Parameters<
+              typeof t
+            >[0],
+          ),
+        });
+        return;
+      }
+      if (!result.lines?.length) {
+        setHoursNotice({ tone: "warning", text: t("invoiceHoursNone") });
+        return;
+      }
+      setLines(result.lines.map(draftFrom));
+      const consultantName =
+        users.find((user) => user.id === consultantId)?.displayName ?? "";
+      if (!invoiceText.trim())
+        setInvoiceText(
+          [
+            t("invoiceHoursText")
+              .replace("{from}", periodFrom)
+              .replace("{to}", periodTo),
+            t("invoiceHoursConsultant").replace("{name}", consultantName),
+            yourReference,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        );
+      const hours = (minutes: number) =>
+        new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(
+          minutes / 60,
+        );
+      setHoursNotice(
+        result.pendingMinutes
+          ? {
+              tone: "warning",
+              text: t("invoiceHoursPending")
+                .replace("{approved}", hours(result.approvedMinutes ?? 0))
+                .replace("{pending}", hours(result.pendingMinutes)),
+            }
+          : {
+              tone: "success",
+              text: t("invoiceHoursFilled").replace(
+                "{approved}",
+                hours(result.approvedMinutes ?? 0),
+              ),
+            },
+      );
+    } catch {
+      setHoursNotice({ tone: "error", text: t("serverUnavailable") });
+    } finally {
+      setHoursBusy(false);
+    }
+  }
+
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent)
+      .submitter as HTMLButtonElement | null;
     const form = new FormData(event.currentTarget);
+    if (parsedLines.some((line) => line === null)) {
+      setHoursNotice({ tone: "error", text: t("invoiceLinesIncomplete") });
+      return;
+    }
+    const shareValue = form.get("sharePercent");
     void submit(
       {
-        action: "createInvoice",
+        action: editing ? "updateInvoice" : "createInvoice",
+        ...(invoice ? { invoiceId: invoice.id } : {}),
         invoiceNumber,
         consultantId: consultantId || null,
         customerId,
@@ -508,23 +759,42 @@ export function InvoiceForm({
         dueDate,
         periodFrom: periodFrom || null,
         periodTo: periodTo || null,
-        netMinor: parseSek(netAmount),
+        netMinor: Math.max(totals.netMinor, 0),
         vatRateBps,
         roundingMinor,
         visibleDescription,
         internalNote,
-        shareBpsOverride: form.get("sharePercent")
-          ? Math.round(Number(form.get("sharePercent")) * 100)
+        shareBpsOverride: shareValue
+          ? Math.round(Number(shareValue) * 100)
           : null,
+        lines: parsedLines.map((line) => ({
+          articleNumber: line!.articleNumber,
+          description: line!.description,
+          quantityThousandths: line!.quantityThousandths,
+          unit: line!.unit,
+          unitPriceMinor: line!.unitPriceMinor,
+        })),
+        ourReference,
+        yourReference,
+        invoiceText,
+        generatePdf: submitter?.value === "generate",
         ...(incomingEmail ? { incomingEmailId: incomingEmail.id } : {}),
       },
-      { entityType: "invoice", files: attachmentFiles, removedAttachmentIds },
+      editing
+        ? undefined
+        : {
+            entityType: "invoice",
+            files: attachmentFiles,
+            removedAttachmentIds,
+          },
     );
   }
   return (
     <FormPage
-      title={t("addInvoice")}
-      description={t("newInvoiceDescription")}
+      title={editing ? t("editInvoice") : t("addInvoice")}
+      description={
+        editing ? t("editInvoiceDescription") : t("newInvoiceDescription")
+      }
       backHref={returnHref}
       backLabel={
         incomingEmail ? t("backToIncomingEmails") : t("backToInvoices")
@@ -564,8 +834,14 @@ export function InvoiceForm({
               name="customerId"
               value={customerId}
               onChange={(event) => {
-                setCustomerId(event.target.value);
-                updateGeneratedTexts({ customerId: event.target.value });
+                const id = event.target.value;
+                setCustomerId(id);
+                updateGeneratedTexts({ customerId: id });
+                const customer = customers.find((item) => item.id === id);
+                if (!yourReferenceTouched)
+                  setYourReference(customer?.defaultYourReference ?? "");
+                if (!dueDateTouched)
+                  setDueDate(addDays(issueDate, termsFor(id)));
               }}
               required
             >
@@ -634,7 +910,11 @@ export function InvoiceForm({
               className="field"
               name="issueDate"
               value={issueDate}
-              onChange={(event) => setIssueDate(event.target.value)}
+              onChange={(event) => {
+                setIssueDate(event.target.value);
+                if (!dueDateTouched && event.target.value)
+                  setDueDate(addDays(event.target.value, termsFor(customerId)));
+              }}
               required
             />
           </label>
@@ -646,24 +926,206 @@ export function InvoiceForm({
               name="dueDate"
               value={dueDate}
               min={issueDate}
-              onChange={(event) => setDueDate(event.target.value)}
+              onChange={(event) => {
+                setDueDate(event.target.value);
+                setDueDateTouched(true);
+              }}
               required
             />
           </label>
           <label>
-            {t("netAmountSek")}
-            <InfoTip text={t("netAmountSekTip")} />
+            {t("ourReference")}
+            <InfoTip text={t("ourReferenceTip")} />
             <input
               className="field"
-              type="number"
-              name="netAmount"
-              min="0.01"
-              step="0.01"
-              value={netAmount}
-              onChange={(event) => setNetAmount(event.target.value)}
-              required
+              name="ourReference"
+              value={ourReference}
+              maxLength={120}
+              onChange={(event) => setOurReference(event.target.value)}
             />
           </label>
+          <label>
+            {t("yourReference")}
+            <InfoTip text={t("yourReferenceTip")} />
+            <input
+              className="field"
+              name="yourReference"
+              value={yourReference}
+              maxLength={120}
+              onChange={(event) => {
+                setYourReference(event.target.value);
+                setYourReferenceTouched(true);
+              }}
+            />
+          </label>
+
+          <fieldset className="access-section form-wide invoice-lines">
+            <legend>{t("invoiceLines")}</legend>
+            <div className="table-wrap">
+              <table className="invoice-lines-table">
+                <thead>
+                  <tr>
+                    <th className="invoice-line-article">
+                      {t("invoiceLineArticle")}
+                    </th>
+                    <th>{t("invoiceLineDescription")}</th>
+                    <th className="invoice-line-quantity numeric">
+                      {t("invoiceLineQuantity")}
+                    </th>
+                    <th className="invoice-line-unit">
+                      {t("invoiceLineUnit")}
+                    </th>
+                    <th className="invoice-line-price numeric">
+                      {t("invoiceLineUnitPrice")}
+                    </th>
+                    <th className="invoice-line-amount numeric">
+                      {t("invoiceLineAmount")}
+                    </th>
+                    <th>
+                      <span className="sr-only">{t("actions")}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((line, index) => (
+                    <tr key={line.key}>
+                      <td className="invoice-line-article">
+                        <input
+                          className="field"
+                          aria-label={t("invoiceLineArticle")}
+                          value={line.articleNumber}
+                          maxLength={20}
+                          onChange={(event) =>
+                            updateLine(line.key, {
+                              articleNumber: event.target.value,
+                            })
+                          }
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="field"
+                          aria-label={t("invoiceLineDescription")}
+                          value={line.description}
+                          maxLength={200}
+                          required
+                          onChange={(event) =>
+                            updateLine(line.key, {
+                              description: event.target.value,
+                            })
+                          }
+                        />
+                      </td>
+                      <td className="invoice-line-quantity">
+                        <input
+                          className="field numeric"
+                          inputMode="decimal"
+                          aria-label={t("invoiceLineQuantity")}
+                          value={line.quantity}
+                          required
+                          onChange={(event) =>
+                            updateLine(line.key, {
+                              quantity: event.target.value,
+                            })
+                          }
+                        />
+                      </td>
+                      <td className="invoice-line-unit">
+                        <input
+                          className="field"
+                          aria-label={t("invoiceLineUnit")}
+                          list="invoice-units"
+                          value={line.unit}
+                          maxLength={10}
+                          onChange={(event) =>
+                            updateLine(line.key, { unit: event.target.value })
+                          }
+                        />
+                      </td>
+                      <td className="invoice-line-price">
+                        <input
+                          className="field numeric"
+                          inputMode="decimal"
+                          aria-label={t("invoiceLineUnitPrice")}
+                          value={line.unitPrice}
+                          placeholder="0.00"
+                          required
+                          onChange={(event) =>
+                            updateLine(line.key, {
+                              unitPrice: event.target.value,
+                            })
+                          }
+                        />
+                      </td>
+                      <td className="invoice-line-amount numeric">
+                        {parsedLines[index]
+                          ? formatSek(parsedLines[index].amountMinor, locale)
+                          : "—"}
+                      </td>
+                      <td>
+                        <button
+                          className="table-action icon-action"
+                          type="button"
+                          aria-label={t("invoiceLineRemove")}
+                          title={t("invoiceLineRemove")}
+                          disabled={lines.length === 1}
+                          onClick={() =>
+                            setLines((current) =>
+                              current.filter((item) => item.key !== line.key),
+                            )
+                          }
+                        >
+                          <ActionIcon type="delete" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <datalist id="invoice-units">
+                {INVOICE_UNITS.map((unit) => (
+                  <option key={unit} value={unit} />
+                ))}
+              </datalist>
+            </div>
+            <div className="invoice-lines-actions">
+              <button
+                className="button secondary"
+                type="button"
+                disabled={lines.length >= MAX_INVOICE_LINES}
+                onClick={() => setLines((current) => [...current, emptyLine()])}
+              >
+                {t("invoiceLineAdd")}
+              </button>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={hoursBusy}
+                onClick={() => void fillFromHours()}
+              >
+                {hoursBusy ? t("loading") : t("invoiceHoursFill")}
+              </button>
+              <InfoTip text={t("invoiceHoursFillTip")} />
+            </div>
+            {hoursNotice && (
+              <p className={`notice notice-${hoursNotice.tone}`}>
+                {hoursNotice.text}
+              </p>
+            )}
+            <label>
+              {t("invoiceText")}
+              <InfoTip text={t("invoiceTextTip")} />
+              <textarea
+                className="field"
+                name="invoiceText"
+                rows={4}
+                maxLength={1000}
+                value={invoiceText}
+                onChange={(event) => setInvoiceText(event.target.value)}
+              />
+            </label>
+          </fieldset>
+
           <label>
             {t("vatPercent")}
             <InfoTip text={t("vatPercentTip")} />
@@ -703,6 +1165,11 @@ export function InvoiceForm({
               min="0"
               max="100"
               step="0.01"
+              defaultValue={
+                invoice?.shareBpsOverride != null
+                  ? invoice.shareBpsOverride / 100
+                  : undefined
+              }
             />
           </label>
           <label>
@@ -731,45 +1198,69 @@ export function InvoiceForm({
           >
             <div>
               <span>{t("netAmount")}</span>
-              <strong>{formatSek(netMinor, locale)}</strong>
+              <strong>{formatSek(totals.netMinor, locale)}</strong>
             </div>
             <div>
               <span>{t("vatAmount")}</span>
-              <strong>{formatSek(vatMinor, locale)}</strong>
+              <strong>{formatSek(totals.vatMinor, locale)}</strong>
             </div>
-            {roundingMinor !== 0 && (
-              <div>
-                <span>{t("rounding")}</span>
-                <strong>{formatSek(roundingMinor, locale)}</strong>
-              </div>
-            )}
+            <div>
+              <span>{t("rounding")}</span>
+              <strong>{formatSek(roundingMinor, locale)}</strong>
+            </div>
             <div>
               <span>{t("totalIncludingVat")}</span>
-              <strong>
-                {formatSek(netMinor + vatMinor + roundingMinor, locale)}
-              </strong>
+              <strong>{formatSek(totals.grossMinor, locale)}</strong>
             </div>
           </div>
-          <FinanceAttachments
-            entityType="invoice"
-            files={attachmentFiles}
-            onFilesChange={setAttachmentFiles}
-            removedAttachmentIds={removedAttachmentIds}
-            onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
-            ai={
-              aiEnabled
-                ? {
-                    busyKey: aiBusyKey,
-                    processedKeys: aiProcessedKeys,
-                    onProcess: processWithAi,
-                  }
-                : undefined
-            }
-          />
+          <div className="form-wide invoice-lines-actions">
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() =>
+                setRounding(
+                  (
+                    kronorRoundingMinor(totals.netMinor + totals.vatMinor) / 100
+                  ).toFixed(2),
+                )
+              }
+            >
+              {t("roundToKronor")}
+            </button>
+          </div>
+          {!editing && (
+            <FinanceAttachments
+              entityType="invoice"
+              files={attachmentFiles}
+              onFilesChange={setAttachmentFiles}
+              removedAttachmentIds={removedAttachmentIds}
+              onRemovedAttachmentIdsChange={setRemovedAttachmentIds}
+              ai={
+                aiEnabled
+                  ? {
+                      busyKey: aiBusyKey,
+                      processedKeys: aiProcessedKeys,
+                      onProcess: processWithAi,
+                    }
+                  : undefined
+              }
+            />
+          )}
           <AiNotices notice={aiNotice} currencyWarning={aiCurrencyWarning} />
           <div className="form-wide actions">
-            <button className="button" disabled={busy || aiBusyKey !== null}>
-              {t("createInvoice")}
+            <button
+              className="button secondary"
+              value="save"
+              disabled={busy || aiBusyKey !== null}
+            >
+              {editing ? t("saveInvoice") : t("createInvoice")}
+            </button>
+            <button
+              className="button"
+              value="generate"
+              disabled={busy || aiBusyKey !== null}
+            >
+              {editing ? t("saveAndGeneratePdf") : t("createAndGeneratePdf")}
             </button>
           </div>
           {error && <p className="form-wide notice notice-error">{error}</p>}
@@ -1762,15 +2253,30 @@ export function TransactionForm({
   );
 }
 
+export type EditableCustomer = {
+  id: string;
+  name: string;
+  contactPerson: string;
+  financeEmail: string;
+  customerNumber: string;
+  orgNumber: string;
+  vatNumber: string;
+  addressLine: string;
+  postalCode: string;
+  city: string;
+  country: string;
+  defaultYourReference: string;
+  paymentTermsDays: number | null;
+  invoiceLocale: "sv-SE" | "en-SE";
+};
+
 export function CustomerForm({
   customer,
+  nextCustomerNumber,
 }: {
-  customer?: {
-    id: string;
-    name: string;
-    contactPerson: string;
-    financeEmail: string;
-  };
+  customer?: EditableCustomer;
+  /** Shown as the number a new customer gets when left blank. */
+  nextCustomerNumber?: number;
 }) {
   const { t } = useLocale();
   const { busy, error, submit } = useFinanceSubmit(
@@ -1779,12 +2285,24 @@ export function CustomerForm({
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const text = (name: string) => String(form.get(name) ?? "").trim();
+    const terms = text("paymentTermsDays");
     void submit({
       action: customer ? "updateCustomer" : "createCustomer",
       ...(customer ? { customerId: customer.id } : {}),
-      name: form.get("name"),
-      contactPerson: form.get("contactPerson"),
-      financeEmail: form.get("financeEmail"),
+      name: text("name"),
+      contactPerson: text("contactPerson"),
+      financeEmail: text("financeEmail"),
+      customerNumber: text("customerNumber"),
+      orgNumber: text("orgNumber"),
+      vatNumber: text("vatNumber"),
+      addressLine: text("addressLine"),
+      postalCode: text("postalCode"),
+      city: text("city"),
+      country: text("country"),
+      defaultYourReference: text("defaultYourReference"),
+      paymentTermsDays: terms ? Math.round(Number(terms)) : null,
+      invoiceLocale: text("invoiceLocale") === "en-SE" ? "en-SE" : "sv-SE",
     });
   }
   return (
@@ -1825,6 +2343,105 @@ export function CustomerForm({
             required
           />
         </label>
+        <label>
+          {t("customerNumber")}
+          <InfoTip text={t("customerNumberTip")} />
+          <input
+            className="field"
+            name="customerNumber"
+            defaultValue={customer?.customerNumber}
+            placeholder={
+              nextCustomerNumber ? String(nextCustomerNumber) : undefined
+            }
+          />
+        </label>
+        <fieldset className="access-section form-wide">
+          <legend>{t("customerInvoiceDetails")}</legend>
+          <div className="form-grid">
+            <label className="form-wide">
+              {t("invoiceSetting_addressLine")}
+              <input
+                className="field"
+                name="addressLine"
+                defaultValue={customer?.addressLine}
+              />
+            </label>
+            <label>
+              {t("invoiceSetting_postalCode")}
+              <input
+                className="field"
+                name="postalCode"
+                defaultValue={customer?.postalCode}
+              />
+            </label>
+            <label>
+              {t("invoiceSetting_city")}
+              <input
+                className="field"
+                name="city"
+                defaultValue={customer?.city}
+              />
+            </label>
+            <label>
+              {t("invoiceSetting_country")}
+              <input
+                className="field"
+                name="country"
+                defaultValue={customer?.country || "Sverige"}
+              />
+            </label>
+            <label>
+              {t("invoiceSetting_orgNumber")}
+              <input
+                className="field"
+                name="orgNumber"
+                defaultValue={customer?.orgNumber}
+              />
+            </label>
+            <label>
+              {t("invoiceSetting_vatNumber")}
+              <InfoTip text={t("customerVatNumberTip")} />
+              <input
+                className="field"
+                name="vatNumber"
+                defaultValue={customer?.vatNumber}
+              />
+            </label>
+            <label>
+              {t("defaultYourReference")}
+              <InfoTip text={t("defaultYourReferenceTip")} />
+              <input
+                className="field"
+                name="defaultYourReference"
+                defaultValue={customer?.defaultYourReference}
+              />
+            </label>
+            <label>
+              {t("customerPaymentTermsDays")}
+              <InfoTip text={t("customerPaymentTermsDaysTip")} />
+              <input
+                className="field"
+                type="number"
+                min="0"
+                max="365"
+                step="1"
+                name="paymentTermsDays"
+                defaultValue={customer?.paymentTermsDays ?? ""}
+              />
+            </label>
+            <label>
+              {t("invoiceLanguage")}
+              <select
+                className="field"
+                name="invoiceLocale"
+                defaultValue={customer?.invoiceLocale ?? "sv-SE"}
+              >
+                <option value="sv-SE">Svenska</option>
+                <option value="en-SE">English</option>
+              </select>
+            </label>
+          </div>
+        </fieldset>
         <div className="form-wide actions">
           <button className="button" disabled={busy}>
             {t("saveCustomer")}

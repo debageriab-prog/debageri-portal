@@ -1,7 +1,12 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import { getTranslator } from "@/lib/localization/server";
+import {
+  invoiceSettingsFrom,
+  missingInvoiceSettings,
+} from "@/domain/finance/invoice-settings";
 
 export default async function SettingsPage({
   searchParams,
@@ -20,6 +25,32 @@ export default async function SettingsPage({
     .doc(user.organizationId)
     .get();
   const organization = snapshot.data();
+  const invoicing = invoiceSettingsFrom(
+    organization?.invoicing,
+    String(organization?.name ?? ""),
+  );
+  const missing = missingInvoiceSettings(invoicing);
+  const address = [
+    invoicing.addressLine,
+    [invoicing.postalCode, invoicing.city].filter(Boolean).join(" "),
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const rows: Array<[string, string]> = [
+    [t("invoiceSetting_legalName"), invoicing.legalName],
+    [t("invoiceSetting_orgNumber"), invoicing.orgNumber],
+    [t("invoiceSetting_vatNumber"), invoicing.vatNumber],
+    [t("invoiceSettingsAddress"), address],
+    [t("invoiceSetting_phone"), invoicing.phone],
+    [t("invoiceSetting_email"), invoicing.email],
+    [t("invoiceSetting_bankgiro"), invoicing.bankgiro],
+    [t("invoiceSetting_paymentTermsDays"), String(invoicing.paymentTermsDays)],
+    [
+      t("invoiceSetting_nextInvoiceNumber"),
+      String(invoicing.nextInvoiceNumber),
+    ],
+    [t("invoiceSetting_fSkatt"), invoicing.fSkatt ? t("yes") : t("no")],
+  ];
   return (
     <>
       <div className="topbar">
@@ -55,6 +86,29 @@ export default async function SettingsPage({
           </>
         )}
       </section>
+      {organization && (
+        <section className="card">
+          <div className="week-head">
+            <h2>{t("invoiceSettingsTitle")}</h2>
+            <Link className="button secondary" href="/admin/settings/edit">
+              {t("invoiceSettingsEdit")}
+            </Link>
+          </div>
+          {missing.length > 0 && (
+            <p className="notice notice-warning">
+              {t("invoiceSettingsIncomplete")}
+            </p>
+          )}
+          <dl className="detail-facts">
+            {rows.map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
     </>
   );
 }
