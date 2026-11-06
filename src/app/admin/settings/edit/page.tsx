@@ -18,7 +18,7 @@ export default async function EditOrganizationPage() {
     <>
       <div className="topbar">
         <div>
-          <Link className="text-link" href="/admin/settings">
+          <Link className="text-link" href="/admin/settings?tab=invoicing">
             ← {t("organization")}
           </Link>
           <h1>{t("invoiceSettingsEditTitle")}</h1>

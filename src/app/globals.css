@@ -4008,7 +4008,17 @@ td.amount-cell {
   text-align: right;
 }
 .invoice-lines-table .invoice-line-article {
-  width: 90px;
+  width: 190px;
+}
+.invoice-lines-table .invoice-line-article .field + .field {
+  margin-top: 6px;
+}
+.invoice-lines-table input[readonly] {
+  background: transparent;
+  border-color: transparent;
+}
+.page-tabs {
+  margin-bottom: 4px;
 }
 .invoice-lines-table .invoice-line-quantity {
   width: 100px;
@@ -4046,4 +4056,11 @@ td.amount-cell {
 }
 .invoice-document .notice {
   margin-top: 12px;
+}
+.invoice-settings-summary {
+  display: grid;
+  gap: 16px;
+}
+.invoice-settings-summary .week-head p {
+  margin: 0;
 }

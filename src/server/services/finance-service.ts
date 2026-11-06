@@ -25,6 +25,13 @@ import {
   type InvoiceLine,
 } from "@/domain/finance/invoice-lines";
 import {
+  ARTICLE_FOR_ALL,
+  ARTICLE_FOR_COMPANY,
+  articleAppliesTo,
+  articleValidOn,
+  validityOverlaps,
+} from "@/domain/finance/invoice-articles";
+import {
   formatOrgNumber,
   ocrReferenceFor,
   validOrgNumber,
@@ -530,6 +537,209 @@ export async function createCategory(
   return ref.id;
 }
 
+export type ArticleInput = {
+  articleNumber: string;
+  description: string;
+  unit: string;
+  unitPriceMinor: number;
+  consultantScope: string;
+  vatRateBps: number;
+  validFrom: string;
+  validTo: string | null;
+};
+
+/**
+ * Checks an article's consultant and that no other article with the same
+ * number and consultant scope is valid on any of the same days.
+ */
+async function checkArticle(
+  db: Firestore,
+  actor: PortalUser,
+  input: ArticleInput,
+  exceptId?: string,
+) {
+  if (input.validTo && input.validTo < input.validFrom)
+    throw new FinanceError("articleDatesInvalid");
+  if (
+    input.consultantScope !== ARTICLE_FOR_ALL &&
+    input.consultantScope !== ARTICLE_FOR_COMPANY
+  ) {
+    const user = await db.collection("users").doc(input.consultantScope).get();
+    if (
+      !user.exists ||
+      user.data()?.organizationId !== actor.organizationId ||
+      user.data()?.role !== "consultant"
+    )
+      throw new FinanceError("consultantInvalid", 404);
+  }
+  const sameNumber = await db
+    .collection("invoiceArticles")
+    .where("organizationId", "==", actor.organizationId)
+    .where("articleNumber", "==", input.articleNumber)
+    .get();
+  if (
+    sameNumber.docs.some(
+      (document) =>
+        document.id !== exceptId &&
+        document.data().consultantScope === input.consultantScope &&
+        validityOverlaps(
+          {
+            validFrom: String(document.data().validFrom),
+            validTo: document.data().validTo ?? null,
+          },
+          input,
+        ),
+    )
+  )
+    throw new FinanceError("articleOverlap", 409);
+}
+
+export async function createInvoiceArticle(
+  db: Firestore,
+  actor: PortalUser,
+  input: ArticleInput,
+) {
+  requireFinancePermission(actor, "finance.articles.add");
+  await checkArticle(db, actor, input);
+  const reference = db.collection("invoiceArticles").doc();
+  const batch = db.batch();
+  batch.create(reference, {
+    organizationId: actor.organizationId,
+    ...articleFields(input),
+    createdAt: FieldValue.serverTimestamp(),
+    createdBy: actor.id,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  audit(
+    db,
+    batch,
+    actor,
+    "invoiceArticle.created",
+    "invoiceArticle",
+    reference.id,
+    {
+      articleNumber: input.articleNumber,
+      unitPriceMinor: input.unitPriceMinor,
+    },
+  );
+  await batch.commit();
+  return reference.id;
+}
+
+/**
+ * Changes an article. Invoices keep the copy of the details they were
+ * saved with, so this only affects new and edited invoices.
+ */
+export async function updateInvoiceArticle(
+  db: Firestore,
+  actor: PortalUser,
+  input: ArticleInput & { articleId: string },
+) {
+  requireFinancePermission(actor, "finance.articles.edit");
+  const reference = db.collection("invoiceArticles").doc(input.articleId);
+  const snapshot = await reference.get();
+  if (
+    !snapshot.exists ||
+    snapshot.data()?.organizationId !== actor.organizationId
+  )
+    throw new FinanceError("articleMissing", 404);
+  await checkArticle(db, actor, input, input.articleId);
+  const batch = db.batch();
+  batch.update(reference, {
+    ...articleFields(input),
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: actor.id,
+  });
+  audit(
+    db,
+    batch,
+    actor,
+    "invoiceArticle.updated",
+    "invoiceArticle",
+    reference.id,
+    {
+      articleNumber: input.articleNumber,
+      unitPriceMinor: input.unitPriceMinor,
+      previousUnitPriceMinor: snapshot.data()?.unitPriceMinor ?? null,
+    },
+  );
+  await batch.commit();
+}
+
+function articleFields(input: ArticleInput) {
+  return {
+    articleNumber: input.articleNumber,
+    description: input.description,
+    unit: input.unit,
+    unitPriceMinor: input.unitPriceMinor,
+    consultantScope: input.consultantScope,
+    vatRateBps: input.vatRateBps,
+    validFrom: input.validFrom,
+    validTo: input.validTo,
+  };
+}
+
+/**
+ * Rows made from an article take its number, description, unit and price
+ * as they are on the server, and the article must suit the invoice: right
+ * consultant, valid on the invoice date and with the invoice's VAT rate.
+ */
+async function resolvedLines(
+  db: Firestore,
+  actor: PortalUser,
+  lines: Array<Omit<InvoiceLine, "amountMinor">>,
+  invoice: {
+    consultantId: string | null;
+    issueDate: string;
+    vatRateBps: number;
+  },
+) {
+  const ids = [
+    ...new Set(lines.map((line) => line.articleId).filter(Boolean)),
+  ] as string[];
+  if (!ids.length)
+    return lines.map((line) => withLineAmount({ ...line, articleId: null }));
+  const snapshots = await db.getAll(
+    ...ids.map((id) => db.collection("invoiceArticles").doc(id)),
+  );
+  const articles = new Map(
+    snapshots
+      .filter(
+        (snapshot) =>
+          snapshot.exists &&
+          snapshot.data()?.organizationId === actor.organizationId,
+      )
+      .map((snapshot) => [snapshot.id, snapshot.data()!]),
+  );
+  return lines.map((line) => {
+    if (!line.articleId) return withLineAmount({ ...line, articleId: null });
+    const article = articles.get(line.articleId);
+    if (!article) throw new FinanceError("articleMissing", 404);
+    const range = {
+      validFrom: String(article.validFrom),
+      validTo: article.validTo ?? null,
+    };
+    if (
+      !articleAppliesTo(
+        { consultantScope: String(article.consultantScope) },
+        invoice.consultantId,
+      ) ||
+      !articleValidOn(range, invoice.issueDate)
+    )
+      throw new FinanceError("invoiceArticleNotApplicable", 409);
+    if (Number(article.vatRateBps) !== invoice.vatRateBps)
+      throw new FinanceError("invoiceArticleVatMismatch", 409);
+    return withLineAmount({
+      articleId: line.articleId,
+      articleNumber: String(article.articleNumber),
+      description: String(article.description),
+      quantityThousandths: line.quantityThousandths,
+      unit: String(article.unit),
+      unitPriceMinor: Number(article.unitPriceMinor),
+    });
+  });
+}
+
 export type InvoiceInput = {
   invoiceNumber: string;
   consultantId: string | null;
@@ -615,7 +825,7 @@ async function preparedInvoice(
       ? (input.shareBpsOverride ?? agreement.shareBps)
       : 0;
   }
-  const lines = (input.lines ?? []).map(withLineAmount);
+  const lines = await resolvedLines(db, actor, input.lines ?? [], input);
   const totals = invoiceAmounts(lines, input, input.roundingMinor ?? 0);
   if (totals.netMinor <= 0) throw new FinanceError("invoiceAmountInvalid");
   return {

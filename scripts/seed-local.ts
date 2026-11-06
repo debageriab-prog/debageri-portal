@@ -293,6 +293,31 @@ async function seedFinance() {
       createdAt: now,
       createdBy: "seed-admin",
     });
+  const articles = [
+    [
+      "seed-article-hours-cleo",
+      "2",
+      "Timmar",
+      "h",
+      850_00,
+      "seed-consultant-flexible",
+    ],
+    ["seed-article-hours", "1", "Konsulttimmar", "h", 1_100_00, "all"],
+    ["seed-article-licence", "10", "Licens", "st", 500_00, "company"],
+  ] as const;
+  for (const [id, articleNumber, description, unit, price, scope] of articles)
+    batch.set(db.collection("invoiceArticles").doc(id), {
+      organizationId: org,
+      articleNumber,
+      description,
+      unit,
+      unitPriceMinor: price,
+      consultantScope: scope,
+      vatRateBps: 2500,
+      validFrom: "2026-01-01",
+      validTo: null,
+      createdAt: now,
+    });
   batch.set(db.collection("financeCustomers").doc("seed-customer"), {
     organizationId: org,
     name: "Norrsken Fiktiv AB",

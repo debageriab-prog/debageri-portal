@@ -77,7 +77,36 @@ export const categorySchema = z.object({
   direction: z.enum(["income", "expense"]),
 });
 
+const articleFields = {
+  articleNumber: z.string().trim().min(1).max(20),
+  description: z.string().trim().min(1).max(200),
+  unit: z.string().trim().min(1).max(10),
+  unitPriceMinor: z.number().int().min(-10_000_000_000).max(10_000_000_000),
+  /** `all`, `company` or a consultant's user ID. */
+  consultantScope: z.string().trim().min(1).max(128),
+  vatRateBps,
+  validFrom: date,
+  validTo: date.nullable().default(null),
+};
+
+const validRange = (value: { validFrom: string; validTo: string | null }) =>
+  !value.validTo || value.validTo >= value.validFrom;
+
+export const articleSchema = z
+  .object({ action: z.literal("createArticle"), ...articleFields })
+  .refine(validRange, { path: ["validTo"], message: "articleDatesInvalid" });
+
+export const updateArticleSchema = z
+  .object({
+    action: z.literal("updateArticle"),
+    articleId: z.string().min(1).max(128),
+    ...articleFields,
+  })
+  .refine(validRange, { path: ["validTo"], message: "articleDatesInvalid" });
+
 export const invoiceLineSchema = z.object({
+  /** The article the row is made from; its details are copied on save. */
+  articleId: z.string().min(1).max(128).nullable().default(null),
   articleNumber: z.string().trim().max(20).default(""),
   description: z.string().trim().min(1).max(200),
   quantityThousandths: z.number().int().min(-1_000_000_000).max(1_000_000_000),
@@ -271,6 +300,8 @@ export const financeActionSchema = z.discriminatedUnion("action", [
   updateInvoiceSchema,
   generateInvoicePdfSchema,
   sendInvoiceSchema,
+  articleSchema,
+  updateArticleSchema,
   invoiceHoursSchema,
   paymentSchema,
   transactionSchema,

@@ -7,6 +7,7 @@ import {
   financeFormContext,
   financeUsers,
   invoiceCustomers,
+  invoiceArticles,
   invoiceDefaults,
 } from "../../form-data";
 import type { IncomingEmailSource } from "../../incoming-email-prefill";
@@ -32,6 +33,7 @@ export default async function NewInvoicePage({
       users={await financeUsers()}
       customers={await invoiceCustomers(db, actor.organizationId)}
       defaults={await invoiceDefaults(db, actor.organizationId)}
+      articles={await invoiceArticles(db, actor.organizationId)}
       accountingRecipients={await accountingRecipientsFor(
         actor,
         db,

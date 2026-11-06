@@ -16,6 +16,7 @@ Every organization-owned document has `organizationId`. Dates are `YYYY-MM-DD` i
 | `compensationAgreements`  | effective-dated flexible/fixed/hybrid compensation and rates                               | admin service            | finance server only         |
 | `financeCategories`       | bilingual income/expense classifications                                                   | admin service            | finance server only         |
 | `financeCustomers`        | customer name, contacts, customer number, address, org/VAT number, invoice defaults        | finance service          | finance server only         |
+| `invoiceArticles`         | article number, description, unit, price, VAT, consultant scope, validity                  | finance service          | finance server only         |
 | `invoices`                | consultant attribution, rows, net/VAT/gross values, OCR, PDF and sending, payment state    | finance service          | admin/accountant server     |
 | `financialTransactions`   | immutable income, expense, and reversal ledger in integer Ã¶re                             | finance service          | role-scoped finance server  |
 | `aiSettings`              | organization ID; AI on/off, provider, model, enabled sections, encrypted keys              | admin service            | server only                 |
@@ -75,6 +76,16 @@ check digit and OCR number, read from the right and ending in `#41#`. It is
 set in Courier Bold 12, which has Bankgirot's pitch of ten characters per
 inch, so bank apps can scan it. Each generation copies the company details and the
 customer's address into the invoice (`issuerSnapshot`, `customerAddress`).
+Invoice articles (Invoice management > Invoice articles) hold what the
+company invoices: number, description, unit, unit price, VAT rate and a
+validity range with an open end allowed. `consultantScope` is `all`,
+`company` (invoices without a consultant) or one consultant's ID, and the
+invoice form only offers the articles that suit its consultant and invoice
+date. Two articles may share a number only when their scope or validity
+differs. A row made from an article stores `articleId` with a copy of the
+article's details, taken on the server when the invoice is saved, so later
+price changes leave saved invoices alone. All article rows on an invoice
+must share its VAT rate.
 Sending emails the PDF to the customer's finance email and sets `sentAt`; from
 then on the invoice keeps those copies and can no longer be edited, only
 voided.

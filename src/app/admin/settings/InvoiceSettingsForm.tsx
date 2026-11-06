@@ -200,7 +200,7 @@ export function InvoiceSettingsForm({
       {error && <p className="notice notice-error">{error}</p>}
       {message && <p className="notice notice-success">{message}</p>}
       <div className="actions">
-        <Link className="button secondary" href="/admin/settings">
+        <Link className="button secondary" href="/admin/settings?tab=invoicing">
           {t("cancel")}
         </Link>
         <button className="button" disabled={busy}>

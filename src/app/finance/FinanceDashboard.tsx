@@ -15,6 +15,10 @@ import {
   useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import type { InvoiceArticle } from "@/domain/finance/invoice-articles";
+import { InvoiceManagementTabs } from "./InvoiceManagementTabs";
+import { ArticleList } from "./ArticleList";
+import { CustomerDetails } from "./CustomerDetails";
 import {
   downloadInvoicePdf,
   InvoiceDocumentActions,
@@ -93,7 +97,20 @@ export interface FinancePageData {
     name: string;
     contactPerson: string;
     financeEmail: string;
+    customerNumber: string;
+    orgNumber: string;
+    vatNumber: string;
+    addressLine: string;
+    postalCode: string;
+    city: string;
+    country: string;
+    defaultYourReference: string;
+    paymentTermsDays: number | null;
+    invoiceLocale: "sv-SE" | "en-SE";
   }>;
+  articles: InvoiceArticle[];
+  /** The company's default payment terms, for customers without their own. */
+  paymentTermsDays: number;
   categories: Array<{
     id: string;
     code: string;
@@ -173,7 +190,12 @@ type Actor = {
   permissions: PermissionKey[];
 };
 type FinanceSection =
-  "overview" | "invoices" | "categories" | "transactions" | "customers";
+  | "overview"
+  | "invoices"
+  | "categories"
+  | "transactions"
+  | "customers"
+  | "articles";
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -1365,6 +1387,9 @@ export function FinanceDashboard({
       ) ?? null,
   );
   const [invoiceConsultantFilter, setInvoiceConsultantFilter] = useState("all");
+  const [viewingCustomer, setViewingCustomer] = useState<
+    FinancePageData["customers"][number] | null
+  >(null);
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const linkedTransaction =
     data.transactions.find(
@@ -1893,6 +1918,7 @@ export function FinanceDashboard({
     categories: t("categoryManagement"),
     transactions: t("incomeExpenseManagement"),
     customers: t("customerManagement"),
+    articles: t("invoiceManagement"),
   }[section];
   // Managers see each total excluding VAT with its VAT beside it, for
   // example "100 000 kr (+25 000 kr VAT)". Consultants see net amounts only.
@@ -2425,16 +2451,27 @@ export function FinanceDashboard({
                   <td>{customer.contactPerson}</td>
                   <td>{customer.financeEmail}</td>
                   <td>
-                    {canEditCustomers && (
-                      <Link
-                        className="table-action icon-action"
-                        aria-label={t("edit")}
-                        title={t("edit")}
-                        href={`/finance/customers/${customer.id}/edit`}
+                    <div className="row-actions">
+                      <button
+                        className="icon-button"
+                        type="button"
+                        aria-label={t("viewDetails")}
+                        title={t("viewDetails")}
+                        onClick={() => setViewingCustomer(customer)}
                       >
-                        <ActionIcon type="edit" />
-                      </Link>
-                    )}
+                        i
+                      </button>
+                      {canEditCustomers && (
+                        <Link
+                          className="table-action icon-action"
+                          aria-label={t("edit")}
+                          title={t("edit")}
+                          href={`/finance/customers/${customer.id}/edit`}
+                        >
+                          <ActionIcon type="edit" />
+                        </Link>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -2493,6 +2530,23 @@ export function FinanceDashboard({
             </tbody>
           </table>
         </section>
+      )}
+
+      {manager && (section === "invoices" || section === "articles") && (
+        <InvoiceManagementTabs
+          active={section}
+          showInvoices={can(actor, "finance.invoices.view")}
+          showArticles={can(actor, "finance.articles.view")}
+        />
+      )}
+
+      {manager && section === "articles" && (
+        <ArticleList
+          articles={data.articles}
+          users={data.users}
+          canAdd={can(actor, "finance.articles.add")}
+          canEdit={can(actor, "finance.articles.edit")}
+        />
       )}
 
       {section === "invoices" && (
@@ -3133,6 +3187,18 @@ export function FinanceDashboard({
             </footer>
           </section>
         </div>
+      )}
+
+      {viewingCustomer && (
+        <CustomerDetails
+          customer={viewingCustomer}
+          defaultPaymentTermsDays={data.paymentTermsDays}
+          invoices={data.invoices.filter(
+            (invoice) => invoice.customerId === viewingCustomer.id,
+          )}
+          canEdit={canEditCustomers}
+          onClose={() => setViewingCustomer(null)}
+        />
       )}
 
       {viewingInvoice && (

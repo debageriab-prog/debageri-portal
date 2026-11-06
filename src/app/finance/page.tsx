@@ -1,3 +1,4 @@
+import { invoiceSettingsFrom } from "@/domain/finance/invoice-settings";
 import { redirect } from "next/navigation";
 import {
   can,
@@ -25,6 +26,7 @@ const financeSections = [
   "categories",
   "transactions",
   "customers",
+  "articles",
 ] as const;
 
 const sectionPermissions: Record<
@@ -36,6 +38,7 @@ const sectionPermissions: Record<
   invoices: "finance.invoices.view",
   categories: "finance.categories.view",
   customers: "finance.customers.view",
+  articles: "finance.articles.view",
 };
 
 export default async function FinancePage({
@@ -138,6 +141,33 @@ export default async function FinancePage({
             .where("userId", "==", actor.id)
             .get(),
   ]);
+  const articlesSnapshot = can(actor, "finance.articles.view")
+    ? await db
+        .collection("invoiceArticles")
+        .where("organizationId", "==", organizationId)
+        .get()
+    : null;
+  const articles: FinancePageData["articles"] = (articlesSnapshot?.docs ?? [])
+    .map((document) => {
+      const data = document.data();
+      return {
+        id: document.id,
+        articleNumber: String(data.articleNumber ?? ""),
+        description: String(data.description ?? ""),
+        unit: String(data.unit ?? ""),
+        unitPriceMinor: Number(data.unitPriceMinor ?? 0),
+        consultantScope: String(data.consultantScope ?? "all"),
+        vatRateBps: Number(data.vatRateBps ?? 0),
+        validFrom: String(data.validFrom ?? ""),
+        validTo: data.validTo ? String(data.validTo) : null,
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.articleNumber.localeCompare(b.articleNumber, "sv-SE", {
+          numeric: true,
+        }) || b.validFrom.localeCompare(a.validFrom),
+    );
   const invoiceConsultantIds = new Map(
     (invoicesSnapshot?.docs ?? []).map((document) => [
       document.id,
@@ -275,12 +305,29 @@ export default async function FinancePage({
   const customers: FinancePageData["customers"] = (
     customersSnapshot?.docs ?? []
   )
-    .map((document) => ({
-      id: document.id,
-      name: String(document.data().name),
-      contactPerson: String(document.data().contactPerson),
-      financeEmail: String(document.data().financeEmail),
-    }))
+    .map((document) => {
+      const data = document.data();
+      const text = (value: unknown) => (typeof value === "string" ? value : "");
+      return {
+        id: document.id,
+        name: String(data.name),
+        contactPerson: String(data.contactPerson),
+        financeEmail: String(data.financeEmail),
+        customerNumber: text(data.customerNumber),
+        orgNumber: text(data.orgNumber),
+        vatNumber: text(data.vatNumber),
+        addressLine: text(data.addressLine),
+        postalCode: text(data.postalCode),
+        city: text(data.city),
+        country: text(data.country),
+        defaultYourReference: text(data.defaultYourReference),
+        paymentTermsDays: Number.isInteger(data.paymentTermsDays)
+          ? Number(data.paymentTermsDays)
+          : null,
+        invoiceLocale: (data.invoiceLocale === "en-SE" ? "en-SE" : "sv-SE") as
+          "en-SE" | "sv-SE",
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
   const vatSettlements: FinancePageData["vatSettlements"] = (
     vatSettlementsSnapshot?.docs ?? []
@@ -301,6 +348,10 @@ export default async function FinancePage({
         financeEnabled: organizationSnapshot.data()?.financeEnabled === true,
         users,
         customers,
+        articles,
+        paymentTermsDays: invoiceSettingsFrom(
+          organizationSnapshot.data()?.invoicing,
+        ).paymentTermsDays,
         categories,
         invoices,
         transactions,

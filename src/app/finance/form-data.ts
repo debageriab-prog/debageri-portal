@@ -10,6 +10,8 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import type { Firestore } from "firebase-admin/firestore";
 import { invoiceSettingsFrom } from "@/domain/finance/invoice-settings";
+import type { InvoiceArticle } from "@/domain/finance/invoice-articles";
+
 import type {
   EditableCustomer,
   InvoiceCustomer,
@@ -115,4 +117,32 @@ export async function invoiceDefaults(
     defaultOurReference: settings.defaultOurReference,
     paymentTermsDays: settings.paymentTermsDays,
   };
+}
+
+export function invoiceArticleFrom(
+  id: string,
+  data: FirebaseFirestore.DocumentData,
+): InvoiceArticle {
+  return {
+    id,
+    articleNumber: String(data.articleNumber ?? ""),
+    description: String(data.description ?? ""),
+    unit: String(data.unit ?? ""),
+    unitPriceMinor: Number(data.unitPriceMinor ?? 0),
+    consultantScope: String(data.consultantScope ?? "all"),
+    vatRateBps: Number(data.vatRateBps ?? 0),
+    validFrom: String(data.validFrom ?? ""),
+    validTo: data.validTo ? String(data.validTo) : null,
+  };
+}
+
+/** Every invoice article; the invoice form picks the ones that apply. */
+export async function invoiceArticles(db: Firestore, organizationId: string) {
+  const snapshot = await db
+    .collection("invoiceArticles")
+    .where("organizationId", "==", organizationId)
+    .get();
+  return snapshot.docs.map((document) =>
+    invoiceArticleFrom(document.id, document.data()),
+  );
 }

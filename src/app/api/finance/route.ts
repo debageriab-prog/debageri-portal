@@ -12,6 +12,8 @@ import {
   createFinancialTransaction,
   createExpenseCopies,
   createInvoice,
+  createInvoiceArticle,
+  updateInvoiceArticle,
   createVatSettlement,
   updateVatSettlement,
   deleteFinancialTransaction,
@@ -200,6 +202,13 @@ export async function POST(request: Request) {
           ...result,
         });
       }
+      case "createArticle":
+        id = await createInvoiceArticle(db, actor, parsed.data);
+        break;
+      case "updateArticle":
+        await updateInvoiceArticle(db, actor, parsed.data);
+        id = parsed.data.articleId;
+        break;
       case "invoiceHours":
         return NextResponse.json({
           ok: true,

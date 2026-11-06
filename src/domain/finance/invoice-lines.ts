@@ -6,6 +6,8 @@ import { calculateVatMinor } from "@/domain/finance/calculations";
  * only.
  */
 export type InvoiceLine = {
+  /** The invoice article the row was made from, if any. */
+  articleId?: string | null;
   articleNumber: string;
   description: string;
   quantityThousandths: number;

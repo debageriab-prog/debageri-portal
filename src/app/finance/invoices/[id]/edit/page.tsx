@@ -5,6 +5,7 @@ import {
   financeFormContext,
   financeUsers,
   invoiceCustomers,
+  invoiceArticles,
   invoiceDefaults,
 } from "../../../form-data";
 
@@ -29,6 +30,7 @@ export default async function EditInvoicePage({
       users={await financeUsers()}
       customers={await invoiceCustomers(db, actor.organizationId)}
       defaults={await invoiceDefaults(db, actor.organizationId)}
+      articles={await invoiceArticles(db, actor.organizationId)}
       invoice={{
         id,
         invoiceNumber: text(data.invoiceNumber),
