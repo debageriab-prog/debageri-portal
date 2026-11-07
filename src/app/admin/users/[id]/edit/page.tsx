@@ -56,7 +56,9 @@ export default async function EditEmployeePage({
         financeEnabled={canManageCompensation}
         accessProfiles={accessProfiles}
         agreements={agreements}
-        initialTab={tab === "compensation" ? "compensation" : undefined}
+        initialTab={
+          tab === "compensation" || tab === "vacation" ? tab : undefined
+        }
         compensationFailed={Boolean(compensationFailed)}
       />
     </>

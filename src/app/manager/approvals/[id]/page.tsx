@@ -10,6 +10,12 @@ import {
 } from "@/lib/localization/timesheets";
 import { aggregateReportedBreakdown } from "@/domain/reports/aggregate";
 import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
+import {
+  VacationOverviewCard,
+  vacationMinutesIn,
+} from "@/components/vacation/VacationOverviewCard";
+import { stockholmDateTime } from "@/lib/dates/stockholm";
+import { getVacationOverview } from "@/server/services/vacation-service";
 
 export default async function ReviewPage({
   params,
@@ -37,6 +43,26 @@ export default async function ReviewPage({
           user?.reportsTime === true)
       : consultant);
   if (!allowed) redirect("/unauthorized");
+  const entryData = entries.docs.map((entryDoc) => entryDoc.data());
+  const reportVacation = vacationMinutesIn(entryData);
+  const vacation = reportVacation
+    ? await getVacationOverview(
+        db,
+        actor.organizationId,
+        String(sheet.userId),
+        stockholmDateTime().date,
+      ).catch(() => null)
+    : null;
+  // Only days inside the current vacation year come off its balance.
+  const reportVacationInPeriod = vacation
+    ? vacationMinutesIn(
+        entryData.filter(
+          (entry) =>
+            String(entry.date) >= vacation.period.start &&
+            String(entry.date) <= vacation.period.end,
+        ),
+      )
+    : 0;
   const reportedBreakdown = aggregateReportedBreakdown(
     entries.docs.map((entryDoc) => entryDoc.data()),
     t("worked"),
@@ -59,6 +85,23 @@ export default async function ReviewPage({
         </div>
         <span className="status">{timesheetStatusLabel(t, sheet.status)}</span>
       </div>
+      {vacation ? (
+        <VacationOverviewCard
+          overview={vacation}
+          mode="review"
+          reportMinutes={reportVacationInPeriod}
+          reportApproved={sheet.status === "approved"}
+        />
+      ) : (
+        reportVacation > 0 && (
+          <p className="notice">
+            {t("vacationInThisReportUntracked").replace(
+              "{hours}",
+              formatDuration(reportVacation),
+            )}
+          </p>
+        )
+      )}
       <div className="grid-2">
         <section className="card">
           <h2>{t("reportedTime")}</h2>

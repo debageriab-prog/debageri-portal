@@ -5,6 +5,7 @@ import { formatDuration } from "@/lib/durations/duration";
 import { getTranslator } from "@/lib/localization/server";
 import { dateRangeLabel } from "@/lib/localization/timesheets";
 import { aggregateReportedBreakdown } from "@/domain/reports/aggregate";
+import { vacationMinutesIn } from "@/components/vacation/VacationOverviewCard";
 
 export default async function ApprovalsPage() {
   const actor = (await verifySession())!;
@@ -35,6 +36,7 @@ export default async function ApprovalsPage() {
             user.reportsTime === true)
       : consultant;
   });
+  const vacationSheets = new Set<string>();
   const reportedBreakdowns = new Map<
     string,
     Array<{ label: string; minutes: number }>
@@ -45,12 +47,11 @@ export default async function ApprovalsPage() {
         .collection("timeEntries")
         .where("timesheetId", "==", sheetDoc.id)
         .get();
+      const entryData = entrySnapshot.docs.map((entryDoc) => entryDoc.data());
+      if (vacationMinutesIn(entryData) > 0) vacationSheets.add(sheetDoc.id);
       reportedBreakdowns.set(
         sheetDoc.id,
-        aggregateReportedBreakdown(
-          entrySnapshot.docs.map((entryDoc) => entryDoc.data()),
-          t("worked"),
-        ),
+        aggregateReportedBreakdown(entryData, t("worked")),
       );
     }),
   );
@@ -86,6 +87,14 @@ export default async function ApprovalsPage() {
                   <tr key={doc.id}>
                     <td>
                       {String(user?.displayName ?? user?.email ?? sheet.userId)}
+                      {vacationSheets.has(doc.id) && (
+                        <>
+                          {" "}
+                          <span className="status status-vacation">
+                            {t("vacationIncluded")}
+                          </span>
+                        </>
+                      )}
                     </td>
                     <td>
                       {sheet.isoYear}-W{String(sheet.isoWeek).padStart(2, "0")}

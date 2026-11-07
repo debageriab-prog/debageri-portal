@@ -104,6 +104,31 @@ describe("Firestore rules", () => {
       }),
     );
   });
+  it("keeps vacation periods and adjustments server-only, even from admins", async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "vacationPeriods/v1"), {
+        organizationId: "debageri",
+        userId: "e1",
+      });
+      await setDoc(doc(context.firestore(), "vacationAdjustments/a1"), {
+        organizationId: "debageri",
+        userId: "e1",
+      });
+    });
+    for (const uid of ["a1", "e1"]) {
+      const db = env.authenticatedContext(uid).firestore();
+      await assertFails(getDoc(doc(db, "vacationPeriods/v1")));
+      await assertFails(getDoc(doc(db, "vacationAdjustments/a1")));
+      await assertFails(
+        setDoc(doc(db, "vacationAdjustments/a2"), {
+          organizationId: "debageri",
+          userId: "e1",
+          bucket: "normal",
+          deltaMinutes: 4800,
+        }),
+      );
+    }
+  });
   it("prevents direct approval updates", async () => {
     const db = env.authenticatedContext("m1").firestore();
     await assertFails(

@@ -27,6 +27,11 @@ import {
   EndCompensationDialog,
 } from "./CompensationHistory";
 import type { ManagedUser } from "./UserManagement";
+import {
+  VacationPanel,
+  vacationFormDefaults,
+  vacationPayload,
+} from "./VacationPanel";
 import type { AccessProfile } from "@/server/services/access-profile-service";
 import { PermissionSummary } from "../access-profiles/PermissionTree";
 import { accessProfileError } from "../access-profiles/AccessProfileForm";
@@ -34,11 +39,17 @@ import { accessProfileError } from "../access-profiles/AccessProfileForm";
 const staffRoles = ["manager", "accountant"];
 
 type Tab =
-  "general" | "employment" | "compensation" | "access" | "notifications";
+  | "general"
+  | "employment"
+  | "compensation"
+  | "vacation"
+  | "access"
+  | "notifications";
 const TABS: Tab[] = [
   "general",
   "employment",
   "compensation",
+  "vacation",
   "access",
   "notifications",
 ];
@@ -106,6 +117,9 @@ export function EmployeeEditor({
   const [language, setLanguage] = useState<Locale>(
     employee?.locale ?? defaultLocale,
   );
+  const [vacation, setVacation] = useState(() =>
+    vacationFormDefaults(employee?.vacation ?? null, !employee),
+  );
   const [addCompensation, setAddCompensation] = useState(false);
   const [compensation, setCompensation] = useState(() =>
     defaultCompensationValues(today()),
@@ -140,6 +154,7 @@ export function EmployeeEditor({
     setRole(nextRole);
     if (!staffRoles.includes(nextRole)) setManagerReportsTime(false);
     setAccessProfileId(defaultProfileFor(nextRole));
+    if (nextRole === "admin" && tab === "vacation") setTab("general");
   }
 
   /** Shows the tab holding the first invalid field, then explains it. */
@@ -171,6 +186,7 @@ export function EmployeeEditor({
       accessProfileId: audience ? accessProfileId : null,
       emailPreferences,
       locale: language,
+      ...vacationPayload(vacation, role, creating),
       ...(creating
         ? { password: values.password }
         : {
@@ -237,20 +253,22 @@ export function EmployeeEditor({
         noValidate
       >
         <div className="editor-tabs" role="tablist" aria-label={t("employee")}>
-          {TABS.map((item) => (
-            <button
-              key={item}
-              type="button"
-              role="tab"
-              id={`employee-tab-${item}`}
-              aria-controls={`employee-panel-${item}`}
-              aria-selected={tab === item}
-              className={`editor-tab${tab === item ? " active" : ""}`}
-              onClick={() => setTab(item)}
-            >
-              {t(`employeeTab_${item}`)}
-            </button>
-          ))}
+          {TABS.filter((item) => item !== "vacation" || role !== "admin").map(
+            (item) => (
+              <button
+                key={item}
+                type="button"
+                role="tab"
+                id={`employee-tab-${item}`}
+                aria-controls={`employee-panel-${item}`}
+                aria-selected={tab === item}
+                className={`editor-tab${tab === item ? " active" : ""}`}
+                onClick={() => setTab(item)}
+              >
+                {t(`employeeTab_${item}`)}
+              </button>
+            ),
+          )}
         </div>
 
         <section
@@ -511,6 +529,30 @@ export function EmployeeEditor({
                 onEnd={setEndingAgreement}
               />
             </>
+          )}
+        </section>
+
+        <section
+          className="editor-panel"
+          data-tab="vacation"
+          role="tabpanel"
+          id="employee-panel-vacation"
+          aria-labelledby="employee-tab-vacation"
+          hidden={tab !== "vacation"}
+        >
+          <p className="muted editor-panel-intro">
+            {t("employeeTabIntro_vacation")}
+          </p>
+          {role !== "admin" && (
+            <VacationPanel
+              values={vacation}
+              onChange={(change) =>
+                setVacation((current) => ({ ...current, ...change }))
+              }
+              role={role}
+              employeeId={employee?.id}
+              savedSettings={employee?.vacation ?? null}
+            />
           )}
         </section>
 
