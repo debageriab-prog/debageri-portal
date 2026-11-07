@@ -24,3 +24,5 @@ person saving it is asked whether to email it; only on yes are the record's
 details, including the internal note, and its attachments sent to the chosen
 addresses with the organization's SMTP settings, in each address's chosen
 language (English or Swedish). Each send is recorded in the audit log.
+
+Payroll details (personnummer, home address, kommun, church membership, tax table and salary account) are collected only for people the company pays a salary. They are stored server-only in `payrollProfiles`, shown only to administrators, and kept out of audit metadata. Church membership is a special category of personal data under GDPR, so record it only when the person's tax decision requires it.

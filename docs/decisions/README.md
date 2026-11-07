@@ -14,3 +14,4 @@
 | 010 | Separate Authentication user base           |
 | 011 | Separate private employee-document Storage  |
 | 012 | Access profiles decide permissions          |
+| 013 | Payroll details kept apart from users       |

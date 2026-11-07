@@ -33,6 +33,7 @@ export interface ManagedUser {
   emailPreferences: EmailPreferences;
   locale: Locale;
   compensationModel: CompensationModel | null;
+  paysSalary: boolean;
   vacation: VacationSettings | null;
 }
 

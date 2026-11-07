@@ -4,13 +4,22 @@ import {
   earnsInvoiceShare,
 } from "@/domain/finance/calculations";
 import {
+  canViewMyFinance,
+  hasPersonalBalance,
+} from "@/domain/finance/calculations";
+import {
   COMPENSATION_END_CONFIRMATION,
   compensationInput,
+  compensationModelsFor,
+  compensationProblem,
   defaultCompensationValues,
   monthlyCompensation,
+  monthlySalaryMinor,
   previousDay,
+  receivesSalary,
   type CompensationRecord,
 } from "@/domain/finance/compensation";
+import { reportViewFor } from "@/domain/finance/report-export";
 import { compensationSchema } from "@/server/validators/finance";
 
 describe("compensation end confirmation", () => {
@@ -57,6 +66,7 @@ describe("hybrid compensation", () => {
     validTo: null,
     shareBps: 1000,
     fixedMonthlySalaryMinor: 3_000_000,
+    requestedMonthlySalaryMinor: null,
   };
   const income = (date: string, consultantBalanceDeltaMinor: number) => ({
     consultantId,
@@ -177,6 +187,7 @@ describe("compensation input", () => {
         ...defaults,
         sharePercent: "87.5",
         fixedSalary: "45000",
+        requestedSalary: "50000",
       }),
     ).toEqual({
       model: "flexible",
@@ -184,6 +195,7 @@ describe("compensation input", () => {
       validTo: null,
       shareBps: 8750,
       fixedMonthlySalaryMinor: null,
+      requestedMonthlySalaryMinor: 5_000_000,
     });
   });
 
@@ -201,6 +213,174 @@ describe("compensation input", () => {
       validTo: "2027-10-31",
       shareBps: 0,
       fixedMonthlySalaryMinor: 4_500_050,
+      requestedMonthlySalaryMinor: null,
     });
+  });
+});
+
+describe("who the company pays", () => {
+  it("always pays consultants and pays staff only when ticked", () => {
+    expect(receivesSalary({ role: "consultant" })).toBe(true);
+    expect(receivesSalary({ role: "employee" })).toBe(true);
+    expect(receivesSalary({ role: "accountant" })).toBe(false);
+    expect(receivesSalary({ role: "accountant", paysSalary: true })).toBe(true);
+    expect(receivesSalary({ role: "admin", paysSalary: true })).toBe(true);
+  });
+
+  it("offers staff a monthly salary and consultants the three models", () => {
+    expect(compensationModelsFor("consultant")).toEqual([
+      "flexible",
+      "fixed",
+      "hybrid",
+    ]);
+    expect(compensationModelsFor("manager")).toEqual(["salaried"]);
+  });
+});
+
+describe("compensation rules", () => {
+  const staff = { role: "accountant", paysSalary: true };
+  const consultant = { role: "consultant" };
+  const base = {
+    validFrom: "2026-12-01",
+    validTo: null,
+    shareBps: 0,
+    fixedMonthlySalaryMinor: null,
+    requestedMonthlySalaryMinor: null,
+  };
+
+  it("gives staff a monthly salary only when the company pays them", () => {
+    const salaried = {
+      ...base,
+      model: "salaried" as const,
+      fixedMonthlySalaryMinor: 4_200_000,
+    };
+    expect(compensationProblem(staff, salaried)).toBeNull();
+    expect(compensationProblem({ role: "accountant" }, salaried)).toBe(
+      "compensationNotPaid",
+    );
+    expect(compensationProblem(staff, { ...salaried, model: "flexible" })).toBe(
+      "compensationInvalid",
+    );
+    expect(compensationProblem(consultant, salaried)).toBe(
+      "compensationInvalid",
+    );
+  });
+
+  it("needs a requested salary on a flexible agreement", () => {
+    const flexible = { ...base, model: "flexible" as const, shareBps: 9000 };
+    expect(compensationProblem(consultant, flexible)).toBe(
+      "compensationInvalid",
+    );
+    expect(
+      compensationProblem(consultant, {
+        ...flexible,
+        requestedMonthlySalaryMinor: 5_000_000,
+      }),
+    ).toBeNull();
+    expect(
+      compensationProblem(consultant, {
+        ...flexible,
+        requestedMonthlySalaryMinor: 5_000_000,
+        fixedMonthlySalaryMinor: 5_000_000,
+      }),
+    ).toBe("compensationInvalid");
+  });
+
+  it("keeps the fixed and hybrid rules", () => {
+    expect(
+      compensationProblem(consultant, {
+        ...base,
+        model: "fixed",
+        fixedMonthlySalaryMinor: 4_000_000,
+      }),
+    ).toBeNull();
+    expect(
+      compensationProblem(consultant, {
+        ...base,
+        model: "hybrid",
+        fixedMonthlySalaryMinor: 3_000_000,
+      }),
+    ).toBe("compensationInvalid");
+    expect(
+      compensationProblem(consultant, {
+        ...base,
+        model: "fixed",
+        fixedMonthlySalaryMinor: 4_000_000,
+        validTo: "2026-11-30",
+      }),
+    ).toBe("compensationInvalid");
+  });
+
+  it("turns the form into the requested salary for flexible only", () => {
+    expect(
+      compensationInput({
+        ...defaultCompensationValues("2026-12-01"),
+        requestedSalary: "50000",
+      }),
+    ).toMatchObject({
+      model: "flexible",
+      shareBps: 9000,
+      fixedMonthlySalaryMinor: null,
+      requestedMonthlySalaryMinor: 5_000_000,
+    });
+    expect(
+      compensationInput({
+        ...defaultCompensationValues("2026-12-01", "salaried"),
+        fixedSalary: "42000",
+        requestedSalary: "1",
+      }),
+    ).toMatchObject({
+      shareBps: 0,
+      fixedMonthlySalaryMinor: 4_200_000,
+      requestedMonthlySalaryMinor: null,
+    });
+  });
+
+  it("pays the requested salary on flexible and the fixed one otherwise", () => {
+    expect(
+      monthlySalaryMinor({
+        model: "flexible",
+        fixedMonthlySalaryMinor: null,
+        requestedMonthlySalaryMinor: 5_000_000,
+      }),
+    ).toBe(5_000_000);
+    expect(
+      monthlySalaryMinor({
+        model: "salaried",
+        fixedMonthlySalaryMinor: 4_200_000,
+        requestedMonthlySalaryMinor: null,
+      }),
+    ).toBe(4_200_000);
+  });
+
+  it("gives salaried staff no personal balance", () => {
+    expect(hasPersonalBalance("salaried")).toBe(false);
+    expect(hasPersonalBalance("hybrid")).toBe(true);
+    expect(
+      canViewMyFinance({
+        compensationModel: "salaried",
+        permissions: ["my.finance"],
+      }),
+    ).toBe(false);
+    expect(
+      reportViewFor(
+        [{ model: "salaried", validFrom: "2026-01-01" }],
+        "2026-12-31",
+        null,
+      ),
+    ).toBe("company");
+  });
+
+  it("accepts the new fields in the action schema", () => {
+    expect(
+      compensationSchema.safeParse({
+        action: "setCompensation",
+        userId: "user-2",
+        model: "salaried",
+        validFrom: "2026-12-01",
+        shareBps: 0,
+        fixedMonthlySalaryMinor: 4_200_000,
+      }).data?.requestedMonthlySalaryMinor,
+    ).toBeNull();
   });
 });

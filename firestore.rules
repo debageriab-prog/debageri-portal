@@ -103,6 +103,16 @@ service cloud.firestore {
     match /accessProfiles/{profileId} {
       allow read, write: if false;
     }
+    // Personnummer, address and tax details: server-only, even for the owner.
+    match /payrollProfiles/{profileId} {
+      allow read, write: if false;
+    }
+    match /taxTables/{tableId} {
+      allow read, write: if false;
+    }
+    match /municipalTaxRates/{ratesId} {
+      allow read, write: if false;
+    }
     match /{document=**} { allow read, write: if false; }
   }
 }

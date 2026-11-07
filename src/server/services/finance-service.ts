@@ -12,6 +12,7 @@ import {
 } from "@/domain/finance/calculations";
 import {
   COMPENSATION_END_CONFIRMATION,
+  compensationProblem,
   previousDay,
 } from "@/domain/finance/compensation";
 import { validInvoicePeriod } from "@/domain/finance/invoice-period";
@@ -172,35 +173,20 @@ export async function setCompensation(
     validTo: string | null;
     shareBps: number;
     fixedMonthlySalaryMinor: number | null;
+    requestedMonthlySalaryMinor: number | null;
     confirmation?: typeof COMPENSATION_END_CONFIRMATION;
   },
 ) {
   if (actor.role !== "admin") throw new FinanceError("forbidden", 403);
   const user = await db.collection("users").doc(input.userId).get();
-  if (
-    !user.exists ||
-    user.data()?.organizationId !== actor.organizationId ||
-    user.data()?.role !== "consultant"
-  )
+  const person = user.data();
+  if (!user.exists || person?.organizationId !== actor.organizationId)
     throw new FinanceError("consultantInvalid", 404);
-  if (input.model === "flexible" && input.fixedMonthlySalaryMinor !== null)
-    throw new FinanceError("compensationInvalid");
-  if (input.validTo && input.validTo < input.validFrom)
-    throw new FinanceError("compensationInvalid");
-  if (
-    input.model === "fixed" &&
-    (input.shareBps !== 0 ||
-      input.fixedMonthlySalaryMinor === null ||
-      input.fixedMonthlySalaryMinor <= 0)
-  )
-    throw new FinanceError("compensationInvalid");
-  if (
-    input.model === "hybrid" &&
-    (input.shareBps <= 0 ||
-      input.fixedMonthlySalaryMinor === null ||
-      input.fixedMonthlySalaryMinor <= 0)
-  )
-    throw new FinanceError("compensationInvalid");
+  const problem = compensationProblem(
+    { role: String(person.role), paysSalary: person.paysSalary === true },
+    input,
+  );
+  if (problem) throw new FinanceError(problem);
 
   const existing = await db
     .collection("compensationAgreements")
@@ -234,6 +220,8 @@ export async function setCompensation(
     shareBps: earnsInvoiceShare(input.model) ? input.shareBps : 0,
     fixedMonthlySalaryMinor:
       input.model === "flexible" ? null : input.fixedMonthlySalaryMinor,
+    requestedMonthlySalaryMinor:
+      input.model === "flexible" ? input.requestedMonthlySalaryMinor : null,
     currency: "SEK",
     createdAt: FieldValue.serverTimestamp(),
     createdBy: actor.id,

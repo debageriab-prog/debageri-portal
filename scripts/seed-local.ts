@@ -336,11 +336,13 @@ async function seedFinance() {
     createdAt: now,
   });
   const agreements = [
-    ["seed-consultant-flexible", "flexible", 7_000, null],
-    ["seed-consultant-fixed", "fixed", 0, 4_500_000],
-    ["seed-consultant-limited", "flexible", 6_500, null],
+    ["seed-consultant-flexible", "flexible", 7_000, null, 5_000_000],
+    ["seed-consultant-fixed", "fixed", 0, 4_500_000, null],
+    ["seed-consultant-limited", "flexible", 6_500, null, 3_500_000],
+    // Staff the company pays: an expense with no invoice income.
+    ["seed-accountant", "salaried", 0, 4_200_000, null],
   ] as const;
-  for (const [userId, model, shareBps, salary] of agreements) {
+  for (const [userId, model, shareBps, salary, requested] of agreements) {
     batch.set(db.collection("compensationAgreements").doc(`seed-${userId}`), {
       organizationId: org,
       userId,
@@ -349,10 +351,12 @@ async function seedFinance() {
       validTo: null,
       shareBps,
       fixedMonthlySalaryMinor: salary,
+      requestedMonthlySalaryMinor: requested,
       createdAt: now,
     });
     batch.update(db.collection("users").doc(userId), {
       compensationModel: model,
+      ...(model === "salaried" ? { paysSalary: true } : {}),
     });
   }
   const invoices = [

@@ -13,10 +13,14 @@ import {
   type EmailPreferences,
 } from "@/domain/notifications";
 import {
+  canBePaidSalary,
   compensationInput,
+  compensationModelsFor,
   defaultCompensationValues,
+  receivesSalary,
   type CompensationRecord,
 } from "@/domain/finance/compensation";
+import { InfoTip } from "@/components/ui/InfoTip";
 import {
   CompensationFields,
   postCompensationAction,
@@ -27,6 +31,16 @@ import {
   EndCompensationDialog,
 } from "./CompensationHistory";
 import type { ManagedUser } from "./UserManagement";
+import {
+  PayrollPanel,
+  payrollFormDefaults,
+  payrollPayload,
+} from "./PayrollPanel";
+import {
+  emptyPayrollProfile,
+  type PayrollProfile,
+} from "@/domain/salary/payroll-profile";
+import type { Municipality } from "@/domain/salary/tax";
 import {
   VacationPanel,
   vacationFormDefaults,
@@ -42,6 +56,7 @@ type Tab =
   | "general"
   | "employment"
   | "compensation"
+  | "payroll"
   | "vacation"
   | "access"
   | "notifications";
@@ -49,6 +64,7 @@ const TABS: Tab[] = [
   "general",
   "employment",
   "compensation",
+  "payroll",
   "vacation",
   "access",
   "notifications",
@@ -66,6 +82,9 @@ export function EmployeeEditor({
   agreements = [],
   initialTab = "general",
   compensationFailed = false,
+  payroll,
+  municipalities = [],
+  taxYear = null,
 }: {
   employee?: ManagedUser;
   accessProfiles: AccessProfile[];
@@ -74,6 +93,9 @@ export function EmployeeEditor({
   agreements?: CompensationRecord[];
   initialTab?: Tab;
   compensationFailed?: boolean;
+  payroll?: PayrollProfile;
+  municipalities?: Municipality[];
+  taxYear?: number | null;
 }) {
   const { t } = useLocale();
   const router = useRouter();
@@ -120,6 +142,10 @@ export function EmployeeEditor({
   const [vacation, setVacation] = useState(() =>
     vacationFormDefaults(employee?.vacation ?? null, !employee),
   );
+  const [payrollValues, setPayrollValues] = useState(() =>
+    payrollFormDefaults(payroll ?? emptyPayrollProfile()),
+  );
+  const [paysSalary, setPaysSalary] = useState(employee?.paysSalary ?? false);
   const [addCompensation, setAddCompensation] = useState(false);
   const [compensation, setCompensation] = useState(() =>
     defaultCompensationValues(today()),
@@ -134,7 +160,6 @@ export function EmployeeEditor({
   const [message, setMessage] = useState("");
   const reportsTime =
     role === "consultant" || (staffRoles.includes(role) && managerReportsTime);
-  const isConsultant = role === "consultant";
   const audience = audienceForRole(role);
   const availableProfiles = accessProfiles.filter(
     (profile) => profile.audience === audience,
@@ -142,9 +167,19 @@ export function EmployeeEditor({
   const selectedProfile = availableProfiles.find(
     (profile) => profile.id === accessProfileId,
   );
-  // Agreements attach to the stored role, so a role change must be saved first.
-  const canAddCompensation =
-    financeEnabled && isConsultant && employee?.role === "consultant";
+  const salaryChoice = canBePaidSalary(role);
+  const isPaid = receivesSalary({
+    role,
+    paysSalary: salaryChoice && paysSalary,
+  });
+  // Agreements attach to the stored role and salary choice, so changes to
+  // either must be saved first.
+  const savedPaid =
+    !!employee &&
+    receivesSalary(employee) &&
+    compensationModelsFor(employee.role).join() ===
+      compensationModelsFor(role).join();
+  const canAddCompensation = financeEnabled && isPaid && savedPaid;
 
   function set(name: keyof typeof values, value: string) {
     setValues((current) => ({ ...current, [name]: value }));
@@ -154,6 +189,12 @@ export function EmployeeEditor({
     setRole(nextRole);
     if (!staffRoles.includes(nextRole)) setManagerReportsTime(false);
     setAccessProfileId(defaultProfileFor(nextRole));
+    setCompensation((current) => ({
+      ...defaultCompensationValues(
+        current.validFrom,
+        compensationModelsFor(nextRole)[0],
+      ),
+    }));
     if (nextRole === "admin" && tab === "vacation") setTab("general");
   }
 
@@ -187,6 +228,10 @@ export function EmployeeEditor({
       emailPreferences,
       locale: language,
       ...vacationPayload(vacation, role, creating),
+      paysSalary: salaryChoice && paysSalary,
+      ...(isPaid
+        ? { payroll: payrollPayload(payrollValues, municipalities) }
+        : {}),
       ...(creating
         ? { password: values.password }
         : {
@@ -219,7 +264,7 @@ export function EmployeeEditor({
         return;
       }
       createdId = result.id;
-      if (creating && isConsultant && addCompensation && createdId) {
+      if (creating && isPaid && addCompensation && createdId) {
         const failure = await postCompensationAction({
           action: "setCompensation",
           userId: createdId,
@@ -253,22 +298,24 @@ export function EmployeeEditor({
         noValidate
       >
         <div className="editor-tabs" role="tablist" aria-label={t("employee")}>
-          {TABS.filter((item) => item !== "vacation" || role !== "admin").map(
-            (item) => (
-              <button
-                key={item}
-                type="button"
-                role="tab"
-                id={`employee-tab-${item}`}
-                aria-controls={`employee-panel-${item}`}
-                aria-selected={tab === item}
-                className={`editor-tab${tab === item ? " active" : ""}`}
-                onClick={() => setTab(item)}
-              >
-                {t(`employeeTab_${item}`)}
-              </button>
-            ),
-          )}
+          {TABS.filter(
+            (item) =>
+              (item !== "vacation" || role !== "admin") &&
+              (item !== "payroll" || isPaid),
+          ).map((item) => (
+            <button
+              key={item}
+              type="button"
+              role="tab"
+              id={`employee-tab-${item}`}
+              aria-controls={`employee-panel-${item}`}
+              aria-selected={tab === item}
+              className={`editor-tab${tab === item ? " active" : ""}`}
+              onClick={() => setTab(item)}
+            >
+              {t(`employeeTab_${item}`)}
+            </button>
+          ))}
         </div>
 
         <section
@@ -468,12 +515,31 @@ export function EmployeeEditor({
           {!financeEnabled && (
             <p className="notice">{t("financeError_financeDisabled")}</p>
           )}
-          {!isConsultant && (
-            <p className="notice">{t("employeeCompensationConsultantsOnly")}</p>
+          {salaryChoice && (
+            <div className="form-grid">
+              <label className="checkbox-row form-wide">
+                <input
+                  type="checkbox"
+                  checked={paysSalary}
+                  onChange={(event) => setPaysSalary(event.target.checked)}
+                />
+                <span>{t("companyPaysSalary")}</span>
+                <InfoTip text={t("companyPaysSalaryTip")} />
+              </label>
+            </div>
+          )}
+          {!isPaid && (
+            <p className="notice">
+              {t(
+                salaryChoice
+                  ? "employeeCompensationNotPaid"
+                  : "employeeCompensationRoleNotPaid",
+              )}
+            </p>
           )}
           {creating ? (
             financeEnabled &&
-            isConsultant && (
+            isPaid && (
               <div className="form-grid">
                 <label className="checkbox-row form-wide">
                   <input
@@ -495,6 +561,7 @@ export function EmployeeEditor({
                 {addCompensation && (
                   <CompensationFields
                     values={compensation}
+                    role={role}
                     onChange={(change) =>
                       setCompensation((current) => ({ ...current, ...change }))
                     }
@@ -504,13 +571,11 @@ export function EmployeeEditor({
             )
           ) : (
             <>
-              {financeEnabled &&
-                isConsultant &&
-                employee.role !== "consultant" && (
-                  <p className="notice">
-                    {t("employeeCompensationSaveRoleFirst")}
-                  </p>
-                )}
+              {financeEnabled && isPaid && !savedPaid && (
+                <p className="notice">
+                  {t("employeeCompensationSaveRoleFirst")}
+                </p>
+              )}
               <div className="week-head">
                 <h2>{t("compensationHistory")}</h2>
                 {canAddCompensation && (
@@ -529,6 +594,29 @@ export function EmployeeEditor({
                 onEnd={setEndingAgreement}
               />
             </>
+          )}
+        </section>
+
+        <section
+          className="editor-panel"
+          data-tab="payroll"
+          role="tabpanel"
+          id="employee-panel-payroll"
+          aria-labelledby="employee-tab-payroll"
+          hidden={tab !== "payroll" || !isPaid}
+        >
+          <p className="muted editor-panel-intro">
+            {t("employeeTabIntro_payroll")}
+          </p>
+          {isPaid && (
+            <PayrollPanel
+              values={payrollValues}
+              onChange={(change) =>
+                setPayrollValues((current) => ({ ...current, ...change }))
+              }
+              municipalities={municipalities}
+              taxYear={taxYear}
+            />
           )}
         </section>
 

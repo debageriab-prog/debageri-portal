@@ -50,3 +50,7 @@ Accepted. Employee documents use portal-only buckets and private organization/em
 ## 012: Access profiles decide permissions
 
 Accepted. Roles remain and say who someone is. Permissions come from one admin-defined access profile per user, resolved on each request, so access can be tuned per person without code changes. Administration stays admin-only. There is no fallback: a non-admin without a valid profile has no access, so a mistake closes access rather than opening it. Consultant profiles can only grant a person's own data.
+
+## 013: Payroll details kept apart from users
+
+Accepted. Personnummer, address and tax details are needed for payslips and tax deductions but are more sensitive than the rest of a profile. They are stored in a server-only `payrollProfiles` collection instead of the user document, which its owner can read, and audit entries name the changed fields without their values. Tax tables are imported from Skatteverket per organization and year, so a payslip is always worked out from the tables that applied when it was made.

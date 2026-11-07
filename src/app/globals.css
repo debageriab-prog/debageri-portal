@@ -4028,6 +4028,13 @@ td.amount-cell {
   display: grid;
   gap: 18px;
 }
+.payroll-sections {
+  display: grid;
+  gap: 18px;
+}
+.payroll-sections .access-section .form-grid {
+  margin-bottom: 0;
+}
 .invoice-settings-form .access-section .form-grid {
   margin-bottom: 0;
 }

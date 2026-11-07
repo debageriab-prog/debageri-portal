@@ -3,6 +3,8 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
 import { listAccessProfiles } from "@/server/services/access-profile-service";
+import { stockholmDateTime } from "@/lib/dates/stockholm";
+import { municipalitiesFor } from "@/server/services/tax-table-service";
 import { EmployeeEditor } from "../EmployeeEditor";
 import { financeEnabled } from "../user-data";
 
@@ -10,9 +12,14 @@ export default async function NewEmployeePage() {
   const actor = (await verifySession())!;
   const t = await getTranslator();
   const { db } = getAdminServices();
-  const [canManageCompensation, accessProfiles] = await Promise.all([
+  const [canManageCompensation, accessProfiles, rates] = await Promise.all([
     financeEnabled(db, actor.organizationId),
     listAccessProfiles(db, actor.organizationId),
+    municipalitiesFor(
+      db,
+      actor.organizationId,
+      Number(stockholmDateTime().date.slice(0, 4)),
+    ),
   ]);
   return (
     <>
@@ -30,6 +37,8 @@ export default async function NewEmployeePage() {
       <EmployeeEditor
         financeEnabled={canManageCompensation}
         accessProfiles={accessProfiles}
+        municipalities={rates?.municipalities ?? []}
+        taxYear={rates?.year ?? null}
       />
     </>
   );
