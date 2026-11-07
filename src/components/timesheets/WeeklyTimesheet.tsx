@@ -447,6 +447,8 @@ export function WeeklyTimesheet({
       setConfirmation("");
       setRows([]);
       setSuccess(t("timesheetReported"));
+      // Server-rendered parts, such as the vacation balance, show the new report.
+      router.refresh();
       setWeekMode("number");
       if (data.part < data.partCount) {
         await loadWeek(
@@ -498,6 +500,8 @@ export function WeeklyTimesheet({
       const uploadError = await uploadPendingFiles(data.id);
       setNonWorkingOpen(false);
       setSuccess(t("zeroHoursReported"));
+      // Server-rendered parts, such as the vacation balance, show the new report.
+      router.refresh();
       setWeekMode("number");
       if (data.part < data.partCount) {
         await loadWeek(
