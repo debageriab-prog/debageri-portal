@@ -76,6 +76,12 @@ service cloud.firestore {
     match /compensationAgreements/{agreementId} {
       allow read, write: if false;
     }
+    match /vacationPeriods/{periodId} {
+      allow read, write: if false;
+    }
+    match /vacationAdjustments/{adjustmentId} {
+      allow read, write: if false;
+    }
     match /financeCategories/{categoryId} {
       allow read, write: if false;
     }

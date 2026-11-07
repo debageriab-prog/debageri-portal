@@ -12,6 +12,12 @@ import {
   emailPreferencesSchema,
   localeSchema,
 } from "@/server/validators/user-access";
+import {
+  vacationOpeningSchema,
+  vacationSettingsSchema,
+} from "@/server/validators/vacation";
+import { addVacationSetup } from "@/server/services/vacation-service";
+import { stockholmDateTime } from "@/lib/dates/stockholm";
 
 const inputSchema = z
   .object({
@@ -26,8 +32,15 @@ const inputSchema = z
     accessProfileId: accessProfileIdSchema.nullable(),
     emailPreferences: emailPreferencesSchema.optional(),
     locale: localeSchema,
+    vacation: vacationSettingsSchema.nullable().optional(),
+    vacationOpening: vacationOpeningSchema.optional(),
   })
   .superRefine((value, context) => {
+    if (value.role === "admin" && value.vacation)
+      context.addIssue({
+        code: "custom",
+        message: "Vacation is not tracked for administrators",
+      });
     const expectedReportsTime =
       value.role === "consultant" ||
       (["manager", "accountant"].includes(value.role) && value.reportsTime);
@@ -92,6 +105,7 @@ export async function POST(request: Request) {
       managerId: null,
       timezone: actor.timezone,
       locale: parsed.data.locale,
+      vacation: parsed.data.vacation ?? null,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -107,8 +121,23 @@ export async function POST(request: Request) {
         reportsTime: parsed.data.reportsTime,
         accessProfileId: parsed.data.accessProfileId,
         locale: parsed.data.locale,
+        vacation: parsed.data.vacation ?? null,
       },
     });
+    if (parsed.data.vacation)
+      addVacationSetup(
+        db,
+        batch,
+        {
+          organizationId: actor.organizationId,
+          userId: uid,
+          actorId: actor.id,
+          actorName: actor.displayName,
+        },
+        parsed.data.vacation,
+        stockholmDateTime().date,
+        parsed.data.vacationOpening ?? { normalMinutes: 0, advanceMinutes: 0 },
+      );
     await batch.commit();
     return NextResponse.json({ id: uid }, { status: 201 });
   } catch (error) {

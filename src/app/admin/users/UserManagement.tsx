@@ -7,7 +7,10 @@ import { appCheckFetch } from "@/lib/firebase/client";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import type { Locale } from "@/lib/localization/locale";
 import type { EmailPreferences } from "@/domain/notifications";
+import type { CompensationModel } from "@/domain/types";
+import type { VacationSettings } from "@/domain/vacation/periods";
 import { ActionIcon } from "@/components/ui/ActionIcon";
+import { EmployeeInfoDialog } from "./EmployeeInfoDialog";
 import {
   announceImpersonationChange,
   endImpersonation,
@@ -29,6 +32,8 @@ export interface ManagedUser {
   accessProfileName: string | null;
   emailPreferences: EmailPreferences;
   locale: Locale;
+  compensationModel: CompensationModel | null;
+  vacation: VacationSettings | null;
 }
 
 export function UserManagement({
@@ -50,6 +55,7 @@ export function UserManagement({
   );
   const [resettingMfa, setResettingMfa] = useState<ManagedUser | null>(null);
   const [viewingAs, setViewingAs] = useState<ManagedUser | null>(null);
+  const [viewingInfo, setViewingInfo] = useState<ManagedUser | null>(null);
   const [viewAsError, setViewAsError] = useState("");
   const [message, setMessage] = useState(
     saved === "created"
@@ -277,6 +283,17 @@ export function UserManagement({
                   </td>
                   <td>
                     <div className="row-actions">
+                      <button
+                        className="table-action icon-action"
+                        aria-label={t("employeeInfoAction").replace(
+                          "{name}",
+                          user.displayName,
+                        )}
+                        title={t("employeeInfo")}
+                        onClick={() => setViewingInfo(user)}
+                      >
+                        <ActionIcon type="info" />
+                      </button>
                       <Link
                         className="table-action icon-action"
                         aria-label={t("edit")}
@@ -352,6 +369,12 @@ export function UserManagement({
         )}
       </section>
 
+      {viewingInfo && (
+        <EmployeeInfoDialog
+          user={viewingInfo}
+          close={() => setViewingInfo(null)}
+        />
+      )}
       {viewingAs && (
         <div className="modal-backdrop" role="presentation">
           <section

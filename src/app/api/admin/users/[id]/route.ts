@@ -13,6 +13,8 @@ import {
   employmentDatesValid,
   localeSchema,
 } from "@/server/validators/user-access";
+import { vacationSettingsSchema } from "@/server/validators/vacation";
+import { vacationSettingsFrom } from "@/server/services/vacation-service";
 
 const updateSchema = z
   .object({
@@ -28,8 +30,14 @@ const updateSchema = z
     accessProfileId: accessProfileIdSchema.nullable(),
     emailPreferences: emailPreferencesSchema.optional(),
     locale: localeSchema,
+    vacation: vacationSettingsSchema.nullable().optional(),
   })
   .superRefine((value, context) => {
+    if (value.role === "admin" && value.vacation)
+      context.addIssue({
+        code: "custom",
+        message: "Vacation is not tracked for administrators",
+      });
     if (
       !employmentDatesValid(value.employmentStartDate, value.employmentEndDate)
     )
@@ -107,6 +115,7 @@ export async function PATCH(
           parsed.data.reportsTime),
       organizationId: loaded.actor.organizationId,
     });
+    const vacation = parsed.data.role === "admin" ? null : parsed.data.vacation;
     const batch = loaded.db.batch();
     batch.update(loaded.target.ref, {
       displayName: parsed.data.displayName,
@@ -127,8 +136,23 @@ export async function PATCH(
         ? { emailPreferences: parsed.data.emailPreferences }
         : {}),
       locale: parsed.data.locale,
+      ...(vacation !== undefined ? { vacation } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    if (
+      vacation !== undefined &&
+      JSON.stringify(vacationSettingsFrom(vacation)) !==
+        JSON.stringify(vacationSettingsFrom(loaded.target.data()?.vacation))
+    )
+      batch.create(loaded.db.collection("auditLogs").doc(), {
+        organizationId: loaded.actor.organizationId,
+        actorUserId: loaded.actor.id,
+        action: "vacation.settingsUpdated",
+        entityType: "user",
+        entityId: id,
+        timestamp: FieldValue.serverTimestamp(),
+        metadata: { vacation },
+      });
     batch.create(loaded.db.collection("auditLogs").doc(), {
       organizationId: loaded.actor.organizationId,
       actorUserId: loaded.actor.id,

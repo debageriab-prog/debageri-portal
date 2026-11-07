@@ -4080,3 +4080,77 @@ td.amount-cell {
   color: var(--muted);
   cursor: not-allowed;
 }
+
+.vacation-reset-date {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) minmax(120px, 2fr);
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.vacation-reset-date legend {
+  margin-bottom: 6px;
+  padding: 0;
+  color: #4b3b31;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.vacation-period {
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.vacation-period h2 .muted {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.metrics.vacation-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.vacation-metrics .metric small {
+  display: block;
+  margin-top: 4px;
+}
+
+.vacation-adjust-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.employee-info h3 {
+  margin: 18px 0 8px;
+  font-size: 15px;
+}
+
+.employee-info-list {
+  display: grid;
+  margin: 0;
+}
+
+.employee-info-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+
+.employee-info-list dt {
+  color: var(--muted);
+}
+
+.employee-info-list dd {
+  margin: 0;
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .vacation-adjust-grid {
+    grid-template-columns: 1fr;
+  }
+}

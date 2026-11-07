@@ -11,7 +11,8 @@ export type ActionIconType =
   | "next"
   | "excel"
   | "pdf"
-  | "paid";
+  | "paid"
+  | "info";
 
 export function ActionIcon({ type }: { type: ActionIconType }) {
   if (type === "excel" || type === "pdf")
@@ -26,6 +27,13 @@ export function ActionIcon({ type }: { type: ActionIconType }) {
         <text x="12" y="17.6" textAnchor="middle">
           {type === "excel" ? "XLS" : "PDF"}
         </text>
+      </svg>
+    );
+  if (type === "info")
+    return (
+      <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v5M12 8v.01" />
       </svg>
     );
   if (type === "paid")

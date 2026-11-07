@@ -23,7 +23,8 @@ export async function proxy(request: NextRequest) {
   if (
     request.method === "POST" &&
     (request.nextUrl.pathname === "/api/cron/reminders" ||
-      request.nextUrl.pathname === "/api/cron/incoming-emails")
+      request.nextUrl.pathname === "/api/cron/incoming-emails" ||
+      request.nextUrl.pathname === "/api/cron/vacation-renewal")
   )
     return NextResponse.next();
   // The one place every change passes through, so a new route can't miss it.

@@ -108,6 +108,22 @@ gcloud scheduler jobs create http portal-incoming-emails \
 The mailbox password is encrypted with `REMINDER_CREDENTIAL_ENCRYPTION_KEY`
 like the SMTP password, so rotating that key means saving it again.
 
+## Vacation renewal
+
+Vacation periods are renewed by a third Cloud Scheduler job that calls
+`POST /api/cron/vacation-renewal` once a day. On each employee's reset date it
+starts the next vacation year with pro-rated days and moves leftover days into
+saved days. It is idempotent, and the employee pages also renew on view, so a
+missed run is caught up later. It uses the same `REMINDER_CRON_SECRET`. Create
+it in both `debageri-portal` and `debageri-portal-dev`, with the matching URL:
+
+```bash
+gcloud scheduler jobs create http portal-vacation-renewal   --project=debageri-portal   --location=europe-west1   --schedule="15 0 * * *"   --time-zone="Europe/Stockholm"   --http-method=POST   --uri="https://portal.debageri.se/api/cron/vacation-renewal"   --headers="Authorization=Bearer YOUR_SECRET"   --attempt-deadline=300s
+```
+
+Outside production the request body may carry `{"date": "YYYY-MM-DD"}` to
+stand in for today when testing renewals.
+
 The App Check site key setup, allowed domains, staged enforcement, and
 verification procedure are documented in
 [Firebase App Check and reCAPTCHA](recaptcha-app-check.md).

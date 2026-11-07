@@ -5,6 +5,8 @@ import {
   notificationLocale,
 } from "@/domain/notifications";
 import type { CompensationRecord } from "@/domain/finance/compensation";
+import type { CompensationModel } from "@/domain/types";
+import { vacationSettingsFrom } from "@/server/services/vacation-service";
 import type { ManagedUser } from "./UserManagement";
 
 export async function financeEnabled(
@@ -63,5 +65,11 @@ export function toManagedUser(
     accessProfileName: profileNames.get(data.accessProfileId) ?? null,
     emailPreferences: emailPreferencesFrom(data.emailPreferences),
     locale: notificationLocale(data.locale),
+    compensationModel: (["flexible", "fixed", "hybrid"].includes(
+      data.compensationModel,
+    )
+      ? data.compensationModel
+      : null) as CompensationModel | null,
+    vacation: vacationSettingsFrom(data.vacation),
   };
 }
