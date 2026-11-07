@@ -4092,14 +4092,14 @@ td.amount-cell {
   margin: 0;
   padding: 0;
   border: 0;
-}
-
-.vacation-reset-date legend {
-  margin-bottom: 6px;
-  padding: 0;
+  /* Same text as .form-grid label, so the boxes match the fields beside it. */
   color: #4b3b31;
   font-size: 13px;
   font-weight: 700;
+}
+
+.vacation-reset-date legend {
+  padding: 0;
 }
 
 .vacation-period {
