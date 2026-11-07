@@ -43,6 +43,8 @@ export interface VacationSummary {
   settings: VacationSettings;
   period: VacationPeriodRecord;
   balance: VacationBalance;
+  /** Vacation in submitted weeks that are not approved yet. */
+  pendingMinutes: number;
   adjustments: VacationAdjustmentRecord[];
   nextRenewal: { date: string; estimatedMinutes: number } | null;
 }
@@ -195,7 +197,11 @@ export function addVacationSetup(
   );
 }
 
-async function usedVacationMinutes(
+/**
+ * Vacation minutes from time reports inside the period: `approved` counts
+ * toward the balance, `pending` is in weeks still waiting for approval.
+ */
+async function vacationUsage(
   db: Firestore,
   organizationId: string,
   userId: string,
@@ -214,22 +220,20 @@ async function usedVacationMinutes(
   const sheetIds = [
     ...new Set(vacation.map((data) => String(data.timesheetId))),
   ];
-  if (!sheetIds.length) return 0;
+  if (!sheetIds.length) return { approved: 0, pending: 0 };
   const sheets = await db.getAll(
     ...sheetIds.map((id) => db.collection("timesheets").doc(id)),
   );
-  const approved = new Set(
+  const status = new Map(
     sheets
-      .filter(
-        (sheet) =>
-          sheet.data()?.status === "approved" &&
-          sheet.data()?.organizationId === organizationId,
-      )
-      .map((sheet) => sheet.id),
+      .filter((sheet) => sheet.data()?.organizationId === organizationId)
+      .map((sheet) => [sheet.id, String(sheet.data()?.status)]),
   );
-  return vacation
-    .filter((data) => approved.has(String(data.timesheetId)))
-    .reduce((sum, data) => sum + Number(data.minutes ?? 0), 0);
+  const sum = (wanted: string) =>
+    vacation
+      .filter((data) => status.get(String(data.timesheetId)) === wanted)
+      .reduce((total, data) => total + Number(data.minutes ?? 0), 0);
+  return { approved: sum("approved"), pending: sum("submitted") };
 }
 
 async function loadAdjustments(
@@ -283,13 +287,15 @@ async function balanceFor(
 ) {
   // Advance days are one running bucket; earlier periods' usage is already
   // posted as carry-over rows, so only this period's usage applies.
-  return computeVacationBalance({
+  const usage = await vacationUsage(db, organizationId, userId, period);
+  const balance = computeVacationBalance({
     grantedMinutes: period.grantedMinutes,
     normalAdjustMinutes: sumFor(adjustments, "normal", period.id),
     savedAdjustMinutes: sumFor(adjustments, "saved", period.id),
     advanceAdjustMinutes: sumFor(adjustments, "advance"),
-    usedMinutes: await usedVacationMinutes(db, organizationId, userId, period),
+    usedMinutes: usage.approved,
   });
+  return Object.assign(balance, { pendingMinutes: usage.pending });
 }
 
 function isAlreadyExists(error: unknown) {
@@ -421,7 +427,7 @@ export async function getVacationSummary(
   const period = await ensureVacationPeriods(db, organizationId, userId, today);
   if (!period) throw new VacationError("notTracked", 409);
   const adjustments = await loadAdjustments(db, organizationId, userId);
-  const balance = await balanceFor(
+  const { pendingMinutes, ...balance } = await balanceFor(
     db,
     organizationId,
     userId,
@@ -434,6 +440,7 @@ export async function getVacationSummary(
     settings,
     period,
     balance,
+    pendingMinutes,
     adjustments: adjustments
       .filter(
         (item) => item.periodId === period.id || item.bucket === "advance",
@@ -452,6 +459,32 @@ export async function getVacationSummary(
             ),
           },
   };
+}
+
+/**
+ * The balance for the person themselves or for someone reviewing their time
+ * report. Ledger rows are left out, because their notes are internal.
+ * Returns null when vacation is not tracked for the person.
+ */
+export async function getVacationOverview(
+  db: Firestore,
+  organizationId: string,
+  userId: string,
+  today: string,
+): Promise<Omit<VacationSummary, "adjustments"> | null> {
+  try {
+    const { adjustments: _internal, ...overview } = await getVacationSummary(
+      db,
+      organizationId,
+      userId,
+      today,
+    );
+    void _internal;
+    return overview;
+  } catch (error) {
+    if (error instanceof VacationError) return null;
+    throw error;
+  }
 }
 
 /** Sets what is left today in each bucket, posting the differences as rows. */

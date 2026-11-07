@@ -114,7 +114,12 @@ function rowsToEntries(data: Data, rows: Row[]) {
   );
 }
 
-export function WeeklyTimesheet() {
+export function WeeklyTimesheet({
+  vacation,
+}: {
+  /** The person's vacation card, rendered on the server. */
+  vacation?: React.ReactNode;
+} = {}) {
   const { locale, t } = useLocale();
   const router = useRouter();
   const [data, setData] = useState<Data | null>(null);
@@ -769,6 +774,7 @@ export function WeeklyTimesheet() {
           <strong>{formatDuration(reported)}</strong>
         </div>
       </section>
+      {vacation}
       <section className="card table-wrap">
         <div className="timesheet-table-header">
           <div>

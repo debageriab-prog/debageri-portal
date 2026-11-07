@@ -1726,5 +1726,15 @@
   "vacationAdjustFailed": "Saldot kunde inte sparas. Kontrollera värdena och försök igen.",
   "vacationSaveBalance": "Spara saldo",
   "vacationNotTracked": "Semester följs inte upp för den här personen.",
-  "vacationSettingsLine": "{days} dagar per år · semestertillägg {percent} % per dag"
+  "vacationSettingsLine": "{days} dagar per år · semestertillägg {percent} % per dag",
+  "vacationYours": "Din semester",
+  "vacationPending": "Väntar på godkännande",
+  "vacationPendingHint": "i inskickade veckor, inte avdraget än",
+  "vacationAfterApproval": "Kvar efter godkännande",
+  "vacationAfterApprovalHint": "{days} förskottsdagar kvar",
+  "vacationInThisReport": "Rapporten innehåller {days} semesterdagar. De dras från saldot nedan när du godkänner den.",
+  "vacationInThisReportUntracked": "Rapporten innehåller {hours} semester. Semester följs inte upp för den här personen, så inget saldo visas.",
+  "vacationOverdrawnOwn": "Du har rapporterat mer semester än du har dagar för. Prata med din chef.",
+  "vacationOverdrawnReview": "Om rapporten godkänns används mer semester än personen har dagar för.",
+  "vacationIncluded": "Semester"
 }

@@ -1726,5 +1726,15 @@
   "vacationAdjustFailed": "The balance couldn't be saved. Check the values and try again.",
   "vacationSaveBalance": "Save balance",
   "vacationNotTracked": "Vacation isn't tracked for this person.",
-  "vacationSettingsLine": "{days} days per year · supplement {percent}% per day"
+  "vacationSettingsLine": "{days} days per year · supplement {percent}% per day",
+  "vacationYours": "Your vacation",
+  "vacationPending": "Waiting for approval",
+  "vacationPendingHint": "in submitted weeks, not taken off yet",
+  "vacationAfterApproval": "Left after approval",
+  "vacationAfterApprovalHint": "{days} advance days left",
+  "vacationInThisReport": "This report includes {days} vacation days. They come off the balance below when you approve it.",
+  "vacationInThisReportUntracked": "This report includes {hours} of vacation. Vacation isn't tracked for this person, so no balance is shown.",
+  "vacationOverdrawnOwn": "You have reported more vacation than you have days for. Talk to your manager.",
+  "vacationOverdrawnReview": "Approving this report uses more vacation than this person has days for.",
+  "vacationIncluded": "Vacation"
 }

@@ -3,6 +3,7 @@ import {
   availableForTargets,
   carryOverAdjustments,
   computeVacationBalance,
+  withExtraUsage,
 } from "@/domain/vacation/balance";
 import {
   DEFAULT_VACATION_SETTINGS,
@@ -160,6 +161,27 @@ describe("vacation balance targets", () => {
           usedMinutes,
         }),
       ).toMatchObject(targets);
+    }
+  });
+});
+
+describe("vacation after a pending report", () => {
+  const base = {
+    grantedMinutes: 20 * day,
+    normalAdjustMinutes: 0,
+    savedAdjustMinutes: 2 * day,
+    advanceAdjustMinutes: 5 * day,
+    usedMinutes: 1 * day,
+  };
+
+  it("matches the balance as if the extra days were already approved", () => {
+    for (const extra of [0, 0.5 * day, 3 * day, 21 * day, 40 * day]) {
+      expect(withExtraUsage(computeVacationBalance(base), extra)).toEqual(
+        computeVacationBalance({
+          ...base,
+          usedMinutes: base.usedMinutes + extra,
+        }),
+      );
     }
   });
 });

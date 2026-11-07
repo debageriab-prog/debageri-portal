@@ -54,6 +54,38 @@ export function computeVacationBalance(
 }
 
 /**
+ * The balance after `minutes` more vacation is taken, in the same order:
+ * saved days, then normal days, then advance days. Anything beyond every
+ * bucket makes normal days negative.
+ */
+export function withExtraUsage(
+  balance: VacationBalance,
+  minutes: number,
+): VacationBalance {
+  const next = {
+    saved: balance.saved,
+    normal: balance.normal,
+    advance: balance.advance,
+  };
+  const usedFrom = { ...balance.usedFrom };
+  let remaining = Math.max(0, minutes);
+  for (const bucket of ["saved", "normal", "advance"] as const) {
+    const take = Math.min(remaining, Math.max(0, next[bucket]));
+    next[bucket] -= take;
+    usedFrom[bucket] += take;
+    remaining -= take;
+  }
+  next.normal -= remaining;
+  usedFrom.normal += remaining;
+  return {
+    ...next,
+    used: balance.used + Math.max(0, minutes),
+    usedFrom,
+    overdrawn: balance.overdrawn || remaining > 0,
+  };
+}
+
+/**
  * Adjustments that move a closing balance into the next period: leftover
  * normal and saved days become saved days, a negative normal balance stays
  * negative, and advance days used in the period are taken off for good.

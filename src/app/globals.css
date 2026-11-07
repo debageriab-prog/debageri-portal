@@ -2099,6 +2099,10 @@ th.actions-heading {
   background: var(--success-bg);
   color: var(--success);
 }
+.status-vacation {
+  background: #f1e6da;
+  color: #6b4a33;
+}
 .status-inactive {
   background: #eeeae7;
   color: #6e625a;
@@ -4153,4 +4157,12 @@ td.amount-cell {
   .vacation-adjust-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.vacation-overview h2 {
+  margin-bottom: 12px;
+}
+
+.vacation-overview .notice {
+  margin-bottom: 12px;
 }
