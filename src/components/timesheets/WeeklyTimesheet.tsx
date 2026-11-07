@@ -628,88 +628,7 @@ export function WeeklyTimesheet({
           </button>
         </div>
       )}
-      <section className="card timesheet-controls">
-        {data.latestReported && (
-          <p className="latest-report-hint">
-            <span>{t("latestSubmittedReport")}</span>
-            <strong>
-              {t("latestSubmittedWeek")
-                .replace("{week}", String(data.latestReported.isoWeek))
-                .replace(
-                  "{start}",
-                  data.latestReported.periodStart.replaceAll("-", "/"),
-                )
-                .replace(
-                  "{end}",
-                  data.latestReported.periodEnd.replaceAll("-", "/"),
-                )}
-            </strong>
-          </p>
-        )}
-        <div>
-          <label className="reporting-week-selector">
-            <strong>{t("reportingWeekLabel")}</strong>
-            <select
-              className="field"
-              value={weekMode}
-              aria-label={t("reportingWeekModeLabel")}
-              onChange={(event) => {
-                const mode = event.target.value as
-                  "current" | "number" | "date";
-                setWeekMode(mode);
-                setCopyPanelOpen(false);
-                if (mode === "current") void loadWeek();
-              }}
-            >
-              <option value="current">{t("reportingWeekCurrent")}</option>
-              <option value="number">{t("reportingWeekNumber")}</option>
-              <option value="date">{t("reportingWeekDate")}</option>
-            </select>
-          </label>
-          {weekMode === "number" && (
-            <div className="actions selection-panel">
-              <label>
-                {t("year")}
-                <input
-                  className="field compact-field"
-                  type="number"
-                  value={yearInput}
-                  onChange={(event) => setYearInput(Number(event.target.value))}
-                />
-              </label>
-              <label>
-                {t("week")}
-                <input
-                  className="field compact-field"
-                  type="number"
-                  min="1"
-                  max="53"
-                  value={weekInput}
-                  onChange={(event) => setWeekInput(Number(event.target.value))}
-                />
-              </label>
-              <button
-                className="button secondary"
-                onClick={() => void loadWeek(yearInput, weekInput)}
-              >
-                {t("openWeek")}
-              </button>
-            </div>
-          )}
-          {weekMode === "date" && (
-            <div className="selection-panel">
-              <label>
-                {t("chooseDateInWeek")}
-                <DateInput
-                  className="field"
-                  onChange={(event) => selectCalendarDate(event.target.value)}
-                />
-              </label>
-              <small className="muted">{t("fullWeekOpensAutomatically")}</small>
-            </div>
-          )}
-        </div>
-      </section>
+      {vacation}
       {(data.sheet.status === "rejected" || otherRejected.length > 0) && (
         <div
           className="notice notice-warning rejected-report-notice"
@@ -764,20 +683,30 @@ export function WeeklyTimesheet({
           )}
         </p>
       )}
-      <section className="metrics">
-        <div className="metric">
-          <span>{t("expected")}</span>
-          <strong>{formatDuration(data.sheet.expectedMinutes)}</strong>
-        </div>
-        <div className="metric">
-          <span>{t("reported")}</span>
-          <strong>{formatDuration(reported)}</strong>
-        </div>
-      </section>
-      {vacation}
       <section className="card table-wrap">
         <div className="timesheet-table-header">
-          <div>
+          <div className="timesheet-header-week-mode">
+            <label className="reporting-week-selector">
+              <strong>{t("reportingWeekLabel")}</strong>
+              <select
+                className="field"
+                value={weekMode}
+                aria-label={t("reportingWeekModeLabel")}
+                onChange={(event) => {
+                  const mode = event.target.value as
+                    "current" | "number" | "date";
+                  setWeekMode(mode);
+                  setCopyPanelOpen(false);
+                  if (mode === "current") void loadWeek();
+                }}
+              >
+                <option value="current">{t("reportingWeekCurrent")}</option>
+                <option value="number">{t("reportingWeekNumber")}</option>
+                <option value="date">{t("reportingWeekDate")}</option>
+              </select>
+            </label>
+          </div>
+          <div className="timesheet-header-period">
             <span className="eyebrow">{t("reportingPeriodLabel")}</span>
             <div className="timesheet-week-nav">
               <button
@@ -806,12 +735,71 @@ export function WeeklyTimesheet({
               </button>
             </div>
           </div>
-          <span>
-            {t("periodFromTo")
-              .replace("{start}", data.dates[0]!.replaceAll("-", "/"))
-              .replace("{end}", data.dates.at(-1)!.replaceAll("-", "/"))}
-          </span>
+          <div className="timesheet-header-dates">
+            <span>
+              {t("periodFromTo")
+                .replace("{start}", data.dates[0]!.replaceAll("-", "/"))
+                .replace("{end}", data.dates.at(-1)!.replaceAll("-", "/"))}
+            </span>
+            {data.latestReported && (
+              <small className="latest-report-hint">
+                {t("latestSubmittedReport")}{" "}
+                {t("latestSubmittedWeek")
+                  .replace("{week}", String(data.latestReported.isoWeek))
+                  .replace(
+                    "{start}",
+                    data.latestReported.periodStart.replaceAll("-", "/"),
+                  )
+                  .replace(
+                    "{end}",
+                    data.latestReported.periodEnd.replaceAll("-", "/"),
+                  )}
+              </small>
+            )}
+          </div>
         </div>
+        {weekMode === "number" && (
+          <div className="actions selection-panel timesheet-week-panel">
+            <label>
+              {t("year")}
+              <input
+                className="field compact-field"
+                type="number"
+                value={yearInput}
+                onChange={(event) => setYearInput(Number(event.target.value))}
+              />
+            </label>
+            <label>
+              {t("week")}
+              <input
+                className="field compact-field"
+                type="number"
+                min="1"
+                max="53"
+                value={weekInput}
+                onChange={(event) => setWeekInput(Number(event.target.value))}
+              />
+            </label>
+            <button
+              className="button secondary"
+              onClick={() => void loadWeek(yearInput, weekInput)}
+            >
+              {t("openWeek")}
+            </button>
+          </div>
+        )}
+        {weekMode === "date" && (
+          <div className="selection-panel timesheet-week-panel">
+            <label>
+              {t("chooseDateInWeek")}
+              <DateInput
+                className="field"
+                onChange={(event) => selectCalendarDate(event.target.value)}
+              />
+            </label>
+            <small className="muted">{t("fullWeekOpensAutomatically")}</small>
+          </div>
+        )}
         <div
           className="timesheet-quick-actions"
           role="group"
@@ -1005,7 +993,17 @@ export function WeeklyTimesheet({
           refreshKey={attachmentsVersion}
         />
         {editable && (
-          <div className="actions timesheet-actions">
+          <div className="actions timesheet-actions timesheet-submit-bar">
+            <div className="timesheet-totals">
+              <span className="timesheet-total">
+                <span>{t("expected")}</span>
+                <strong>{formatDuration(data.sheet.expectedMinutes)}</strong>
+              </span>
+              <span className="timesheet-total">
+                <span>{t("reported")}</span>
+                <strong>{formatDuration(reported)}</strong>
+              </span>
+            </div>
             <span className="actions-spacer" />
             <button
               className="button"
@@ -1027,7 +1025,17 @@ export function WeeklyTimesheet({
           </div>
         )}
         {!editable && (
-          <div className="actions timesheet-actions">
+          <div className="actions timesheet-actions timesheet-submit-bar">
+            <div className="timesheet-totals">
+              <span className="timesheet-total">
+                <span>{t("expected")}</span>
+                <strong>{formatDuration(data.sheet.expectedMinutes)}</strong>
+              </span>
+              <span className="timesheet-total">
+                <span>{t("reported")}</span>
+                <strong>{formatDuration(reported)}</strong>
+              </span>
+            </div>
             <span className="actions-spacer" />
             <span
               title={periodClosed ? undefined : t("timesheetAlreadySubmitted")}

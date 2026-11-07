@@ -88,7 +88,13 @@ export async function VacationOverviewCard({
       : t("vacationNoRenewal"),
   });
   return (
-    <section className="card vacation-overview">
+    <section
+      className={
+        mode === "own"
+          ? "card vacation-overview vacation-bar"
+          : "card vacation-overview"
+      }
+    >
       <h2>
         {mode === "own" ? t("vacationYours") : t("vacation")}
         <span className="muted">
