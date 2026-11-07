@@ -118,7 +118,26 @@ missed run is caught up later. It uses the same `REMINDER_CRON_SECRET`. Create
 it in both `debageri-portal` and `debageri-portal-dev`, with the matching URL:
 
 ```bash
-gcloud scheduler jobs create http portal-vacation-renewal   --project=debageri-portal   --location=europe-west1   --schedule="15 0 * * *"   --time-zone="Europe/Stockholm"   --http-method=POST   --uri="https://portal.debageri.se/api/cron/vacation-renewal"   --headers="Authorization=Bearer YOUR_SECRET"   --attempt-deadline=300s
+gcloud scheduler jobs create http portal-vacation-renewal \
+  --project=debageri-portal \
+  --location=europe-west1 \
+  --schedule="15 0 * * *" \
+  --time-zone="Europe/Stockholm" \
+  --http-method=POST \
+  --uri="https://portal.debageri.se/api/cron/vacation-renewal" \
+  --headers="Authorization=Bearer YOUR_SECRET" \
+  --attempt-deadline=300s
+```
+
+For `debageri-portal-dev`, use `--project=debageri-portal-dev`, the dev
+service URL and the `DEV_REMINDER_CRON_SECRET` value.
+
+To run a job right away instead of waiting for its schedule:
+
+```bash
+gcloud scheduler jobs run portal-vacation-renewal \
+  --project=debageri-portal \
+  --location=europe-west1
 ```
 
 Outside production the request body may carry `{"date": "YYYY-MM-DD"}` to
