@@ -125,6 +125,89 @@ export async function uploadPayslip(
   return ref.id;
 }
 
+/**
+ * Stores a payslip made from a salary row, as the person's payslip for that
+ * month. The same file is later attached to the salary's expenses, so it is
+ * generated once. An uploaded payslip for the month is only replaced when
+ * asked; one made from the same salary row is replaced without asking.
+ */
+export async function storeGeneratedPayslip(
+  db: Firestore,
+  storage: Storage,
+  actor: PortalUser,
+  input: {
+    userId: string;
+    userName: string;
+    period: string;
+    salarySlipId: string;
+    fileName: string;
+    pdf: Buffer;
+    replaceExisting: boolean;
+  },
+) {
+  const [year, month] = input.period.split("-").map(Number) as [number, number];
+  const ref = db
+    .collection("payslips")
+    .doc(payslipId(actor.organizationId, input.userId, input.period));
+  const existing = await ref.get();
+  const previous = existing.data();
+  if (
+    existing.exists &&
+    previous?.salarySlipId !== input.salarySlipId &&
+    !input.replaceExisting
+  )
+    throw new PayslipError("payslipExists", 409);
+  const storagePath = `organizations/${actor.organizationId}/documents/payslips/${input.userId}/${input.period}-${randomUUID()}.pdf`;
+  const object = storage.bucket().file(storagePath);
+  await object.save(input.pdf, {
+    resumable: false,
+    metadata: {
+      contentType: "application/pdf",
+      cacheControl: "private, no-cache",
+    },
+  });
+  try {
+    await ref.set({
+      organizationId: actor.organizationId,
+      userId: input.userId,
+      userName: input.userName,
+      period: input.period,
+      year,
+      month,
+      fileName: input.fileName,
+      contentType: "application/pdf",
+      size: input.pdf.length,
+      storagePath,
+      generated: true,
+      salarySlipId: input.salarySlipId,
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: actor.id,
+    });
+  } catch (error) {
+    await object.delete({ ignoreNotFound: true }).catch(() => undefined);
+    throw error;
+  }
+  if (previous?.storagePath)
+    await storage
+      .bucket()
+      .file(String(previous.storagePath))
+      .delete({ ignoreNotFound: true });
+  await db.collection("auditLogs").add({
+    organizationId: actor.organizationId,
+    actorUserId: actor.id,
+    action: existing.exists ? "payslip.replaced" : "payslip.generated",
+    entityType: "payslip",
+    entityId: ref.id,
+    timestamp: FieldValue.serverTimestamp(),
+    metadata: {
+      userId: input.userId,
+      period: input.period,
+      salarySlipId: input.salarySlipId,
+    },
+  });
+  return { id: ref.id, storagePath };
+}
+
 export async function deletePayslip(
   db: Firestore,
   storage: Storage,
@@ -136,6 +219,15 @@ export async function deletePayslip(
   const data = snapshot.data();
   if (!snapshot.exists || data?.organizationId !== actor.organizationId)
     throw new PayslipError("notFound", 404);
+  // A booked salary's expenses share this file, so it stays.
+  if (data.salarySlipId) {
+    const slip = await db
+      .collection("salarySlips")
+      .doc(String(data.salarySlipId))
+      .get();
+    if (slip.data()?.status === "booked")
+      throw new PayslipError("payslipBooked", 409);
+  }
   await storage
     .bucket()
     .file(String(data.storagePath))

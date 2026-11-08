@@ -38,6 +38,18 @@ import {
   sendInvoiceToCustomer,
 } from "@/server/services/invoice-document-service";
 import { downloadResponse } from "@/server/export/download";
+import {
+  bookSalarySlips,
+  generatePayslips,
+  generateSalaryRun,
+  reverseSalarySlip,
+  setSalarySlipStatus,
+  updateSalarySlip,
+} from "@/server/services/salary-service";
+import {
+  notifyPayslipPublished,
+  portalUrlFrom,
+} from "@/server/services/notification-service";
 import { PDF_CONTENT_TYPE } from "@/server/export/invoice-pdf";
 import {
   expensableReceipt,
@@ -311,6 +323,33 @@ export async function POST(request: Request) {
         break;
       case "reverseVatSettlement":
         await reverseVatSettlement(db, actor, parsed.data);
+        break;
+      case "generateSalaryRun":
+        id = (await generateSalaryRun(db, actor, parsed.data)).id;
+        break;
+      case "updateSalarySlip":
+        id = await updateSalarySlip(db, actor, parsed.data);
+        break;
+      case "setSalarySlipStatus":
+        await setSalarySlipStatus(db, actor, parsed.data);
+        break;
+      case "generatePayslips": {
+        const payslipIds = await generatePayslips(
+          db,
+          storage,
+          actor,
+          parsed.data,
+        );
+        const portalUrl = portalUrlFrom(request);
+        for (const payslipId of payslipIds)
+          await notifyPayslipPublished(payslipId, portalUrl);
+        break;
+      }
+      case "bookSalarySlips":
+        await bookSalarySlips(db, actor, parsed.data);
+        break;
+      case "reverseSalarySlip":
+        await reverseSalarySlip(db, actor, parsed.data);
         break;
     }
     return NextResponse.json({ ok: true, id });

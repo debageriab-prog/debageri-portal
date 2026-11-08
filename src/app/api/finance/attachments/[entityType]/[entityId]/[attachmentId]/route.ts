@@ -116,6 +116,9 @@ export async function DELETE(
     true,
   );
   if ("error" in value) return value.error;
+  // A booked salary's payslip is shared with the person's Pay slips.
+  if (value.fileData.payslipId)
+    return NextResponse.json({ error: "attachmentIsPayslip" }, { status: 409 });
   await value.storage
     .bucket()
     .file(String(value.fileData.storagePath))

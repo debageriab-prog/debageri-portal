@@ -1332,6 +1332,7 @@ export async function updateFinancialTransaction(
     throw new FinanceError("transactionMissing", 404);
   if (
     current.invoiceId ||
+    current.salarySlipId ||
     current.status === "reversal" ||
     current.reversedByTransactionId
   )
@@ -1499,8 +1500,10 @@ export async function voidFinancialTransaction(
   db: Firestore,
   actor: PortalUser,
   input: { transactionId: string; reason: string },
+  /** Salary expenses are reversed together, from their salary row. */
+  options: { salary?: boolean } = {},
 ) {
-  requireFinancePermission(actor, "finance.ledger.delete");
+  if (!options.salary) requireFinancePermission(actor, "finance.ledger.delete");
   const originalRef = db
     .collection("financialTransactions")
     .doc(input.transactionId);
@@ -1512,6 +1515,8 @@ export async function voidFinancialTransaction(
       throw new FinanceError("transactionMissing", 404);
     if (data.reversedByTransactionId || data.status === "reversal")
       throw new FinanceError("transactionAlreadyReversed", 409);
+    if (data.salarySlipId && !options.salary)
+      throw new FinanceError("transactionSalaryLinked", 409);
     transaction.create(reversalRef, {
       ...data,
       netMinor: -data.netMinor,
@@ -1560,6 +1565,7 @@ export async function deleteFinancialTransaction(
   if (!snapshot.exists || data?.organizationId !== actor.organizationId)
     throw new FinanceError("transactionMissing", 404);
   if (data.invoiceId) throw new FinanceError("transactionInvoiceLinked", 409);
+  if (data.salarySlipId) throw new FinanceError("transactionSalaryLinked", 409);
   if (data.status === "reversal" || data.reversedByTransactionId)
     throw new FinanceError("transactionNotDeletable", 409);
   const batch = db.batch();
