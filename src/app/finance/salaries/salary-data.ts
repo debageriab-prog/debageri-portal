@@ -8,7 +8,97 @@ import type {
   SalarySlipTax,
 } from "@/domain/salary/slip";
 import type { SalaryTotals } from "@/domain/salary/totals";
-import type { CompensationModel } from "@/domain/types";
+import type { CompensationModel, TimeCategory } from "@/domain/types";
+
+/** Reported time of one kind: its total and the minutes per category. */
+export interface SalaryTimeGroup {
+  minutes: number;
+  categories: Array<{ category: TimeCategory; minutes: number }>;
+}
+
+/** Time reported in a row's event period, approved or not yet. */
+export interface SalaryTimeSummary {
+  approved: SalaryTimeGroup;
+  notApproved: SalaryTimeGroup & {
+    /** Weeks that still wait for submission or approval. */
+    weeks: number;
+  };
+}
+
+const CATEGORY_ORDER: TimeCategory[] = [
+  "work",
+  "overtime",
+  "vacation",
+  "sick_leave",
+  "care_leave",
+  "parental_leave",
+  "unpaid_leave",
+  "compensatory_leave",
+  "holiday",
+  "other",
+];
+
+function groupFrom(minutes: Map<TimeCategory, number>): SalaryTimeGroup {
+  const categories = CATEGORY_ORDER.filter((category) =>
+    minutes.get(category),
+  ).map((category) => ({ category, minutes: minutes.get(category)! }));
+  return {
+    minutes: categories.reduce((sum, item) => sum + item.minutes, 0),
+    categories,
+  };
+}
+
+/** Approved and not yet approved time of a person between two dates. */
+export async function loadTimeSummary(
+  db: Firestore,
+  organizationId: string,
+  userId: string,
+  from: string,
+  to: string,
+): Promise<SalaryTimeSummary> {
+  const entries = await db
+    .collection("timeEntries")
+    .where("organizationId", "==", organizationId)
+    .where("userId", "==", userId)
+    .where("date", ">=", from)
+    .where("date", "<=", to)
+    .get();
+  const data = entries.docs.map((document) => document.data());
+  const sheetIds = [...new Set(data.map((item) => String(item.timesheetId)))];
+  const sheets = sheetIds.length
+    ? await db.getAll(
+        ...sheetIds.map((id) => db.collection("timesheets").doc(id)),
+      )
+    : [];
+  const approvedSheets = new Set(
+    sheets
+      .filter(
+        (sheet) =>
+          sheet.data()?.organizationId === organizationId &&
+          sheet.data()?.status === "approved",
+      )
+      .map((sheet) => sheet.id),
+  );
+  const approved = new Map<TimeCategory, number>();
+  const pending = new Map<TimeCategory, number>();
+  const pendingSheets = new Set<string>();
+  for (const item of data) {
+    const sheet = String(item.timesheetId);
+    const category = String(
+      item.timeCodeSnapshot?.category ?? "other",
+    ) as TimeCategory;
+    const target = approvedSheets.has(sheet) ? approved : pending;
+    if (!approvedSheets.has(sheet)) pendingSheets.add(sheet);
+    target.set(
+      category,
+      (target.get(category) ?? 0) + Number(item.minutes ?? 0),
+    );
+  }
+  return {
+    approved: groupFrom(approved),
+    notApproved: { ...groupFrom(pending), weeks: pendingSheets.size },
+  };
+}
 
 /** What the salary pages show of one salary row. */
 export interface SalaryRow {

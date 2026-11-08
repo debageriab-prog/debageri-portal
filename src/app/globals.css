@@ -4349,6 +4349,32 @@ td.amount-cell {
 .salary-tax p {
   margin: 0;
 }
+.salary-time-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 12px;
+  font-size: 13px;
+}
+.salary-time-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.salary-time-label {
+  font-weight: 700;
+}
+.salary-time-categories {
+  color: var(--muted);
+}
+.salary-time-pending {
+  border-style: dashed;
+}
 .salary-totals {
   display: grid;
   grid-template-columns: 1fr auto;

@@ -22,7 +22,8 @@ import { ONE_TIME_ITEMS } from "@/domain/salary/one-time-tax";
 import type { TaxTableRow } from "@/domain/salary/tax";
 import { salaryTotals } from "@/domain/salary/totals";
 import { PayslipPdfButton } from "./PayslipPdfButton";
-import type { SalaryRow } from "./salary-data";
+import type { SalaryRow, SalaryTimeSummary } from "./salary-data";
+import { TimeReportSummary } from "./TimeReportSummary";
 import {
   formatHundredths,
   parseMoney,
@@ -131,12 +132,15 @@ export function articleName(
 export function SalarySlipEditor({
   row,
   taxRows,
+  timeSummary,
   canEdit,
   canBook,
 }: {
   row: SalaryRow;
   /** The person's monthly tax table, so the tax follows each change. */
   taxRows: TaxTableRow[] | null;
+  /** Approved and not yet approved time of the event period. */
+  timeSummary: SalaryTimeSummary;
   canEdit: boolean;
   canBook: boolean;
 }) {
@@ -295,6 +299,7 @@ export function SalarySlipEditor({
             <p className="muted">{t("salaryTimeReportsIgnored")}</p>
           )
         )}
+        {row.useTimeReports && <TimeReportSummary summary={timeSummary} />}
         {row.useTimeReports && row.reportedDays === 0 && (
           <p className="notice notice-warning">
             {t("salaryNoTimeReports")

@@ -6,7 +6,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
 import { loadTaxTable } from "@/server/services/tax-table-service";
-import { loadSalaryRow } from "../../../salary-data";
+import { loadSalaryRow, loadTimeSummary } from "../../../salary-data";
 import { SalarySlipEditor } from "../../../SalarySlipEditor";
 
 export default async function SalaryRowPage({
@@ -28,6 +28,13 @@ export default async function SalaryRowPage({
     decodeURIComponent(userId),
   );
   if (!row) notFound();
+  const timeSummary = await loadTimeSummary(
+    db,
+    actor.organizationId,
+    row.userId,
+    row.eventFrom,
+    row.eventTo,
+  );
   const taxTable =
     row.tax.table === null
       ? null
@@ -62,6 +69,7 @@ export default async function SalaryRowPage({
         key={row.version}
         row={row}
         taxRows={taxTable?.rows ?? null}
+        timeSummary={timeSummary}
         canEdit={can(actor, "finance.salary.edit")}
         canBook={can(actor, "finance.salary.book")}
       />
