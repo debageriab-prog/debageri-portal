@@ -229,7 +229,27 @@ export function SalaryRun({
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.id}>
+                  <tr
+                    key={row.id}
+                    className={`salary-row${selected.includes(row.id) ? " salary-row-selected" : ""}`}
+                    onClick={(event) => {
+                      // A click anywhere on the row selects it, except on its
+                      // own controls or in a popup opened from the row.
+                      const target = event.target as Element;
+                      if (
+                        !event.currentTarget.contains(target) ||
+                        target.closest(
+                          "a, button, input, select, textarea, label, [role=dialog]",
+                        )
+                      )
+                        return;
+                      setSelected((current) =>
+                        current.includes(row.id)
+                          ? current.filter((id) => id !== row.id)
+                          : [...current, row.id],
+                      );
+                    }}
+                  >
                     <td>
                       <input
                         type="checkbox"

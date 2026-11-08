@@ -4349,6 +4349,13 @@ td.amount-cell {
 .salary-tax p {
   margin: 0;
 }
+.salary-row {
+  cursor: pointer;
+}
+.salary-row:hover td,
+.salary-row-selected td {
+  background: var(--background);
+}
 .salary-time-summary {
   display: flex;
   flex-wrap: wrap;
