@@ -4318,6 +4318,11 @@ td.amount-cell {
 .salary-lines td {
   vertical-align: top;
 }
+.salary-line-kind {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 6px;
+}
 .salary-lines td .field + .field {
   margin-top: 6px;
 }

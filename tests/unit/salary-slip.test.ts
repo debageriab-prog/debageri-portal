@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { lineAmountMinor, type SalaryLine } from "@/domain/salary/articles";
+import {
+  lineAmountMinor,
+  lineDirection,
+  type SalaryLine,
+} from "@/domain/salary/articles";
 import {
   buildSalaryLines,
   dateRuns,
@@ -129,6 +133,7 @@ describe("salary lines", () => {
       taxableMinor: 4_799_560,
       taxMinor: 1_104_200,
       netDeductionsMinor: 0,
+      reimbursementsMinor: 0,
       roundingMinor: 40,
       netMinor: 3_531_700,
     });
@@ -218,6 +223,39 @@ describe("salary totals", () => {
       netMinor: 2_150_000,
       roundingMinor: 50,
     });
+  });
+
+  it("pays a tax-free reimbursement after tax, outside taxable pay", () => {
+    const totals = salaryTotals(
+      [
+        manual("salary", "monthlySalary", 3_000_000),
+        {
+          ...manual("headphones", "reimbursement", 249_000),
+          item: "equipment",
+        },
+        manual("headphones-deduction", "grossDeduction", -149_000),
+      ],
+      {
+        table: null,
+        column: 1,
+        adjustment: { type: "none" },
+        overrideMinor: 700_000,
+      },
+    );
+    expect(totals).toMatchObject({
+      grossMinor: 2_851_000,
+      taxableMinor: 2_851_000,
+      reimbursementsMinor: 249_000,
+      netMinor: 2_400_000,
+    });
+  });
+
+  it("tells payments from deductions", () => {
+    expect(lineDirection(manual("a", "grossDeduction", -100))).toBe(
+      "deduction",
+    );
+    expect(lineDirection(manual("b", "unpaidLeave", -100))).toBe("deduction");
+    expect(lineDirection(manual("c", "reimbursement", 100))).toBe("payment");
   });
 
   it("works out employer contributions in whole kronor", () => {

@@ -57,7 +57,7 @@ export interface SalarySlipPdfInput {
     | "yearToDate"
     | "vacation"
   >;
-  /** Each line's article name, by line id, when its label is empty. */
+  /** Each line's name as printed, with its description, by line id. */
   lineNames: Record<string, string>;
   employer: { name: string; orgNumber: string };
   labels: SalarySlipPdfLabels;
@@ -212,7 +212,7 @@ export function salarySlipPdf(input: SalarySlipPdfInput): Buffer {
   };
   for (const line of slip.lines)
     row([
-      line.label || input.lineNames[line.id] || line.article,
+      input.lineNames[line.id] || line.label || line.article,
       shortDate(line.from),
       shortDate(line.to),
       formatAmount(line.scopeBps),

@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { SALARY_ARTICLE_CODES } from "@/domain/salary/articles";
+import {
+  SALARY_ARTICLE_CODES,
+  SALARY_LINE_ITEMS,
+} from "@/domain/salary/articles";
 import { validSalaryPeriod } from "@/domain/salary/slip";
 
 const period = z.string().refine(validSalaryPeriod);
@@ -11,6 +14,8 @@ export const salaryLineSchema = z.object({
   id: z.string().min(1).max(80),
   article: z.enum(SALARY_ARTICLE_CODES as [string, ...string[]]),
   label: z.string().trim().max(80).default(""),
+  item: z.enum(SALARY_LINE_ITEMS).nullable().default(null),
+  description: z.string().trim().max(120).default(""),
   from: date.nullable().default(null),
   to: date.nullable().default(null),
   scopeBps: z.number().int().min(0).max(10_000).default(10_000),

@@ -9,9 +9,11 @@
  * - `benefit`: förmån, taxed but not paid out
  * - `grossDeduction`: bruttolöneavdrag, lowers both pay and taxable income
  * - `netDeduction`: nettolöneavdrag, taken after tax
+ * - `reimbursement`: tax-free repayment of something the person paid for,
+ *   added to the payout after tax (utlägg)
  */
 export type SalaryLineKind =
-  "pay" | "benefit" | "grossDeduction" | "netDeduction";
+  "pay" | "benefit" | "grossDeduction" | "netDeduction" | "reimbursement";
 
 export const SALARY_ARTICLES = {
   monthlySalary: { kind: "pay" },
@@ -27,6 +29,7 @@ export const SALARY_ARTICLES = {
   benefit: { kind: "benefit" },
   grossDeduction: { kind: "grossDeduction" },
   netDeduction: { kind: "netDeduction" },
+  reimbursement: { kind: "reimbursement" },
 } as const satisfies Record<string, { kind: SalaryLineKind }>;
 
 export type SalaryArticle = keyof typeof SALARY_ARTICLES;
@@ -34,23 +37,61 @@ export const SALARY_ARTICLE_CODES = Object.keys(
   SALARY_ARTICLES,
 ) as SalaryArticle[];
 
-/** Articles someone may add by hand on a salary row. */
-export const MANUAL_SALARY_ARTICLES: SalaryArticle[] = [
+/** How a line added by hand changes the payout: paid out, or taken off. */
+export type SalaryLineDirection = "payment" | "deduction";
+
+/** The tax treatment someone can pick for a line added by hand. */
+export const MANUAL_SALARY_ARTICLES: Record<
+  SalaryLineDirection,
+  SalaryArticle[]
+> = {
+  payment: ["otherPay", "reimbursement", "benefit"],
+  deduction: [
+    "grossDeduction",
+    "netDeduction",
+    "unpaidLeave",
+    "sickLeave",
+    "sickWaitingDay",
+  ],
+};
+
+/** Common things a line is for; each can be a payment or a deduction. */
+export const SALARY_LINE_ITEMS = [
   "bonus",
-  "otherPay",
-  "benefit",
-  "grossDeduction",
-  "netDeduction",
-  "unpaidLeave",
-  "sickLeave",
-  "sickWaitingDay",
-];
+  "overtime",
+  "commission",
+  "equipment",
+  "phone",
+  "computer",
+  "lunch",
+  "travel",
+  "training",
+  "parking",
+  "healthInsurance",
+  "bike",
+  "wellness",
+  "advance",
+] as const;
+export type SalaryLineItem = (typeof SALARY_LINE_ITEMS)[number];
+
+/** Whether a line pays out or takes off, from its kind and sign. */
+export function lineDirection(
+  line: Pick<SalaryLine, "article" | "unitPriceMinor">,
+): SalaryLineDirection {
+  const kind = articleKind(line.article);
+  if (kind === "grossDeduction" || kind === "netDeduction") return "deduction";
+  return line.unitPriceMinor < 0 ? "deduction" : "payment";
+}
 
 export interface SalaryLine {
   id: string;
   article: SalaryArticle;
-  /** Free text; when empty the article's own name is shown. */
+  /** Free text; when empty the item's or the article's name is shown. */
   label: string;
+  /** A common item such as equipment or lunch, or null. */
+  item?: SalaryLineItem | null;
+  /** Optional detail printed after the name on the payslip. */
+  description?: string;
   /** First and last day the line covers, `YYYY-MM-DD`, when it has dates. */
   from: string | null;
   to: string | null;

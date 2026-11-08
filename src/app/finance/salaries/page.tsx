@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { can } from "@/domain/access/permissions";
 import { defaultPaymentDate, validSalaryPeriod } from "@/domain/salary/slip";
 import { monthBounds, previousMonth } from "@/domain/time/working-days";
@@ -15,7 +16,9 @@ export default async function SalariesPage({
 }: {
   searchParams: Promise<{ period?: string }>;
 }) {
-  const actor = (await verifySession())!;
+  const actor = await verifySession();
+  // The layout signs people out too, but pages render alongside it.
+  if (!actor) redirect("/auth/login");
   const t = await getTranslator();
   const { period: requested } = await searchParams;
   const period =

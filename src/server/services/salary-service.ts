@@ -831,10 +831,20 @@ export async function generatePayslips(
       employer: { name: employer.legalName, orgNumber: employer.orgNumber },
       labels,
       lineNames: Object.fromEntries(
-        slip.lines.map((line) => [
-          line.id,
-          translate(locale, `salaryArticle_${line.article}` as MessageKey),
-        ]),
+        slip.lines.map((line) => {
+          const name =
+            line.label ||
+            translate(
+              locale,
+              (line.item
+                ? `salaryItem_${line.item}`
+                : `salaryArticle_${line.article}`) as MessageKey,
+            );
+          return [
+            line.id,
+            line.description ? `${name} - ${line.description}` : name,
+          ];
+        }),
       ),
     });
     let stored: { id: string };

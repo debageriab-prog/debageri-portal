@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { can } from "@/domain/access/permissions";
 import { validSalaryPeriod } from "@/domain/salary/slip";
 import { getAdminServices } from "@/lib/firebase/admin";
@@ -13,7 +13,9 @@ export default async function SalaryRowPage({
 }: {
   params: Promise<{ period: string; userId: string }>;
 }) {
-  const actor = (await verifySession())!;
+  const actor = await verifySession();
+  // The layout signs people out too, but pages render alongside it.
+  if (!actor) redirect("/auth/login");
   const { period, userId } = await params;
   if (!validSalaryPeriod(period)) notFound();
   const t = await getTranslator();

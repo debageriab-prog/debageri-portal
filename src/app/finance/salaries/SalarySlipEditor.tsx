@@ -9,12 +9,16 @@ import { DateInput } from "@/components/ui/DateInput";
 import { InfoTip } from "@/components/ui/InfoTip";
 import {
   lineAmountMinor,
+  lineDirection,
   MANUAL_SALARY_ARTICLES,
+  SALARY_LINE_ITEMS,
   type SalaryArticle,
   type SalaryLine,
+  type SalaryLineDirection,
+  type SalaryLineItem,
 } from "@/domain/salary/articles";
 import { salaryTotals } from "@/domain/salary/totals";
-import { payslipFileUrl } from "@/app/documents/payslips/PayslipPreview";
+import { PayslipPdfButton } from "./PayslipPdfButton";
 import type { SalaryRow } from "./salary-data";
 import {
   formatHundredths,
@@ -31,7 +35,12 @@ type MessageKey = Parameters<Translate>[0];
 interface LineValues {
   id: string;
   article: SalaryArticle;
+  /** Payment or deduction; lines added by hand pick it and type a price. */
+  direction: SalaryLineDirection;
+  /** A common item, `custom` for a name typed by hand, or none. */
+  item: SalaryLineItem | "custom" | "";
   label: string;
+  description: string;
   from: string;
   to: string;
   scope: string;
@@ -40,45 +49,69 @@ interface LineValues {
   manual: boolean;
 }
 
+/** Lines added by hand, as opposed to built from the agreement and time. */
+const isAdded = (id: string) => id.startsWith("manual-");
+
 function toValues(line: SalaryLine): LineValues {
   const plain = (value: number) => (value / 100).toFixed(2);
+  const added = isAdded(line.id);
   return {
     id: line.id,
     article: line.article,
+    direction: lineDirection(line),
+    item: line.item ?? (line.label ? "custom" : ""),
     label: line.label,
+    description: line.description ?? "",
     from: line.from ?? "",
     to: line.to ?? "",
     scope: plain(line.scopeBps),
     quantity: plain(line.quantityHundredths),
-    price: plain(line.unitPriceMinor),
+    // Lines added by hand show the price without a sign; the direction
+    // decides whether it is paid out or taken off.
+    price: plain(added ? Math.abs(line.unitPriceMinor) : line.unitPriceMinor),
     manual: line.manual,
   };
 }
 
-/** The typed line as stored, or null when a number cannot be read. */
+/** The typed line as stored, or null when it cannot be read yet. */
 function toLine(values: LineValues): SalaryLine | null {
   const scope = parseQuantity(values.scope);
   const quantity = parseQuantity(values.quantity);
   const price = parseMoney(values.price);
   if (scope === null || quantity === null || price === null) return null;
+  const added = isAdded(values.id);
+  const label = values.item === "custom" || !added ? values.label.trim() : "";
+  if (added && (!values.item || (values.item === "custom" && !label)))
+    return null;
   return {
     id: values.id,
     article: values.article,
-    label: values.label.trim(),
+    label,
+    item: values.item && values.item !== "custom" ? values.item : null,
+    description: values.description.trim(),
     from: values.from || null,
     to: values.to || null,
     scopeBps: scope,
     quantityHundredths: quantity,
-    unitPriceMinor: price,
+    unitPriceMinor: added
+      ? (values.direction === "deduction" ? -1 : 1) * Math.abs(price)
+      : price,
     manual: values.manual,
   };
 }
 
 export function articleName(
   t: Translate,
-  line: Pick<SalaryLine, "article" | "label">,
+  line: Pick<SalaryLine, "article" | "label" | "item" | "description">,
 ) {
-  return line.label || t(`salaryArticle_${line.article}` as MessageKey);
+  const name =
+    line.label ||
+    t(
+      (line.item
+        ? `salaryItem_${line.item}`
+        : `salaryArticle_${line.article}`) as MessageKey,
+    );
+  return line.description ? `${name} – ${line.description}` : name;
 }
 
 export function SalarySlipEditor({
@@ -209,16 +242,10 @@ export function SalarySlipEditor({
         <div className="salary-editor-head">
           <SalaryStatus row={row} />
           {row.payslipId && (
-            <a
-              className="table-action icon-action"
-              href={`${payslipFileUrl(row.payslipId)}?disposition=inline`}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={t("viewPayslip")}
-              title={t("viewPayslip")}
-            >
-              <ActionIcon type="pdf" />
-            </a>
+            <PayslipPdfButton
+              payslipId={row.payslipId}
+              name={`${row.name} ${row.period}.pdf`}
+            />
           )}
         </div>
         {row.problem && (
@@ -262,7 +289,9 @@ export function SalarySlipEditor({
                 <th>{t("salaryLine")}</th>
                 <th>{t("salaryFrom")}</th>
                 <th>{t("salaryTo")}</th>
-                <th className="numeric">{t("salaryScope")}</th>
+                <th className="numeric">
+                  {t("salaryScope")} <InfoTip text={t("salaryScopeTip")} />
+                </th>
                 <th className="numeric">{t("salaryQuantity")}</th>
                 <th className="numeric">{t("salaryPrice")}</th>
                 <th className="numeric">{t("salaryAmount")}</th>
@@ -293,35 +322,96 @@ export function SalarySlipEditor({
                 return (
                   <tr key={line.id}>
                     <td>
-                      {line.manual &&
-                      MANUAL_SALARY_ARTICLES.includes(line.article) ? (
-                        <select
-                          className="field"
-                          aria-label={t("salaryArticle")}
-                          value={line.article}
-                          onChange={(event) =>
-                            change(index, {
-                              article: event.target.value as SalaryArticle,
-                            })
-                          }
-                        >
-                          {MANUAL_SALARY_ARTICLES.map((article) => (
-                            <option key={article} value={article}>
-                              {t(`salaryArticle_${article}` as MessageKey)}
+                      {isAdded(line.id) && (
+                        <div className="salary-line-kind">
+                          <select
+                            className="field"
+                            aria-label={t("salaryLineDirection")}
+                            value={line.direction}
+                            onChange={(event) => {
+                              const direction = event.target
+                                .value as SalaryLineDirection;
+                              change(index, {
+                                direction,
+                                article: MANUAL_SALARY_ARTICLES[direction][0]!,
+                              });
+                            }}
+                          >
+                            <option value="payment">
+                              {t("salaryLinePayment")}
                             </option>
-                          ))}
-                        </select>
-                      ) : null}
+                            <option value="deduction">
+                              {t("salaryLineDeduction")}
+                            </option>
+                          </select>
+                          <select
+                            className="field"
+                            aria-label={t("salaryArticle")}
+                            value={line.article}
+                            onChange={(event) =>
+                              change(index, {
+                                article: event.target.value as SalaryArticle,
+                              })
+                            }
+                          >
+                            {MANUAL_SALARY_ARTICLES[line.direction].map(
+                              (article) => (
+                                <option key={article} value={article}>
+                                  {t(
+                                    `salaryArticleChoice_${article}` as MessageKey,
+                                  )}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                          <select
+                            className="field"
+                            aria-label={t("salaryLineItem")}
+                            value={line.item}
+                            required
+                            onChange={(event) =>
+                              change(index, {
+                                item: event.target.value as LineValues["item"],
+                              })
+                            }
+                          >
+                            <option value="">{t("salaryChooseItem")}</option>
+                            {SALARY_LINE_ITEMS.map((item) => (
+                              <option key={item} value={item}>
+                                {t(`salaryItem_${item}` as MessageKey)}
+                              </option>
+                            ))}
+                            <option value="custom">
+                              {t("salaryItemCustom")}
+                            </option>
+                          </select>
+                        </div>
+                      )}
+                      {(!isAdded(line.id) || line.item === "custom") && (
+                        <input
+                          className="field"
+                          aria-label={t("salaryLineName")}
+                          placeholder={
+                            isAdded(line.id)
+                              ? t("salaryLineNamePlaceholder")
+                              : t(`salaryArticle_${line.article}` as MessageKey)
+                          }
+                          value={line.label}
+                          maxLength={80}
+                          required={isAdded(line.id)}
+                          onChange={(event) =>
+                            change(index, { label: event.target.value })
+                          }
+                        />
+                      )}
                       <input
                         className="field"
-                        aria-label={t("salaryLineName")}
-                        placeholder={t(
-                          `salaryArticle_${line.article}` as MessageKey,
-                        )}
-                        value={line.label}
-                        maxLength={80}
+                        aria-label={t("salaryLineDescription")}
+                        placeholder={t("salaryLineDescriptionPlaceholder")}
+                        value={line.description}
+                        maxLength={120}
                         onChange={(event) =>
-                          change(index, { label: event.target.value })
+                          change(index, { description: event.target.value })
                         }
                       />
                     </td>
@@ -412,8 +502,11 @@ export function SalarySlipEditor({
                   ...current,
                   {
                     id: `manual-${Date.now()}`,
-                    article: "bonus",
+                    article: "otherPay",
+                    direction: "payment",
+                    item: "",
                     label: "",
+                    description: "",
                     from: "",
                     to: "",
                     scope: "100.00",
@@ -476,6 +569,12 @@ export function SalarySlipEditor({
             <dd>{amount(preview.benefitsMinor)}</dd>
             <dt>{t("salaryTax")}</dt>
             <dd>{amount(-preview.taxMinor)}</dd>
+            {preview.reimbursementsMinor !== 0 && (
+              <>
+                <dt>{t("salaryReimbursements")}</dt>
+                <dd>{amount(preview.reimbursementsMinor)}</dd>
+              </>
+            )}
             {preview.netDeductionsMinor !== 0 && (
               <>
                 <dt>{t("salaryNetDeductions")}</dt>

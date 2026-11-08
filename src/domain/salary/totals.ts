@@ -16,6 +16,8 @@ export interface SalaryTotals {
   /** Preliminary tax withheld. */
   taxMinor: number;
   netDeductionsMinor: number;
+  /** Tax-free repayments added to the payout after tax. */
+  reimbursementsMinor: number;
   /** Öresavrundning that makes the payout whole kronor. */
   roundingMinor: number;
   /** Paid to the person (Din lön). */
@@ -37,18 +39,21 @@ export function salaryTotals(
   let grossMinor = 0;
   let benefitsMinor = 0;
   let netDeductionsMinor = 0;
+  let reimbursementsMinor = 0;
   for (const line of lines) {
     const amount = lineAmountMinor(line);
     const kind = articleKind(line.article);
     if (kind === "benefit") benefitsMinor += amount;
     else if (kind === "netDeduction") netDeductionsMinor += amount;
+    else if (kind === "reimbursement") reimbursementsMinor += amount;
     else grossMinor += amount;
   }
   const taxableMinor = grossMinor + benefitsMinor;
   const withheld =
     tax.overrideMinor ??
     taxMinor(tax.table, tax.column, taxableMinor, tax.adjustment);
-  const beforeRounding = grossMinor - withheld + netDeductionsMinor;
+  const beforeRounding =
+    grossMinor - withheld + netDeductionsMinor + reimbursementsMinor;
   const netMinor = Math.max(0, Math.round(beforeRounding / 100) * 100);
   return {
     grossMinor,
@@ -56,6 +61,7 @@ export function salaryTotals(
     taxableMinor,
     taxMinor: withheld,
     netDeductionsMinor,
+    reimbursementsMinor,
     roundingMinor: netMinor - beforeRounding,
     netMinor,
   };

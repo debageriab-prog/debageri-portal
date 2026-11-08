@@ -12,7 +12,7 @@ import {
   DEFAULT_EMPLOYER_FEE_BPS,
   employerFeeMinor,
 } from "@/domain/salary/totals";
-import { payslipFileUrl } from "@/app/documents/payslips/PayslipPreview";
+import { PayslipPdfButton } from "./PayslipPdfButton";
 import type { SalaryCandidate } from "@/server/services/salary-service";
 import type { SalaryRow, SalaryRunInfo } from "./salary-data";
 import { formatKronor, postSalaryAction, shiftMonth } from "./salary-client";
@@ -281,16 +281,10 @@ export function SalaryRun({
                           )}
                         </Link>
                         {row.payslipId && (
-                          <a
-                            className="table-action icon-action"
-                            href={`${payslipFileUrl(row.payslipId)}?disposition=inline`}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label={t("viewPayslip")}
-                            title={t("viewPayslip")}
-                          >
-                            <ActionIcon type="pdf" />
-                          </a>
+                          <PayslipPdfButton
+                            payslipId={row.payslipId}
+                            name={`${row.name} ${row.period}.pdf`}
+                          />
                         )}
                         {canEdit && row.status === "initiated" && (
                           <button
