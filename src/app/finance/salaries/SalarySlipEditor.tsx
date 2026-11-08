@@ -8,6 +8,7 @@ import { ActionIcon } from "@/components/ui/ActionIcon";
 import { DateInput } from "@/components/ui/DateInput";
 import { InfoTip } from "@/components/ui/InfoTip";
 import {
+  articleKind,
   lineAmountMinor,
   lineDirection,
   MANUAL_SALARY_ARTICLES,
@@ -17,6 +18,8 @@ import {
   type SalaryLineDirection,
   type SalaryLineItem,
 } from "@/domain/salary/articles";
+import { ONE_TIME_ITEMS } from "@/domain/salary/one-time-tax";
+import type { TaxTableRow } from "@/domain/salary/tax";
 import { salaryTotals } from "@/domain/salary/totals";
 import { PayslipPdfButton } from "./PayslipPdfButton";
 import type { SalaryRow } from "./salary-data";
@@ -47,7 +50,16 @@ interface LineValues {
   quantity: string;
   price: string;
   manual: boolean;
+  /** Taxed as a one-time payment (engångsskatt). */
+  oneTime: boolean;
 }
+
+/** Whether a line can be a one-time payment: taxable pay that is paid out. */
+const canBeOneTime = (values: Pick<LineValues, "article" | "direction">) =>
+  articleKind(values.article) === "pay" && values.direction === "payment";
+
+const isOneTimeItem = (item: LineValues["item"]) =>
+  (ONE_TIME_ITEMS as readonly string[]).includes(item);
 
 /** Lines added by hand, as opposed to built from the agreement and time. */
 const isAdded = (id: string) => id.startsWith("manual-");
@@ -70,6 +82,7 @@ function toValues(line: SalaryLine): LineValues {
     // decides whether it is paid out or taken off.
     price: plain(added ? Math.abs(line.unitPriceMinor) : line.unitPriceMinor),
     manual: line.manual,
+    oneTime: line.oneTime === true,
   };
 }
 
@@ -97,6 +110,7 @@ function toLine(values: LineValues): SalaryLine | null {
       ? (values.direction === "deduction" ? -1 : 1) * Math.abs(price)
       : price,
     manual: values.manual,
+    oneTime: values.oneTime && canBeOneTime(values),
   };
 }
 
@@ -116,10 +130,13 @@ export function articleName(
 
 export function SalarySlipEditor({
   row,
+  taxRows,
   canEdit,
   canBook,
 }: {
   row: SalaryRow;
+  /** The person's monthly tax table, so the tax follows each change. */
+  taxRows: TaxTableRow[] | null;
   canEdit: boolean;
   canBook: boolean;
 }) {
@@ -141,14 +158,18 @@ export function SalarySlipEditor({
   const parsed = lines.map(toLine);
   const valid = parsed.every((line) => line !== null);
   const taxOverride = taxTyped ? parseMoney(taxText) : null;
-  // The table tax is worked out on the server; until saving, the preview
-  // keeps the last saved tax unless one is typed.
+  // The same calculation as the server, so the tax follows every change
+  // before saving. Without a table the tax stays at zero, as on the server.
   const preview = valid
     ? salaryTotals(parsed as SalaryLine[], {
-        table: null,
+        table: taxRows ? { rows: taxRows } : null,
         column: row.tax.column,
-        adjustment: { type: "none" },
-        overrideMinor: taxOverride ?? row.totals.taxMinor,
+        adjustment: row.tax.adjustment,
+        year: row.tax.year,
+        oneTimeEarlierMinor: row.oneTimeEarlierMinor,
+        overrideMinor:
+          taxOverride ??
+          (row.tax.adjustment.type === "none" && !taxRows ? 0 : null),
       })
     : row.totals;
 
@@ -334,6 +355,9 @@ export function SalarySlipEditor({
                               change(index, {
                                 direction,
                                 article: MANUAL_SALARY_ARTICLES[direction][0]!,
+                                oneTime:
+                                  direction === "payment" &&
+                                  isOneTimeItem(line.item),
                               });
                             }}
                           >
@@ -351,6 +375,9 @@ export function SalarySlipEditor({
                             onChange={(event) =>
                               change(index, {
                                 article: event.target.value as SalaryArticle,
+                                oneTime:
+                                  event.target.value === "otherPay" &&
+                                  isOneTimeItem(line.item),
                               })
                             }
                           >
@@ -369,11 +396,17 @@ export function SalarySlipEditor({
                             aria-label={t("salaryLineItem")}
                             value={line.item}
                             required
-                            onChange={(event) =>
+                            onChange={(event) => {
+                              const item = event.target
+                                .value as LineValues["item"];
                               change(index, {
-                                item: event.target.value as LineValues["item"],
-                              })
-                            }
+                                item,
+                                // Bonuses and commission are usually
+                                // one-time payments.
+                                oneTime:
+                                  canBeOneTime(line) && isOneTimeItem(item),
+                              });
+                            }}
                           >
                             <option value="">{t("salaryChooseItem")}</option>
                             {SALARY_LINE_ITEMS.map((item) => (
@@ -414,6 +447,19 @@ export function SalarySlipEditor({
                           change(index, { description: event.target.value })
                         }
                       />
+                      {isAdded(line.id) && canBeOneTime(line) && (
+                        <label className="checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={line.oneTime}
+                            onChange={(event) =>
+                              change(index, { oneTime: event.target.checked })
+                            }
+                          />
+                          <span>{t("salaryOneTime")}</span>
+                          <InfoTip text={t("salaryOneTimeTip")} />
+                        </label>
+                      )}
                     </td>
                     <td>
                       <DateInput
@@ -513,6 +559,7 @@ export function SalarySlipEditor({
                     quantity: "1.00",
                     price: "0.00",
                     manual: true,
+                    oneTime: false,
                   },
                 ])
               }
@@ -569,6 +616,19 @@ export function SalarySlipEditor({
             <dd>{amount(preview.benefitsMinor)}</dd>
             <dt>{t("salaryTax")}</dt>
             <dd>{amount(-preview.taxMinor)}</dd>
+            {preview.oneTimeTaxMinor !== 0 && (
+              <>
+                <dt className="salary-sub">
+                  {t("salaryOneTimeTaxOf").replace(
+                    "{percent}",
+                    String(preview.oneTimePercent ?? 0),
+                  )}
+                </dt>
+                <dd className="salary-sub">
+                  {amount(-preview.oneTimeTaxMinor)}
+                </dd>
+              </>
+            )}
             {preview.reimbursementsMinor !== 0 && (
               <>
                 <dt>{t("salaryReimbursements")}</dt>

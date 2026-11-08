@@ -585,17 +585,6 @@ function GenerateDialog({
         </header>
         <div className="form-grid">
           <label>
-            {t("salaryPaymentDate")}
-            <DateInput
-              className="field"
-              value={values.paymentDate}
-              onChange={(event) =>
-                setValues({ ...values, paymentDate: event.target.value })
-              }
-              required
-            />
-          </label>
-          <label>
             <span>
               {t("salaryEventsFrom")} <InfoTip text={t("salaryEventsTip")} />
             </span>
@@ -616,6 +605,17 @@ function GenerateDialog({
               min={values.eventFrom}
               onChange={(event) =>
                 setValues({ ...values, eventTo: event.target.value })
+              }
+              required
+            />
+          </label>
+          <label>
+            {t("salaryPaymentDate")}
+            <DateInput
+              className="field"
+              value={values.paymentDate}
+              onChange={(event) =>
+                setValues({ ...values, paymentDate: event.target.value })
               }
               required
             />

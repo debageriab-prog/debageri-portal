@@ -100,7 +100,13 @@ survive a rebuild. Generating asks whom to pay: people left out, or
 removed from the month while their row is prepared, are kept in the run's
 `excludedUserIds` and stay out on the next update. Each row can turn
 `useTimeReports` off to pay the full monthly salary whatever was reported;
-`reportedDays` flags a row with no approved time in the event period. Rows move from `initiated` to `ready`, `payslipGenerated`
+`reportedDays` flags a row with no approved time in the event period.
+Taxable pay lines marked `oneTime` (engångsbelopp, such as a bonus) are taxed
+apart with engångsskatt: a percent from Skatteverket's table for one-time
+payments (built into `src/domain/salary/one-time-tax.ts` per year), chosen by
+the expected annual income, which is this month's regular taxable pay × 12 plus
+this year's one-time payments, and 30 % without a monthly salary. A jämkning
+percent covers them too. Rows move from `initiated` to `ready`, `payslipGenerated`
 and `booked`; `problem` keeps a row without payroll details or tax tables
 from becoming ready unless the tax is typed by hand.
 

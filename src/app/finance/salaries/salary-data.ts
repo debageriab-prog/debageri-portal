@@ -33,6 +33,8 @@ export interface SalaryRow {
   useTimeReports: boolean;
   /** Days with approved time in the event period. */
   reportedDays: number;
+  /** One-time payments booked earlier in the year, in öre. */
+  oneTimeEarlierMinor: number;
   /** A flexible consultant's balance before this salary, in öre. */
   balanceMinor: number | null;
 }
@@ -69,6 +71,7 @@ function rowFrom(
     version: Number(data.version ?? 0),
     useTimeReports: data.useTimeReports !== false,
     reportedDays: Number(data.reportedDays ?? 0),
+    oneTimeEarlierMinor: Number(data.yearToDate?.oneTimeMinor ?? 0),
   };
 }
 

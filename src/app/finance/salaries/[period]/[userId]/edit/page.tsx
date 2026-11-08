@@ -5,6 +5,7 @@ import { validSalaryPeriod } from "@/domain/salary/slip";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
+import { loadTaxTable } from "@/server/services/tax-table-service";
 import { loadSalaryRow } from "../../../salary-data";
 import { SalarySlipEditor } from "../../../SalarySlipEditor";
 
@@ -27,6 +28,15 @@ export default async function SalaryRowPage({
     decodeURIComponent(userId),
   );
   if (!row) notFound();
+  const taxTable =
+    row.tax.table === null
+      ? null
+      : await loadTaxTable(
+          db,
+          actor.organizationId,
+          row.tax.year,
+          row.tax.table,
+        );
   return (
     <>
       <div className="topbar">
@@ -51,6 +61,7 @@ export default async function SalaryRowPage({
       <SalarySlipEditor
         key={row.version}
         row={row}
+        taxRows={taxTable?.rows ?? null}
         canEdit={can(actor, "finance.salary.edit")}
         canBook={can(actor, "finance.salary.book")}
       />

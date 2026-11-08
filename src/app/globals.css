@@ -4360,6 +4360,11 @@ td.amount-cell {
   text-align: right;
   white-space: nowrap;
 }
+.salary-totals .salary-sub {
+  padding-left: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
 .salary-totals .salary-net {
   padding-top: 8px;
   border-top: 1px solid var(--border);

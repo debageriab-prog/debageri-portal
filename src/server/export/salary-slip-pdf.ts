@@ -28,6 +28,7 @@ export type SalarySlipPdfLabels = Record<
   | "price"
   | "amount"
   | "tax"
+  | "oneTimeTax"
   | "taxTableLine"
   | "taxAdjusted"
   | "rounding"
@@ -220,6 +221,7 @@ export function salarySlipPdf(input: SalarySlipPdfInput): Buffer {
       formatAmount(line.unitPriceMinor),
       formatAmount(lineAmountMinor(line)),
     ]);
+  const oneTimeTax = slip.totals.oneTimeTaxMinor ?? 0;
   row([
     slip.tax.overrideMinor !== null || slip.tax.adjustment.type !== "none"
       ? labels.tax
@@ -229,8 +231,21 @@ export function salarySlipPdf(input: SalarySlipPdfInput): Buffer {
     "",
     "",
     "",
-    formatAmount(-slip.totals.taxMinor),
+    formatAmount(-(slip.totals.taxMinor - oneTimeTax)),
   ]);
+  if (oneTimeTax)
+    row([
+      labels.oneTimeTax.replace(
+        "{percent}",
+        String(slip.totals.oneTimePercent ?? 0),
+      ),
+      "",
+      "",
+      "",
+      "",
+      "",
+      formatAmount(-oneTimeTax),
+    ]);
   if (slip.totals.roundingMinor)
     row([
       labels.rounding,

@@ -132,6 +132,9 @@ describe("salary lines", () => {
       benefitsMinor: 163_700,
       taxableMinor: 4_799_560,
       taxMinor: 1_104_200,
+      oneTimeMinor: 0,
+      oneTimeTaxMinor: 0,
+      oneTimePercent: null,
       netDeductionsMinor: 0,
       reimbursementsMinor: 0,
       roundingMinor: 40,
@@ -284,5 +287,80 @@ describe("working days", () => {
     expect(expectedMinutes("2026-07-01", "2026-07-31", new Set())).toBe(
       23 * 480,
     );
+  });
+});
+
+describe("one-time tax (engångsskatt)", () => {
+  const lines = [
+    ...buildSalaryLines(august),
+    manual("health", "benefit", 19_600),
+    manual("parking", "benefit", 126_000),
+    manual("bike", "benefit", 18_100),
+    manual("lease", "grossDeduction", -73_900),
+  ];
+  const bonus = (amount: number): SalaryLine => ({
+    ...manual("bonus", "otherPay", amount),
+    item: "bonus",
+    oneTime: true,
+  });
+  const basis = {
+    table: table33,
+    column: 1 as const,
+    adjustment: { type: "none" as const },
+    year: 2026,
+  };
+
+  it("taxes a bonus apart, at the percent for the expected annual income", () => {
+    // 47 995.60 × 12 + 10 000 = 585 947 kr a year: 34 % in column 1.
+    const totals = salaryTotals([...lines, bonus(1_000_000)], basis);
+    expect(totals.oneTimeMinor).toBe(1_000_000);
+    expect(totals.oneTimePercent).toBe(34);
+    expect(totals.oneTimeTaxMinor).toBe(340_000);
+    // The monthly salary keeps its table tax.
+    expect(totals.taxMinor).toBe(1_104_200 + 340_000);
+    expect(totals.grossMinor).toBe(4_635_860 + 1_000_000);
+  });
+
+  it("counts earlier one-time payments of the year", () => {
+    const totals = salaryTotals([...lines, bonus(1_000_000)], {
+      ...basis,
+      oneTimeEarlierMinor: 8_000_000,
+    });
+    expect(totals.oneTimePercent).toBe(54);
+    expect(totals.oneTimeTaxMinor).toBe(540_000);
+  });
+
+  it("uses 30 % without a monthly salary", () => {
+    const totals = salaryTotals([bonus(1_000_000)], basis);
+    expect(totals.oneTimePercent).toBe(30);
+    expect(totals.taxMinor).toBe(300_000);
+  });
+
+  it("leaves the percent open for a year without a table", () => {
+    const totals = salaryTotals([...lines, bonus(1_000_000)], {
+      ...basis,
+      year: 2030,
+    });
+    expect(totals.oneTimePercent).toBeNull();
+    expect(totals.oneTimeTaxMinor).toBe(0);
+  });
+
+  it("applies a jämkning percent to the whole taxable pay", () => {
+    const totals = salaryTotals([...lines, bonus(1_000_000)], {
+      ...basis,
+      adjustment: { type: "percent", bps: 2_500 },
+    });
+    expect(totals.oneTimeTaxMinor).toBe(0);
+    expect(totals.taxMinor).toBe(
+      Math.round(((4_799_560 + 1_000_000) * 0.25) / 100) * 100,
+    );
+  });
+
+  it("ignores lines that are not one-time payments", () => {
+    const totals = salaryTotals(
+      [...lines, { ...bonus(100), oneTime: false }],
+      basis,
+    );
+    expect(totals.oneTimeMinor).toBe(0);
   });
 });

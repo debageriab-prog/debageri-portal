@@ -22,6 +22,7 @@ export const salaryLineSchema = z.object({
   quantityHundredths: z.number().int().min(-1_000_000).max(1_000_000),
   unitPriceMinor: money,
   manual: z.boolean().default(true),
+  oneTime: z.boolean().default(false),
 });
 
 export const generateSalaryRunSchema = z

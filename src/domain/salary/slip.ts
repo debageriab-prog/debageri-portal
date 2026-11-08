@@ -18,7 +18,7 @@ export type SalarySlipStatus = (typeof SALARY_SLIP_STATUSES)[number];
 
 /** Why a salary cannot be worked out yet; the row stays in `initiated`. */
 export type SalarySlipProblem =
-  "payrollProfileMissing" | "taxTableMissing" | null;
+  "payrollProfileMissing" | "taxTableMissing" | "oneTimeTaxTableMissing" | null;
 
 export interface SalarySlipPerson {
   displayName: string;
@@ -44,6 +44,8 @@ export interface SalaryYearToDate {
   grossMinor: number;
   benefitsMinor: number;
   taxMinor: number;
+  /** One-time payments (engångsbelopp); missing on older slips. */
+  oneTimeMinor?: number;
 }
 
 export interface SalarySlip {

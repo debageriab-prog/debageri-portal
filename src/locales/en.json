@@ -1800,7 +1800,7 @@
   "vacationOverdrawnReview": "Approving this report uses more vacation than this person has days for.",
   "vacationIncluded": "Vacation",
   "salarySlipPdf_title": "Payslip",
-  "salarySlipPdf_yourSalary": "Your salary",
+  "salarySlipPdf_yourSalary": "Total",
   "salarySlipPdf_paymentDate": "Payment date",
   "salarySlipPdf_salaryPeriod": "Salary period",
   "salarySlipPdf_taxTable": "Tax table",
@@ -1982,5 +1982,12 @@
   "salaryItem_healthInsurance": "Health insurance",
   "salaryItem_bike": "Bike",
   "salaryItem_wellness": "Wellness",
-  "salaryItem_advance": "Salary advance"
+  "salaryItem_advance": "Salary advance",
+  "salaryOneTime": "One-time payment (engångsskatt)",
+  "salaryOneTimeTip": "Bonuses, commission, retroactive pay and similar payments are taxed apart from the monthly salary, with Skatteverket's table for one-time payments. The percent depends on the expected annual income: this month's regular pay times 12 plus this year's one-time payments. Without a monthly salary it is 30 %.",
+  "salaryOneTimeTaxOf": "of which one-time tax {percent} %",
+  "salarySlipPdf_oneTimeTax": "One-time tax {percent} %",
+  "salaryProblem_oneTimeTaxTableMissing": "One-time tax table missing",
+  "salaryProblemHelp_oneTimeTaxTableMissing": "The portal has no table for one-time payments for the payment year yet. Enter the tax amount manually.",
+  "financeError_oneTimeTaxTableMissing": "There is no table for one-time payments for the payment year. Enter the tax amount manually."
 }

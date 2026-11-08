@@ -1800,7 +1800,7 @@
   "vacationOverdrawnReview": "Om rapporten godkänns används mer semester än personen har dagar för.",
   "vacationIncluded": "Semester",
   "salarySlipPdf_title": "Lönespecifikation",
-  "salarySlipPdf_yourSalary": "Din lön",
+  "salarySlipPdf_yourSalary": "Totalt",
   "salarySlipPdf_paymentDate": "Utbetalningsdag",
   "salarySlipPdf_salaryPeriod": "Löneperiod",
   "salarySlipPdf_taxTable": "Skattetabell",
@@ -1982,5 +1982,12 @@
   "salaryItem_healthInsurance": "Sjukvårdsförsäkring",
   "salaryItem_bike": "Cykel",
   "salaryItem_wellness": "Friskvård",
-  "salaryItem_advance": "Löneförskott"
+  "salaryItem_advance": "Löneförskott",
+  "salaryOneTime": "Engångsbelopp (engångsskatt)",
+  "salaryOneTimeTip": "Bonus, provision, retroaktiv lön och liknande betalningar beskattas separat från månadslönen, med Skatteverkets tabell för engångsbelopp. Procentsatsen beror på den förväntade årsinkomsten: månadens ordinarie lön gånger 12 plus årets engångsbelopp. Utan månadslön är den 30 %.",
+  "salaryOneTimeTaxOf": "varav engångsskatt {percent} %",
+  "salarySlipPdf_oneTimeTax": "Engångsskatt {percent} %",
+  "salaryProblem_oneTimeTaxTableMissing": "Tabell för engångsskatt saknas",
+  "salaryProblemHelp_oneTimeTaxTableMissing": "Portalen har ännu ingen tabell för engångsbelopp för utbetalningsåret. Ange skattebeloppet manuellt.",
+  "financeError_oneTimeTaxTableMissing": "Det finns ingen tabell för engångsbelopp för utbetalningsåret. Ange skattebeloppet manuellt."
 }

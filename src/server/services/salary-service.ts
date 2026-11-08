@@ -13,7 +13,7 @@ import {
   monthlySalaryMinor,
   receivesSalary,
 } from "@/domain/finance/compensation";
-import type { SalaryLine } from "@/domain/salary/articles";
+import { articleKind, type SalaryLine } from "@/domain/salary/articles";
 import { buildSalaryLines, type SalaryTimeEntry } from "@/domain/salary/build";
 import {
   payrollProfileFrom,
@@ -194,13 +194,19 @@ async function yearToDate(
     .where("period", ">=", `${period.slice(0, 4)}-01`)
     .where("period", "<", period)
     .get();
-  const totals = { grossMinor: 0, benefitsMinor: 0, taxMinor: 0 };
+  const totals = {
+    grossMinor: 0,
+    benefitsMinor: 0,
+    taxMinor: 0,
+    oneTimeMinor: 0,
+  };
   for (const document of snapshot.docs) {
     const data = document.data();
     if (data.status !== "booked") continue;
     totals.grossMinor += Number(data.totals?.grossMinor ?? 0);
     totals.benefitsMinor += Number(data.totals?.benefitsMinor ?? 0);
     totals.taxMinor += Number(data.totals?.taxMinor ?? 0);
+    totals.oneTimeMinor += Number(data.totals?.oneTimeMinor ?? 0);
   }
   return totals;
 }
@@ -242,7 +248,10 @@ type TaxTableCache = Map<string, Promise<TaxTable | null>>;
 async function workOut(
   db: Firestore,
   organizationId: string,
-  slip: Pick<SalarySlip, "lines" | "tax"> & { profile: PayrollProfile },
+  slip: Pick<SalarySlip, "lines" | "tax"> & {
+    profile: PayrollProfile;
+    yearToDate?: Partial<SalaryYearToDate>;
+  },
   tables: TaxTableCache,
 ) {
   const key = `${slip.tax.year}_${slip.tax.table}`;
@@ -253,16 +262,25 @@ async function workOut(
     );
   const table =
     slip.tax.table === null ? null : ((await tables.get(key)) ?? null);
-  const problem = problemFor(slip.profile, table, slip.tax.overrideMinor);
   const totals = salaryTotals(slip.lines, {
     table,
     column: slip.tax.column,
     adjustment: slip.tax.adjustment,
+    year: slip.tax.year,
+    oneTimeEarlierMinor: slip.yearToDate?.oneTimeMinor ?? 0,
     // Without a table the tax stays at zero until it can be worked out.
     overrideMinor:
       slip.tax.overrideMinor ??
       (slip.tax.adjustment.type === "none" && !table ? 0 : null),
   });
+  const problem =
+    problemFor(slip.profile, table, slip.tax.overrideMinor) ??
+    (totals.oneTimeMinor > 0 &&
+    totals.oneTimePercent === null &&
+    slip.tax.overrideMinor === null &&
+    slip.tax.adjustment.type !== "percent"
+      ? "oneTimeTaxTableMissing"
+      : null);
   return { problem, totals };
 }
 
@@ -433,7 +451,7 @@ async function writeSlip(
   const { problem, totals } = await workOut(
     db,
     actor.organizationId,
-    { lines, tax, profile },
+    { lines, tax, profile, yearToDate: ytd },
     context.tables,
   );
   batch.set(db.collection("salarySlips").doc(id), {
@@ -633,10 +651,15 @@ export async function removeSalarySlip(
 }
 
 function normalizeLines(lines: SalaryLineInput[]): SalaryLine[] {
-  return lines.map((line) => ({
-    ...line,
-    article: line.article as SalaryLine["article"],
-  }));
+  return lines.map((line) => {
+    const article = line.article as SalaryLine["article"];
+    return {
+      ...line,
+      article,
+      // Only taxable pay can be a one-time payment.
+      oneTime: line.oneTime && articleKind(article) === "pay",
+    };
+  });
 }
 
 /** Saves edited lines and typed tax on a row that is still being prepared. */
@@ -673,7 +696,7 @@ export async function updateSalarySlip(
   const { problem, totals } = await workOut(
     db,
     actor.organizationId,
-    { lines, tax, profile },
+    { lines, tax, profile, yearToDate: data.yearToDate },
     new Map(),
   );
   await db.runTransaction(async (transaction) => {
@@ -760,6 +783,7 @@ const PDF_LABEL_KEYS = {
   price: "salarySlipPdf_price",
   amount: "salarySlipPdf_amount",
   tax: "salarySlipPdf_tax",
+  oneTimeTax: "salarySlipPdf_oneTimeTax",
   taxTableLine: "salarySlipPdf_taxTableLine",
   taxAdjusted: "salarySlipPdf_taxAdjusted",
   rounding: "salarySlipPdf_rounding",

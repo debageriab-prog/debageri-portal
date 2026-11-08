@@ -103,6 +103,8 @@ export interface SalaryLine {
   unitPriceMinor: number;
   /** Added or changed by hand, so a rebuild keeps it. */
   manual: boolean;
+  /** A one-time payment (engångsbelopp), taxed with engångsskatt. */
+  oneTime?: boolean;
 }
 
 export function articleKind(article: SalaryArticle): SalaryLineKind {

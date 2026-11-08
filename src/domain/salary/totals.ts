@@ -1,4 +1,5 @@
 import { articleKind, lineAmountMinor, type SalaryLine } from "./articles";
+import { oneTimeTaxMinor, oneTimeTaxPercent } from "./one-time-tax";
 import {
   taxMinor,
   type TaxAdjustment,
@@ -13,8 +14,14 @@ export interface SalaryTotals {
   benefitsMinor: number;
   /** Gross pay plus benefits; tax and employer fees are worked out on it. */
   taxableMinor: number;
-  /** Preliminary tax withheld. */
+  /** Preliminary tax withheld, including any one-time tax. */
   taxMinor: number;
+  /** Taxable one-time payments (engångsbelopp) such as a bonus. */
+  oneTimeMinor: number;
+  /** Engångsskatt on them; part of `taxMinor`. */
+  oneTimeTaxMinor: number;
+  /** The percent used for it, or null when the year's table is unknown. */
+  oneTimePercent: number | null;
   netDeductionsMinor: number;
   /** Tax-free repayments added to the payout after tax. */
   reimbursementsMinor: number;
@@ -30,6 +37,10 @@ export interface SalaryTaxBasis {
   adjustment: TaxAdjustment;
   /** Set when someone typed the tax by hand; replaces the table tax. */
   overrideMinor?: number | null;
+  /** The tax year, which picks the table for one-time payments. */
+  year?: number;
+  /** One-time payments already booked earlier in the year. */
+  oneTimeEarlierMinor?: number;
 }
 
 export function salaryTotals(
@@ -40,18 +51,45 @@ export function salaryTotals(
   let benefitsMinor = 0;
   let netDeductionsMinor = 0;
   let reimbursementsMinor = 0;
+  let oneTimeMinor = 0;
   for (const line of lines) {
     const amount = lineAmountMinor(line);
     const kind = articleKind(line.article);
     if (kind === "benefit") benefitsMinor += amount;
     else if (kind === "netDeduction") netDeductionsMinor += amount;
     else if (kind === "reimbursement") reimbursementsMinor += amount;
-    else grossMinor += amount;
+    else {
+      grossMinor += amount;
+      if (kind === "pay" && line.oneTime) oneTimeMinor += amount;
+    }
   }
+  oneTimeMinor = Math.max(0, oneTimeMinor);
   const taxableMinor = grossMinor + benefitsMinor;
+  // A jämkning percent covers one-time payments too, and typed tax replaces
+  // everything; otherwise one-time payments are taxed apart, at a percent
+  // chosen from the expected annual income.
+  const separate =
+    oneTimeMinor > 0 &&
+    tax.overrideMinor == null &&
+    tax.adjustment.type !== "percent";
+  const regularTaxableMinor = separate
+    ? taxableMinor - oneTimeMinor
+    : taxableMinor;
+  const oneTimePercent = separate
+    ? oneTimeTaxPercent(tax.year ?? 0, tax.column, {
+        regularTaxableMinor,
+        oneTimeMinor,
+        oneTimeEarlierMinor: tax.oneTimeEarlierMinor ?? 0,
+      })
+    : null;
+  const oneTimeTax =
+    separate && oneTimePercent !== null
+      ? oneTimeTaxMinor(oneTimeMinor, oneTimePercent)
+      : 0;
   const withheld =
     tax.overrideMinor ??
-    taxMinor(tax.table, tax.column, taxableMinor, tax.adjustment);
+    taxMinor(tax.table, tax.column, regularTaxableMinor, tax.adjustment) +
+      oneTimeTax;
   const beforeRounding =
     grossMinor - withheld + netDeductionsMinor + reimbursementsMinor;
   const netMinor = Math.max(0, Math.round(beforeRounding / 100) * 100);
@@ -60,6 +98,9 @@ export function salaryTotals(
     benefitsMinor,
     taxableMinor,
     taxMinor: withheld,
+    oneTimeMinor,
+    oneTimeTaxMinor: oneTimeTax,
+    oneTimePercent,
     netDeductionsMinor,
     reimbursementsMinor,
     roundingMinor: netMinor - beforeRounding,
