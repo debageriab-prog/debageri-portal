@@ -36,7 +36,10 @@ import type {
   PortalUser,
   TimeCategory,
 } from "@/domain/types";
-import { VACATION_DAY_MINUTES } from "@/domain/vacation/periods";
+import {
+  DEFAULT_VACATION_SETTINGS,
+  VACATION_DAY_MINUTES,
+} from "@/domain/vacation/periods";
 import {
   FinanceError,
   voidFinancialTransaction,
@@ -350,7 +353,9 @@ export async function generateSalaryRun(
     const built = buildSalaryLines({
       period: input.period,
       agreement,
-      supplementBps: settings?.supplementBps ?? 0,
+      // Without vacation settings the usual 0.8 % supplement applies.
+      supplementBps:
+        settings?.supplementBps ?? DEFAULT_VACATION_SETTINGS.supplementBps,
       eventFrom: input.eventFrom,
       eventTo: input.eventTo,
       entries,
@@ -675,22 +680,53 @@ export async function generatePayslips(
   return payslipIds;
 }
 
-const SALARY_CATEGORY_CODES = ["salary", "salary_tax", "employer_tax"] as const;
+const SALARY_CATEGORIES = [
+  ["salary", "Salary", "Lön"],
+  ["salary_tax", "Salary tax", "Löneskatt"],
+  ["employer_tax", "Employer contributions", "Arbetsgivaravgifter"],
+] as const;
 
-/** The expense categories salaries are booked on, by code. */
-async function salaryCategories(db: Firestore, organizationId: string) {
+/**
+ * The expense categories salaries are booked on, by code. Finance creates
+ * them when it is turned on; any that are missing are created here, with
+ * the same names. A deactivated one stops booking, since someone chose that.
+ */
+async function salaryCategories(
+  db: Firestore,
+  actor: PortalUser,
+): Promise<Map<string, string>> {
   const snapshot = await db
     .collection("financeCategories")
-    .where("organizationId", "==", organizationId)
+    .where("organizationId", "==", actor.organizationId)
     .get();
   const byCode = new Map<string, string>();
   for (const document of snapshot.docs) {
     const data = document.data();
-    if (data.direction === "expense" && data.active !== false)
-      byCode.set(String(data.code), document.id);
+    const code = String(data.code);
+    if (data.direction !== "expense") continue;
+    if (!SALARY_CATEGORIES.some(([salaryCode]) => salaryCode === code))
+      continue;
+    if (data.active === false)
+      throw new FinanceError("salaryCategoryMissing", 409);
+    byCode.set(code, document.id);
   }
-  const missing = SALARY_CATEGORY_CODES.filter((code) => !byCode.has(code));
-  if (missing.length) throw new FinanceError("salaryCategoryMissing", 409);
+  const missing = SALARY_CATEGORIES.filter(([code]) => !byCode.has(code));
+  if (!missing.length) return byCode;
+  const batch = db.batch();
+  for (const [code, en, sv] of missing) {
+    const reference = db.collection("financeCategories").doc();
+    batch.create(reference, {
+      organizationId: actor.organizationId,
+      code,
+      name: { en, sv },
+      direction: "expense",
+      active: true,
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: actor.id,
+    });
+    byCode.set(code, reference.id);
+  }
+  await batch.commit();
   return byCode;
 }
 
@@ -714,7 +750,7 @@ export async function bookSalarySlips(
   },
 ) {
   requireSalaryPermission(actor, "finance.salary.book");
-  const categories = await salaryCategories(db, actor.organizationId);
+  const categories = await salaryCategories(db, actor);
   const snapshots = await db.getAll(
     ...input.slipIds.map((id) => db.collection("salarySlips").doc(id)),
   );

@@ -128,6 +128,10 @@ function financeItems(user: PortalUser, t: Translate): NavItem[] {
       { label: t("vatSettlements"), href: "/finance/vat-settlements" },
     ],
     [
+      "finance.salary.view",
+      { label: t("salaries"), href: "/finance/salaries" },
+    ],
+    [
       "finance.incomingEmails.view",
       {
         label: t("incomingFinancialEmails"),

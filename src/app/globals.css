@@ -4253,3 +4253,119 @@ td.amount-cell {
 .vacation-bar .metric small {
   margin-top: 2px;
 }
+
+/* Salaries */
+.salary-run,
+.salary-editor {
+  display: grid;
+  gap: 16px;
+}
+.salary-run-head,
+.salary-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.salary-month-nav,
+.salary-run-meta,
+.salary-bulk-actions,
+.salary-editor-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.salary-month-nav h2 {
+  margin: 0;
+  min-width: 170px;
+  text-align: center;
+}
+.salary-metrics {
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  margin: 0;
+}
+.salary-run .numeric,
+.salary-editor .numeric {
+  text-align: right;
+  white-space: nowrap;
+}
+.salary-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+  background: #eeeae7;
+  color: #6e625a;
+}
+.salary-status-ready,
+.salary-status-booked {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.salary-status-payslipGenerated {
+  background: #f1e6da;
+  color: var(--accent-dark);
+}
+.salary-status-problem {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.salary-lines td {
+  vertical-align: top;
+}
+.salary-lines td .field + .field {
+  margin-top: 6px;
+}
+.salary-lines input.numeric {
+  min-width: 90px;
+}
+.salary-lines td:first-child {
+  min-width: 220px;
+}
+.salary-lines td:nth-child(2),
+.salary-lines td:nth-child(3) {
+  min-width: 150px;
+}
+.salary-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  gap: 24px;
+  align-items: start;
+}
+.salary-tax {
+  display: grid;
+  gap: 10px;
+}
+.salary-tax p {
+  margin: 0;
+}
+.salary-totals {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 16px;
+  margin: 0;
+}
+.salary-totals dd {
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+.salary-totals .salary-net {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 17px;
+  font-weight: 800;
+}
+@media (max-width: 720px) {
+  .salary-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .salary-summary {
+    grid-template-columns: 1fr;
+  }
+}

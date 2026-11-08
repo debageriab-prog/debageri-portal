@@ -2,30 +2,32 @@
 
 Every organization-owned document has `organizationId`. Dates are `YYYY-MM-DD` in `Europe/Stockholm`; durations are integer minutes to avoid floating-point errors. Server timestamps provide audit chronology.
 
-| Collection                | ID / purpose                                                                                  | Write owner              | Reads                       |
-| ------------------------- | --------------------------------------------------------------------------------------------- | ------------------------ | --------------------------- |
-| `organizations`           | organization ID; locale, timezone, schedule defaults, `invoicing` company details             | admin service            | members                     |
-| `users`                   | Firebase UID; profile, role, reporting dates, `reportsTime`, active status, email `locale`    | admin service            | role/capability based       |
-| `timeCodes`               | stable code ID; localized names, category, behavior, effective range                          | admin service            | members                     |
-| `timesheets`              | `{org}_{uid}_{isoYear}-W{ww}`; week state and trusted totals                                  | trusted workflow         | self/assigned manager/admin |
-| `timeEntries`             | generated ID; date allocation and immutable code snapshot                                     | employee while editable  | self/assigned manager/admin |
-| `timesheetAttachments`    | generated; file metadata for a time report, keyed by `timesheetId`                            | timesheet attachment API | server only (role checked)  |
-| `approvalEvents`          | generated; append-only transition history                                                     | trusted workflow         | participants/admin          |
-| `holidays`                | stable date/region ID                                                                         | admin service            | members                     |
-| `auditLogs`               | generated; immutable sensitive action record                                                  | trusted services         | admin                       |
-| `compensationAgreements`  | effective-dated compensation: flexible (share plus requested salary), fixed, hybrid, salaried | admin service            | finance server only         |
-| `payrollProfiles`         | `{org}_{uid}`; personnummer, address, kommun, tax table and column, jämkning, salary account  | admin user API           | server only                 |
-| `taxTables`               | `{org}_{year}_{table}`; Skatteverket's monthly brackets (amount or percent per column 1–6)    | tax table import         | server only                 |
-| `municipalTaxRates`       | `{org}_{year}`; every kommun's tax rate and its parishes' rates with church fee               | tax table import         | server only                 |
-| `financeCategories`       | bilingual income/expense classifications                                                      | admin service            | finance server only         |
-| `financeCustomers`        | customer name, contacts, customer number, address, org/VAT number, invoice defaults           | finance service          | finance server only         |
-| `invoiceArticles`         | article number, description, unit, price, VAT, consultant scope, validity                     | finance service          | finance server only         |
-| `invoices`                | consultant attribution, rows, net/VAT/gross values, OCR, PDF and sending, payment state       | finance service          | admin/accountant server     |
-| `financialTransactions`   | immutable income, expense, and reversal ledger in integer Ã¶re                                | finance service          | role-scoped finance server  |
-| `aiSettings`              | organization ID; AI on/off, provider, model, enabled sections, encrypted keys                 | admin service            | server only                 |
-| `accountingEmailSettings` | per-organization accounting email addresses and which finance changes each receives           | accounting email service | server only (admin API)     |
-| `incomingEmailSettings`   | organization ID; finance mailbox (IMAP, encrypted password), trusted senders, read state      | incoming email service   | server only (admin API)     |
-| `incomingFinanceEmails`   | generated; forwarded email, its files and what AI read, waiting to become a record            | incoming email service   | finance server only         |
+| Collection                | ID / purpose                                                                                   | Write owner              | Reads                       |
+| ------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------ | --------------------------- |
+| `organizations`           | organization ID; locale, timezone, schedule defaults, `invoicing` company details              | admin service            | members                     |
+| `users`                   | Firebase UID; profile, role, reporting dates, `reportsTime`, active status, email `locale`     | admin service            | role/capability based       |
+| `timeCodes`               | stable code ID; localized names, category, behavior, effective range                           | admin service            | members                     |
+| `timesheets`              | `{org}_{uid}_{isoYear}-W{ww}`; week state and trusted totals                                   | trusted workflow         | self/assigned manager/admin |
+| `timeEntries`             | generated ID; date allocation and immutable code snapshot                                      | employee while editable  | self/assigned manager/admin |
+| `timesheetAttachments`    | generated; file metadata for a time report, keyed by `timesheetId`                             | timesheet attachment API | server only (role checked)  |
+| `approvalEvents`          | generated; append-only transition history                                                      | trusted workflow         | participants/admin          |
+| `holidays`                | stable date/region ID                                                                          | admin service            | members                     |
+| `auditLogs`               | generated; immutable sensitive action record                                                   | trusted services         | admin                       |
+| `compensationAgreements`  | effective-dated compensation: flexible (share plus requested salary), fixed, hybrid, salaried  | admin service            | finance server only         |
+| `payrollProfiles`         | `{org}_{uid}`; personnummer, address, kommun, tax table and column, jämkning, salary account   | admin user API           | server only                 |
+| `taxTables`               | `{org}_{year}_{table}`; Skatteverket's monthly brackets (amount or percent per column 1–6)     | tax table import         | server only                 |
+| `municipalTaxRates`       | `{org}_{year}`; every kommun's tax rate and its parishes' rates with church fee                | tax table import         | server only                 |
+| `salaryRuns`              | `{org}_{YYYY-MM}`; a month's payment date and the period its events come from                  | salary service           | server only                 |
+| `salarySlips`             | `{org}_{uid}_{YYYY-MM}`; one person's salary: lines, tax, totals, status, payslip and expenses | salary service           | server only                 |
+| `financeCategories`       | bilingual income/expense classifications                                                       | admin service            | finance server only         |
+| `financeCustomers`        | customer name, contacts, customer number, address, org/VAT number, invoice defaults            | finance service          | finance server only         |
+| `invoiceArticles`         | article number, description, unit, price, VAT, consultant scope, validity                      | finance service          | finance server only         |
+| `invoices`                | consultant attribution, rows, net/VAT/gross values, OCR, PDF and sending, payment state        | finance service          | admin/accountant server     |
+| `financialTransactions`   | immutable income, expense, and reversal ledger in integer Ã¶re                                 | finance service          | role-scoped finance server  |
+| `aiSettings`              | organization ID; AI on/off, provider, model, enabled sections, encrypted keys                  | admin service            | server only                 |
+| `accountingEmailSettings` | per-organization accounting email addresses and which finance changes each receives            | accounting email service | server only (admin API)     |
+| `incomingEmailSettings`   | organization ID; finance mailbox (IMAP, encrypted password), trusted senders, read state       | incoming email service   | server only (admin API)     |
+| `incomingFinanceEmails`   | generated; forwarded email, its files and what AI read, waiting to become a record             | incoming email service   | finance server only         |
 
 Weekly sheets are approval/state units; entries remain separate so one date can have multiple codes and date-range reporting stays queryable. Each eligible weekday expects eight reported hours, while submitted sheets preserve their historical expected total. Code snapshots preserve historical meaning after a rename/deactivation. Approval events are append-only because current sheet fields are not history.
 
@@ -83,6 +85,32 @@ the nearest whole percent and exactly half rounds down. Amount brackets give
 kronor of tax; the brackets above them give a percent of the whole kronor of
 taxable pay, rounded down. A jämkning decision (a fixed percent or amount)
 replaces the table tax.
+
+Salaries are prepared per month under Finance > Salaries. Generating a
+month creates a salary row for everyone paid that month: consultants with a
+fixed, hybrid or salaried agreement, flexible consultants with a requested
+salary, and staff with `paysSalary`. The row holds snapshots of the person,
+their payroll details and tax, and lines built from the agreement and the
+approved time reports of the event period (usually the month before): the
+monthly salary, a vacation supplement (semestertillägg) per run of vacation
+days at the person's `supplementBps` (0.8 % without vacation settings), and
+hourly deductions for unpaid, parental and care leave, with sick pay at 80 %
+plus a waiting-day deduction (karensavdrag). Lines added or changed by hand
+survive a rebuild. Rows move from `initiated` to `ready`, `payslipGenerated`
+and `booked`; `problem` keeps a row without payroll details or tax tables
+from becoming ready unless the tax is typed by hand.
+
+The payslip PDF is stored once, as the person's `payslips` document for the
+month (`generated: true`, `salarySlipId`), and booking attaches that same
+Storage object to each expense through `financeAttachments` with
+`payslipId`. Booking adds the payout on `salary`, optionally the withheld tax
+on `salary_tax` and employer contributions on `employer_tax`, creating those
+categories when missing. A flexible consultant's salary is consultant-funded
+and lowers their balance; everyone else is a company expense, with
+`employeeId` naming the person. Salary expenses carry `salarySlipId` and are
+changed only from their row: a booked row is reversed with linked reversals
+and reopened. Reported monthly and yearly figures drop the öre, as
+Skatteverket expects whole kronor.
 
 Generated invoices replace Fortnox. `organizations/{org}.invoicing` holds the
 company details printed on them (name, address, org and VAT number, F-skatt,
