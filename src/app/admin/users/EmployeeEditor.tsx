@@ -200,6 +200,13 @@ export function EmployeeEditor({
   }
 
   /** Shows the tab holding the first invalid field, then explains it. */
+  const visibleTabs = TABS.filter(
+    (item) =>
+      (item !== "vacation" || role !== "admin") &&
+      (item !== "payroll" || isPaid),
+  );
+  const onLastTab = tab === visibleTabs[visibleTabs.length - 1];
+
   function revealInvalidField() {
     const invalid = formRef.current?.querySelector<HTMLInputElement>(
       "input:invalid, select:invalid",
@@ -211,8 +218,26 @@ export function EmployeeEditor({
     return true;
   }
 
+  /** Moves a new employee's form to the next tab once this one is valid. */
+  function goToNextTab() {
+    const invalid = formRef.current?.querySelector<HTMLInputElement>(
+      `[data-tab="${tab}"] input:invalid, [data-tab="${tab}"] select:invalid`,
+    );
+    if (invalid) {
+      invalid.reportValidity();
+      return;
+    }
+    const next = visibleTabs[visibleTabs.indexOf(tab) + 1];
+    if (next) setTab(next);
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // A new employee steps through the tabs before being created.
+    if (creating && !onLastTab) {
+      goToNextTab();
+      return;
+    }
     if (revealInvalidField()) return;
     setBusy(true);
     setError("");
@@ -298,11 +323,7 @@ export function EmployeeEditor({
         noValidate
       >
         <div className="editor-tabs" role="tablist" aria-label={t("employee")}>
-          {TABS.filter(
-            (item) =>
-              (item !== "vacation" || role !== "admin") &&
-              (item !== "payroll" || isPaid),
-          ).map((item) => (
+          {visibleTabs.map((item) => (
             <button
               key={item}
               type="button"
@@ -752,7 +773,9 @@ export function EmployeeEditor({
                 ? t("creating")
                 : t("saving")
               : creating
-                ? t("createEmployee")
+                ? onLastTab
+                  ? t("createEmployee")
+                  : t("next")
                 : t("saveChanges")}
           </button>
         </footer>
