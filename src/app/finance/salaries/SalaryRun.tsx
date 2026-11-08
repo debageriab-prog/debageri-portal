@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { DateInput } from "@/components/ui/DateInput";
-import { FileViewIcon } from "@/components/ui/FileActionIcons";
+import { FileRemoveIcon } from "@/components/ui/FileActionIcons";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { compensationModelLabels } from "@/domain/finance/compensation";
 import {
@@ -14,6 +14,7 @@ import {
   employerFeeMinor,
 } from "@/domain/salary/totals";
 import { payslipFileUrl } from "@/app/documents/payslips/PayslipPreview";
+import type { SalaryCandidate } from "@/server/services/salary-service";
 import type { SalaryRow, SalaryRunInfo } from "./salary-data";
 import { formatKronor, postSalaryAction, shiftMonth } from "./salary-client";
 
@@ -58,6 +59,7 @@ export function SalaryRun({
   period,
   run,
   rows,
+  candidates,
   defaults,
   canEdit,
   canBook,
@@ -65,6 +67,7 @@ export function SalaryRun({
   period: string;
   run: SalaryRunInfo | null;
   rows: SalaryRow[];
+  candidates: SalaryCandidate[];
   defaults: SalaryRunInfo;
   canEdit: boolean;
   canBook: boolean;
@@ -78,6 +81,7 @@ export function SalaryRun({
   const [generating, setGenerating] = useState(false);
   const [booking, setBooking] = useState(false);
   const [replacing, setReplacing] = useState<string[] | null>(null);
+  const [removing, setRemoving] = useState<SalaryRow | null>(null);
 
   const chosen = rows.filter((row) => selected.includes(row.id));
   const all = rows.length > 0 && selected.length === rows.length;
@@ -286,8 +290,22 @@ export function SalaryRun({
                             aria-label={t("viewPayslip")}
                             title={t("viewPayslip")}
                           >
-                            <FileViewIcon />
+                            <ActionIcon type="pdf" />
                           </a>
+                        )}
+                        {canEdit && row.status === "initiated" && (
+                          <button
+                            className="table-action table-action-danger icon-action"
+                            type="button"
+                            aria-label={t("removeSalaryRow")}
+                            title={t("removeSalaryRow")}
+                            onClick={() => {
+                              setError("");
+                              setRemoving(row);
+                            }}
+                          >
+                            <FileRemoveIcon />
+                          </button>
                         )}
                       </div>
                     </td>
@@ -378,6 +396,8 @@ export function SalaryRun({
       {generating && (
         <GenerateDialog
           defaults={run ?? defaults}
+          candidates={candidates}
+          rows={rows}
           period={period}
           close={() => setGenerating(false)}
           onDone={(text) => {
@@ -386,6 +406,49 @@ export function SalaryRun({
             router.refresh();
           }}
         />
+      )}
+      {removing && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="modal modal-small"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="remove-salary-title"
+          >
+            <header className="modal-header">
+              <div>
+                <h2 id="remove-salary-title">
+                  {t("removeSalaryRowTitle").replace("{name}", removing.name)}
+                </h2>
+                <p>{t("removeSalaryRowExplanation")}</p>
+              </div>
+            </header>
+            <footer className="modal-actions">
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => setRemoving(null)}
+              >
+                {t("cancel")}
+              </button>
+              <button
+                className="button"
+                type="button"
+                disabled={busy}
+                onClick={async () => {
+                  const failure = await perform(
+                    { action: "removeSalarySlip", slipId: removing.id },
+                    t("salaryRowRemoved"),
+                  );
+                  setRemoving(null);
+                  if (failure) setError(salaryError(t, failure));
+                }}
+              >
+                {t("removeSalaryRow")}
+              </button>
+            </footer>
+          </section>
+        </div>
       )}
       {booking && (
         <BookDialog
@@ -450,17 +513,37 @@ export function SalaryRun({
 
 function GenerateDialog({
   defaults,
+  candidates,
+  rows,
   period,
   close,
   onDone,
 }: {
   defaults: SalaryRunInfo;
+  candidates: SalaryCandidate[];
+  rows: SalaryRow[];
   period: string;
   close(): void;
   onDone(message: string): void;
 }) {
   const { t, locale } = useLocale();
-  const [values, setValues] = useState(defaults);
+  const [values, setValues] = useState({
+    paymentDate: defaults.paymentDate,
+    eventFrom: defaults.eventFrom,
+    eventTo: defaults.eventTo,
+  });
+  // Rows past preparation stay whatever is chosen here.
+  const locked = new Set(
+    rows.filter((row) => row.status !== "initiated").map((row) => row.userId),
+  );
+  const [chosen, setChosen] = useState<string[]>(() =>
+    candidates
+      .map((candidate) => candidate.userId)
+      .filter(
+        (userId) =>
+          locked.has(userId) || !defaults.excludedUserIds.includes(userId),
+      ),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -472,6 +555,7 @@ function GenerateDialog({
       action: "generateSalaryRun",
       period,
       ...values,
+      userIds: chosen,
     });
     setBusy(false);
     if (failure) setError(salaryError(t, failure));
@@ -544,6 +628,44 @@ function GenerateDialog({
             />
           </label>
         </div>
+        <fieldset className="access-section salary-people">
+          <legend>
+            {t("salaryWhoToPay")
+              .replace("{chosen}", String(chosen.length))
+              .replace("{total}", String(candidates.length))}
+          </legend>
+          {!candidates.length && (
+            <p className="muted">{t("salaryNoCandidates")}</p>
+          )}
+          {candidates.map((candidate) => (
+            <label className="checkbox-row" key={candidate.userId}>
+              <input
+                type="checkbox"
+                checked={chosen.includes(candidate.userId)}
+                disabled={locked.has(candidate.userId)}
+                onChange={(event) =>
+                  setChosen((current) =>
+                    event.target.checked
+                      ? [...current, candidate.userId]
+                      : current.filter((id) => id !== candidate.userId),
+                  )
+                }
+              />
+              <span>
+                {candidate.name} · {t(compensationModelLabels[candidate.model])}{" "}
+                · {formatKronor(candidate.monthlyMinor, locale)} kr
+              </span>
+              {candidate.payrollMissing && (
+                <span className="salary-status salary-status-problem">
+                  {t("salaryProblem_payrollProfileMissing")}
+                </span>
+              )}
+              {locked.has(candidate.userId) && (
+                <InfoTip text={t("salaryPersonLocked")} />
+              )}
+            </label>
+          ))}
+        </fieldset>
         {error && <p className="notice notice-error">{error}</p>}
         <footer className="modal-actions">
           <button className="button secondary" type="button" onClick={close}>

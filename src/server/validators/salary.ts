@@ -26,6 +26,8 @@ export const generateSalaryRunSchema = z
     paymentDate: date,
     eventFrom: date,
     eventTo: date,
+    /** The people to pay this month; others get no row. */
+    userIds: z.array(z.string().min(1).max(128)).max(500),
   })
   .refine((value) => value.eventFrom <= value.eventTo);
 
@@ -35,6 +37,18 @@ export const updateSalarySlipSchema = z.object({
   version: z.number().int().min(0),
   lines: z.array(salaryLineSchema).max(100),
   taxOverrideMinor: z.number().int().min(0).max(10_000_000_000).nullable(),
+});
+
+export const setSalarySlipTimeReportsSchema = z.object({
+  action: z.literal("setSalarySlipTimeReports"),
+  slipId,
+  version: z.number().int().min(0),
+  useTimeReports: z.boolean(),
+});
+
+export const removeSalarySlipSchema = z.object({
+  action: z.literal("removeSalarySlip"),
+  slipId,
 });
 
 export const setSalarySlipStatusSchema = z.object({

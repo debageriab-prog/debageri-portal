@@ -96,7 +96,11 @@ monthly salary, a vacation supplement (semestertillägg) per run of vacation
 days at the person's `supplementBps` (0.8 % without vacation settings), and
 hourly deductions for unpaid, parental and care leave, with sick pay at 80 %
 plus a waiting-day deduction (karensavdrag). Lines added or changed by hand
-survive a rebuild. Rows move from `initiated` to `ready`, `payslipGenerated`
+survive a rebuild. Generating asks whom to pay: people left out, or
+removed from the month while their row is prepared, are kept in the run's
+`excludedUserIds` and stay out on the next update. Each row can turn
+`useTimeReports` off to pay the full monthly salary whatever was reported;
+`reportedDays` flags a row with no approved time in the event period. Rows move from `initiated` to `ready`, `payslipGenerated`
 and `booked`; `problem` keeps a row without payroll details or tax tables
 from becoming ready unless the tax is typed by hand.
 

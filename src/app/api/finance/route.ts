@@ -42,8 +42,10 @@ import {
   bookSalarySlips,
   generatePayslips,
   generateSalaryRun,
+  removeSalarySlip,
   reverseSalarySlip,
   setSalarySlipStatus,
+  setSalarySlipTimeReports,
   updateSalarySlip,
 } from "@/server/services/salary-service";
 import {
@@ -350,6 +352,12 @@ export async function POST(request: Request) {
         break;
       case "reverseSalarySlip":
         await reverseSalarySlip(db, actor, parsed.data);
+        break;
+      case "setSalarySlipTimeReports":
+        await setSalarySlipTimeReports(db, actor, parsed.data);
+        break;
+      case "removeSalarySlip":
+        await removeSalarySlip(db, actor, parsed.data);
         break;
     }
     return NextResponse.json({ ok: true, id });

@@ -6,6 +6,7 @@ import { stockholmDateTime } from "@/lib/dates/stockholm";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
+import { salaryCandidates } from "@/server/services/salary-service";
 import { loadSalaryRun } from "./salary-data";
 import { SalaryRun } from "./SalaryRun";
 
@@ -22,7 +23,10 @@ export default async function SalariesPage({
       ? requested
       : stockholmDateTime().date.slice(0, 7);
   const { db } = getAdminServices();
-  const { run, rows } = await loadSalaryRun(db, actor.organizationId, period);
+  const [{ run, rows }, candidates] = await Promise.all([
+    loadSalaryRun(db, actor.organizationId, period),
+    salaryCandidates(db, actor.organizationId, period),
+  ]);
   const events = monthBounds(previousMonth(period));
   return (
     <>
@@ -45,10 +49,12 @@ export default async function SalariesPage({
         period={period}
         run={run}
         rows={rows}
+        candidates={candidates}
         defaults={{
           paymentDate: defaultPaymentDate(period),
           eventFrom: events.from,
           eventTo: events.to,
+          excludedUserIds: [],
         }}
         canEdit={can(actor, "finance.salary.edit")}
         canBook={can(actor, "finance.salary.book")}

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { DateInput } from "@/components/ui/DateInput";
-import { FileRemoveIcon, FileViewIcon } from "@/components/ui/FileActionIcons";
+import { FileRemoveIcon } from "@/components/ui/FileActionIcons";
 import { InfoTip } from "@/components/ui/InfoTip";
 import {
   lineAmountMinor,
@@ -169,6 +169,21 @@ export function SalarySlipEditor({
     router.refresh();
   }
 
+  async function changeTimeReports(value: boolean) {
+    setBusy(true);
+    setError("");
+    setMessage("");
+    const failure = await postSalaryAction({
+      action: "setSalarySlipTimeReports",
+      slipId: row.id,
+      version: row.version,
+      useTimeReports: value,
+    });
+    setBusy(false);
+    if (failure) setError(salaryError(t, failure));
+    else router.refresh();
+  }
+
   async function reopen() {
     setBusy(true);
     setError("");
@@ -203,13 +218,41 @@ export function SalarySlipEditor({
               aria-label={t("viewPayslip")}
               title={t("viewPayslip")}
             >
-              <FileViewIcon />
+              <ActionIcon type="pdf" />
             </a>
           )}
         </div>
         {row.problem && (
           <p className="notice notice-warning">
             {t(`salaryProblemHelp_${row.problem}` as MessageKey)}
+          </p>
+        )}
+
+        {editing ? (
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={row.useTimeReports}
+              disabled={busy}
+              onChange={(event) => void changeTimeReports(event.target.checked)}
+            />
+            <span>
+              {t("salaryUseTimeReports")
+                .replace("{eventFrom}", row.eventFrom)
+                .replace("{eventTo}", row.eventTo)}
+            </span>
+            <InfoTip text={t("salaryUseTimeReportsTip")} />
+          </label>
+        ) : (
+          !row.useTimeReports && (
+            <p className="muted">{t("salaryTimeReportsIgnored")}</p>
+          )
+        )}
+        {row.useTimeReports && row.reportedDays === 0 && (
+          <p className="notice notice-warning">
+            {t("salaryNoTimeReports")
+              .replace("{eventFrom}", row.eventFrom)
+              .replace("{eventTo}", row.eventTo)}
           </p>
         )}
 

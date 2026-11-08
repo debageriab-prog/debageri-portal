@@ -47,6 +47,7 @@ export default async function SalaryRowPage({
         </div>
       </div>
       <SalarySlipEditor
+        key={row.version}
         row={row}
         canEdit={can(actor, "finance.salary.edit")}
         canBook={can(actor, "finance.salary.book")}

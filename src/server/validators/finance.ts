@@ -3,8 +3,10 @@ import {
   bookSalarySlipsSchema,
   generatePayslipsSchema,
   generateSalaryRunSchema,
+  removeSalarySlipSchema,
   reverseSalarySlipSchema,
   setSalarySlipStatusSchema,
+  setSalarySlipTimeReportsSchema,
   updateSalarySlipSchema,
 } from "@/server/validators/salary";
 import { MAX_ROUNDING_MINOR } from "@/domain/finance/calculations";
@@ -367,4 +369,6 @@ export const financeActionSchema = z.discriminatedUnion("action", [
   generatePayslipsSchema,
   bookSalarySlipsSchema,
   reverseSalarySlipSchema,
+  setSalarySlipTimeReportsSchema,
+  removeSalarySlipSchema,
 ]);

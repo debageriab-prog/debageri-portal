@@ -4,6 +4,7 @@ import {
   FieldValue,
   type DocumentData,
   type Firestore,
+  type QueryDocumentSnapshot,
   type WriteBatch,
 } from "firebase-admin/firestore";
 import { can } from "@/domain/access/permissions";
@@ -278,11 +279,201 @@ function personFrom(user: DocumentData, profile: PayrollProfile) {
   };
 }
 
+export interface SalaryCandidate {
+  userId: string;
+  name: string;
+  model: CompensationModel;
+  monthlyMinor: number;
+  /** Payroll details are missing, so tax cannot be worked out yet. */
+  payrollMissing: boolean;
+}
+
+type Eligible = {
+  user: QueryDocumentSnapshot;
+  agreement: NonNullable<Awaited<ReturnType<typeof agreementForMonth>>>;
+};
+
+/** Everyone the company pays in the month: active, employed and agreed. */
+async function eligiblePeople(
+  db: Firestore,
+  organizationId: string,
+  period: string,
+): Promise<Eligible[]> {
+  const { from, to } = monthBounds(period);
+  const users = await db
+    .collection("users")
+    .where("organizationId", "==", organizationId)
+    .get();
+  const people: Eligible[] = [];
+  for (const user of users.docs) {
+    const data = user.data();
+    if (data.status !== "active") continue;
+    if (
+      !receivesSalary({ role: String(data.role), paysSalary: data.paysSalary })
+    )
+      continue;
+    if (data.employmentStartDate && data.employmentStartDate > to) continue;
+    if (data.employmentEndDate && data.employmentEndDate < from) continue;
+    const agreement = await agreementForMonth(
+      db,
+      organizationId,
+      user.id,
+      period,
+    );
+    if (!agreement || monthlySalaryMinor(agreement) <= 0) continue;
+    people.push({ user, agreement });
+  }
+  return people.sort((left, right) =>
+    String(left.user.data().displayName).localeCompare(
+      String(right.user.data().displayName),
+      "sv",
+    ),
+  );
+}
+
+/** Who can get a salary row for the month, for choosing whom to pay. */
+export async function salaryCandidates(
+  db: Firestore,
+  organizationId: string,
+  period: string,
+): Promise<SalaryCandidate[]> {
+  const people = await eligiblePeople(db, organizationId, period);
+  const profiles = people.length
+    ? await db.getAll(
+        ...people.map(({ user }) =>
+          db
+            .collection("payrollProfiles")
+            .doc(payrollProfileId(organizationId, user.id)),
+        ),
+      )
+    : [];
+  return people.map(({ user, agreement }, index) => {
+    const profile = payrollProfileFrom(profiles[index]?.data());
+    return {
+      userId: user.id,
+      name: String(user.data().displayName ?? ""),
+      model: agreement.model,
+      monthlyMinor: monthlySalaryMinor(agreement),
+      payrollMissing:
+        !profile.personalNumber ||
+        !profile.addressLine ||
+        (profile.taxAdjustment.type === "none" && profile.taxTable === null),
+    };
+  });
+}
+
+interface SlipContext {
+  period: string;
+  paymentDate: string;
+  eventFrom: string;
+  eventTo: string;
+  holidays: ReadonlySet<string>;
+  tables: TaxTableCache;
+}
+
 /**
- * Creates the month's salary run and a salary row for everyone the company
- * pays that month. Running it again adds people who were missing and
- * rebuilds rows still being prepared, keeping lines added by hand. Rows that
- * are ready or further along are left alone.
+ * Builds or rebuilds one person's salary row in the batch. Lines added or
+ * changed by hand are kept; with `useTimeReports` off, nothing comes from
+ * time reports and the full monthly salary is paid.
+ */
+async function writeSlip(
+  db: Firestore,
+  batch: WriteBatch,
+  actor: PortalUser,
+  person: Eligible,
+  context: SlipContext,
+  stored: DocumentData | undefined,
+  useTimeReports: boolean,
+) {
+  const { user, agreement } = person;
+  const data = user.data();
+  const id = salarySlipId(actor.organizationId, user.id, context.period);
+  const [profileSnapshot, entries, ytd, vacation] = await Promise.all([
+    db
+      .collection("payrollProfiles")
+      .doc(payrollProfileId(actor.organizationId, user.id))
+      .get(),
+    approvedEntries(
+      db,
+      actor.organizationId,
+      user.id,
+      context.eventFrom,
+      context.eventTo,
+    ),
+    yearToDate(db, actor.organizationId, user.id, context.period),
+    vacationDays(db, actor.organizationId, user.id, context.eventTo),
+  ]);
+  const profile = payrollProfileFrom(profileSnapshot.data());
+  const settings = vacationSettingsFrom(data.vacation);
+  const built = buildSalaryLines({
+    period: context.period,
+    agreement,
+    // Without vacation settings the usual 0.8 % supplement applies.
+    supplementBps:
+      settings?.supplementBps ?? DEFAULT_VACATION_SETTINGS.supplementBps,
+    eventFrom: context.eventFrom,
+    eventTo: context.eventTo,
+    entries: useTimeReports ? entries : [],
+    holidays: context.holidays,
+  });
+  const kept: SalaryLine[] = (stored?.lines ?? []).filter(
+    (line: SalaryLine) => line.manual,
+  );
+  const lines = [
+    ...built.filter((line) => !kept.some((item) => item.id === line.id)),
+    ...kept,
+  ];
+  const tax = {
+    year: Number(context.paymentDate.slice(0, 4)),
+    table: profile.taxTable,
+    column: profile.taxColumn,
+    adjustment: profile.taxAdjustment,
+    overrideMinor: stored?.tax?.overrideMinor ?? null,
+  };
+  const { problem, totals } = await workOut(
+    db,
+    actor.organizationId,
+    { lines, tax, profile },
+    context.tables,
+  );
+  batch.set(db.collection("salarySlips").doc(id), {
+    organizationId: actor.organizationId,
+    userId: user.id,
+    period: context.period,
+    paymentDate: context.paymentDate,
+    eventFrom: context.eventFrom,
+    eventTo: context.eventTo,
+    status: "initiated" satisfies SalarySlipStatus,
+    problem,
+    model: agreement.model,
+    agreementId: agreement.id,
+    fundedByConsultant: agreement.model === "flexible",
+    person: personFrom(data, profile),
+    tax,
+    lines,
+    totals,
+    useTimeReports,
+    /** Days with approved time in the event period, used or not. */
+    reportedDays: new Set(entries.map((entry) => entry.date)).size,
+    yearToDate: ytd,
+    vacation,
+    payslipId: stored?.payslipId ?? null,
+    transactionIds: [],
+    version: Number(stored?.version ?? -1) + 1,
+    ...(stored
+      ? {}
+      : { createdAt: FieldValue.serverTimestamp(), createdBy: actor.id }),
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: actor.id,
+  });
+  return id;
+}
+
+/**
+ * Creates the month's salary run with a row for each chosen person. Running
+ * it again adds people newly chosen and rebuilds rows still being prepared,
+ * keeping lines added by hand; rows of people no longer chosen are removed
+ * while still being prepared. Rows that are ready or further along stay.
  */
 export async function generateSalaryRun(
   db: Firestore,
@@ -292,122 +483,42 @@ export async function generateSalaryRun(
     paymentDate: string;
     eventFrom: string;
     eventTo: string;
+    userIds: string[];
   },
 ) {
   requireSalaryPermission(actor, "finance.salary.edit");
-  const { from: monthFrom, to: monthTo } = monthBounds(input.period);
-  const [users, holidays] = await Promise.all([
-    db
-      .collection("users")
-      .where("organizationId", "==", actor.organizationId)
-      .get(),
+  const [people, holidays] = await Promise.all([
+    eligiblePeople(db, actor.organizationId, input.period),
     holidaysBetween(db, actor.organizationId, input.eventFrom, input.eventTo),
   ]);
-  const taxYear = Number(input.paymentDate.slice(0, 4));
-  const tables: TaxTableCache = new Map();
+  const chosen = new Set(input.userIds);
+  const context: SlipContext = { ...input, holidays, tables: new Map() };
   const batch = db.batch();
   const created: string[] = [];
   const rebuilt: string[] = [];
+  const removed: string[] = [];
 
-  for (const user of users.docs) {
-    const data = user.data();
-    if (data.status !== "active") continue;
-    if (
-      !receivesSalary({ role: String(data.role), paysSalary: data.paysSalary })
-    )
-      continue;
-    if (data.employmentStartDate && data.employmentStartDate > monthTo)
-      continue;
-    if (data.employmentEndDate && data.employmentEndDate < monthFrom) continue;
-    const agreement = await agreementForMonth(
-      db,
-      actor.organizationId,
-      user.id,
-      input.period,
-    );
-    if (!agreement || monthlySalaryMinor(agreement) <= 0) continue;
-
-    const id = salarySlipId(actor.organizationId, user.id, input.period);
-    const reference = db.collection("salarySlips").doc(id);
-    const existing = await reference.get();
+  for (const person of people) {
+    const id = salarySlipId(actor.organizationId, person.user.id, input.period);
+    const existing = await db.collection("salarySlips").doc(id).get();
     const stored = existing.data();
     if (existing.exists && stored?.status !== "initiated") continue;
-
-    const [profileSnapshot, entries, ytd, vacation] = await Promise.all([
-      db
-        .collection("payrollProfiles")
-        .doc(payrollProfileId(actor.organizationId, user.id))
-        .get(),
-      approvedEntries(
-        db,
-        actor.organizationId,
-        user.id,
-        input.eventFrom,
-        input.eventTo,
-      ),
-      yearToDate(db, actor.organizationId, user.id, input.period),
-      vacationDays(db, actor.organizationId, user.id, input.eventTo),
-    ]);
-    const profile = payrollProfileFrom(profileSnapshot.data());
-    const settings = vacationSettingsFrom(data.vacation);
-    const built = buildSalaryLines({
-      period: input.period,
-      agreement,
-      // Without vacation settings the usual 0.8 % supplement applies.
-      supplementBps:
-        settings?.supplementBps ?? DEFAULT_VACATION_SETTINGS.supplementBps,
-      eventFrom: input.eventFrom,
-      eventTo: input.eventTo,
-      entries,
-      holidays,
-    });
-    const kept: SalaryLine[] = (stored?.lines ?? []).filter(
-      (line: SalaryLine) => line.manual,
-    );
-    const lines = [
-      ...built.filter((line) => !kept.some((item) => item.id === line.id)),
-      ...kept,
-    ];
-    const tax = {
-      year: taxYear,
-      table: profile.taxTable,
-      column: profile.taxColumn,
-      adjustment: profile.taxAdjustment,
-      overrideMinor: stored?.tax?.overrideMinor ?? null,
-    };
-    const { problem, totals } = await workOut(
+    if (!chosen.has(person.user.id)) {
+      if (existing.exists) {
+        batch.delete(existing.ref);
+        removed.push(id);
+      }
+      continue;
+    }
+    await writeSlip(
       db,
-      actor.organizationId,
-      { lines, tax, profile },
-      tables,
+      batch,
+      actor,
+      person,
+      context,
+      stored,
+      stored?.useTimeReports !== false,
     );
-    batch.set(reference, {
-      organizationId: actor.organizationId,
-      userId: user.id,
-      period: input.period,
-      paymentDate: input.paymentDate,
-      eventFrom: input.eventFrom,
-      eventTo: input.eventTo,
-      status: "initiated" satisfies SalarySlipStatus,
-      problem,
-      model: agreement.model,
-      agreementId: agreement.id,
-      fundedByConsultant: agreement.model === "flexible",
-      person: personFrom(data, profile),
-      tax,
-      lines,
-      totals,
-      yearToDate: ytd,
-      vacation,
-      payslipId: stored?.payslipId ?? null,
-      transactionIds: [],
-      version: Number(stored?.version ?? -1) + 1,
-      ...(existing.exists
-        ? {}
-        : { createdAt: FieldValue.serverTimestamp(), createdBy: actor.id }),
-      updatedAt: FieldValue.serverTimestamp(),
-      updatedBy: actor.id,
-    });
     (existing.exists ? rebuilt : created).push(id);
   }
 
@@ -420,6 +531,9 @@ export async function generateSalaryRun(
       paymentDate: input.paymentDate,
       eventFrom: input.eventFrom,
       eventTo: input.eventTo,
+      excludedUserIds: people
+        .map((person) => person.user.id)
+        .filter((userId) => !chosen.has(userId)),
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: actor.id,
     },
@@ -432,10 +546,90 @@ export async function generateSalaryRun(
     entityType: "salaryRun",
     entityId: runId,
     timestamp: FieldValue.serverTimestamp(),
-    metadata: { period: input.period, created, rebuilt },
+    metadata: { period: input.period, created, rebuilt, removed },
   });
   await batch.commit();
   return { id: runId, created: created.length, rebuilt: rebuilt.length };
+}
+
+/** A row's stored run details, or a missing-row error. */
+async function initiatedSlip(db: Firestore, actor: PortalUser, slipId: string) {
+  const reference = db.collection("salarySlips").doc(slipId);
+  const snapshot = await reference.get();
+  const data = snapshot.data();
+  if (!snapshot.exists || data?.organizationId !== actor.organizationId)
+    throw new FinanceError("salarySlipMissing", 404);
+  if (data.status !== "initiated")
+    throw new FinanceError("salarySlipLocked", 409);
+  return { reference, data };
+}
+
+/**
+ * Rebuilds one row with or without its time reports. Without them the full
+ * monthly salary is paid, with no vacation supplement or leave deductions.
+ */
+export async function setSalarySlipTimeReports(
+  db: Firestore,
+  actor: PortalUser,
+  input: { slipId: string; version: number; useTimeReports: boolean },
+) {
+  requireSalaryPermission(actor, "finance.salary.edit");
+  const { data } = await initiatedSlip(db, actor, input.slipId);
+  if (data.version !== input.version)
+    throw new FinanceError("salarySlipChanged", 409);
+  const person = (
+    await eligiblePeople(db, actor.organizationId, String(data.period))
+  ).find(({ user }) => user.id === data.userId);
+  if (!person) throw new FinanceError("salarySlipMissing", 404);
+  const batch = db.batch();
+  await writeSlip(
+    db,
+    batch,
+    actor,
+    person,
+    {
+      period: String(data.period),
+      paymentDate: String(data.paymentDate),
+      eventFrom: String(data.eventFrom),
+      eventTo: String(data.eventTo),
+      holidays: await holidaysBetween(
+        db,
+        actor.organizationId,
+        String(data.eventFrom),
+        String(data.eventTo),
+      ),
+      tables: new Map(),
+    },
+    data,
+    input.useTimeReports,
+  );
+  audit(db, batch, actor, "salarySlip.timeReports", input.slipId, {
+    useTimeReports: input.useTimeReports,
+  });
+  await batch.commit();
+}
+
+/** Takes a person out of the month's salaries while their row is prepared. */
+export async function removeSalarySlip(
+  db: Firestore,
+  actor: PortalUser,
+  input: { slipId: string },
+) {
+  requireSalaryPermission(actor, "finance.salary.edit");
+  const { reference, data } = await initiatedSlip(db, actor, input.slipId);
+  const batch = db.batch();
+  batch.delete(reference);
+  batch.set(
+    db
+      .collection("salaryRuns")
+      .doc(salaryRunId(actor.organizationId, String(data.period))),
+    { excludedUserIds: FieldValue.arrayUnion(String(data.userId)) },
+    { merge: true },
+  );
+  audit(db, batch, actor, "salarySlip.removed", input.slipId, {
+    userId: data.userId,
+  });
+  await batch.commit();
 }
 
 function normalizeLines(lines: SalaryLineInput[]): SalaryLine[] {

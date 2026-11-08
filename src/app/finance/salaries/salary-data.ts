@@ -29,6 +29,10 @@ export interface SalaryRow {
   totals: SalaryTotals;
   payslipId: string | null;
   version: number;
+  /** Whether vacation and leave come from time reports. */
+  useTimeReports: boolean;
+  /** Days with approved time in the event period. */
+  reportedDays: number;
   /** A flexible consultant's balance before this salary, in öre. */
   balanceMinor: number | null;
 }
@@ -37,6 +41,8 @@ export interface SalaryRunInfo {
   paymentDate: string;
   eventFrom: string;
   eventTo: string;
+  /** People left out of the month on purpose. */
+  excludedUserIds: string[];
 }
 
 function rowFrom(
@@ -61,6 +67,8 @@ function rowFrom(
     totals: data.totals,
     payslipId: data.payslipId ?? null,
     version: Number(data.version ?? 0),
+    useTimeReports: data.useTimeReports !== false,
+    reportedDays: Number(data.reportedDays ?? 0),
   };
 }
 
@@ -114,6 +122,9 @@ export async function loadSalaryRun(
           paymentDate: String(data.paymentDate),
           eventFrom: String(data.eventFrom),
           eventTo: String(data.eventTo),
+          excludedUserIds: Array.isArray(data.excludedUserIds)
+            ? data.excludedUserIds.map(String)
+            : [],
         }
       : null,
     rows: rows.sort((left, right) => left.name.localeCompare(right.name, "sv")),
