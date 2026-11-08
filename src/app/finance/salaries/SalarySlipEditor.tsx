@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { DateInput } from "@/components/ui/DateInput";
-import { FileRemoveIcon } from "@/components/ui/FileActionIcons";
 import { InfoTip } from "@/components/ui/InfoTip";
 import {
   lineAmountMinor,
@@ -394,7 +393,7 @@ export function SalarySlipEditor({
                           )
                         }
                       >
-                        <FileRemoveIcon />
+                        <ActionIcon type="delete" />
                       </button>
                     </td>
                   </tr>

@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { DateInput } from "@/components/ui/DateInput";
-import { FileRemoveIcon } from "@/components/ui/FileActionIcons";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { compensationModelLabels } from "@/domain/finance/compensation";
 import {
@@ -136,7 +135,7 @@ export function SalaryRun({
         <div className="salary-run-head">
           <div className="salary-month-nav">
             <Link
-              className="icon-button"
+              className="timesheet-week-arrow"
               href={`/finance/salaries?period=${shiftMonth(period, -1)}`}
               aria-label={t("previousMonth")}
               title={t("previousMonth")}
@@ -145,7 +144,7 @@ export function SalaryRun({
             </Link>
             <h2>{monthName(period, locale)}</h2>
             <Link
-              className="icon-button"
+              className="timesheet-week-arrow"
               href={`/finance/salaries?period=${shiftMonth(period, 1)}`}
               aria-label={t("nextMonth")}
               title={t("nextMonth")}
@@ -304,7 +303,7 @@ export function SalaryRun({
                               setRemoving(row);
                             }}
                           >
-                            <FileRemoveIcon />
+                            <ActionIcon type="delete" />
                           </button>
                         )}
                       </div>
