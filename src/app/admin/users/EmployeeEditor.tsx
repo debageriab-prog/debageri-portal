@@ -102,7 +102,7 @@ export function EmployeeEditor({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const creating = !employee;
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const [tab, setActiveTab] = useState<Tab>(initialTab);
   const [values, setValues] = useState({
     displayName: employee?.displayName ?? "",
     email: employee?.email ?? "",
@@ -159,6 +159,12 @@ export function EmployeeEditor({
     compensationFailed ? t("employeeCompensationSaveFailed") : "",
   );
   const [message, setMessage] = useState("");
+
+  /** A saved message belongs to the tab it was shown on. */
+  function setTab(next: Tab) {
+    setActiveTab(next);
+    setMessage("");
+  }
   const reportsTime =
     role === "consultant" || (staffRoles.includes(role) && managerReportsTime);
   const audience = audienceForRole(role);
@@ -747,10 +753,8 @@ export function EmployeeEditor({
                     }))
                   }
                 />
-                <span>
-                  <strong>{t(`notificationTopic_${topic}`)}</strong>
-                  <small>{t(`notificationTopicHelp_${topic}`)}</small>
-                </span>
+                <span>{t(`notificationTopic_${topic}`)}</span>
+                <InfoTip text={t(`notificationTopicHelp_${topic}`)} />
               </label>
             ))}
           </fieldset>
