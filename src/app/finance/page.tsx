@@ -319,6 +319,8 @@ export default async function FinancePage({
     validTo: document.data().validTo ?? null,
     shareBps: Number(document.data().shareBps ?? 0),
     fixedMonthlySalaryMinor: document.data().fixedMonthlySalaryMinor ?? null,
+    requestedMonthlySalaryMinor:
+      document.data().requestedMonthlySalaryMinor ?? null,
   }));
   const customers: FinancePageData["customers"] = (
     customersSnapshot?.docs ?? []

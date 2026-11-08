@@ -4,8 +4,11 @@ import type { PermissionKey } from "@/domain/access/permissions";
 export type UserRole =
   "employee" | "consultant" | "manager" | "accountant" | "admin";
 export type UserStatus = "active" | "inactive";
-/** `hybrid` pays a fixed monthly salary plus a share of invoices. */
-export type CompensationModel = "flexible" | "fixed" | "hybrid";
+/**
+ * `hybrid` pays a fixed monthly salary plus a share of invoices. `salaried` is
+ * a monthly salary for staff the company pays who do not bill customers.
+ */
+export type CompensationModel = "flexible" | "fixed" | "hybrid" | "salaried";
 export type FinanceDirection = "income" | "expense";
 export type FinanceFunding = "company" | "consultant";
 export type TimesheetStatus =
@@ -38,6 +41,8 @@ export interface PortalUser {
   timezone: "Europe/Stockholm";
   locale: "sv-SE" | "en-SE";
   compensationModel?: CompensationModel | null;
+  /** Staff the company pays a salary; consultants are always paid. */
+  paysSalary?: boolean;
   accessProfileId: string | null;
   permissions: PermissionKey[];
   emailPreferences: Record<"receipts" | "payslips" | "timesheets", boolean>;
@@ -83,6 +88,8 @@ export interface CompensationAgreement {
   validTo: string | null;
   shareBps: number;
   fixedMonthlySalaryMinor: number | null;
+  /** The monthly salary a flexible consultant asks for, paid from their balance. */
+  requestedMonthlySalaryMinor: number | null;
 }
 
 export interface FinanceCategory {

@@ -18,6 +18,10 @@ import {
 } from "@/server/validators/vacation";
 import { addVacationSetup } from "@/server/services/vacation-service";
 import { stockholmDateTime } from "@/lib/dates/stockholm";
+import { canBePaidSalary } from "@/domain/finance/compensation";
+import { emptyPayrollProfile } from "@/domain/salary/payroll-profile";
+import { writePayrollProfile } from "@/server/services/payroll-service";
+import { payrollProfileSchema } from "@/server/validators/payroll";
 
 const inputSchema = z
   .object({
@@ -34,6 +38,8 @@ const inputSchema = z
     locale: localeSchema,
     vacation: vacationSettingsSchema.nullable().optional(),
     vacationOpening: vacationOpeningSchema.optional(),
+    paysSalary: z.boolean().default(false),
+    payroll: payrollProfileSchema.optional(),
   })
   .superRefine((value, context) => {
     if (value.role === "admin" && value.vacation)
@@ -106,6 +112,7 @@ export async function POST(request: Request) {
       timezone: actor.timezone,
       locale: parsed.data.locale,
       vacation: parsed.data.vacation ?? null,
+      paysSalary: canBePaidSalary(parsed.data.role) && parsed.data.paysSalary,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -124,6 +131,18 @@ export async function POST(request: Request) {
         vacation: parsed.data.vacation ?? null,
       },
     });
+    if (parsed.data.payroll)
+      writePayrollProfile(
+        db,
+        batch,
+        {
+          organizationId: actor.organizationId,
+          actorId: actor.id,
+          userId: uid,
+        },
+        emptyPayrollProfile(),
+        parsed.data.payroll,
+      );
     if (parsed.data.vacation)
       addVacationSetup(
         db,

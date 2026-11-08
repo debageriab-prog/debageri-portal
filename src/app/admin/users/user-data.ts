@@ -4,8 +4,10 @@ import {
   emailPreferencesFrom,
   notificationLocale,
 } from "@/domain/notifications";
-import type { CompensationRecord } from "@/domain/finance/compensation";
-import type { CompensationModel } from "@/domain/types";
+import {
+  isCompensationModel,
+  type CompensationRecord,
+} from "@/domain/finance/compensation";
 import { vacationSettingsFrom } from "@/server/services/vacation-service";
 import type { ManagedUser } from "./UserManagement";
 
@@ -39,6 +41,8 @@ export async function compensationHistory(
     validTo: document.data().validTo ?? null,
     shareBps: Number(document.data().shareBps ?? 0),
     fixedMonthlySalaryMinor: document.data().fixedMonthlySalaryMinor ?? null,
+    requestedMonthlySalaryMinor:
+      document.data().requestedMonthlySalaryMinor ?? null,
   }));
 }
 
@@ -65,11 +69,10 @@ export function toManagedUser(
     accessProfileName: profileNames.get(data.accessProfileId) ?? null,
     emailPreferences: emailPreferencesFrom(data.emailPreferences),
     locale: notificationLocale(data.locale),
-    compensationModel: (["flexible", "fixed", "hybrid"].includes(
-      data.compensationModel,
-    )
+    compensationModel: isCompensationModel(data.compensationModel)
       ? data.compensationModel
-      : null) as CompensationModel | null,
+      : null,
+    paysSalary: data.paysSalary === true,
     vacation: vacationSettingsFrom(data.vacation),
   };
 }

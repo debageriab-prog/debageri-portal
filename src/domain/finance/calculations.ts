@@ -78,13 +78,20 @@ export function earnsInvoiceShare(model: CompensationModel | null | undefined) {
   return model === "flexible" || model === "hybrid";
 }
 
+/** Fixed salaries leave no personal balance; flexible and hybrid ones do. */
+export function hasPersonalBalance(
+  model: CompensationModel | null | undefined,
+) {
+  return model !== "fixed" && model !== "salaried";
+}
+
 /** Fixed-salary consultants have no personal balance to show in My finances. */
 export function canViewMyFinance(
   user: Pick<PortalUser, "compensationModel" | "permissions">,
 ) {
   return (
     user.permissions.includes("my.finance") &&
-    user.compensationModel !== "fixed"
+    hasPersonalBalance(user.compensationModel)
   );
 }
 
@@ -94,7 +101,7 @@ export function canViewMyTransactions(
 ) {
   return (
     user.permissions.includes("my.transactions") &&
-    user.compensationModel !== "fixed"
+    hasPersonalBalance(user.compensationModel)
   );
 }
 

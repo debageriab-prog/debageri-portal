@@ -4,6 +4,9 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
 import { listAccessProfiles } from "@/server/services/access-profile-service";
+import { stockholmDateTime } from "@/lib/dates/stockholm";
+import { loadPayrollProfile } from "@/server/services/payroll-service";
+import { municipalitiesFor } from "@/server/services/tax-table-service";
 import { EmployeeEditor } from "../../EmployeeEditor";
 import {
   compensationHistory,
@@ -30,13 +33,18 @@ export default async function EditEmployeePage({
   )
     notFound();
   const employee = toManagedUser(snapshot);
-  const [canManageCompensation, agreements, accessProfiles] = await Promise.all(
-    [
+  const [canManageCompensation, agreements, accessProfiles, payroll, rates] =
+    await Promise.all([
       financeEnabled(db, actor.organizationId),
       compensationHistory(db, actor.organizationId, id),
       listAccessProfiles(db, actor.organizationId),
-    ],
-  );
+      loadPayrollProfile(db, actor.organizationId, id),
+      municipalitiesFor(
+        db,
+        actor.organizationId,
+        Number(stockholmDateTime().date.slice(0, 4)),
+      ),
+    ]);
   return (
     <>
       <div className="topbar">
@@ -57,8 +65,13 @@ export default async function EditEmployeePage({
         accessProfiles={accessProfiles}
         agreements={agreements}
         initialTab={
-          tab === "compensation" || tab === "vacation" ? tab : undefined
+          tab === "compensation" || tab === "vacation" || tab === "payroll"
+            ? tab
+            : undefined
         }
+        payroll={payroll}
+        municipalities={rates?.municipalities ?? []}
+        taxYear={rates?.year ?? null}
         compensationFailed={Boolean(compensationFailed)}
       />
     </>

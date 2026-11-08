@@ -13,6 +13,12 @@ import {
   employmentDatesValid,
   localeSchema,
 } from "@/server/validators/user-access";
+import { canBePaidSalary } from "@/domain/finance/compensation";
+import {
+  loadPayrollProfile,
+  writePayrollProfile,
+} from "@/server/services/payroll-service";
+import { payrollProfileSchema } from "@/server/validators/payroll";
 import { vacationSettingsSchema } from "@/server/validators/vacation";
 import { vacationSettingsFrom } from "@/server/services/vacation-service";
 
@@ -31,6 +37,8 @@ const updateSchema = z
     emailPreferences: emailPreferencesSchema.optional(),
     locale: localeSchema,
     vacation: vacationSettingsSchema.nullable().optional(),
+    paysSalary: z.boolean().optional(),
+    payroll: payrollProfileSchema.optional(),
   })
   .superRefine((value, context) => {
     if (value.role === "admin" && value.vacation)
@@ -46,6 +54,11 @@ const updateSchema = z
         message: "The employment end date cannot be before the start date",
       });
   });
+
+/** Only staff roles are marked as paid; consultants always are. */
+function payrollStaff(value: { role: string; paysSalary?: boolean }) {
+  return canBePaidSalary(value.role) && value.paysSalary === true;
+}
 
 async function loadTarget(id: string) {
   const actor = await verifySession();
@@ -116,7 +129,22 @@ export async function PATCH(
       organizationId: loaded.actor.organizationId,
     });
     const vacation = parsed.data.role === "admin" ? null : parsed.data.vacation;
+    const previousPayroll = parsed.data.payroll
+      ? await loadPayrollProfile(loaded.db, loaded.actor.organizationId, id)
+      : null;
     const batch = loaded.db.batch();
+    if (parsed.data.payroll && previousPayroll)
+      writePayrollProfile(
+        loaded.db,
+        batch,
+        {
+          organizationId: loaded.actor.organizationId,
+          actorId: loaded.actor.id,
+          userId: id,
+        },
+        previousPayroll,
+        parsed.data.payroll,
+      );
     batch.update(loaded.target.ref, {
       displayName: parsed.data.displayName,
       email: parsed.data.email,
@@ -137,6 +165,9 @@ export async function PATCH(
         : {}),
       locale: parsed.data.locale,
       ...(vacation !== undefined ? { vacation } : {}),
+      ...(parsed.data.paysSalary !== undefined
+        ? { paysSalary: payrollStaff(parsed.data) }
+        : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     if (
@@ -171,6 +202,9 @@ export async function PATCH(
           ? { emailPreferences: parsed.data.emailPreferences }
           : {}),
         locale: parsed.data.locale,
+        ...(parsed.data.paysSalary !== undefined
+          ? { paysSalary: payrollStaff(parsed.data) }
+          : {}),
       },
     });
     await batch.commit();

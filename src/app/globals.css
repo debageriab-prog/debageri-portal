@@ -4028,6 +4028,27 @@ td.amount-cell {
   display: grid;
   gap: 18px;
 }
+.payroll-sections {
+  display: grid;
+  gap: 18px;
+}
+/* Links inside notices and payroll sections must read as links. */
+.notice a,
+.payroll-sections .text-link {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.notice a {
+  color: inherit;
+}
+.payroll-sections .text-link {
+  color: var(--green);
+}
+.personal-details .form-grid,
+.payroll-sections .access-section .form-grid {
+  margin-bottom: 0;
+}
 .invoice-settings-form .access-section .form-grid {
   margin-bottom: 0;
 }

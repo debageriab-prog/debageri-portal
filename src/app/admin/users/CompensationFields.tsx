@@ -2,8 +2,10 @@
 
 import { DateInput } from "@/components/ui/DateInput";
 import { useLocale } from "@/components/localization/LocaleProvider";
+import { InfoTip } from "@/components/ui/InfoTip";
 import {
   compensationModelLabels,
+  compensationModelsFor,
   type CompensationValues,
 } from "@/domain/finance/compensation";
 import { appCheckFetch } from "@/lib/firebase/client";
@@ -24,36 +26,42 @@ export async function postCompensationAction(payload: Record<string, unknown>) {
 
 export function CompensationFields({
   values,
+  role,
   onChange,
 }: {
   values: CompensationValues;
+  role: string;
   onChange(values: Partial<CompensationValues>): void;
 }) {
   const { t } = useLocale();
+  const models = compensationModelsFor(role);
+  const earnsShare = values.model === "flexible" || values.model === "hybrid";
   return (
     <>
-      <label>
-        {t("compensationModel")}
-        <select
-          className="field"
-          value={values.model}
-          onChange={(event) => {
-            const model = event.target.value as CompensationValues["model"];
-            // The flexible default is far too high on top of a salary.
-            onChange({
-              model,
-              ...(model === "hybrid" ? { sharePercent: "" } : {}),
-            });
-          }}
-        >
-          {(["flexible", "fixed", "hybrid"] as const).map((model) => (
-            <option key={model} value={model}>
-              {t(compensationModelLabels[model])}
-            </option>
-          ))}
-        </select>
-      </label>
-      {values.model !== "fixed" && (
+      {models.length > 1 && (
+        <label>
+          {t("compensationModel")}
+          <select
+            className="field"
+            value={values.model}
+            onChange={(event) => {
+              const model = event.target.value as CompensationValues["model"];
+              // The flexible default is far too high on top of a salary.
+              onChange({
+                model,
+                ...(model === "hybrid" ? { sharePercent: "" } : {}),
+              });
+            }}
+          >
+            {models.map((model) => (
+              <option key={model} value={model}>
+                {t(compensationModelLabels[model])}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {earnsShare && (
         <label>
           {t("invoiceSharePercent")}
           <input
@@ -68,7 +76,25 @@ export function CompensationFields({
           />
         </label>
       )}
-      {values.model !== "flexible" && (
+      {values.model === "flexible" ? (
+        <label>
+          <span>
+            {t("requestedMonthlySalary")}{" "}
+            <InfoTip text={t("requestedMonthlySalaryTip")} />
+          </span>
+          <input
+            className="field"
+            type="number"
+            value={values.requestedSalary}
+            onChange={(event) =>
+              onChange({ requestedSalary: event.target.value })
+            }
+            min="0.01"
+            step="0.01"
+            required
+          />
+        </label>
+      ) : (
         <label>
           {t("monthlySalary")}
           <input

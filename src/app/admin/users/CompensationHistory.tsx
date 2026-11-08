@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { DateInput } from "@/components/ui/DateInput";
 import { useLocale } from "@/components/localization/LocaleProvider";
-import { formatSek } from "@/domain/finance/calculations";
+import { earnsInvoiceShare, formatSek } from "@/domain/finance/calculations";
 import {
   COMPENSATION_END_CONFIRMATION,
   compensationInput,
   compensationModelLabels,
+  compensationModelsFor,
   defaultCompensationValues,
   previousDay,
   type CompensationRecord,
@@ -61,7 +62,9 @@ export function CompensationTable({
                 {[
                   agreement.fixedMonthlySalaryMinor !== null &&
                     `${t("monthlySalary")}: ${formatSek(agreement.fixedMonthlySalaryMinor, locale)}`,
-                  agreement.model !== "fixed" &&
+                  agreement.requestedMonthlySalaryMinor !== null &&
+                    `${t("requestedMonthlySalary")}: ${formatSek(agreement.requestedMonthlySalaryMinor, locale)}`,
+                  earnsInvoiceShare(agreement.model) &&
                     `${t("invoiceSharePercent")}: ${agreement.shareBps / 100}%`,
                 ]
                   .filter(Boolean)
@@ -97,7 +100,7 @@ export function AddCompensationDialog({
   close,
   onSaved,
 }: {
-  employee: { id: string; displayName: string };
+  employee: { id: string; displayName: string; role: string };
   openAgreement: CompensationRecord | null;
   close(): void;
   onSaved(): void;
@@ -105,7 +108,7 @@ export function AddCompensationDialog({
   const { t } = useLocale();
   const router = useRouter();
   const [values, setValues] = useState(() =>
-    defaultCompensationValues(today()),
+    defaultCompensationValues(today(), compensationModelsFor(employee.role)[0]),
   );
   const [confirming, setConfirming] = useState(false);
   const [confirmation, setConfirmation] = useState("");
@@ -234,6 +237,7 @@ export function AddCompensationDialog({
         <div className="form-grid">
           <CompensationFields
             values={values}
+            role={employee.role}
             onChange={(change) =>
               setValues((current) => ({ ...current, ...change }))
             }

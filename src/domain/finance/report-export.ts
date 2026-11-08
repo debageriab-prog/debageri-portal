@@ -4,6 +4,7 @@ import {
 } from "@/domain/reports/time-report-export";
 import type { CompensationModel } from "@/domain/types";
 import {
+  hasPersonalBalance,
   isSalaryRelatedExpenseCode,
   SALARY_RELATED_EXPENSE_CODES,
 } from "./calculations";
@@ -35,7 +36,9 @@ export function reportViewFor(
   const current = [...agreements]
     .filter((agreement) => agreement.validFrom <= periodEnd)
     .sort((left, right) => right.validFrom.localeCompare(left.validFrom))[0];
-  return (current?.model ?? userModel) === "fixed" ? "company" : "balance";
+  return hasPersonalBalance(current?.model ?? userModel)
+    ? "balance"
+    : "company";
 }
 
 export type ReportTransaction = {

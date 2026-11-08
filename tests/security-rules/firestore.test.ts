@@ -282,4 +282,28 @@ describe("Firestore rules", () => {
       }),
     );
   });
+  it("keeps payroll details and tax tables server-only", async () => {
+    const paths = [
+      "payrollProfiles/debageri_u1",
+      "taxTables/debageri_2026_33",
+      "municipalTaxRates/debageri_2026",
+    ];
+    await env.withSecurityRulesDisabled(async (context) => {
+      for (const path of paths)
+        await setDoc(doc(context.firestore(), path), {
+          organizationId: "debageri",
+          userId: "u1",
+        });
+    });
+    const consultant = env.authenticatedContext("u1").firestore();
+    for (const path of paths) {
+      await assertFails(getDoc(doc(consultant, path)));
+      await assertFails(
+        setDoc(doc(consultant, path), {
+          organizationId: "debageri",
+          userId: "u1",
+        }),
+      );
+    }
+  });
 });

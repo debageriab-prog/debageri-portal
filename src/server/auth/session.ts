@@ -3,6 +3,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { cookies } from "next/headers";
 import { cache } from "react";
+import { receivesSalary } from "@/domain/finance/compensation";
 import { canImpersonate, IMPERSONATION_COOKIE } from "@/domain/impersonation";
 import type { PortalUser } from "@/domain/types";
 import { getAdminServices } from "@/lib/firebase/admin";
@@ -20,7 +21,9 @@ async function loadPortalUser(
   const data = snapshot.data();
   if (!snapshot.exists || data?.status !== "active") return null;
   let compensationModel = data.compensationModel ?? null;
-  if (data.role === "consultant") {
+  if (
+    receivesSalary({ role: String(data.role), paysSalary: data.paysSalary })
+  ) {
     const currentDate = new Date().toISOString().slice(0, 10);
     const agreement = await db
       .collection("compensationAgreements")
@@ -54,6 +57,7 @@ async function loadPortalUser(
     timezone: data.timezone,
     locale: data.locale,
     compensationModel,
+    paysSalary: data.paysSalary === true,
     emailPreferences: {
       receipts: data.emailPreferences?.receipts !== false,
       payslips: data.emailPreferences?.payslips !== false,

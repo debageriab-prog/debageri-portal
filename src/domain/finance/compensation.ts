@@ -15,7 +15,57 @@ export const compensationModelLabels = {
   flexible: "flexible",
   fixed: "fixedSalary",
   hybrid: "fixedSalaryAndShare",
+  salaried: "salariedModel",
 } as const;
+
+export const COMPENSATION_MODELS = [
+  "flexible",
+  "fixed",
+  "hybrid",
+  "salaried",
+] as const satisfies readonly CompensationModel[];
+
+export function isCompensationModel(
+  value: unknown,
+): value is CompensationModel {
+  return COMPENSATION_MODELS.includes(value as CompensationModel);
+}
+
+function isConsultantRole(role: string) {
+  return role === "consultant" || role === "employee";
+}
+
+/** Consultants are always paid; other staff only when the company pays them. */
+export function receivesSalary(user: {
+  role: string;
+  paysSalary?: boolean | null;
+}) {
+  return isConsultantRole(user.role) || user.paysSalary === true;
+}
+
+/** Roles that can be marked as paid by the company. */
+export function canBePaidSalary(role: string) {
+  return ["manager", "accountant", "admin"].includes(role);
+}
+
+/** Consultants pick how they are paid; other staff draw a monthly salary. */
+export function compensationModelsFor(role: string): CompensationModel[] {
+  return isConsultantRole(role)
+    ? ["flexible", "fixed", "hybrid"]
+    : ["salaried"];
+}
+
+/** The salary the person is paid each month under an agreement. */
+export function monthlySalaryMinor(
+  agreement: Pick<
+    CompensationAgreement,
+    "model" | "fixedMonthlySalaryMinor" | "requestedMonthlySalaryMinor"
+  >,
+) {
+  return agreement.model === "flexible"
+    ? (agreement.requestedMonthlySalaryMinor ?? 0)
+    : (agreement.fixedMonthlySalaryMinor ?? 0);
+}
 
 /** Compensation form fields as entered; amounts are still text. */
 export interface CompensationValues {
@@ -24,17 +74,20 @@ export interface CompensationValues {
   validTo: string;
   sharePercent: string;
   fixedSalary: string;
+  requestedSalary: string;
 }
 
 export function defaultCompensationValues(
   validFrom: string,
+  model: CompensationModel = "flexible",
 ): CompensationValues {
   return {
-    model: "flexible",
+    model,
     validFrom,
     validTo: "",
-    sharePercent: "90",
+    sharePercent: model === "flexible" ? "90" : "",
     fixedSalary: "",
+    requestedSalary: "",
   };
 }
 
@@ -50,12 +103,61 @@ export function compensationInput(values: CompensationValues) {
     validFrom: values.validFrom,
     validTo: values.validTo || null,
     shareBps:
-      values.model === "fixed"
-        ? 0
-        : Math.round(Number(values.sharePercent) * 100),
+      values.model === "flexible" || values.model === "hybrid"
+        ? Math.round(Number(values.sharePercent) * 100)
+        : 0,
     fixedMonthlySalaryMinor:
       values.model === "flexible" ? null : parseSek(values.fixedSalary),
+    requestedMonthlySalaryMinor:
+      values.model === "flexible" ? parseSek(values.requestedSalary) : null,
   };
+}
+
+/**
+ * Why an agreement does not fit the person, or null when it does. Flexible
+ * consultants name the salary they want paid from their balance; everyone
+ * else has a fixed monthly salary.
+ */
+export function compensationProblem(
+  person: { role: string; paysSalary?: boolean | null },
+  input: Pick<
+    CompensationAgreement,
+    | "model"
+    | "validFrom"
+    | "validTo"
+    | "shareBps"
+    | "fixedMonthlySalaryMinor"
+    | "requestedMonthlySalaryMinor"
+  >,
+): "compensationNotPaid" | "compensationInvalid" | null {
+  if (!receivesSalary(person)) return "compensationNotPaid";
+  if (!compensationModelsFor(person.role).includes(input.model))
+    return "compensationInvalid";
+  if (input.validTo && input.validTo < input.validFrom)
+    return "compensationInvalid";
+  const salary = input.fixedMonthlySalaryMinor;
+  const requested = input.requestedMonthlySalaryMinor;
+  switch (input.model) {
+    case "flexible":
+      return salary === null && requested !== null && requested > 0
+        ? null
+        : "compensationInvalid";
+    case "hybrid":
+      return input.shareBps > 0 &&
+        salary !== null &&
+        salary > 0 &&
+        requested === null
+        ? null
+        : "compensationInvalid";
+    case "fixed":
+    case "salaried":
+      return input.shareBps === 0 &&
+        salary !== null &&
+        salary > 0 &&
+        requested === null
+        ? null
+        : "compensationInvalid";
+  }
 }
 
 export interface MonthlyCompensation {
