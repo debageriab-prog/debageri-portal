@@ -417,14 +417,14 @@ export function EmployeeEditor({
                   }
                   disabled={isSelf}
                 />
-                <span>
-                  <strong>{t("reportsTime")}</strong>
-                  <small>{t("managerReportsTimeHelp")}</small>
-                </span>
+                <span>{t("reportsTime")}</span>
+                <InfoTip text={t("managerReportsTimeHelp")} />
               </label>
             )}
             <label>
-              {t("language")}
+              <span>
+                {t("language")} <InfoTip text={t("employeeLanguageHelp")} />
+              </span>
               <select
                 className="field"
                 value={language}
@@ -434,11 +434,13 @@ export function EmployeeEditor({
                 <option value="en-SE">English</option>
                 <option value="sv-SE">Svenska</option>
               </select>
-              <small>{t("employeeLanguageHelp")}</small>
             </label>
             {creating ? (
               <label>
-                {t("temporaryPassword")}
+                <span>
+                  {t("temporaryPassword")}{" "}
+                  <InfoTip text={t("temporaryPasswordHelp")} />
+                </span>
                 <input
                   className="field"
                   type="password"
@@ -450,11 +452,13 @@ export function EmployeeEditor({
                   autoComplete="new-password"
                   required
                 />
-                <small>{t("temporaryPasswordHelp")}</small>
               </label>
             ) : (
               <label>
-                {t("accountStatus")}
+                <span>
+                  {t("accountStatus")}{" "}
+                  <InfoTip text={t("inactiveAccountHelp")} />
+                </span>
                 <select
                   className="field"
                   value={values.status}
@@ -464,7 +468,6 @@ export function EmployeeEditor({
                   <option value="active">{t("active")}</option>
                   <option value="inactive">{t("inactive")}</option>
                 </select>
-                <small>{t("inactiveAccountHelp")}</small>
               </label>
             )}
           </div>
@@ -516,7 +519,10 @@ export function EmployeeEditor({
             )}
             {reportsTime ? (
               <label>
-                {t("reportingStartDate")}
+                <span>
+                  {t("reportingStartDate")}{" "}
+                  <InfoTip text={t("reportingStartHelp")} />
+                </span>
                 <DateInput
                   className="field"
                   value={values.reportingStartDate}
@@ -526,7 +532,6 @@ export function EmployeeEditor({
                   disabled={isSelf}
                   required
                 />
-                <small>{t("reportingStartHelp")}</small>
               </label>
             ) : (
               <p className="muted form-wide">{t("employeeNoTimeReporting")}</p>
