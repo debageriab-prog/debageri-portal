@@ -1675,7 +1675,7 @@
   "employeeTab_vacation": "Vacation",
   "employeeTabIntro_vacation": "Yearly vacation days, the date the vacation year starts and the vacation pay supplement. New days are granted automatically on that date.",
   "employeeTab_payroll": "Payroll",
-  "employeeTabIntro_payroll": "What the payslip and the tax deduction need: personal identity number, address, kommun and tax table. Only administrators see these details.",
+  "employeeTabIntro_payroll": "How the tax deduction is worked out and where the salary is paid. Only administrators see these details.",
   "personalNumber": "Personal identity number",
   "personalNumberInvalid": "Enter a valid personal identity number, for example 19900101-1234.",
   "streetAddress": "Street address",

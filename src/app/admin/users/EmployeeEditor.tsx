@@ -33,6 +33,7 @@ import {
 import type { ManagedUser } from "./UserManagement";
 import {
   PayrollPanel,
+  PersonalDetailsFields,
   payrollFormDefaults,
   payrollPayload,
 } from "./PayrollPanel";
@@ -229,9 +230,8 @@ export function EmployeeEditor({
       locale: language,
       ...vacationPayload(vacation, role, creating),
       paysSalary: salaryChoice && paysSalary,
-      ...(isPaid
-        ? { payroll: payrollPayload(payrollValues, municipalities) }
-        : {}),
+      // Personal details are kept for everyone; tax fields keep their values.
+      payroll: payrollPayload(payrollValues, municipalities),
       ...(creating
         ? { password: values.password }
         : {
@@ -441,6 +441,12 @@ export function EmployeeEditor({
               </label>
             )}
           </div>
+          <PersonalDetailsFields
+            values={payrollValues}
+            onChange={(change) =>
+              setPayrollValues((current) => ({ ...current, ...change }))
+            }
+          />
         </section>
 
         <section

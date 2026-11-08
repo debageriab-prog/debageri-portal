@@ -71,9 +71,11 @@ stays effective-dated.
 
 Payroll details live in `payrollProfiles`, not on the user document, because
 the user can read their own user document and the profile holds the
-personnummer. Admins edit them on the employee's Payroll tab, which is saved
-with the rest of the employee, and the audit log records only which fields
-changed. Preliminary tax comes from Skatteverket's monthly tax tables, which
+personnummer. The personnummer and home address are kept for every employee
+and edited under Personal details on the General information tab; the tax
+details and salary account are on the Payroll tab, shown only for people the
+company pays. Both are saved with the rest of the employee, and the audit log
+records only which fields changed. Preliminary tax comes from Skatteverket's monthly tax tables, which
 an admin imports per year under Finance > Salaries > Tax tables from
 Skatteverket's open data (EntryScape rowstore). The kommun's total rate, with
 the parish church fee for members, suggests the table: rates are rounded to

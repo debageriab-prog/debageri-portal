@@ -1675,7 +1675,7 @@
   "employeeTab_vacation": "Semester",
   "employeeTabIntro_vacation": "Semesterdagar per år, när semesteråret börjar och semestertillägget. Nya dagar läggs till automatiskt det datumet.",
   "employeeTab_payroll": "Lön",
-  "employeeTabIntro_payroll": "Det som lönespecifikationen och skatteavdraget behöver: personnummer, adress, kommun och skattetabell. Bara administratörer ser uppgifterna.",
+  "employeeTabIntro_payroll": "Hur skatteavdraget räknas fram och vart lönen betalas. Bara administratörer ser uppgifterna.",
   "personalNumber": "Personnummer",
   "personalNumberInvalid": "Ange ett giltigt personnummer, till exempel 19900101-1234.",
   "streetAddress": "Gatuadress",

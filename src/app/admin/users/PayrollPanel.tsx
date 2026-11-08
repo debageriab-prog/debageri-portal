@@ -99,6 +99,79 @@ function suggestion(values: PayrollValues, municipalities: Municipality[]) {
   return rate === null ? null : { rate, table: suggestTaxTable(rate) };
 }
 
+/**
+ * Personnummer and home address. Kept for everyone, paid or not, and shown
+ * on the employee's General information tab.
+ */
+export function PersonalDetailsFields({
+  values,
+  onChange,
+}: {
+  values: PayrollValues;
+  onChange(values: Partial<PayrollValues>): void;
+}) {
+  const { t } = useLocale();
+  const personalNumberInvalid =
+    values.personalNumber.trim() !== "" &&
+    normalizePersonalNumber(values.personalNumber) === null;
+  return (
+    <fieldset className="access-section personal-details">
+      <legend>{t("payrollPersonHeading")}</legend>
+      <div className="form-grid">
+        <label>
+          {t("personalNumber")}
+          <input
+            className="field"
+            value={values.personalNumber}
+            onChange={(event) =>
+              onChange({ personalNumber: event.target.value })
+            }
+            onBlur={(event) => {
+              const normalized = normalizePersonalNumber(event.target.value);
+              if (normalized) onChange({ personalNumber: normalized });
+            }}
+            ref={(input) =>
+              input?.setCustomValidity(
+                personalNumberInvalid ? t("personalNumberInvalid") : "",
+              )
+            }
+            placeholder="YYYYMMDD-XXXX"
+            autoComplete="off"
+            maxLength={13}
+          />
+        </label>
+        <label className="form-wide">
+          {t("streetAddress")}
+          <input
+            className="field"
+            value={values.addressLine}
+            onChange={(event) => onChange({ addressLine: event.target.value })}
+            maxLength={120}
+          />
+        </label>
+        <label>
+          {t("postalCode")}
+          <input
+            className="field"
+            value={values.postalCode}
+            onChange={(event) => onChange({ postalCode: event.target.value })}
+            maxLength={10}
+          />
+        </label>
+        <label>
+          {t("city")}
+          <input
+            className="field"
+            value={values.city}
+            onChange={(event) => onChange({ city: event.target.value })}
+            maxLength={60}
+          />
+        </label>
+      </div>
+    </fieldset>
+  );
+}
+
 export function PayrollPanel({
   values,
   onChange,
@@ -126,69 +199,8 @@ export function PayrollPanel({
     });
   }
 
-  const personalNumberInvalid =
-    values.personalNumber.trim() !== "" &&
-    normalizePersonalNumber(values.personalNumber) === null;
-
   return (
     <div className="payroll-sections">
-      <fieldset className="access-section">
-        <legend>{t("payrollPersonHeading")}</legend>
-        <div className="form-grid">
-          <label>
-            {t("personalNumber")}
-            <input
-              className="field"
-              value={values.personalNumber}
-              onChange={(event) =>
-                onChange({ personalNumber: event.target.value })
-              }
-              onBlur={(event) => {
-                const normalized = normalizePersonalNumber(event.target.value);
-                if (normalized) onChange({ personalNumber: normalized });
-              }}
-              ref={(input) =>
-                input?.setCustomValidity(
-                  personalNumberInvalid ? t("personalNumberInvalid") : "",
-                )
-              }
-              placeholder="YYYYMMDD-XXXX"
-              autoComplete="off"
-              maxLength={13}
-            />
-          </label>
-          <label className="form-wide">
-            {t("streetAddress")}
-            <input
-              className="field"
-              value={values.addressLine}
-              onChange={(event) =>
-                onChange({ addressLine: event.target.value })
-              }
-              maxLength={120}
-            />
-          </label>
-          <label>
-            {t("postalCode")}
-            <input
-              className="field"
-              value={values.postalCode}
-              onChange={(event) => onChange({ postalCode: event.target.value })}
-              maxLength={10}
-            />
-          </label>
-          <label>
-            {t("city")}
-            <input
-              className="field"
-              value={values.city}
-              onChange={(event) => onChange({ city: event.target.value })}
-              maxLength={60}
-            />
-          </label>
-        </div>
-      </fieldset>
-
       <fieldset className="access-section">
         <legend>{t("payrollTaxHeading")}</legend>
         <div className="form-grid">

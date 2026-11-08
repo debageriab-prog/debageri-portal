@@ -4045,6 +4045,7 @@ td.amount-cell {
 .payroll-sections .text-link {
   color: var(--green);
 }
+.personal-details .form-grid,
 .payroll-sections .access-section .form-grid {
   margin-bottom: 0;
 }
