@@ -222,6 +222,8 @@ export function salarySlipPdf(input: SalarySlipPdfInput): Buffer {
       formatAmount(lineAmountMinor(line)),
     ]);
   const oneTimeTax = slip.totals.oneTimeTaxMinor ?? 0;
+  // Extra tax is its own line among the events above.
+  const extraTax = slip.totals.extraTaxMinor ?? 0;
   row([
     slip.tax.overrideMinor !== null || slip.tax.adjustment.type !== "none"
       ? labels.tax
@@ -231,7 +233,7 @@ export function salarySlipPdf(input: SalarySlipPdfInput): Buffer {
     "",
     "",
     "",
-    formatAmount(-(slip.totals.taxMinor - oneTimeTax)),
+    formatAmount(-(slip.totals.taxMinor - oneTimeTax - extraTax)),
   ]);
   if (oneTimeTax)
     row([

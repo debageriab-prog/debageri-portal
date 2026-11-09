@@ -11,9 +11,16 @@
  * - `netDeduction`: nettolöneavdrag, taken after tax
  * - `reimbursement`: tax-free repayment of something the person paid for,
  *   added to the payout after tax (utlägg)
+ * - `extraTax`: extra preliminary tax the person asked to have withheld
+ *   (frivillig extra skatt), counted as withheld tax
  */
 export type SalaryLineKind =
-  "pay" | "benefit" | "grossDeduction" | "netDeduction" | "reimbursement";
+  | "pay"
+  | "benefit"
+  | "grossDeduction"
+  | "netDeduction"
+  | "reimbursement"
+  | "extraTax";
 
 export const SALARY_ARTICLES = {
   monthlySalary: { kind: "pay" },
@@ -30,6 +37,7 @@ export const SALARY_ARTICLES = {
   grossDeduction: { kind: "grossDeduction" },
   netDeduction: { kind: "netDeduction" },
   reimbursement: { kind: "reimbursement" },
+  extraTax: { kind: "extraTax" },
 } as const satisfies Record<string, { kind: SalaryLineKind }>;
 
 export type SalaryArticle = keyof typeof SALARY_ARTICLES;
@@ -49,6 +57,7 @@ export const MANUAL_SALARY_ARTICLES: Record<
   deduction: [
     "grossDeduction",
     "netDeduction",
+    "extraTax",
     "unpaidLeave",
     "sickLeave",
     "sickWaitingDay",
@@ -79,7 +88,12 @@ export function lineDirection(
   line: Pick<SalaryLine, "article" | "unitPriceMinor">,
 ): SalaryLineDirection {
   const kind = articleKind(line.article);
-  if (kind === "grossDeduction" || kind === "netDeduction") return "deduction";
+  if (
+    kind === "grossDeduction" ||
+    kind === "netDeduction" ||
+    kind === "extraTax"
+  )
+    return "deduction";
   return line.unitPriceMinor < 0 ? "deduction" : "payment";
 }
 

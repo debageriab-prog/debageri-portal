@@ -136,6 +136,7 @@ describe("salary lines", () => {
       oneTimeMinor: 0,
       oneTimeTaxMinor: 0,
       oneTimePercent: null,
+      extraTaxMinor: 0,
       netDeductionsMinor: 0,
       reimbursementsMinor: 0,
       roundingMinor: 40,
@@ -420,5 +421,45 @@ describe("copiedSalaryLines", () => {
   it("gives every copy its own id", () => {
     const copied = copiedSalaryLines([added, { ...added, id: "manual-2" }], 7);
     expect(copied.map((line) => line.id)).toEqual(["manual-7-0", "manual-7-1"]);
+  });
+});
+
+describe("extra tax", () => {
+  const lines = [
+    ...buildSalaryLines(august),
+    manual("health", "benefit", 19_600),
+    manual("parking", "benefit", 126_000),
+    manual("bike", "benefit", 18_100),
+    manual("lease", "grossDeduction", -73_900),
+  ];
+  const basis = {
+    table: table33,
+    column: 1 as const,
+    adjustment: { type: "none" as const },
+  };
+  const extra = (amount: number): SalaryLine => ({
+    ...manual("manual-extra", "extraTax", -amount),
+  });
+
+  it("adds to the withheld tax and lowers the payout", () => {
+    const without = salaryTotals(lines, basis);
+    const withExtra = salaryTotals([...lines, extra(100_000)], basis);
+    expect(withExtra.extraTaxMinor).toBe(100_000);
+    expect(withExtra.taxMinor).toBe(without.taxMinor + 100_000);
+    expect(withExtra.netMinor).toBe(without.netMinor - 100_000);
+    // It is not income, so the taxable pay stays the same.
+    expect(withExtra.taxableMinor).toBe(without.taxableMinor);
+  });
+
+  it("comes on top of tax typed by hand", () => {
+    const totals = salaryTotals([...lines, extra(50_000)], {
+      ...basis,
+      overrideMinor: 1_000_000,
+    });
+    expect(totals.taxMinor).toBe(1_050_000);
+  });
+
+  it("is a deduction", () => {
+    expect(lineDirection(extra(50_000))).toBe("deduction");
   });
 });

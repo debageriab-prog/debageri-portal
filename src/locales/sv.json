@@ -2022,5 +2022,8 @@
   "bookNetAnyway": "Bokför endast netto",
   "copySalaryLines": "Kopiera rader från föregående månad",
   "copySalaryLinesTip": "Lägger till de rader som lades till för hand i {month}, till exempel förmåner och avdrag som återkommer. Ändra eller ta bort dem vid behov och spara sedan.",
-  "salaryLinesCopied": "{count} rader kopierades från {month}. Spara ändringarna för att behålla dem."
+  "salaryLinesCopied": "{count} rader kopierades från {month}. Spara ändringarna för att behålla dem.",
+  "salaryArticle_extraTax": "Extra skatt",
+  "salaryArticleChoice_extraTax": "Extra skatt (på personens begäran)",
+  "salaryExtraTaxOf": "varav extra skatt"
 }

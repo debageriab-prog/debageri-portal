@@ -96,7 +96,12 @@ function toLine(values: LineValues): SalaryLine | null {
   if (scope === null || quantity === null || price === null) return null;
   const added = isAdded(values.id);
   const label = values.item === "custom" || !added ? values.label.trim() : "";
-  if (added && (!values.item || (values.item === "custom" && !label)))
+  const needsItem = values.article !== "extraTax";
+  if (
+    added &&
+    needsItem &&
+    (!values.item || (values.item === "custom" && !label))
+  )
     return null;
   return {
     id: values.id,
@@ -384,6 +389,10 @@ export function SalarySlipEditor({
                             onChange={(event) =>
                               change(index, {
                                 article: event.target.value as SalaryArticle,
+                                // Extra tax needs no item.
+                                ...(event.target.value === "extraTax"
+                                  ? { item: "" as const, label: "" }
+                                  : {}),
                                 oneTime:
                                   event.target.value === "otherPay" &&
                                   isOneTimeItem(line.item),
@@ -400,33 +409,35 @@ export function SalarySlipEditor({
                               ),
                             )}
                           </select>
-                          <select
-                            className="field"
-                            aria-label={t("salaryLineItem")}
-                            value={line.item}
-                            required
-                            onChange={(event) => {
-                              const item = event.target
-                                .value as LineValues["item"];
-                              change(index, {
-                                item,
-                                // Bonuses and commission are usually
-                                // one-time payments.
-                                oneTime:
-                                  canBeOneTime(line) && isOneTimeItem(item),
-                              });
-                            }}
-                          >
-                            <option value="">{t("salaryChooseItem")}</option>
-                            {SALARY_LINE_ITEMS.map((item) => (
-                              <option key={item} value={item}>
-                                {t(`salaryItem_${item}` as MessageKey)}
+                          {line.article !== "extraTax" && (
+                            <select
+                              className="field"
+                              aria-label={t("salaryLineItem")}
+                              value={line.item}
+                              required
+                              onChange={(event) => {
+                                const item = event.target
+                                  .value as LineValues["item"];
+                                change(index, {
+                                  item,
+                                  // Bonuses and commission are usually
+                                  // one-time payments.
+                                  oneTime:
+                                    canBeOneTime(line) && isOneTimeItem(item),
+                                });
+                              }}
+                            >
+                              <option value="">{t("salaryChooseItem")}</option>
+                              {SALARY_LINE_ITEMS.map((item) => (
+                                <option key={item} value={item}>
+                                  {t(`salaryItem_${item}` as MessageKey)}
+                                </option>
+                              ))}
+                              <option value="custom">
+                                {t("salaryItemCustom")}
                               </option>
-                            ))}
-                            <option value="custom">
-                              {t("salaryItemCustom")}
-                            </option>
-                          </select>
+                            </select>
+                          )}
                         </div>
                       )}
                       {(!isAdded(line.id) || line.item === "custom") && (
@@ -668,6 +679,12 @@ export function SalarySlipEditor({
                 <dd className="salary-sub">
                   {amount(-preview.oneTimeTaxMinor)}
                 </dd>
+              </>
+            )}
+            {preview.extraTaxMinor !== 0 && (
+              <>
+                <dt className="salary-sub">{t("salaryExtraTaxOf")}</dt>
+                <dd className="salary-sub">{amount(-preview.extraTaxMinor)}</dd>
               </>
             )}
             {preview.reimbursementsMinor !== 0 && (

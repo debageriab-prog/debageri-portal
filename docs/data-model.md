@@ -106,7 +106,9 @@ apart with engångsskatt: a percent from Skatteverket's table for one-time
 payments (built into `src/domain/salary/one-time-tax.ts` per year), chosen by
 the expected annual income, which is this month's regular taxable pay × 12 plus
 this year's one-time payments, and 30 % without a monthly salary. A jämkning
-percent covers them too. Rows move from `initiated` to `ready`, `payslipGenerated`
+percent covers them too. An `extraTax` line is extra tax the person asked
+to have withheld; it adds to `taxMinor` (also when the tax is typed by hand)
+and so to the yearly tax and the booked tax. Rows move from `initiated` to `ready`, `payslipGenerated`
 and `booked`; `problem` keeps a row without payroll details or tax tables
 from becoming ready unless the tax is typed by hand.
 

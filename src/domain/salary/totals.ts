@@ -14,7 +14,7 @@ export interface SalaryTotals {
   benefitsMinor: number;
   /** Gross pay plus benefits; tax and employer fees are worked out on it. */
   taxableMinor: number;
-  /** Preliminary tax withheld, including any one-time tax. */
+  /** Preliminary tax withheld, including one-time and extra tax. */
   taxMinor: number;
   /** Taxable one-time payments (engångsbelopp) such as a bonus. */
   oneTimeMinor: number;
@@ -22,6 +22,8 @@ export interface SalaryTotals {
   oneTimeTaxMinor: number;
   /** The percent used for it, or null when the year's table is unknown. */
   oneTimePercent: number | null;
+  /** Extra tax the person asked for; part of `taxMinor`. */
+  extraTaxMinor: number;
   netDeductionsMinor: number;
   /** Tax-free repayments added to the payout after tax. */
   reimbursementsMinor: number;
@@ -52,12 +54,15 @@ export function salaryTotals(
   let netDeductionsMinor = 0;
   let reimbursementsMinor = 0;
   let oneTimeMinor = 0;
+  let extraTaxMinor = 0;
   for (const line of lines) {
     const amount = lineAmountMinor(line);
     const kind = articleKind(line.article);
     if (kind === "benefit") benefitsMinor += amount;
     else if (kind === "netDeduction") netDeductionsMinor += amount;
     else if (kind === "reimbursement") reimbursementsMinor += amount;
+    // Taken off the payout, so stored as a negative amount.
+    else if (kind === "extraTax") extraTaxMinor -= amount;
     else {
       grossMinor += amount;
       if (kind === "pay" && line.oneTime) oneTimeMinor += amount;
@@ -86,10 +91,11 @@ export function salaryTotals(
     separate && oneTimePercent !== null
       ? oneTimeTaxMinor(oneTimeMinor, oneTimePercent)
       : 0;
+  // Extra tax comes on top, also of tax typed by hand.
   const withheld =
-    tax.overrideMinor ??
-    taxMinor(tax.table, tax.column, regularTaxableMinor, tax.adjustment) +
-      oneTimeTax;
+    (tax.overrideMinor ??
+      taxMinor(tax.table, tax.column, regularTaxableMinor, tax.adjustment) +
+        oneTimeTax) + extraTaxMinor;
   const beforeRounding =
     grossMinor - withheld + netDeductionsMinor + reimbursementsMinor;
   const netMinor = Math.max(0, Math.round(beforeRounding / 100) * 100);
@@ -101,6 +107,7 @@ export function salaryTotals(
     oneTimeMinor,
     oneTimeTaxMinor: oneTimeTax,
     oneTimePercent,
+    extraTaxMinor,
     netDeductionsMinor,
     reimbursementsMinor,
     roundingMinor: netMinor - beforeRounding,

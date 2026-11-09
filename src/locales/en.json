@@ -2022,5 +2022,8 @@
   "bookNetAnyway": "Book net only",
   "copySalaryLines": "Copy rows from previous month",
   "copySalaryLinesTip": "Adds the rows added by hand to {month}, such as benefits and deductions that repeat. Change or remove them as needed, then save.",
-  "salaryLinesCopied": "Copied {count} rows from {month}. Save the changes to keep them."
+  "salaryLinesCopied": "Copied {count} rows from {month}. Save the changes to keep them.",
+  "salaryArticle_extraTax": "Extra tax",
+  "salaryArticleChoice_extraTax": "Extra tax (asked for by the person)",
+  "salaryExtraTaxOf": "of which extra tax"
 }
