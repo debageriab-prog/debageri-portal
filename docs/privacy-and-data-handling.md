@@ -4,6 +4,8 @@ Collect only employment and time data needed for defined internal purposes. Cand
 
 Do not log entry comments, document bodies, tokens, passwords, secrets, or unnecessary employee attributes. Define retention/deletion schedules for entries, audit logs, Auth users, documents, logs, exports, and backups. Provide processes for access/correction/deletion requests and manager changes.
 
+Data deleted in production stays in the backups for a limited time: up to 7 days in Firestore PITR, 14 weeks in weekly Firestore backups, 30 days in Storage soft delete, and 90 days in the [off-site backups](offsite-backups.md). It is then removed automatically.
+
 Before production, obtain organizational privacy/legal review covering lawful basis, transparency, retention, processor terms, residency/transfers, data-subject requests, workplace monitoring implications, security incidents, payroll dependencies, and backup erasure. This implementation alone does not establish GDPR compliance.
 
 AI integration is off by default and is enabled per section by an admin under

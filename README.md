@@ -57,6 +57,7 @@ Registry image, and deploy production through Workload Identity Federation.
 - [Local development](docs/local-development.md)
 - [Firebase setup](docs/firebase-setup.md)
 - [Deployment](docs/deployment.md)
+- [Off-site backups](docs/offsite-backups.md)
 - [Testing](docs/testing.md)
 - [UI design system](docs/ui-design-system.md)
 - [Privacy and data handling](docs/privacy-and-data-handling.md)
