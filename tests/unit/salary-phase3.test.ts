@@ -4,7 +4,7 @@ import {
   ageEmployerFeeMinor,
   employerFeeRate,
 } from "@/domain/salary/employer-fee";
-import type { SalaryLine } from "@/domain/salary/articles";
+import { carBenefitsMinor, type SalaryLine } from "@/domain/salary/articles";
 import { repeatedSalaryLines } from "@/domain/salary/slip";
 
 describe("employer contributions by age", () => {
@@ -128,6 +128,58 @@ describe("AGI file", () => {
     );
     expect(absence).toContain(
       '<agd:FranvaroSpecifikationsnummer faltkod="822">2</agd:FranvaroSpecifikationsnummer>',
+    );
+  });
+
+  it("reports car and fuel benefits in their own fields", () => {
+    const lines: SalaryLine[] = [
+      ["car", "benefit", 250_000],
+      ["fuel", "benefit", 120_050],
+      ["health", "benefit", 30_000],
+      // A deduction for the car is not a benefit.
+      ["carCost", "netDeduction", -50_000],
+    ].map(([id, article, price]) => ({
+      id: String(id),
+      article: article as SalaryLine["article"],
+      item:
+        id === "health" ? "healthInsurance" : id === "fuel" ? "fuel" : "car",
+      label: "",
+      from: null,
+      to: null,
+      scopeBps: 10_000,
+      quantityHundredths: 100,
+      unitPriceMinor: Number(price),
+      manual: true,
+    }));
+    const { carMinor, fuelMinor } = carBenefitsMinor(lines);
+    expect([carMinor, fuelMinor]).toEqual([250_000, 120_050]);
+    const xml = agiXml({
+      employerId: "556026-9986",
+      programName: "Debageri Portal",
+      contact: { name: "A", phone: "1", email: "a@b.se" },
+      createdAt: "2026-09-02T10:00:00",
+      individuals: [
+        {
+          personalNumber: "19820225-2386",
+          period: "2026-08",
+          cashMinor: 4_000_000,
+          benefitsMinor: 400_050,
+          carBenefitMinor: carMinor,
+          fuelBenefitMinor: fuelMinor,
+          taxMinor: 1_000_000,
+          employerFeeMinor: 1_382_500,
+        },
+      ],
+      absences: [],
+    });
+    expect(xml).toContain(
+      '<agd:SkatteplOvrigaFormanerUlagAG faltkod="012">300</agd:SkatteplOvrigaFormanerUlagAG>',
+    );
+    expect(xml).toContain(
+      '<agd:SkatteplBilformanUlagAG faltkod="013">2500</agd:SkatteplBilformanUlagAG>',
+    );
+    expect(xml).toContain(
+      '<agd:DrivmVidBilformanUlagAG faltkod="018">1200</agd:DrivmVidBilformanUlagAG>',
     );
   });
 

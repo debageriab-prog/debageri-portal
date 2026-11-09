@@ -20,8 +20,15 @@ export interface AgiIndividual {
   period: string;
   /** Cash pay subject to employer contributions (fält 011), in öre. */
   cashMinor: number;
-  /** Other taxable benefits (fält 012), in öre. */
+  /**
+   * All taxable benefits, in öre: the car and fuel benefits below go in
+   * fält 013 and 018 and the rest in fält 012.
+   */
   benefitsMinor: number;
+  /** Bilförmån (fält 013), in öre; part of `benefitsMinor`. */
+  carBenefitMinor?: number;
+  /** Drivmedel vid bilförmån (fält 018), in öre; part of `benefitsMinor`. */
+  fuelBenefitMinor?: number;
   /** Withheld preliminary tax (fält 001), in öre. */
   taxMinor: number;
   /** Employer contributions for the person, in öre; summed into the HU. */
@@ -159,15 +166,16 @@ export function agiXml(input: AgiInput): string {
       ]),
     );
     for (const item of people) {
+      const car = item.carBenefitMinor ?? 0;
+      const fuel = item.fuelBenefitMinor ?? 0;
+      const otherBenefits = item.benefitsMinor - car - fuel;
       const amounts = [
         item.cashMinor >= 100 &&
           field("KontantErsattningUlagAG", "011", kronor(item.cashMinor)),
-        item.benefitsMinor >= 100 &&
-          field(
-            "SkatteplOvrigaFormanerUlagAG",
-            "012",
-            kronor(item.benefitsMinor),
-          ),
+        otherBenefits >= 100 &&
+          field("SkatteplOvrigaFormanerUlagAG", "012", kronor(otherBenefits)),
+        car >= 100 && field("SkatteplBilformanUlagAG", "013", kronor(car)),
+        fuel >= 100 && field("DrivmVidBilformanUlagAG", "018", kronor(fuel)),
         field("AvdrPrelSkatt", "001", kronor(item.taxMinor)),
       ].filter((line): line is string => Boolean(line));
       lines.push(

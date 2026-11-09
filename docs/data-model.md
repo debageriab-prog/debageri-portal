@@ -143,15 +143,17 @@ and reopened. Reported monthly and yearly figures drop the öre, as
 Skatteverket expects whole kronor.
 
 The month's AGI file (arbetsgivardeklaration på individnivå, Skatteverket's
-XML schema 1.1, built in `src/domain/salary/agi.ts`) is downloaded from
-`POST /api/finance/salaries/agi` with `finance.salary.book`. It covers the
-month's booked rows: a huvuduppgift per payment month with the summed
-employer contributions (fält 487) and tax (497), an individuppgift per person
-with cash pay (011), other benefits (012) and withheld tax (001), and a
-frånvarouppgift per day of parental leave (`FORALDRAPENNING`) and care of a
-sick child (`TILLFALLIG_FORALDRAPENNING`) from the approved time reports. It
-needs the company's organisation number in the invoice settings and a
-personnummer on each row. Each export is audited as `salaryRun.agiExported`.
+XML schema 1.1, built in `src/domain/salary/agi.ts`) is downloaded from `POST
+/api/finance/salaries/agi` with `finance.salary.book`. It covers the month's
+booked rows: a huvuduppgift per payment month with the summed employer
+contributions (fält 487) and tax (497), an individuppgift per person with cash
+pay (011), benefits and withheld tax (001), and a frånvarouppgift per day of
+parental leave (`FORALDRAPENNING`) and care of a sick child
+(`TILLFALLIG_FORALDRAPENNING`) from the approved time reports. Benefit rows
+with the item `car` go in fält 013 (bilförmån), `fuel` in 018 (drivmedel vid
+bilförmån) and all other benefits in 012. It needs the company's organisation
+number in the invoice settings and a personnummer on each row. Each export is
+audited as `salaryRun.agiExported`.
 
 Generated invoices replace Fortnox. `organizations/{org}.invoicing` holds the
 company details printed on them (name, address, org and VAT number, F-skatt,

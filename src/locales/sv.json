@@ -1988,6 +1988,8 @@
   "salaryItem_parking": "Parkering",
   "salaryItem_healthInsurance": "Sjukvårdsförsäkring",
   "salaryItem_bike": "Cykel",
+  "salaryItem_car": "Bilförmån",
+  "salaryItem_fuel": "Drivmedelsförmån",
   "salaryItem_wellness": "Friskvård",
   "salaryItem_advance": "Löneförskott",
   "salaryOneTime": "Engångsbelopp (engångsskatt)",

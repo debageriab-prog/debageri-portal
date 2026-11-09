@@ -15,7 +15,11 @@ import {
   monthlySalaryMinor,
   receivesSalary,
 } from "@/domain/finance/compensation";
-import { articleKind, type SalaryLine } from "@/domain/salary/articles";
+import {
+  articleKind,
+  carBenefitsMinor,
+  type SalaryLine,
+} from "@/domain/salary/articles";
 import { buildSalaryLines, type SalaryTimeEntry } from "@/domain/salary/build";
 import { sickLookbackFrom } from "@/domain/salary/sick-pay";
 import {
@@ -1397,11 +1401,14 @@ export async function salaryAgiFile(
   const absences: AgiAbsence[] = [];
   for (const [index, slip] of slips.entries()) {
     const period = slip.paymentDate.slice(0, 7);
+    const { carMinor, fuelMinor } = carBenefitsMinor(slip.lines);
     individuals.push({
       personalNumber: slip.person.personalNumber,
       period,
       cashMinor: slip.totals.grossMinor,
       benefitsMinor: slip.totals.benefitsMinor,
+      carBenefitMinor: carMinor,
+      fuelBenefitMinor: fuelMinor,
       taxMinor: slip.totals.taxMinor,
       employerFeeMinor: ageEmployerFeeMinor(
         slip.totals.taxableMinor,

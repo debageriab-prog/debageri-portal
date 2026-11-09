@@ -1988,6 +1988,8 @@
   "salaryItem_parking": "Parking",
   "salaryItem_healthInsurance": "Health insurance",
   "salaryItem_bike": "Bike",
+  "salaryItem_car": "Car benefit",
+  "salaryItem_fuel": "Fuel benefit",
   "salaryItem_wellness": "Wellness",
   "salaryItem_advance": "Salary advance",
   "salaryOneTime": "One-time payment (engångsskatt)",
