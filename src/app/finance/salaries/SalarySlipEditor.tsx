@@ -54,6 +54,8 @@ interface LineValues {
   manual: boolean;
   /** Taxed as a one-time payment (engångsskatt). */
   oneTime: boolean;
+  /** Added again when next month's salaries are generated. */
+  repeat: boolean;
 }
 
 /** Whether a line can be a one-time payment: taxable pay that is paid out. */
@@ -85,6 +87,7 @@ function toValues(line: SalaryLine): LineValues {
     price: plain(added ? Math.abs(line.unitPriceMinor) : line.unitPriceMinor),
     manual: line.manual,
     oneTime: line.oneTime === true,
+    repeat: line.repeat === true,
   };
 }
 
@@ -118,6 +121,7 @@ function toLine(values: LineValues): SalaryLine | null {
       : price,
     manual: values.manual,
     oneTime: values.oneTime && canBeOneTime(values),
+    repeat: added && values.repeat,
   };
 }
 
@@ -480,6 +484,19 @@ export function SalarySlipEditor({
                           <InfoTip text={t("salaryOneTimeTip")} />
                         </label>
                       )}
+                      {isAdded(line.id) && (
+                        <label className="checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={line.repeat}
+                            onChange={(event) =>
+                              change(index, { repeat: event.target.checked })
+                            }
+                          />
+                          <span>{t("salaryRepeatLine")}</span>
+                          <InfoTip text={t("salaryRepeatLineTip")} />
+                        </label>
+                      )}
                     </td>
                     <td>
                       <DateInput
@@ -580,6 +597,7 @@ export function SalarySlipEditor({
                     price: "0.00",
                     manual: true,
                     oneTime: false,
+                    repeat: false,
                   },
                 ])
               }

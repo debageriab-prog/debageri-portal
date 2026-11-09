@@ -23,6 +23,8 @@ export const salaryLineSchema = z.object({
   unitPriceMinor: money,
   manual: z.boolean().default(true),
   oneTime: z.boolean().default(false),
+  /** Added again when next month's salaries are generated. */
+  repeat: z.boolean().default(false),
 });
 
 export const generateSalaryRunSchema = z
@@ -82,8 +84,8 @@ export const bookSalarySlipsSchema = z.object({
    * expense; `gross` books payout and tax as one salary expense.
    */
   mode: z.enum(["net", "netPlusTax", "gross"]),
+  /** Employer contributions at each person's rate for their age. */
   employerFee: z.boolean(),
-  employerFeeBps: z.number().int().min(0).max(10_000),
 });
 
 export const reverseSalarySlipSchema = z.object({
@@ -93,3 +95,18 @@ export const reverseSalarySlipSchema = z.object({
 });
 
 export type SalaryLineInput = z.output<typeof salaryLineSchema>;
+
+/** The month's AGI file and who Skatteverket contacts about it. */
+export const salaryAgiFileSchema = z.object({
+  period,
+  contact: z.object({
+    name: z.string().trim().min(1).max(50),
+    phone: z
+      .string()
+      .trim()
+      .min(1)
+      .max(20)
+      .regex(/^[^<>]*$/),
+    email: z.email().max(254),
+  }),
+});

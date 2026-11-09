@@ -30,6 +30,7 @@ export const SALARY_ARTICLES = {
   parentalLeave: { kind: "pay" },
   careLeave: { kind: "pay" },
   sickLeave: { kind: "pay" },
+  sickLeaveFull: { kind: "pay" },
   sickWaitingDay: { kind: "pay" },
   bonus: { kind: "pay" },
   otherPay: { kind: "pay" },
@@ -60,6 +61,7 @@ export const MANUAL_SALARY_ARTICLES: Record<
     "extraTax",
     "unpaidLeave",
     "sickLeave",
+    "sickLeaveFull",
     "sickWaitingDay",
   ],
 };
@@ -78,6 +80,8 @@ export const SALARY_LINE_ITEMS = [
   "parking",
   "healthInsurance",
   "bike",
+  "car",
+  "fuel",
   "wellness",
   "advance",
 ] as const;
@@ -119,10 +123,27 @@ export interface SalaryLine {
   manual: boolean;
   /** A one-time payment (engångsbelopp), taxed with engångsskatt. */
   oneTime?: boolean;
+  /** Added by hand and added again when next month's salaries are made. */
+  repeat?: boolean;
 }
 
 export function articleKind(article: SalaryArticle): SalaryLineKind {
   return SALARY_ARTICLES[article].kind;
+}
+
+/**
+ * The car benefit (bilförmån) and fuel benefit (drivmedelsförmån) among the
+ * benefit lines, in öre. Skatteverket wants them apart from other benefits.
+ */
+export function carBenefitsMinor(lines: SalaryLine[]) {
+  let carMinor = 0;
+  let fuelMinor = 0;
+  for (const line of lines) {
+    if (articleKind(line.article) !== "benefit") continue;
+    if (line.item === "car") carMinor += lineAmountMinor(line);
+    if (line.item === "fuel") fuelMinor += lineAmountMinor(line);
+  }
+  return { carMinor, fuelMinor };
 }
 
 /** Quantity × price × scope, in whole öre. */

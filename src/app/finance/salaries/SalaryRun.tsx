@@ -8,10 +8,8 @@ import { ActionIcon } from "@/components/ui/ActionIcon";
 import { DateInput } from "@/components/ui/DateInput";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { compensationModelLabels } from "@/domain/finance/compensation";
-import {
-  DEFAULT_EMPLOYER_FEE_BPS,
-  employerFeeMinor,
-} from "@/domain/salary/totals";
+import { ageEmployerFeeMinor } from "@/domain/salary/employer-fee";
+import { AgiDialog, type AgiContactDefaults } from "./AgiDialog";
 import { PayslipPdfButton } from "./PayslipPdfButton";
 import type { SalaryCandidate } from "@/server/services/salary-service";
 import type { SalaryRow, SalaryRunInfo } from "./salary-data";
@@ -62,6 +60,7 @@ export function SalaryRun({
   defaults,
   canEdit,
   canBook,
+  agiContact,
 }: {
   period: string;
   run: SalaryRunInfo | null;
@@ -70,9 +69,12 @@ export function SalaryRun({
   defaults: SalaryRunInfo;
   canEdit: boolean;
   canBook: boolean;
+  /** Who Skatteverket contacts about the AGI file, filled in beforehand. */
+  agiContact: AgiContactDefaults;
 }) {
   const { t, locale } = useLocale();
   const router = useRouter();
+  const [exportingAgi, setExportingAgi] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -86,6 +88,7 @@ export function SalaryRun({
   const [removing, setRemoving] = useState<SalaryRow | null>(null);
 
   const chosen = rows.filter((row) => selected.includes(row.id));
+  const booked = rows.filter((row) => row.status === "booked");
   const all = rows.length > 0 && selected.length === rows.length;
   const sum = (key: "grossMinor" | "taxMinor" | "netMinor") =>
     rows.reduce((total, row) => total + row.totals[key], 0);
@@ -94,7 +97,7 @@ export function SalaryRun({
       row.balanceMinor !== null &&
       row.balanceMinor <
         row.totals.grossMinor +
-          employerFeeMinor(row.totals.taxableMinor, DEFAULT_EMPLOYER_FEE_BPS),
+          ageEmployerFeeMinor(row.totals.taxableMinor, row.employerFee),
   );
 
   async function perform(
@@ -162,6 +165,21 @@ export function SalaryRun({
                   .replace("{eventFrom}", run.eventFrom)
                   .replace("{eventTo}", run.eventTo)}
               </span>
+            )}
+            {canBook && booked.length > 0 && (
+              <>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    setExportingAgi(true);
+                  }}
+                >
+                  {t("agiFile")}
+                </button>
+                <InfoTip text={t("agiFileTip")} />
+              </>
             )}
             {canEdit && (
               <button
@@ -340,9 +358,9 @@ export function SalaryRun({
                 "{needed}",
                 formatKronor(
                   row.totals.grossMinor +
-                    employerFeeMinor(
+                    ageEmployerFeeMinor(
                       row.totals.taxableMinor,
-                      DEFAULT_EMPLOYER_FEE_BPS,
+                      row.employerFee,
                     ),
                   locale,
                 ),
@@ -408,6 +426,18 @@ export function SalaryRun({
         )}
       </section>
 
+      {exportingAgi && (
+        <AgiDialog
+          period={period}
+          bookedCount={booked.length}
+          defaults={agiContact}
+          close={() => setExportingAgi(false)}
+          onDone={() => {
+            setExportingAgi(false);
+            setMessage(t("agiFileDownloaded"));
+          }}
+        />
+      )}
       {generating && (
         <GenerateDialog
           defaults={run ?? defaults}
@@ -716,18 +746,15 @@ function BookDialog({
     "netPlusTax",
   );
   const [employerFee, setEmployerFee] = useState(true);
-  const [feePercent, setFeePercent] = useState("31.42");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const feeBps = Math.round(Number(feePercent.replace(",", ".")) * 100);
-  const feeValid =
-    !createExpenses ||
-    !employerFee ||
-    (Number.isFinite(feeBps) && feeBps >= 0 && feeBps <= 10_000);
   const feeTotal = rows.reduce(
-    (sum, row) => sum + employerFeeMinor(row.totals.taxableMinor, feeBps || 0),
+    (sum, row) =>
+      sum + ageEmployerFeeMinor(row.totals.taxableMinor, row.employerFee),
     0,
   );
+  // People whose age gives them another rate than the standard one.
+  const otherRates = rows.filter((row) => row.employerFee.group !== "standard");
   const anything = publishPayslip || createExpenses;
 
   // Net only leaves the withheld tax out of the expenses, though the company
@@ -739,7 +766,7 @@ function BookDialog({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!feeValid || !anything) return;
+    if (!anything) return;
     if (createExpenses && mode === "net") {
       setConfirmingNet(true);
       return;
@@ -759,7 +786,6 @@ function BookDialog({
       replaceExisting: false,
       mode,
       employerFee: createExpenses && employerFee,
-      employerFeeBps: createExpenses && employerFee ? feeBps : 0,
     };
     setBusy(true);
     setError("");
@@ -915,25 +941,24 @@ function BookDialog({
                 <InfoTip text={t("bookEmployerFeeTip")} />
               </label>
               {employerFee && (
-                <label>
-                  {t("employerFeePercent")}
-                  <input
-                    className="field"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={feePercent}
-                    onChange={(event) => setFeePercent(event.target.value)}
-                    required
-                  />
+                <div className="salary-book-options">
                   <span className="muted">
                     {t("employerFeeTotal").replace(
                       "{amount}",
                       formatKronor(feeTotal, locale),
                     )}
                   </span>
-                </label>
+                  {otherRates.map((row) => (
+                    <span className="muted" key={row.id}>
+                      {t("employerFeeRateFor")
+                        .replace("{name}", row.name)
+                        .replace(
+                          "{rate}",
+                          t(`employerFeeGroup_${row.employerFee.group}`),
+                        )}
+                    </span>
+                  ))}
+                </div>
               )}
               <label className="checkbox-row">
                 <input
@@ -955,7 +980,7 @@ function BookDialog({
           <button className="button secondary" type="button" onClick={close}>
             {t("cancel")}
           </button>
-          <button className="button" disabled={busy || !feeValid || !anything}>
+          <button className="button" disabled={busy || !anything}>
             {t("bookSalaries")}
           </button>
         </footer>

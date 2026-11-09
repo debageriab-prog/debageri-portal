@@ -8,6 +8,10 @@ import type {
   SalarySlipTax,
 } from "@/domain/salary/slip";
 import type { SalaryTotals } from "@/domain/salary/totals";
+import {
+  employerFeeRate,
+  type EmployerFeeRate,
+} from "@/domain/salary/employer-fee";
 import type { CompensationModel, TimeCategory } from "@/domain/types";
 
 /** Reported time of one kind: its total and the minutes per category. */
@@ -129,6 +133,8 @@ export interface SalaryRow {
   oneTimeEarlierMinor: number;
   /** A flexible consultant's balance before this salary, in öre. */
   balanceMinor: number | null;
+  /** Employer contribution rate for the person's age. */
+  employerFee: EmployerFeeRate;
 }
 
 export interface SalaryRunInfo {
@@ -167,6 +173,10 @@ function rowFrom(
     useTimeReports: data.useTimeReports !== false,
     reportedDays: Number(data.reportedDays ?? 0),
     oneTimeEarlierMinor: Number(data.yearToDate?.oneTimeMinor ?? 0),
+    employerFee: employerFeeRate(
+      data.person?.personalNumber,
+      String(data.paymentDate),
+    ),
   };
 }
 

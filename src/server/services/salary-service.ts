@@ -15,8 +15,21 @@ import {
   monthlySalaryMinor,
   receivesSalary,
 } from "@/domain/finance/compensation";
-import { articleKind, type SalaryLine } from "@/domain/salary/articles";
+import {
+  articleKind,
+  carBenefitsMinor,
+  type SalaryLine,
+} from "@/domain/salary/articles";
 import { buildSalaryLines, type SalaryTimeEntry } from "@/domain/salary/build";
+import { sickLookbackFrom } from "@/domain/salary/sick-pay";
+import {
+  agiIdentity,
+  agiXml,
+  type AgiAbsence,
+  type AgiAbsenceType,
+  type AgiContact,
+  type AgiIndividual,
+} from "@/domain/salary/agi";
 import {
   payrollProfileFrom,
   payrollProfileId,
@@ -24,6 +37,8 @@ import {
 } from "@/domain/salary/payroll-profile";
 import {
   canMoveSlip,
+  isAddedLine,
+  repeatedSalaryLines,
   salaryBookingSteps,
   salaryRunId,
   salarySlipId,
@@ -34,9 +49,13 @@ import {
   type SalarySlipStatus,
   type SalaryYearToDate,
 } from "@/domain/salary/slip";
-import { employerFeeMinor, salaryTotals } from "@/domain/salary/totals";
+import { salaryTotals } from "@/domain/salary/totals";
+import {
+  ageEmployerFeeMinor,
+  employerFeeRate,
+} from "@/domain/salary/employer-fee";
 import type { TaxTable } from "@/domain/salary/tax";
-import { monthBounds } from "@/domain/time/working-days";
+import { monthBounds, previousMonth } from "@/domain/time/working-days";
 import type {
   CompensationModel,
   PortalUser,
@@ -126,6 +145,29 @@ async function agreementForMonth(
     fixedMonthlySalaryMinor: data.fixedMonthlySalaryMinor ?? null,
     requestedMonthlySalaryMinor: data.requestedMonthlySalaryMinor ?? null,
   };
+}
+
+/** Last month's lines marked to repeat, with new ids. */
+async function repeatedLines(
+  db: Firestore,
+  organizationId: string,
+  userId: string,
+  period: string,
+) {
+  const previous = await db
+    .collection("salarySlips")
+    .doc(salarySlipId(organizationId, userId, previousMonth(period)))
+    .get();
+  const data = previous.data();
+  if (!data || data.organizationId !== organizationId) return [];
+  return repeatedSalaryLines(data.lines ?? [], Date.now());
+}
+
+/** The day before a `YYYY-MM-DD` date. */
+function dayBefore(date: string) {
+  const day = new Date(`${date}T12:00:00Z`);
+  day.setUTCDate(day.getUTCDate() - 1);
+  return day.toISOString().slice(0, 10);
 }
 
 /** Time from approved reports in the period; other weeks do not count yet. */
@@ -412,7 +454,7 @@ async function writeSlip(
   const { user, agreement } = person;
   const data = user.data();
   const id = salarySlipId(actor.organizationId, user.id, context.period);
-  const [profileSnapshot, entries, ytd, vacation] = await Promise.all([
+  const [profileSnapshot, entries, earlier, ytd, vacation] = await Promise.all([
     db
       .collection("payrollProfiles")
       .doc(payrollProfileId(actor.organizationId, user.id))
@@ -424,6 +466,15 @@ async function writeSlip(
       context.eventFrom,
       context.eventTo,
     ),
+    useTimeReports
+      ? approvedEntries(
+          db,
+          actor.organizationId,
+          user.id,
+          sickLookbackFrom(context.eventFrom),
+          dayBefore(context.eventFrom),
+        )
+      : Promise.resolve([]),
     yearToDate(db, actor.organizationId, user.id, context.period),
     vacationDays(db, actor.organizationId, user.id, context.eventTo),
   ]);
@@ -439,10 +490,14 @@ async function writeSlip(
     eventTo: context.eventTo,
     entries: useTimeReports ? entries : [],
     holidays: context.holidays,
+    earlierSick: earlier
+      .filter((entry) => entry.category === "sick_leave")
+      .map(({ date, minutes }) => ({ date, minutes })),
   });
-  const kept: SalaryLine[] = (stored?.lines ?? []).filter(
-    (line: SalaryLine) => line.manual,
-  );
+  // A new row starts with last month's lines marked to repeat.
+  const kept: SalaryLine[] = stored
+    ? (stored.lines ?? []).filter((line: SalaryLine) => line.manual)
+    : await repeatedLines(db, actor.organizationId, user.id, context.period);
   const lines = [
     ...built.filter((line) => !kept.some((item) => item.id === line.id)),
     ...kept,
@@ -514,7 +569,12 @@ export async function generateSalaryRun(
   requireSalaryPermission(actor, "finance.salary.edit");
   const [people, holidays] = await Promise.all([
     eligiblePeople(db, actor.organizationId, input.period),
-    holidaysBetween(db, actor.organizationId, input.eventFrom, input.eventTo),
+    holidaysBetween(
+      db,
+      actor.organizationId,
+      sickLookbackFrom(input.eventFrom),
+      input.eventTo,
+    ),
   ]);
   const chosen = new Set(input.userIds);
   const context: SlipContext = { ...input, holidays, tables: new Map() };
@@ -620,7 +680,7 @@ export async function setSalarySlipTimeReports(
       holidays: await holidaysBetween(
         db,
         actor.organizationId,
-        String(data.eventFrom),
+        sickLookbackFrom(String(data.eventFrom)),
         String(data.eventTo),
       ),
       tables: new Map(),
@@ -667,6 +727,8 @@ function normalizeLines(lines: SalaryLineInput[]): SalaryLine[] {
       article,
       // Only taxable pay can be a one-time payment.
       oneTime: line.oneTime && articleKind(article) === "pay",
+      // Only lines added by hand repeat.
+      repeat: line.repeat && isAddedLine(line),
     };
   });
 }
@@ -780,6 +842,7 @@ const PDF_LABEL_KEYS = {
   yourSalary: "salarySlipPdf_yourSalary",
   paymentDate: "salarySlipPdf_paymentDate",
   salaryPeriod: "salarySlipPdf_salaryPeriod",
+  eventPeriod: "salarySlipPdf_eventPeriod",
   taxTable: "salarySlipPdf_taxTable",
   personalNumber: "salarySlipPdf_personalNumber",
   employeeNumber: "salarySlipPdf_employeeNumber",
@@ -800,6 +863,8 @@ const PDF_LABEL_KEYS = {
   grossMonth: "salarySlipPdf_grossMonth",
   benefitsMonth: "salarySlipPdf_benefitsMonth",
   taxMonth: "salarySlipPdf_taxMonth",
+  employerFeePercent: "salarySlipPdf_employerFeePercent",
+  employerFeeMonth: "salarySlipPdf_employerFeeMonth",
   grossYear: "salarySlipPdf_grossYear",
   benefitsYear: "salarySlipPdf_benefitsYear",
   taxYear: "salarySlipPdf_taxYear",
@@ -1032,7 +1097,6 @@ export async function bookSalarySlips(
     replaceExisting: boolean;
     mode: SalaryBookingMode;
     employerFee: boolean;
-    employerFeeBps: number;
   },
 ) {
   requireSalaryPermission(actor, "finance.salary.book");
@@ -1107,10 +1171,14 @@ export async function bookSalarySlips(
     }
     const role = String(user.data()?.role ?? "");
     const isConsultant = role === "consultant" || role === "employee";
-    const expenseFeeBps =
-      steps.createExpenses && input.employerFee ? input.employerFeeBps : 0;
-    const feeMinor = expenseFeeBps
-      ? employerFeeMinor(slip.totals.taxableMinor, expenseFeeBps)
+    const feeRate = employerFeeRate(
+      slip.person.personalNumber,
+      slip.paymentDate,
+    );
+    const withFee = steps.createExpenses && input.employerFee;
+    const expenseFeeBps = withFee ? feeRate.bps : 0;
+    const feeMinor = withFee
+      ? ageEmployerFeeMinor(slip.totals.taxableMinor, feeRate)
       : 0;
     const locale = notificationLocale(user.data()?.locale);
     const { netMinor, taxMinor } = slip.totals;
@@ -1211,6 +1279,7 @@ export async function bookSalarySlips(
         ...steps,
         mode: steps.createExpenses ? input.mode : null,
         employerFeeBps: expenseFeeBps,
+        employerFeeGroup: withFee ? feeRate.group : null,
         employerFeeMinor: feeMinor,
         bookedAt: FieldValue.serverTimestamp(),
         bookedBy: actor.id,
@@ -1278,4 +1347,122 @@ export async function reverseSalarySlip(
     reason: input.reason,
   });
   await batch.commit();
+}
+
+const AGI_ABSENCE: Partial<Record<TimeCategory, AgiAbsenceType>> = {
+  parental_leave: "parental",
+  care_leave: "careOfChild",
+};
+
+/** Stockholm local time, `YYYY-MM-DDTHH:MM:SS`. */
+function stockholmTimestamp(date: Date) {
+  return date
+    .toLocaleString("sv-SE", { timeZone: "Europe/Stockholm" })
+    .replace(" ", "T");
+}
+
+/**
+ * The month's AGI file for Skatteverket, from its booked salaries: pay,
+ * benefits, withheld tax and employer contributions at each person's rate,
+ * and the days of parental leave and care of a sick child in their time
+ * reports.
+ */
+export async function salaryAgiFile(
+  db: Firestore,
+  actor: PortalUser,
+  input: { period: string; contact: AgiContact },
+) {
+  requireSalaryPermission(actor, "finance.salary.book");
+  const organization = (
+    await db.collection("organizations").doc(actor.organizationId).get()
+  ).data();
+  const employer = invoiceSettingsFrom(
+    organization?.invoicing,
+    String(organization?.name ?? ""),
+  );
+  if (!agiIdentity(employer.orgNumber))
+    throw new FinanceError("agiEmployerMissing", 409);
+  const snapshot = await db
+    .collection("salarySlips")
+    .where("organizationId", "==", actor.organizationId)
+    .where("period", "==", input.period)
+    .get();
+  const booked = snapshot.docs.filter(
+    (document) => document.data().status === "booked",
+  );
+  const slips = booked.map((document) =>
+    slipFrom(document.id, document.data()),
+  );
+  if (!slips.length) throw new FinanceError("agiNothingBooked", 409);
+  if (slips.some((slip) => !agiIdentity(slip.person.personalNumber ?? "")))
+    throw new FinanceError("agiPersonalNumberMissing", 409);
+
+  const individuals: AgiIndividual[] = [];
+  const absences: AgiAbsence[] = [];
+  for (const [index, slip] of slips.entries()) {
+    const period = slip.paymentDate.slice(0, 7);
+    const { carMinor, fuelMinor } = carBenefitsMinor(slip.lines);
+    individuals.push({
+      personalNumber: slip.person.personalNumber,
+      period,
+      cashMinor: slip.totals.grossMinor,
+      benefitsMinor: slip.totals.benefitsMinor,
+      carBenefitMinor: carMinor,
+      fuelBenefitMinor: fuelMinor,
+      taxMinor: slip.totals.taxMinor,
+      employerFeeMinor: ageEmployerFeeMinor(
+        slip.totals.taxableMinor,
+        employerFeeRate(slip.person.personalNumber, slip.paymentDate),
+      ),
+    });
+    // Without time reports the row has no absence to report.
+    if (booked[index]!.data().useTimeReports === false) continue;
+    const entries = await approvedEntries(
+      db,
+      actor.organizationId,
+      slip.userId,
+      slip.eventFrom,
+      slip.eventTo,
+    );
+    const byDay = new Map<string, AgiAbsence>();
+    for (const entry of entries) {
+      const type = AGI_ABSENCE[entry.category];
+      if (!type) continue;
+      const key = `${entry.date}_${type}`;
+      const absence = byDay.get(key) ?? {
+        personalNumber: slip.person.personalNumber,
+        period,
+        date: entry.date,
+        type,
+        minutes: 0,
+      };
+      absence.minutes += entry.minutes;
+      byDay.set(key, absence);
+    }
+    absences.push(...byDay.values());
+  }
+  const xml = agiXml({
+    employerId: employer.orgNumber,
+    programName: "Debageri Portal",
+    contact: input.contact,
+    createdAt: stockholmTimestamp(new Date()),
+    individuals,
+    absences,
+  });
+  const batch = db.batch();
+  batch.create(db.collection("auditLogs").doc(), {
+    organizationId: actor.organizationId,
+    actorUserId: actor.id,
+    action: "salaryRun.agiExported",
+    entityType: "salaryRun",
+    entityId: salaryRunId(actor.organizationId, input.period),
+    timestamp: FieldValue.serverTimestamp(),
+    metadata: {
+      period: input.period,
+      slipIds: slips.map((slip) => slip.id),
+      absences: absences.length,
+    },
+  });
+  await batch.commit();
+  return { xml, fileName: `agi-${input.period}.xml` };
 }

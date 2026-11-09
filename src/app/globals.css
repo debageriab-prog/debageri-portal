@@ -4388,6 +4388,11 @@ td.amount-cell {
   margin-top: 10px;
   padding-left: 26px;
 }
+.salary-agi-fields {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
 .salary-totals {
   display: grid;
   grid-template-columns: 1fr auto;
