@@ -55,6 +55,7 @@ export default async function SalariesPage({
         )}
       </div>
       <SalaryRun
+        key={period}
         period={period}
         run={run}
         rows={rows}
