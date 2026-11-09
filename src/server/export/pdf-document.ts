@@ -19,6 +19,17 @@ const HELVETICA_WIDTHS = [
   500, 334, 260, 334, 584,
 ];
 
+/** Helvetica-Bold advance widths for character codes 32 to 126. */
+const HELVETICA_BOLD_WIDTHS = [
+  278, 333, 474, 556, 556, 889, 722, 238, 333, 333, 389, 584, 278, 333, 278,
+  278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 333, 333, 584, 584,
+  584, 611, 975, 722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611,
+  833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 333,
+  278, 333, 584, 556, 333, 556, 611, 556, 611, 556, 333, 611, 611, 278, 278,
+  556, 278, 889, 611, 611, 611, 611, 389, 556, 333, 611, 556, 778, 556, 556,
+  500, 389, 280, 389, 584,
+];
+
 /** Common typography outside Latin-1, by code point, as Latin-1 text. */
 const LATIN1_SUBSTITUTES = new Map<number, string>([
   [0x2010, "-"], // hyphen
@@ -52,13 +63,13 @@ export function pdfText(value: string) {
     .join("");
 }
 
-function charWidth(char: string) {
+function charWidth(char: string, widths: number[]) {
   const code = char.charCodeAt(0);
-  if (code >= 32 && code <= 126) return HELVETICA_WIDTHS[code - 32]!;
+  if (code >= 32 && code <= 126) return widths[code - 32]!;
   // A non-breaking space is as wide as a space.
-  if (code === 160) return HELVETICA_WIDTHS[0]!;
+  if (code === 160) return widths[0]!;
   const base = char.normalize("NFD").charCodeAt(0);
-  return base >= 32 && base <= 126 ? HELVETICA_WIDTHS[base - 32]! : 556;
+  return base >= 32 && base <= 126 ? widths[base - 32]! : 556;
 }
 
 /** Courier draws every character 600/1000 em wide. */
@@ -71,8 +82,12 @@ export function textWidth(
   mono = false,
 ) {
   if (mono) return ([...value].length * MONO_WIDTH * size) / 1000;
-  const width = [...value].reduce((sum, char) => sum + charWidth(char), 0);
-  return (width * size * (bold ? 1.05 : 1)) / 1000;
+  const widths = bold ? HELVETICA_BOLD_WIDTHS : HELVETICA_WIDTHS;
+  const width = [...value].reduce(
+    (sum, char) => sum + charWidth(char, widths),
+    0,
+  );
+  return (width * size) / 1000;
 }
 
 const escape = (value: string) => value.replace(/([\\()])/g, "\\$1");

@@ -300,6 +300,11 @@ describe("timeReportPdf", () => {
   it("escapes and replaces what Helvetica cannot show", () => {
     expect(pdfText("Kod (A) € \u{1F600} å")).toBe("Kod (A) ? ? å");
     expect(textWidth("ii", 10)).toBeCloseTo(4.44);
+    // Bold digits are as wide as regular ones, so right-aligned dates line up.
+    expect(textWidth("2026-08-01", 10, true)).toBeCloseTo(
+      textWidth("2026-08-01", 10),
+    );
+    expect(textWidth("ii", 10, true)).toBeCloseTo(5.56);
     const pdf = timeReportPdf(
       buildExportSheets(
         [{ ...worked("2026-05-04", 60), name: "R(a)d" }],
