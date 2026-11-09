@@ -2013,5 +2013,8 @@
   "bookAttachPayslip": "Bifoga lönespecifikationen till kostnaderna",
   "bookAttachPayslipTip": "Varje kostnad får personens lönespecifikation som bilaga.",
   "bookNothingChosen": "Välj minst en sak att göra.",
-  "financeError_salaryBookingEmpty": "Välj minst en sak att göra när du bokför."
+  "financeError_salaryBookingEmpty": "Välj minst en sak att göra när du bokför.",
+  "bookSalariesGross": "Endast bruttolön",
+  "bookSalariesGrossTip": "Bokför utbetalningen och den avdragna skatten tillsammans som en lönekostnad. Beskrivningen visar båda, till exempel 36 258 netto + 9 822 skatt.",
+  "salarySlipBooking_grossDetail": "{net} netto + {tax} skatt"
 }

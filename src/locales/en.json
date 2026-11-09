@@ -2013,5 +2013,8 @@
   "bookAttachPayslip": "Attach the payslip PDF to the expenses",
   "bookAttachPayslipTip": "Each expense gets the person's payslip as an attachment.",
   "bookNothingChosen": "Choose at least one thing to do.",
-  "financeError_salaryBookingEmpty": "Choose at least one thing to do when booking."
+  "financeError_salaryBookingEmpty": "Choose at least one thing to do when booking.",
+  "bookSalariesGross": "Gross salary only",
+  "bookSalariesGrossTip": "Books the payout and the withheld tax together as one salary expense. Its description shows both, for example 36 258 net + 9 822 tax.",
+  "salarySlipBooking_grossDetail": "{net} net + {tax} tax"
 }

@@ -77,8 +77,11 @@ export const bookSalarySlipsSchema = z.object({
   attachPayslip: z.boolean(),
   /** Replaces an uploaded payslip for the same month when publishing. */
   replaceExisting: z.boolean().default(false),
-  /** `net` books the payout; `netPlusTax` adds the withheld tax as well. */
-  mode: z.enum(["net", "netPlusTax"]),
+  /**
+   * `net` books the payout; `netPlusTax` adds the withheld tax as its own
+   * expense; `gross` books payout and tax as one salary expense.
+   */
+  mode: z.enum(["net", "netPlusTax", "gross"]),
   employerFee: z.boolean(),
   employerFeeBps: z.number().int().min(0).max(10_000),
 });

@@ -64,6 +64,7 @@ import {
 } from "@/domain/notifications";
 import { translate, type MessageKey } from "@/lib/localization/messages";
 import {
+  formatAmount,
   salarySlipFileName,
   salarySlipPdf,
   type SalarySlipPdfLabels,
@@ -996,13 +997,28 @@ async function salaryCategories(
   return byCode;
 }
 
-type BookingPart = { code: string; amount: number; label: MessageKey };
+type BookingPart = {
+  code: string;
+  amount: number;
+  label: MessageKey;
+  /** Added to the description, such as what a gross salary is made of. */
+  detail?: string;
+};
+
+/** How salaries are booked as expenses. */
+export type SalaryBookingMode = "net" | "netPlusTax" | "gross";
+
+/** An amount for a description: whole kronor unless öre are involved. */
+function descriptionAmount(minor: number, withOre: boolean) {
+  return formatAmount(minor, withOre ? 2 : 0);
+}
 
 /**
  * Books checked salaries, doing the steps chosen for them: publishing the
  * payslip PDF to the person's Pay slips, and creating the expenses in income
  * and expenses: the payout (`salary`), with `netPlusTax` also the withheld
- * tax (`salary_tax`), and when asked the employer contributions
+ * tax (`salary_tax`), or with `gross` payout and tax as one `salary`
+ * expense whose description shows both, and when asked the employer contributions
  * (`employer_tax`), optionally with the PDF attached. Flexible consultants
  * pay their own salary from their balance; everyone else is a company
  * expense. Returns the published payslips, for the emails.
@@ -1014,7 +1030,7 @@ export async function bookSalarySlips(
   input: SalaryBookingSteps & {
     slipIds: string[];
     replaceExisting: boolean;
-    mode: "net" | "netPlusTax";
+    mode: SalaryBookingMode;
     employerFee: boolean;
     employerFeeBps: number;
   },
@@ -1096,12 +1112,24 @@ export async function bookSalarySlips(
     const feeMinor = expenseFeeBps
       ? employerFeeMinor(slip.totals.taxableMinor, expenseFeeBps)
       : 0;
+    const locale = notificationLocale(user.data()?.locale);
+    const { netMinor, taxMinor } = slip.totals;
+    const withOre = netMinor % 100 !== 0 || taxMinor % 100 !== 0;
     const parts: BookingPart[] = [
-      {
-        code: "salary",
-        amount: slip.totals.netMinor,
-        label: "salarySlipBooking_net",
-      },
+      input.mode === "gross"
+        ? {
+            code: "salary",
+            amount: netMinor + taxMinor,
+            label: "salarySlipBooking_net",
+            detail: translate(locale, "salarySlipBooking_grossDetail")
+              .replace("{net}", descriptionAmount(netMinor, withOre))
+              .replace("{tax}", descriptionAmount(taxMinor, withOre)),
+          }
+        : {
+            code: "salary",
+            amount: netMinor,
+            label: "salarySlipBooking_net",
+          },
     ];
     if (input.mode === "netPlusTax")
       parts.push({
@@ -1115,7 +1143,6 @@ export async function bookSalarySlips(
         amount: feeMinor,
         label: "salarySlipBooking_employerFee",
       });
-    const locale = notificationLocale(user.data()?.locale);
     const batch = db.batch();
     const transactionIds: string[] = [];
     for (const part of steps.createExpenses ? parts : []) {
@@ -1145,7 +1172,7 @@ export async function bookSalarySlips(
         funding: slip.fundedByConsultant ? "consultant" : "company",
         applyConsultantShare: false,
         shareBpsOverride: null,
-        visibleDescription: `${translate(locale, part.label)} ${slip.period} ${slip.person.displayName}`,
+        visibleDescription: `${translate(locale, part.label)} ${slip.period} ${slip.person.displayName}${part.detail ? ` (${part.detail})` : ""}`,
         internalNote: "",
         importKey: null,
         currency: "SEK",
@@ -1238,7 +1265,10 @@ export async function reverseSalarySlip(
   batch.update(reference, {
     status: "initiated" satisfies SalarySlipStatus,
     transactionIds: [],
-    reversedTransactionIds: FieldValue.arrayUnion(...transactionIds),
+    // A booking can have published the payslip without any expenses.
+    ...(transactionIds.length
+      ? { reversedTransactionIds: FieldValue.arrayUnion(...transactionIds) }
+      : {}),
     booking: null,
     version: Number(data.version ?? 0) + 1,
     updatedAt: FieldValue.serverTimestamp(),

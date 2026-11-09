@@ -712,7 +712,9 @@ function BookDialog({
   const [notifyEmployee, setNotifyEmployee] = useState(true);
   const [createExpenses, setCreateExpenses] = useState(true);
   const [attachPayslip, setAttachPayslip] = useState(true);
-  const [mode, setMode] = useState<"net" | "netPlusTax">("netPlusTax");
+  const [mode, setMode] = useState<"net" | "netPlusTax" | "gross">(
+    "netPlusTax",
+  );
   const [employerFee, setEmployerFee] = useState(true);
   const [feePercent, setFeePercent] = useState("31.42");
   const [busy, setBusy] = useState(false);
@@ -833,6 +835,16 @@ function BookDialog({
                 />
                 <span>{t("bookSalariesNetPlusTax")}</span>
                 <InfoTip text={t("bookSalariesNetPlusTaxTip")} />
+              </label>
+              <label className="checkbox-row">
+                <input
+                  type="radio"
+                  name="mode"
+                  checked={mode === "gross"}
+                  onChange={() => setMode("gross")}
+                />
+                <span>{t("bookSalariesGross")}</span>
+                <InfoTip text={t("bookSalariesGrossTip")} />
               </label>
               <label className="checkbox-row">
                 <input
