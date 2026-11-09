@@ -282,11 +282,13 @@ describe("Firestore rules", () => {
       }),
     );
   });
-  it("keeps payroll details and tax tables server-only", async () => {
+  it("keeps payroll details, tax tables and salaries server-only", async () => {
     const paths = [
       "payrollProfiles/debageri_u1",
       "taxTables/debageri_2026_33",
       "municipalTaxRates/debageri_2026",
+      "salaryRuns/debageri_2026-08",
+      "salarySlips/debageri_u1_2026-08",
     ];
     await env.withSecurityRulesDisabled(async (context) => {
       for (const path of paths)

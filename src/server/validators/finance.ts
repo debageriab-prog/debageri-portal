@@ -1,4 +1,14 @@
 import { z } from "zod";
+import {
+  bookSalarySlipsSchema,
+  generatePayslipsSchema,
+  generateSalaryRunSchema,
+  removeSalarySlipSchema,
+  reverseSalarySlipSchema,
+  setSalarySlipStatusSchema,
+  setSalarySlipTimeReportsSchema,
+  updateSalarySlipSchema,
+} from "@/server/validators/salary";
 import { MAX_ROUNDING_MINOR } from "@/domain/finance/calculations";
 import {
   COMPENSATION_END_CONFIRMATION,
@@ -353,4 +363,12 @@ export const financeActionSchema = z.discriminatedUnion("action", [
   vatSettlementSchema,
   updateVatSettlementSchema,
   reverseVatSettlementSchema,
+  generateSalaryRunSchema,
+  updateSalarySlipSchema,
+  setSalarySlipStatusSchema,
+  generatePayslipsSchema,
+  bookSalarySlipsSchema,
+  reverseSalarySlipSchema,
+  setSalarySlipTimeReportsSchema,
+  removeSalarySlipSchema,
 ]);

@@ -113,6 +113,13 @@ service cloud.firestore {
     match /municipalTaxRates/{ratesId} {
       allow read, write: if false;
     }
+    // Salaries: read and written only by the salary service.
+    match /salaryRuns/{runId} {
+      allow read, write: if false;
+    }
+    match /salarySlips/{slipId} {
+      allow read, write: if false;
+    }
     match /{document=**} { allow read, write: if false; }
   }
 }
