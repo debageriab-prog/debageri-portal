@@ -98,4 +98,5 @@ if [[ "$BACKUPS_READY" == true ]]; then
 else
   echo "Backups: incomplete; rerun this script after configuring Firebase products."
 fi
+echo "Off-site backups are manual: follow docs/offsite-backups.md."
 echo "Next: configure Firebase products, GitHub WIF, repository values, and push a branch."

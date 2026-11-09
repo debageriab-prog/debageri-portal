@@ -306,6 +306,12 @@ must never be committed. Test a restore at least once before relying on these
 backups. Backup retention must also be covered by the privacy and deletion
 policies in [Privacy and data handling](privacy-and-data-handling.md).
 
+Everything above lives inside the production project and is lost with it. The
+nightly copy of files and Firestore to the separate `debageri-portal-backup`
+project, its alerts, and how to restore from it are set up by hand; follow
+[Off-site backups](offsite-backups.md) whenever production is set up or
+recreated.
+
 ## Rollback
 
 For production, route traffic to a known-good immutable Cloud Run revision,
