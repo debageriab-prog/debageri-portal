@@ -1802,7 +1802,7 @@
   "salarySlipPdf_title": "Lönespecifikation",
   "salarySlipPdf_yourSalary": "Totalt",
   "salarySlipPdf_paymentDate": "Utbetalningsdag",
-  "salarySlipPdf_salaryPeriod": "Löneperiod",
+  "salarySlipPdf_salaryPeriod": "Intjänandeperiod",
   "salarySlipPdf_eventPeriod": "Avvikelseperiod",
   "salarySlipPdf_taxTable": "Skattetabell",
   "salarySlipPdf_personalNumber": "Personnummer",

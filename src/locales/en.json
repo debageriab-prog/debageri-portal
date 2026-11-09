@@ -1803,7 +1803,7 @@
   "salarySlipPdf_yourSalary": "Total",
   "salarySlipPdf_paymentDate": "Payment date",
   "salarySlipPdf_salaryPeriod": "Salary period",
-  "salarySlipPdf_eventPeriod": "Event period",
+  "salarySlipPdf_eventPeriod": "Deviation period",
   "salarySlipPdf_taxTable": "Tax table",
   "salarySlipPdf_personalNumber": "Personal identity number",
   "salarySlipPdf_employeeNumber": "Employee number",
