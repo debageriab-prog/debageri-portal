@@ -18,6 +18,7 @@ const labelNames: Array<keyof InvoicePdfLabels> = [
   "invoiceNumber",
   "ocr",
   "bankgiro",
+  "plusgiro",
   "dueDate",
   "ourReference",
   "yourReference",
@@ -40,6 +41,8 @@ const labelNames: Array<keyof InvoicePdfLabels> = [
   "toPay",
   "payWithOcr",
   "payWithReference",
+  "payToBankgiro",
+  "payToPlusgiro",
   "iban",
   "bic",
   "address",
@@ -199,6 +202,21 @@ describe("invoice PDF", () => {
     );
     expect(text).toContain("Ange fakturanummer 20 som referens.");
     expect(text).not.toContain("(OCR-nummer)");
+  });
+
+  it("asks for payment to the plusgiro when there is no bankgiro", () => {
+    const issuer = {
+      ...sampleInvoice().issuer,
+      bankgiro: "",
+      plusgiro: "12 34 56-6",
+    };
+    const { text } = streams(
+      invoicePdf(sampleInvoice({ issuer, codeLine: null })),
+    );
+    expect(text).toContain("till plusgiro 12 34 56-6 senast 2026-12-02.");
+    expect(text).toContain("(Plusgiro)");
+    expect(text).not.toContain("(Bankgiro)");
+    expect(text).not.toContain("(INBETALNING / GIRERING AVI)");
   });
 
   it("moves long invoices onto more pages", () => {

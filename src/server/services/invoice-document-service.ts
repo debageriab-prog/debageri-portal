@@ -14,6 +14,7 @@ import {
 import {
   invoiceSettingsFrom,
   missingInvoiceSettings,
+  paymentAccountFor,
   postalAddressFrom,
   type InvoiceSettings,
 } from "@/domain/finance/invoice-settings";
@@ -52,6 +53,7 @@ const LABEL_KEYS = {
   invoiceNumber: "invoicePdf_invoiceNumber",
   ocr: "invoicePdf_ocr",
   bankgiro: "invoicePdf_bankgiro",
+  plusgiro: "invoicePdf_plusgiro",
   dueDate: "invoicePdf_dueDate",
   ourReference: "invoicePdf_ourReference",
   yourReference: "invoicePdf_yourReference",
@@ -74,6 +76,8 @@ const LABEL_KEYS = {
   toPay: "invoicePdf_toPay",
   payWithOcr: "invoicePdf_payWithOcr",
   payWithReference: "invoicePdf_payWithReference",
+  payToBankgiro: "invoicePdf_payToBankgiro",
+  payToPlusgiro: "invoicePdf_payToPlusgiro",
   iban: "invoicePdf_iban",
   bic: "invoicePdf_bic",
   address: "invoicePdf_address",
@@ -262,8 +266,8 @@ function render(
     vatMinor: Number(data.vatMinor),
     roundingMinor: Number(data.roundingMinor ?? 0),
     grossMinor: Number(data.grossMinor),
-    // The slip needs an OCR number; without one the payment box says how
-    // to pay instead.
+    // The slip needs an OCR number and a bankgiro; without them the payment
+    // box says how to pay instead.
     codeLine: ocrReference
       ? bankgiroCodeLine({
           ocrReference,
@@ -277,6 +281,21 @@ function render(
     pdf,
     fileName: invoiceFileName(labels.title, String(data.invoiceNumber)),
   };
+}
+
+/** "bankgiro 123-4566" or "plusgiro 12 34 56-7", for the invoice email. */
+function paymentAccountText(
+  issuer: InvoiceSettings,
+  locale: NotificationLocale,
+) {
+  const account = paymentAccountFor(issuer);
+  if (!account) return "";
+  return translate(
+    locale,
+    account.kind === "plusgiro"
+      ? "invoicePdf_payToPlusgiro"
+      : "invoicePdf_payToBankgiro",
+  ).replace("{number}", account.number);
 }
 
 /** Renders an invoice's PDF after checking the details it needs. */
@@ -499,6 +518,8 @@ export async function sendInvoiceToCustomer(
       dueDate: String(fresh.dueDate),
       total: formatSek(Number(fresh.grossMinor), locale),
       bankgiro: issuer.bankgiro,
+      plusgiro: issuer.plusgiro,
+      paymentAccount: paymentAccountText(issuer, locale),
       paymentReference: String(fresh.ocrReference || fresh.invoiceNumber),
     },
     customEmailTemplate(

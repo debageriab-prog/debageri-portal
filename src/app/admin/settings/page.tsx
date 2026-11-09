@@ -47,6 +47,7 @@ export default async function SettingsPage({
     [t("invoiceSetting_phone"), invoicing.phone],
     [t("invoiceSetting_email"), invoicing.email],
     [t("invoiceSetting_bankgiro"), invoicing.bankgiro],
+    [t("invoiceSetting_plusgiro"), invoicing.plusgiro],
     [t("invoiceSetting_iban"), invoicing.iban],
     [t("invoiceSetting_bic"), invoicing.bic],
     [t("invoiceSetting_paymentTermsDays"), String(invoicing.paymentTermsDays)],

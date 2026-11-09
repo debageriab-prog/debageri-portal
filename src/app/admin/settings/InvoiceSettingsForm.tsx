@@ -20,7 +20,12 @@ type TextField = Exclude<
 
 const SECTIONS: Array<{
   title: string;
-  fields: Array<{ key: TextField; type?: string; required?: boolean }>;
+  fields: Array<{
+    key: TextField;
+    type?: string;
+    required?: boolean;
+    tip?: boolean;
+  }>;
 }> = [
   {
     title: "invoiceSettingsCompany",
@@ -40,7 +45,8 @@ const SECTIONS: Array<{
   {
     title: "invoiceSettingsPayment",
     fields: [
-      { key: "bankgiro", required: true },
+      { key: "bankgiro", tip: true },
+      { key: "plusgiro", tip: true },
       { key: "bankName" },
       { key: "iban" },
       { key: "bic" },
@@ -121,6 +127,15 @@ export function InvoiceSettingsForm({
               <label key={field.key}>
                 {t(`invoiceSetting_${field.key}` as Parameters<typeof t>[0])}
                 {field.required && <span aria-hidden="true"> *</span>}
+                {field.tip && (
+                  <InfoTip
+                    text={t(
+                      `invoiceSettingTip_${field.key}` as Parameters<
+                        typeof t
+                      >[0],
+                    )}
+                  />
+                )}
                 <input
                   className="field"
                   type={field.type ?? "text"}

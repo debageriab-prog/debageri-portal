@@ -262,7 +262,7 @@ export const defaultEmailTemplates: Record<
       body: [
         greeting["en-SE"],
         "Attached is invoice {{invoiceNumber}} for {{total}}, due on {{dueDate}}.",
-        "Please pay to bankgiro {{bankgiro}} and give the reference {{paymentReference}}.",
+        "Please pay to {{paymentAccount}} and give the reference {{paymentReference}}.",
         accountingSignOff["en-SE"],
       ].join("\n\n"),
     },
@@ -336,7 +336,7 @@ export const defaultEmailTemplates: Record<
       body: [
         greeting["sv-SE"],
         "Bifogat finns faktura {{invoiceNumber}} på {{total}} med förfallodatum {{dueDate}}.",
-        "Betala till bankgiro {{bankgiro}} och ange referensen {{paymentReference}}.",
+        "Betala till {{paymentAccount}} och ange referensen {{paymentReference}}.",
         accountingSignOff["sv-SE"],
       ].join("\n\n"),
     },
@@ -410,7 +410,9 @@ export const emailPlaceholders: Record<EmailTemplateKind, string[]> = {
     "issueDate",
     "dueDate",
     "total",
+    "paymentAccount",
     "bankgiro",
+    "plusgiro",
     "paymentReference",
   ],
 };

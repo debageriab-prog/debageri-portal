@@ -157,7 +157,7 @@ audited as `salaryRun.agiExported`.
 
 Generated invoices replace Fortnox. `organizations/{org}.invoicing` holds the
 company details printed on them (name, address, org and VAT number, F-skatt,
-bankgiro, IBAN/BIC, payment terms, late interest text) and the
+bankgiro or plusgiro, IBAN/BIC, payment terms, late interest text) and the
 `nextInvoiceNumber` and `nextCustomerNumber` counters. Admins edit it under
 Administration > Organization. Creating an invoice suggests the counter; saving
 a plain number at or above it moves the counter past that number in the same
@@ -178,7 +178,9 @@ with a bankgiro payment slip ("Inbetalning/Girering AVI") whose code line
 follows Bankgirot's layout for a fixed amount: bankgiro, amount with its
 check digit and OCR number, read from the right and ending in `#41#`. It is
 set in Courier Bold 12, which has Bankgirot's pitch of ten characters per
-inch, so bank apps can scan it. Each generation copies the company details and the
+inch, so bank apps can scan it. A company with a plusgiro instead of a bankgiro gets
+no slip: the payment box and the invoice email ask for payment to the
+plusgiro. With both filled in, invoices use the bankgiro. Each generation copies the company details and the
 customer's address into the invoice (`issuerSnapshot`, `customerAddress`).
 Invoice articles (Invoice management > Invoice articles) hold what the
 company invoices: number, description, unit, unit price, VAT rate and a
