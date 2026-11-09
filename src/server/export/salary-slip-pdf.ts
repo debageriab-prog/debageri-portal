@@ -1,4 +1,9 @@
 import { lineAmountMinor } from "@/domain/salary/articles";
+import {
+  ageEmployerFeeMinor,
+  employerFeeRate,
+} from "@/domain/salary/employer-fee";
+import { DEFAULT_EMPLOYER_FEE_BPS } from "@/domain/salary/totals";
 import type { SalarySlip } from "@/domain/salary/slip";
 import { pdfDocument, PdfPage } from "./pdf-document";
 
@@ -7,8 +12,8 @@ export { PDF_CONTENT_TYPE } from "./pdf-document";
 /**
  * A Swedish payslip (lönespecifikation) as an A4 PDF: a summary box with the
  * payout and the person's details, the address, the events (händelser) with
- * tax and rounding, the payout, what is reported to Skatteverket, and the
- * vacation balance.
+ * tax and rounding, the payout, what is reported to Skatteverket with the
+ * employer contributions, and the vacation balance.
  */
 
 export type SalarySlipPdfLabels = Record<
@@ -16,6 +21,7 @@ export type SalarySlipPdfLabels = Record<
   | "yourSalary"
   | "paymentDate"
   | "salaryPeriod"
+  | "eventPeriod"
   | "taxTable"
   | "personalNumber"
   | "employeeNumber"
@@ -36,6 +42,8 @@ export type SalarySlipPdfLabels = Record<
   | "grossMonth"
   | "benefitsMonth"
   | "taxMonth"
+  | "employerFeePercent"
+  | "employerFeeMonth"
   | "grossYear"
   | "benefitsYear"
   | "taxYear"
@@ -51,6 +59,8 @@ export interface SalarySlipPdfInput {
     SalarySlip,
     | "period"
     | "paymentDate"
+    | "eventFrom"
+    | "eventTo"
     | "person"
     | "tax"
     | "lines"
@@ -124,6 +134,23 @@ function sectionHeading(page: PdfPage, text: string, top: number) {
   });
 }
 
+/**
+ * The employer contributions on the slip, by the person's age as when
+ * booking: the rate in percent, both rates when the youth rate's cap is
+ * passed, and the amount.
+ */
+export function slipEmployerFee(
+  slip: Pick<SalarySlip, "paymentDate" | "person" | "totals">,
+) {
+  const rate = employerFeeRate(slip.person.personalNumber, slip.paymentDate);
+  const taxable = slip.totals.taxableMinor;
+  const percent =
+    rate.reducedUpToMinor !== null && taxable > rate.reducedUpToMinor
+      ? `${formatAmount(rate.bps)} / ${formatAmount(DEFAULT_EMPLOYER_FEE_BPS)}`
+      : formatAmount(rate.bps);
+  return { percent, minor: ageEmployerFeeMinor(taxable, rate) };
+}
+
 export function salarySlipPdf(input: SalarySlipPdfInput): Buffer {
   const { slip, labels, employer } = input;
   const page = new PdfPage(WIDTH, HEIGHT);
@@ -141,7 +168,7 @@ export function salarySlipPdf(input: SalarySlipPdfInput): Buffer {
 
   // Summary box on the left, the person's address on the right.
   const boxTop = 96;
-  page.rect(MARGIN, boxTop, 270, 100, { fill: BOX });
+  page.rect(MARGIN, boxTop, 270, 112, { fill: BOX });
   const taxText =
     slip.tax.overrideMinor !== null || slip.tax.adjustment.type !== "none"
       ? labels.taxAdjusted
@@ -152,6 +179,10 @@ export function salarySlipPdf(input: SalarySlipPdfInput): Buffer {
       [labels.yourSalary, salary],
       [labels.paymentDate, slip.paymentDate],
       [labels.salaryPeriod, `${slip.period}-01 - ${lastDay(slip.period)}`],
+      [
+        labels.eventPeriod,
+        slip.eventFrom ? `${slip.eventFrom} - ${slip.eventTo}` : "",
+      ],
       [labels.taxTable, taxText],
       [labels.personalNumber, slip.person.personalNumber],
       [labels.employeeNumber, slip.person.employeeNumber],
@@ -174,7 +205,7 @@ export function salarySlipPdf(input: SalarySlipPdfInput): Buffer {
     );
 
   // Events.
-  let top = 230;
+  let top = 236;
   sectionHeading(page, labels.events, top);
   const columns = [
     { label: labels.name, x: MARGIN, width: 190, align: "left" as const },
@@ -281,19 +312,15 @@ export function salarySlipPdf(input: SalarySlipPdfInput): Buffer {
   top += 50;
   sectionHeading(page, labels.reported, top);
   top += 22;
-  pairs(
-    page,
-    [
-      [labels.grossMonth, formatKronor(slip.totals.grossMinor)],
-      [labels.benefitsMonth, formatKronor(slip.totals.benefitsMinor)],
-      [labels.taxMonth, formatKronor(slip.totals.taxMinor)],
-    ],
-    MARGIN,
-    top,
-    240,
-    9,
-    13,
-  );
+  const fee = slipEmployerFee(slip);
+  const reported: Array<[string, string]> = [
+    [labels.grossMonth, formatKronor(slip.totals.grossMinor)],
+    [labels.benefitsMonth, formatKronor(slip.totals.benefitsMinor)],
+    [labels.taxMonth, formatKronor(slip.totals.taxMinor)],
+    [labels.employerFeePercent, fee.percent],
+    [labels.employerFeeMonth, formatKronor(fee.minor)],
+  ];
+  pairs(page, reported, MARGIN, top, 240, 9, 13);
   const year = slip.yearToDate;
   pairs(
     page,
@@ -316,7 +343,7 @@ export function salarySlipPdf(input: SalarySlipPdfInput): Buffer {
   );
 
   if (slip.vacation) {
-    top += 60;
+    top += reported.length * 13 + 21;
     sectionHeading(page, labels.balance, top);
     top += 22;
     pairs(

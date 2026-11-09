@@ -7,6 +7,7 @@ import {
   formatAmount,
   salarySlipFileName,
   salarySlipPdf,
+  slipEmployerFee,
   type SalarySlipPdfLabels,
 } from "@/server/export/salary-slip-pdf";
 
@@ -61,6 +62,8 @@ function augustSlip() {
   return {
     period: "2026-08",
     paymentDate: "2026-08-25",
+    eventFrom: "2026-07-01",
+    eventTo: "2026-07-31",
     person: {
       displayName: "Anna Andersson",
       employeeNumber: "DB-006",
@@ -106,6 +109,24 @@ describe("payslip PDF", () => {
     expect(text.startsWith("%PDF-")).toBe(true);
     expect(text).toContain("/MediaBox [0 0 595 842]");
     expect(pdf.length).toBeGreaterThan(1_000);
+  });
+
+  it("shows the employer contributions by age", () => {
+    const slip = augustSlip();
+    // 31.42 % of the taxable 47 995 kr.
+    expect(slipEmployerFee(slip)).toEqual({
+      percent: "31,42",
+      minor: 1_508_000,
+    });
+    const youth = {
+      ...slip,
+      person: { ...slip.person, personalNumber: "20050101-0000" },
+    };
+    // 25 000 × 20.81 % + 22 995 × 31.42 % = 5 202.50 + 7 225.03
+    expect(slipEmployerFee(youth)).toEqual({
+      percent: "20,81 / 31,42",
+      minor: 1_242_800,
+    });
   });
 
   it("formats amounts the Swedish way", () => {
