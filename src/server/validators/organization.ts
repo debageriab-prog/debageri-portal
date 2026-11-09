@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   validBankgiro,
   validOrgNumber,
+  validPlusgiro,
   validSwedishVatNumber,
 } from "@/domain/finance/swedish-identifiers";
 
@@ -35,6 +36,9 @@ export const invoiceSettingsSchema = z.object({
   fSkatt: z.boolean(),
   bankgiro: line(20).refine((value) => !value || validBankgiro(value), {
     message: "bankgiroInvalid",
+  }),
+  plusgiro: line(20).refine((value) => !value || validPlusgiro(value), {
+    message: "plusgiroInvalid",
   }),
   iban: line(40).refine(
     (value) => !value || /^[A-Z]{2}\d{2}[A-Z0-9 ]{8,36}$/i.test(value),

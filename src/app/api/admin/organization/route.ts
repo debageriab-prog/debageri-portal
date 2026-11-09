@@ -5,6 +5,7 @@ import { verifySession } from "@/server/auth/session";
 import { invoiceSettingsSchema } from "@/server/validators/organization";
 import {
   formatBankgiro,
+  formatPlusgiro,
   formatOrgNumber,
 } from "@/domain/finance/swedish-identifiers";
 
@@ -32,6 +33,7 @@ export async function PUT(request: Request) {
     orgNumber: formatOrgNumber(parsed.data.orgNumber),
     vatNumber: parsed.data.vatNumber.replace(/\s/g, "").toUpperCase(),
     bankgiro: formatBankgiro(parsed.data.bankgiro),
+    plusgiro: formatPlusgiro(parsed.data.plusgiro),
     iban: parsed.data.iban.replace(/\s/g, "").toUpperCase(),
     bic: parsed.data.bic.toUpperCase(),
   };

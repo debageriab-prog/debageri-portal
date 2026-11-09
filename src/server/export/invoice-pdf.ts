@@ -2,6 +2,7 @@ import type { InvoiceLine } from "@/domain/finance/invoice-lines";
 import { formatQuantity } from "@/domain/finance/invoice-lines";
 import {
   isDomesticCountry,
+  paymentAccountFor,
   type InvoiceSettings,
   type PostalAddress,
 } from "@/domain/finance/invoice-settings";
@@ -22,6 +23,7 @@ export type InvoicePdfLabels = Record<
   | "invoiceNumber"
   | "ocr"
   | "bankgiro"
+  | "plusgiro"
   | "dueDate"
   | "ourReference"
   | "yourReference"
@@ -44,6 +46,8 @@ export type InvoicePdfLabels = Record<
   | "toPay"
   | "payWithOcr"
   | "payWithReference"
+  | "payToBankgiro"
+  | "payToPlusgiro"
   | "iban"
   | "bic"
   | "address"
@@ -222,6 +226,7 @@ function footer(page: PdfPage, input: InvoicePdfInput) {
       labels.payment,
       [
         issuer.bankgiro && `${labels.bankgiro} ${issuer.bankgiro}`,
+        issuer.plusgiro && `${labels.plusgiro} ${issuer.plusgiro}`,
         issuer.iban && `${labels.iban} ${issuer.iban}`,
         issuer.bic && `${labels.bic} ${issuer.bic}`,
         issuer.bankName,
@@ -289,6 +294,7 @@ function firstPageHead(page: PdfPage, input: InvoicePdfInput) {
       [labels.invoiceNumber, input.invoiceNumber],
       [labels.ocr, input.ocrReference ?? ""],
       [labels.bankgiro, issuer.bankgiro],
+      [labels.plusgiro, issuer.plusgiro],
     ],
     RIGHT_COLUMN,
     MARGIN + 30,
@@ -446,11 +452,19 @@ export function invoicePdf(input: InvoicePdfInput): Buffer {
     // The slip says how to pay, so the payment box is left out.
     paymentSlip(page, input, input.codeLine, total);
   } else {
+    const account = paymentAccountFor(issuer);
     const payment = fill(
       input.ocrReference ? labels.payWithOcr : labels.payWithReference,
       {
         amount: total,
-        bankgiro: issuer.bankgiro,
+        account: account
+          ? fill(
+              account.kind === "plusgiro"
+                ? labels.payToPlusgiro
+                : labels.payToBankgiro,
+              { number: account.number },
+            )
+          : "",
         dueDate: input.dueDate,
         ocr: input.ocrReference ?? "",
         invoiceNumber: input.invoiceNumber,

@@ -16,6 +16,7 @@ export type InvoiceSettings = {
   vatNumber: string;
   fSkatt: boolean;
   bankgiro: string;
+  plusgiro: string;
   iban: string;
   bic: string;
   bankName: string;
@@ -42,6 +43,7 @@ export const emptyInvoiceSettings = (name = ""): InvoiceSettings => ({
   vatNumber: "",
   fSkatt: true,
   bankgiro: "",
+  plusgiro: "",
   iban: "",
   bic: "",
   bankName: "",
@@ -78,6 +80,7 @@ export function invoiceSettingsFrom(
     vatNumber: text(value.vatNumber, ""),
     fSkatt: typeof value.fSkatt === "boolean" ? value.fSkatt : defaults.fSkatt,
     bankgiro: text(value.bankgiro, ""),
+    plusgiro: text(value.plusgiro, ""),
     iban: text(value.iban, ""),
     bic: text(value.bic, ""),
     bankName: text(value.bankName, ""),
@@ -100,12 +103,36 @@ export const REQUIRED_INVOICE_SETTINGS = [
   "city",
   "orgNumber",
   "vatNumber",
-  "bankgiro",
 ] as const satisfies readonly (keyof InvoiceSettings)[];
 
-/** The company details still missing before an invoice can be generated. */
+/**
+ * The company details still missing before an invoice can be generated. A
+ * bankgiro or a plusgiro is needed; without either, `bankgiro` is listed.
+ */
 export function missingInvoiceSettings(settings: InvoiceSettings) {
-  return REQUIRED_INVOICE_SETTINGS.filter((key) => !settings[key].trim());
+  const missing: Array<keyof InvoiceSettings> =
+    REQUIRED_INVOICE_SETTINGS.filter((key) => !settings[key].trim());
+  if (!paymentAccountFor(settings)) missing.push("bankgiro");
+  return missing;
+}
+
+export type PaymentAccount = {
+  kind: "bankgiro" | "plusgiro";
+  number: string;
+};
+
+/**
+ * Where customers pay: the bankgiro when there is one, else the plusgiro.
+ * Only a bankgiro gets Bankgirot's payment slip.
+ */
+export function paymentAccountFor(
+  settings: Pick<InvoiceSettings, "bankgiro" | "plusgiro">,
+): PaymentAccount | null {
+  if (settings.bankgiro.trim())
+    return { kind: "bankgiro", number: settings.bankgiro.trim() };
+  if (settings.plusgiro.trim())
+    return { kind: "plusgiro", number: settings.plusgiro.trim() };
+  return null;
 }
 
 /**

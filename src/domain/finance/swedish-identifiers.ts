@@ -1,6 +1,6 @@
 /**
  * Checks and formats for the Swedish numbers an invoice carries: bankgiro,
- * organization number, VAT number and the OCR payment reference. All of them
+ * plusgiro, organization number, VAT number and the OCR payment reference. All of them
  * end with a Luhn (modulus 10) check digit.
  */
 
@@ -38,6 +38,25 @@ export function formatBankgiro(value: string) {
   return /^\d{7,8}$/.test(digits)
     ? `${digits.slice(0, -4)}-${digits.slice(-4)}`
     : value.trim();
+}
+
+/**
+ * A plusgiro number has 2 to 8 digits, the last a check digit after a dash,
+ * with the rest in pairs from the right: 12 34 56-7 or 4 77 92-1.
+ */
+export function validPlusgiro(value: string) {
+  const digits = digitsOnly(value);
+  return /^\d{2,8}$/.test(digits) && passesLuhn(digits);
+}
+
+export function formatPlusgiro(value: string) {
+  const digits = digitsOnly(value);
+  if (!/^\d{2,8}$/.test(digits)) return value.trim();
+  const body = digits.slice(0, -1);
+  const pairs: string[] = [];
+  for (let end = body.length; end > 0; end -= 2)
+    pairs.unshift(body.slice(Math.max(0, end - 2), end));
+  return `${pairs.join(" ")}-${digits.slice(-1)}`;
 }
 
 /** A Swedish organization number: ten digits, written 559555-8429. */

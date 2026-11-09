@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatBankgiro,
   formatOrgNumber,
+  formatPlusgiro,
   bankgiroCodeLine,
   CODE_LINE_LENGTH,
   luhnCheckDigit,
@@ -9,6 +10,7 @@ import {
   validBankgiro,
   validOcrReference,
   validOrgNumber,
+  validPlusgiro,
   validSwedishVatNumber,
   vatNumberFor,
 } from "@/domain/finance/swedish-identifiers";
@@ -26,6 +28,7 @@ import {
   invoiceSettingsFrom,
   missingInvoiceSettings,
   nextNumberAfter,
+  paymentAccountFor,
 } from "@/domain/finance/invoice-settings";
 
 describe("Swedish identifiers", () => {
@@ -48,6 +51,16 @@ describe("Swedish identifiers", () => {
     expect(formatBankgiro("50207042")).toBe("5020-7042");
     expect(formatBankgiro("1234566")).toBe("123-4566");
     expect(formatOrgNumber("5595558429")).toBe("559555-8429");
+  });
+
+  it("validates and formats plusgiro numbers", () => {
+    expect(validPlusgiro("12 34 56-6")).toBe(true);
+    expect(validPlusgiro("1234567")).toBe(false);
+    expect(validPlusgiro("1")).toBe(false);
+    expect(validPlusgiro("123456789")).toBe(false);
+    expect(formatPlusgiro("1234566")).toBe("12 34 56-6");
+    expect(formatPlusgiro("12345674")).toBe("1 23 45 67-4");
+    expect(formatPlusgiro("18")).toBe("1-8");
   });
 
   it("builds OCR references with a length and a check digit", () => {
@@ -129,6 +142,20 @@ describe("invoice settings", () => {
       "vatNumber",
       "bankgiro",
     ]);
+  });
+
+  it("accepts a plusgiro instead of a bankgiro", () => {
+    const base = invoiceSettingsFrom(undefined, "Debageri AB");
+    const plusgiro = { ...base, plusgiro: "12 34 56-6" };
+    expect(missingInvoiceSettings(plusgiro)).not.toContain("bankgiro");
+    expect(paymentAccountFor(plusgiro)).toEqual({
+      kind: "plusgiro",
+      number: "12 34 56-6",
+    });
+    expect(paymentAccountFor({ ...plusgiro, bankgiro: "123-4566" })?.kind).toBe(
+      "bankgiro",
+    );
+    expect(paymentAccountFor(base)).toBeNull();
   });
 
   it("moves the number counter past the number used", () => {
