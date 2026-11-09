@@ -730,9 +730,24 @@ function BookDialog({
   );
   const anything = publishPayslip || createExpenses;
 
+  // Net only leaves the withheld tax out of flexible consultants' balances.
+  const flexibleNames = rows
+    .filter((row) => row.fundedByConsultant)
+    .map((row) => row.name);
+  const [confirmingNet, setConfirmingNet] = useState(false);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!feeValid || !anything) return;
+    if (createExpenses && mode === "net" && flexibleNames.length) {
+      setConfirmingNet(true);
+      return;
+    }
+    await book();
+  }
+
+  async function book() {
+    setConfirmingNet(false);
     const payload = {
       action: "bookSalarySlips",
       slipIds: rows.map((row) => row.id),
@@ -753,6 +768,44 @@ function BookDialog({
     else if (failure) setError(salaryError(t, failure));
     else onDone();
   }
+
+  if (confirmingNet)
+    return (
+      <div className="modal-backdrop" role="presentation">
+        <section
+          className="modal modal-small"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="book-net-title"
+        >
+          <header className="modal-header">
+            <div>
+              <h2 id="book-net-title">{t("bookNetWarningTitle")}</h2>
+            </div>
+          </header>
+          <p className="notice notice-warning">
+            {t("bookNetWarning").replace("{names}", flexibleNames.join(", "))}
+          </p>
+          <footer className="modal-actions">
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => setConfirmingNet(false)}
+            >
+              {t("back")}
+            </button>
+            <button
+              className="button"
+              type="button"
+              disabled={busy}
+              onClick={() => void book()}
+            >
+              {t("bookNetAnyway")}
+            </button>
+          </footer>
+        </section>
+      </div>
+    );
 
   return (
     <div className="modal-backdrop" role="presentation">

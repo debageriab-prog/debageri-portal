@@ -2016,5 +2016,8 @@
   "financeError_salaryBookingEmpty": "Choose at least one thing to do when booking.",
   "bookSalariesGross": "Gross salary only",
   "bookSalariesGrossTip": "Books the payout and the withheld tax together as one salary expense. Its description shows both, for example 36 258 net + 9 822 tax.",
-  "salarySlipBooking_grossDetail": "{net} net + {tax} tax"
+  "salarySlipBooking_grossDetail": "{net} net + {tax} tax",
+  "bookNetWarningTitle": "Book net salary only?",
+  "bookNetWarning": "The withheld tax is not booked, so it does not come off the balance of {names}. Record it yourself when it is paid to Skatteverket, or go back and choose net salary and withheld tax or gross salary.",
+  "bookNetAnyway": "Book net only"
 }
