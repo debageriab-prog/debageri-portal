@@ -30,6 +30,7 @@ export const SALARY_ARTICLES = {
   parentalLeave: { kind: "pay" },
   careLeave: { kind: "pay" },
   sickLeave: { kind: "pay" },
+  sickLeaveFull: { kind: "pay" },
   sickWaitingDay: { kind: "pay" },
   bonus: { kind: "pay" },
   otherPay: { kind: "pay" },
@@ -60,6 +61,7 @@ export const MANUAL_SALARY_ARTICLES: Record<
     "extraTax",
     "unpaidLeave",
     "sickLeave",
+    "sickLeaveFull",
     "sickWaitingDay",
   ],
 };
@@ -119,6 +121,8 @@ export interface SalaryLine {
   manual: boolean;
   /** A one-time payment (engångsbelopp), taxed with engångsskatt. */
   oneTime?: boolean;
+  /** Added by hand and added again when next month's salaries are made. */
+  repeat?: boolean;
 }
 
 export function articleKind(article: SalaryArticle): SalaryLineKind {

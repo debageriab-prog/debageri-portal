@@ -148,6 +148,17 @@ export function copiedSalaryLines(
   }));
 }
 
+/** The lines of last month marked to repeat, for a new row of this month. */
+export function repeatedSalaryLines(
+  lines: SalaryLine[],
+  stamp: number,
+): SalaryLine[] {
+  return copiedSalaryLines(
+    lines.filter((line) => line.repeat === true),
+    stamp,
+  );
+}
+
 /** A `YYYY-MM` month between 2020 and 2100. */
 export function validSalaryPeriod(period: string) {
   const match = /^(\d{4})-(\d{2})$/.exec(period);

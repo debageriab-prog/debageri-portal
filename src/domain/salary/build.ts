@@ -1,12 +1,11 @@
 import type { CompensationAgreement, TimeCategory } from "@/domain/types";
 import { monthlySalaryMinor } from "@/domain/finance/compensation";
-import {
-  datesBetween,
-  isWorkingDay,
-  monthBounds,
-  WORKDAY_MINUTES,
-} from "@/domain/time/working-days";
+import { monthBounds, WORKDAY_MINUTES } from "@/domain/time/working-days";
 import type { SalaryArticle, SalaryLine } from "./articles";
+import { dateRuns } from "./runs";
+import { sickPeriods, type SickDay } from "./sick-pay";
+
+export { dateRuns };
 
 /** Full-time hours a week, used to turn a monthly salary into an hourly one. */
 const WEEKLY_HOURS = 40;
@@ -38,32 +37,17 @@ export interface SalaryBuildInput {
   holidays: ReadonlySet<string>;
   /** Vacation days in the event period that the balance does not cover. */
   unpaidVacationDays?: number;
+  /**
+   * Approved sick days in the twelve months before the event period, so a
+   * sick pay period that began earlier counts on and the waiting-day limit
+   * holds.
+   */
+  earlierSick?: SickDay[];
 }
 
 /** Monthly salary per hour: × 12 months ÷ (52 weeks × 40 hours). */
 export function hourlyRateMinor(monthlyMinor: number) {
   return Math.round((monthlyMinor * 12) / (52 * WEEKLY_HOURS));
-}
-
-/**
- * Dates grouped into runs, where only weekends and red days may lie between
- * two dates of the same run: a Friday and the Monday after belong together.
- */
-export function dateRuns(dates: string[], holidays: ReadonlySet<string>) {
-  const sorted = [...new Set(dates)].sort();
-  const runs: string[][] = [];
-  for (const date of sorted) {
-    const run = runs.at(-1);
-    const last = run?.at(-1);
-    const gapIsFree =
-      last !== undefined &&
-      datesBetween(last, date)
-        .slice(1, -1)
-        .every((day) => !isWorkingDay(day, holidays));
-    if (run && gapIsFree) run.push(date);
-    else runs.push([date]);
-  }
-  return runs;
 }
 
 function line(
@@ -167,29 +151,65 @@ export function buildSalaryLines(input: SalaryBuildInput): SalaryLine[] {
     }
   }
 
-  // Sick pay is 80 %: 20 % of each sick hour, and a waiting-day deduction
-  // (karensavdrag) of 20 % of a week's sick pay for each sick spell.
-  const sick = minutesByDate(input.entries, ["sick_leave"]);
-  for (const run of dateRuns([...sick.keys()], input.holidays)) {
-    const minutes = run.reduce((sum, date) => sum + sick.get(date)!, 0);
-    lines.push(
-      line(`sickLeave-${run[0]}`, "sickLeave", {
-        from: run[0]!,
-        to: run.at(-1)!,
-        quantityHundredths: Math.round((minutes * 100) / 60),
-        unitPriceMinor: -Math.round((hourly * SICK_DEDUCTION_BPS) / 10_000),
-      }),
-      line(`sickWaitingDay-${run[0]}`, "sickWaitingDay", {
-        from: run[0]!,
-        to: run[0]!,
-        quantityHundredths: 100,
-        // 20 % × (80 % × hourly × 40 hours)
-        unitPriceMinor: -Math.round(
-          (hourly * WEEKLY_HOURS * (10_000 - SICK_DEDUCTION_BPS) * 2000) /
-            100_000_000,
-        ),
-      }),
-    );
+  // Sick pay is 80 % for days 1–14 of a sick pay period, so 20 % of each
+  // sick hour is deducted; from day 15 Försäkringskassan pays and the whole
+  // hour is deducted. Each period starts with a waiting-day deduction of 20 %
+  // of a week's sick pay, at most the sick pay of the period.
+  const sickDays: SickDay[] = [
+    ...(input.earlierSick ?? []).filter((day) => day.date < input.eventFrom),
+    ...input.entries
+      .filter((entry) => entry.category === "sick_leave")
+      .map(({ date, minutes }) => ({ date, minutes })),
+  ];
+  const inEvent = (date: string) =>
+    date >= input.eventFrom && date <= input.eventTo;
+  const sickHourly = Math.round((hourly * SICK_DEDUCTION_BPS) / 10_000);
+  const weeklySickPay = Math.round(
+    (hourly * WEEKLY_HOURS * (10_000 - SICK_DEDUCTION_BPS)) / 10_000,
+  );
+  for (const period of sickPeriods(sickDays, input.holidays)) {
+    const days = period.days.filter((day) => inEvent(day.date));
+    if (!days.length) continue;
+    for (const employerPays of [true, false]) {
+      const part = days.filter((day) => day.employerPays === employerPays);
+      for (const run of dateRuns(
+        part.map((day) => day.date),
+        input.holidays,
+      )) {
+        const minutes = part
+          .filter((day) => run.includes(day.date))
+          .reduce((sum, day) => sum + day.minutes, 0);
+        const article = employerPays ? "sickLeave" : "sickLeaveFull";
+        lines.push(
+          line(`${article}-${run[0]}`, article, {
+            from: run[0]!,
+            to: run.at(-1)!,
+            quantityHundredths: Math.round((minutes * 100) / 60),
+            unitPriceMinor: employerPays ? -sickHourly : -hourly,
+          }),
+        );
+      }
+    }
+    if (period.waitingDay && inEvent(period.start)) {
+      const paidMinutes = period.days
+        .filter((day) => day.employerPays)
+        .reduce((sum, day) => sum + day.minutes, 0);
+      const sickPay = Math.round(
+        (((hourly * paidMinutes) / 60) * (10_000 - SICK_DEDUCTION_BPS)) /
+          10_000,
+      );
+      lines.push(
+        line(`sickWaitingDay-${period.start}`, "sickWaitingDay", {
+          from: period.start,
+          to: period.start,
+          quantityHundredths: 100,
+          unitPriceMinor: -Math.min(
+            Math.round((weeklySickPay * 2000) / 10_000),
+            sickPay,
+          ),
+        }),
+      );
+    }
   }
   return lines;
 }

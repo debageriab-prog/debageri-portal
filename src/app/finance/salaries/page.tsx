@@ -8,6 +8,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
 import { salaryCandidates } from "@/server/services/salary-service";
+import { invoiceSettingsFrom } from "@/domain/finance/invoice-settings";
 import { loadSalaryRun } from "./salary-data";
 import { SalaryRun } from "./SalaryRun";
 
@@ -26,10 +27,15 @@ export default async function SalariesPage({
       ? requested
       : stockholmDateTime().date.slice(0, 7);
   const { db } = getAdminServices();
-  const [{ run, rows }, candidates] = await Promise.all([
+  const [{ run, rows }, candidates, organization] = await Promise.all([
     loadSalaryRun(db, actor.organizationId, period),
     salaryCandidates(db, actor.organizationId, period),
+    db.collection("organizations").doc(actor.organizationId).get(),
   ]);
+  const company = invoiceSettingsFrom(
+    organization.data()?.invoicing,
+    String(organization.data()?.name ?? ""),
+  );
   const events = monthBounds(previousMonth(period));
   return (
     <>
@@ -61,6 +67,11 @@ export default async function SalariesPage({
         }}
         canEdit={can(actor, "finance.salary.edit")}
         canBook={can(actor, "finance.salary.book")}
+        agiContact={{
+          name: actor.displayName,
+          phone: company.phone,
+          email: actor.email,
+        }}
       />
     </>
   );

@@ -94,9 +94,17 @@ their payroll details and tax, and lines built from the agreement and the
 approved time reports of the event period (usually the month before): the
 monthly salary, a vacation supplement (semestertillägg) per run of vacation
 days at the person's `supplementBps` (0.8 % without vacation settings), and
-hourly deductions for unpaid, parental and care leave, with sick pay at 80 %
-plus a waiting-day deduction (karensavdrag). Lines added or changed by hand
-survive a rebuild. Generating asks whom to pay: people left out, or
+hourly deductions for unpaid, parental and care leave, and sick pay under
+the Sick Pay Act (`src/domain/salary/sick-pay.ts`): sick days are grouped into
+sick pay periods counted in calendar days, days 1–14 are paid at 80 % (20 %
+of each hour deducted) and later days are deducted in full, as
+Försäkringskassan pays them. Each period starts with a waiting-day deduction
+(karensavdrag) of 20 % of a week's sick pay, at most the period's sick pay;
+falling ill again within five days continues the period without a new one,
+and after ten in twelve months none are made. Approved sick days of the year
+before the event period are read for this. Lines added or changed by hand
+survive a rebuild. Added lines marked `repeat` are copied, with new ids and
+without dates, into the person's row when the next month is generated. Generating asks whom to pay: people left out, or
 removed from the month while their row is prepared, are kept in the run's
 `excludedUserIds` and stay out on the next update. Each row can turn
 `useTimeReports` off to pay the full monthly salary whatever was reported;
@@ -122,12 +130,28 @@ expense through `financeAttachments` (`salarySlipId`); an attached PDF is
 marked `attached` and is no longer deleted when the payslip is generated
 again. Expenses add the payout on `salary`, optionally the withheld tax on
 `salary_tax` and employer contributions on `employer_tax`, creating those
-categories when missing. A flexible consultant's salary is consultant-funded
+categories when missing. Employer contributions use each person's rate for
+their age (`src/domain/salary/employer-fee.ts`, from the year of birth and the
+payment date): 31.42 %, 10.21 % for people who turned 66 before the year
+began, nothing for people born 1937 or earlier, and 20.81 % on pay up to
+25 000 kr a month for 19–23-year-olds from April 2026 to September 2027;
+`booking.employerFeeGroup` records which. A flexible consultant's salary is consultant-funded
 and lowers their balance; everyone else is a company expense, with
 `employeeId` naming the person. Salary expenses carry `salarySlipId` and are
 changed only from their row: a booked row is reversed with linked reversals
 and reopened. Reported monthly and yearly figures drop the öre, as
 Skatteverket expects whole kronor.
+
+The month's AGI file (arbetsgivardeklaration på individnivå, Skatteverket's
+XML schema 1.1, built in `src/domain/salary/agi.ts`) is downloaded from
+`POST /api/finance/salaries/agi` with `finance.salary.book`. It covers the
+month's booked rows: a huvuduppgift per payment month with the summed
+employer contributions (fält 487) and tax (497), an individuppgift per person
+with cash pay (011), other benefits (012) and withheld tax (001), and a
+frånvarouppgift per day of parental leave (`FORALDRAPENNING`) and care of a
+sick child (`TILLFALLIG_FORALDRAPENNING`) from the approved time reports. It
+needs the company's organisation number in the invoice settings and a
+personnummer on each row. Each export is audited as `salaryRun.agiExported`.
 
 Generated invoices replace Fortnox. `organizations/{org}.invoicing` holds the
 company details printed on them (name, address, org and VAT number, F-skatt,
