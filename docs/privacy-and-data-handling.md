@@ -20,6 +20,13 @@ the response only pre-fills the form and nothing is stored until the person
 posts the transaction. Review the provider's data-processing terms before
 enabling it.
 
+Both providers are called with API keys, so their commercial terms apply and
+neither trains models on the requests by default. OpenAI requests set
+`store: false` so the response is not kept for OpenAI's default 30 days. Keep
+model training and data sharing turned off in each provider's organization
+settings, and sign each provider's data processing addendum before enabling
+the integration.
+
 Admins can list accounting email addresses under Administration → Organization
 → Accounting emails. After an income or expense, invoice or VAT payment is saved, the
 person saving it is asked whether to email it; only on yes are the record's

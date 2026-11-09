@@ -370,6 +370,9 @@ async function callOpenAi(
   try {
     const response = await client.responses.create({
       model,
+      // Keep OpenAI from storing the response, which holds the extracted
+      // document details, for its default 30 days.
+      store: false,
       instructions: system,
       input: [
         {
