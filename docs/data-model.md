@@ -110,11 +110,16 @@ percent covers them too. Rows move from `initiated` to `ready`, `payslipGenerate
 and `booked`; `problem` keeps a row without payroll details or tax tables
 from becoming ready unless the tax is typed by hand.
 
-The payslip PDF is stored once, as the person's `payslips` document for the
-month (`generated: true`, `salarySlipId`), and booking attaches that same
-Storage object to each expense through `financeAttachments` with
-`payslipId`. Booking adds the payout on `salary`, optionally the withheld tax
-on `salary_tax` and employer contributions on `employer_tax`, creating those
+Generating payslips only stores each row's PDF under
+`organizations/{org}/salaries/{YYYY-MM}/` and records it in the row's `pdf`,
+for finance to check; employees see nothing yet. Booking then does the steps
+chosen for it, kept in `booking`: publishing a copy as the person's
+`payslips` document for the month (`generated: true`, `salarySlipId`, with
+the usual email), creating the expenses, and attaching the row's PDF to each
+expense through `financeAttachments` (`salarySlipId`); an attached PDF is
+marked `attached` and is no longer deleted when the payslip is generated
+again. Expenses add the payout on `salary`, optionally the withheld tax on
+`salary_tax` and employer contributions on `employer_tax`, creating those
 categories when missing. A flexible consultant's salary is consultant-funded
 and lowers their balance; everyone else is a company expense, with
 `employeeId` naming the person. Salary expenses carry `salarySlipId` and are

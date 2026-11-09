@@ -219,15 +219,7 @@ export async function deletePayslip(
   const data = snapshot.data();
   if (!snapshot.exists || data?.organizationId !== actor.organizationId)
     throw new PayslipError("notFound", 404);
-  // A booked salary's expenses share this file, so it stays.
-  if (data.salarySlipId) {
-    const slip = await db
-      .collection("salarySlips")
-      .doc(String(data.salarySlipId))
-      .get();
-    if (slip.data()?.status === "booked")
-      throw new PayslipError("payslipBooked", 409);
-  }
+  // Salary expenses keep their own copy of a generated payslip.
   await storage
     .bucket()
     .file(String(data.storagePath))

@@ -266,9 +266,9 @@ export function SalarySlipEditor({
       <form className="card salary-editor" onSubmit={submit} noValidate>
         <div className="salary-editor-head">
           <SalaryStatus row={row} />
-          {row.payslipId && (
+          {row.hasPdf && (
             <PayslipPdfButton
-              payslipId={row.payslipId}
+              slipId={row.id}
               name={`${row.name} ${row.period}.pdf`}
             />
           )}

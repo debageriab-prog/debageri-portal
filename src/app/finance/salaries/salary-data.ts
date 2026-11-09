@@ -118,6 +118,8 @@ export interface SalaryRow {
   tax: SalarySlipTax;
   totals: SalaryTotals;
   payslipId: string | null;
+  /** Whether the row has a current payslip PDF to look at. */
+  hasPdf: boolean;
   version: number;
   /** Whether vacation and leave come from time reports. */
   useTimeReports: boolean;
@@ -158,6 +160,9 @@ function rowFrom(
     tax: data.tax,
     totals: data.totals,
     payslipId: data.payslipId ?? null,
+    hasPdf:
+      Boolean(data.pdf?.storagePath) &&
+      (data.status === "payslipGenerated" || data.status === "booked"),
     version: Number(data.version ?? 0),
     useTimeReports: data.useTimeReports !== false,
     reportedDays: Number(data.reportedDays ?? 0),

@@ -4,14 +4,17 @@ import { useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { FilePreviewModal } from "@/components/ui/FilePreview";
-import { payslipFileUrl } from "@/app/documents/payslips/PayslipPreview";
+
+/** Where finance reads a salary row's generated payslip PDF. */
+export const salaryPayslipUrl = (slipId: string) =>
+  `/api/finance/salaries/${encodeURIComponent(slipId)}/payslip`;
 
 /** The PDF icon that opens a salary's payslip in the shared preview popup. */
 export function PayslipPdfButton({
-  payslipId,
+  slipId,
   name,
 }: {
-  payslipId: string;
+  slipId: string;
   name: string;
 }) {
   const { t } = useLocale();
@@ -32,7 +35,7 @@ export function PayslipPdfButton({
           target={{
             name,
             contentType: "application/pdf",
-            fileUrl: payslipFileUrl(payslipId),
+            fileUrl: salaryPayslipUrl(slipId),
           }}
           onClose={() => setOpen(false)}
         />

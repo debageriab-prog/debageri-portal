@@ -4382,6 +4382,12 @@ td.amount-cell {
 .salary-time-pending {
   border-style: dashed;
 }
+.salary-book-options {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding-left: 26px;
+}
 .salary-totals {
   display: grid;
   grid-template-columns: 1fr auto;

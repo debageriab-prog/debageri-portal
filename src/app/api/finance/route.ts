@@ -335,21 +335,21 @@ export async function POST(request: Request) {
       case "setSalarySlipStatus":
         await setSalarySlipStatus(db, actor, parsed.data);
         break;
-      case "generatePayslips": {
-        const payslipIds = await generatePayslips(
+      case "generatePayslips":
+        await generatePayslips(db, storage, actor, parsed.data);
+        break;
+      case "bookSalarySlips": {
+        const { published } = await bookSalarySlips(
           db,
           storage,
           actor,
           parsed.data,
         );
         const portalUrl = portalUrlFrom(request);
-        for (const payslipId of payslipIds)
+        for (const payslipId of published)
           await notifyPayslipPublished(payslipId, portalUrl);
         break;
       }
-      case "bookSalarySlips":
-        await bookSalarySlips(db, actor, parsed.data);
-        break;
       case "reverseSalarySlip":
         await reverseSalarySlip(db, actor, parsed.data);
         break;
@@ -357,7 +357,7 @@ export async function POST(request: Request) {
         await setSalarySlipTimeReports(db, actor, parsed.data);
         break;
       case "removeSalarySlip":
-        await removeSalarySlip(db, actor, parsed.data);
+        await removeSalarySlip(db, storage, actor, parsed.data);
         break;
     }
     return NextResponse.json({ ok: true, id });

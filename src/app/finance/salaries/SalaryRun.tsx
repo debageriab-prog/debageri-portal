@@ -79,7 +79,10 @@ export function SalaryRun({
   const [message, setMessage] = useState("");
   const [generating, setGenerating] = useState(false);
   const [booking, setBooking] = useState(false);
-  const [replacing, setReplacing] = useState<string[] | null>(null);
+  /** A booking that would replace uploaded payslips, waiting for a yes. */
+  const [replacing, setReplacing] = useState<Record<string, unknown> | null>(
+    null,
+  );
   const [removing, setRemoving] = useState<SalaryRow | null>(null);
 
   const chosen = rows.filter((row) => selected.includes(row.id));
@@ -115,15 +118,14 @@ export function SalaryRun({
     const failure =
       action === "payslips"
         ? await perform(
-            { action: "generatePayslips", slipIds, replaceExisting: false },
+            { action: "generatePayslips", slipIds },
             t("salaryPayslipsGenerated"),
           )
         : await perform(
             { action: "setSalarySlipStatus", slipIds, status: action },
             t(action === "ready" ? "salaryMarkedReady" : "salaryReopened"),
           );
-    if (failure === "payslipExists") setReplacing(slipIds);
-    else if (failure) setError(salaryError(t, failure));
+    if (failure) setError(salaryError(t, failure));
   }
 
   const can = (status: SalaryRow["status"][]) =>
@@ -300,9 +302,9 @@ export function SalaryRun({
                             <ActionIcon type="info" />
                           )}
                         </Link>
-                        {row.payslipId && (
+                        {row.hasPdf && (
                           <PayslipPdfButton
-                            payslipId={row.payslipId}
+                            slipId={row.id}
                             name={`${row.name} ${row.period}.pdf`}
                           />
                         )}
@@ -467,6 +469,10 @@ export function SalaryRun({
         <BookDialog
           rows={chosen}
           close={() => setBooking(false)}
+          onReplace={(payload) => {
+            setBooking(false);
+            setReplacing(payload);
+          }}
           onDone={() => {
             setBooking(false);
             setSelected([]);
@@ -503,12 +509,8 @@ export function SalaryRun({
                 disabled={busy}
                 onClick={async () => {
                   const failure = await perform(
-                    {
-                      action: "generatePayslips",
-                      slipIds: replacing,
-                      replaceExisting: true,
-                    },
-                    t("salaryPayslipsGenerated"),
+                    { ...replacing, replaceExisting: true },
+                    t("salariesBooked"),
                   );
                   setReplacing(null);
                   if (failure) setError(salaryError(t, failure));
@@ -696,13 +698,20 @@ function GenerateDialog({
 function BookDialog({
   rows,
   close,
+  onReplace,
   onDone,
 }: {
   rows: SalaryRow[];
   close(): void;
+  /** Uploaded payslips would be replaced; asks before booking again. */
+  onReplace(payload: Record<string, unknown>): void;
   onDone(): void;
 }) {
   const { t, locale } = useLocale();
+  const [publishPayslip, setPublishPayslip] = useState(true);
+  const [notifyEmployee, setNotifyEmployee] = useState(true);
+  const [createExpenses, setCreateExpenses] = useState(true);
+  const [attachPayslip, setAttachPayslip] = useState(true);
   const [mode, setMode] = useState<"net" | "netPlusTax">("netPlusTax");
   const [employerFee, setEmployerFee] = useState(true);
   const [feePercent, setFeePercent] = useState("31.42");
@@ -710,27 +719,36 @@ function BookDialog({
   const [error, setError] = useState("");
   const feeBps = Math.round(Number(feePercent.replace(",", ".")) * 100);
   const feeValid =
+    !createExpenses ||
     !employerFee ||
     (Number.isFinite(feeBps) && feeBps >= 0 && feeBps <= 10_000);
   const feeTotal = rows.reduce(
     (sum, row) => sum + employerFeeMinor(row.totals.taxableMinor, feeBps || 0),
     0,
   );
+  const anything = publishPayslip || createExpenses;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!feeValid) return;
-    setBusy(true);
-    setError("");
-    const failure = await postSalaryAction({
+    if (!feeValid || !anything) return;
+    const payload = {
       action: "bookSalarySlips",
       slipIds: rows.map((row) => row.id),
+      publishPayslip,
+      notifyEmployee: publishPayslip && notifyEmployee,
+      createExpenses,
+      attachPayslip: createExpenses && attachPayslip,
+      replaceExisting: false,
       mode,
-      employerFee,
-      employerFeeBps: employerFee ? feeBps : 0,
-    });
+      employerFee: createExpenses && employerFee,
+      employerFeeBps: createExpenses && employerFee ? feeBps : 0,
+    };
+    setBusy(true);
+    setError("");
+    const failure = await postSalaryAction(payload);
     setBusy(false);
-    if (failure) setError(salaryError(t, failure));
+    if (failure === "payslipExists") onReplace(payload);
+    else if (failure) setError(salaryError(t, failure));
     else onDone();
   }
 
@@ -760,64 +778,113 @@ function BookDialog({
           </button>
         </header>
         <fieldset className="access-section">
-          <legend>{t("bookSalariesWhat")}</legend>
-          <label className="checkbox-row">
-            <input
-              type="radio"
-              name="mode"
-              checked={mode === "net"}
-              onChange={() => setMode("net")}
-            />
-            <span>{t("bookSalariesNet")}</span>
-            <InfoTip text={t("bookSalariesNetTip")} />
-          </label>
-          <label className="checkbox-row">
-            <input
-              type="radio"
-              name="mode"
-              checked={mode === "netPlusTax"}
-              onChange={() => setMode("netPlusTax")}
-            />
-            <span>{t("bookSalariesNetPlusTax")}</span>
-            <InfoTip text={t("bookSalariesNetPlusTaxTip")} />
-          </label>
+          <legend>{t("bookSalariesPayslips")}</legend>
           <label className="checkbox-row">
             <input
               type="checkbox"
-              checked={employerFee}
-              onChange={(event) => setEmployerFee(event.target.checked)}
+              checked={publishPayslip}
+              onChange={(event) => setPublishPayslip(event.target.checked)}
             />
-            <span>{t("bookEmployerFee")}</span>
-            <InfoTip text={t("bookEmployerFeeTip")} />
+            <span>{t("bookPublishPayslips")}</span>
+            <InfoTip text={t("bookPublishPayslipsTip")} />
           </label>
-          {employerFee && (
-            <label>
-              {t("employerFeePercent")}
+          <div className="salary-book-options">
+            <label className="checkbox-row">
               <input
-                className="field"
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                value={feePercent}
-                onChange={(event) => setFeePercent(event.target.value)}
-                required
+                type="checkbox"
+                checked={publishPayslip && notifyEmployee}
+                disabled={!publishPayslip}
+                onChange={(event) => setNotifyEmployee(event.target.checked)}
               />
-              <span className="muted">
-                {t("employerFeeTotal").replace(
-                  "{amount}",
-                  formatKronor(feeTotal, locale),
-                )}
-              </span>
+              <span>{t("bookNotifyEmployees")}</span>
+              <InfoTip text={t("bookNotifyEmployeesTip")} />
             </label>
+          </div>
+        </fieldset>
+        <fieldset className="access-section">
+          <legend>{t("bookSalariesExpenses")}</legend>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={createExpenses}
+              onChange={(event) => setCreateExpenses(event.target.checked)}
+            />
+            <span>{t("bookCreateExpenses")}</span>
+            <InfoTip text={t("bookCreateExpensesTip")} />
+          </label>
+          {createExpenses && (
+            <div className="salary-book-options">
+              <label className="checkbox-row">
+                <input
+                  type="radio"
+                  name="mode"
+                  checked={mode === "net"}
+                  onChange={() => setMode("net")}
+                />
+                <span>{t("bookSalariesNet")}</span>
+                <InfoTip text={t("bookSalariesNetTip")} />
+              </label>
+              <label className="checkbox-row">
+                <input
+                  type="radio"
+                  name="mode"
+                  checked={mode === "netPlusTax"}
+                  onChange={() => setMode("netPlusTax")}
+                />
+                <span>{t("bookSalariesNetPlusTax")}</span>
+                <InfoTip text={t("bookSalariesNetPlusTaxTip")} />
+              </label>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={employerFee}
+                  onChange={(event) => setEmployerFee(event.target.checked)}
+                />
+                <span>{t("bookEmployerFee")}</span>
+                <InfoTip text={t("bookEmployerFeeTip")} />
+              </label>
+              {employerFee && (
+                <label>
+                  {t("employerFeePercent")}
+                  <input
+                    className="field"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={feePercent}
+                    onChange={(event) => setFeePercent(event.target.value)}
+                    required
+                  />
+                  <span className="muted">
+                    {t("employerFeeTotal").replace(
+                      "{amount}",
+                      formatKronor(feeTotal, locale),
+                    )}
+                  </span>
+                </label>
+              )}
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={attachPayslip}
+                  onChange={(event) => setAttachPayslip(event.target.checked)}
+                />
+                <span>{t("bookAttachPayslip")}</span>
+                <InfoTip text={t("bookAttachPayslipTip")} />
+              </label>
+            </div>
           )}
         </fieldset>
+        {!anything && (
+          <p className="notice notice-warning">{t("bookNothingChosen")}</p>
+        )}
         {error && <p className="notice notice-error">{error}</p>}
         <footer className="modal-actions">
           <button className="button secondary" type="button" onClick={close}>
             {t("cancel")}
           </button>
-          <button className="button" disabled={busy || !feeValid}>
+          <button className="button" disabled={busy || !feeValid || !anything}>
             {t("bookSalaries")}
           </button>
         </footer>

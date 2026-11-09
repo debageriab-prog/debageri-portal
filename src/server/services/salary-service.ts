@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import {
   FieldValue,
   type DocumentData,
@@ -8,6 +9,7 @@ import {
   type WriteBatch,
 } from "firebase-admin/firestore";
 import { can } from "@/domain/access/permissions";
+import { payslipId } from "@/domain/payslips";
 import {
   isCompensationModel,
   monthlySalaryMinor,
@@ -22,9 +24,12 @@ import {
 } from "@/domain/salary/payroll-profile";
 import {
   canMoveSlip,
+  salaryBookingSteps,
   salaryRunId,
   salarySlipId,
+  type SalaryBookingSteps,
   type SalarySlip,
+  type SalarySlipPdfFile,
   type SalarySlipProblem,
   type SalarySlipStatus,
   type SalaryYearToDate,
@@ -475,6 +480,7 @@ async function writeSlip(
     reportedDays: new Set(entries.map((entry) => entry.date)).size,
     yearToDate: ytd,
     vacation,
+    pdf: stored?.pdf ?? null,
     payslipId: stored?.payslipId ?? null,
     transactionIds: [],
     version: Number(stored?.version ?? -1) + 1,
@@ -630,11 +636,13 @@ export async function setSalarySlipTimeReports(
 /** Takes a person out of the month's salaries while their row is prepared. */
 export async function removeSalarySlip(
   db: Firestore,
+  storage: Storage,
   actor: PortalUser,
   input: { slipId: string },
 ) {
   requireSalaryPermission(actor, "finance.salary.edit");
   const { reference, data } = await initiatedSlip(db, actor, input.slipId);
+  await removePdfFile(storage, data.pdf);
   const batch = db.batch();
   batch.delete(reference);
   batch.set(
@@ -816,15 +824,15 @@ function slipFrom(id: string, data: DocumentData): SalarySlip {
 }
 
 /**
- * Makes the payslip PDF of each ready row and publishes it as the person's
- * payslip for the month. A row whose payslip exists can be regenerated after
- * it was reopened and made ready again.
+ * Makes the payslip PDF of each ready row for a last check. Only finance
+ * sees it; booking publishes it and attaches it, when chosen. Generating
+ * again replaces the PDF.
  */
 export async function generatePayslips(
   db: Firestore,
   storage: Storage,
   actor: PortalUser,
-  input: { slipIds: string[]; replaceExisting: boolean },
+  input: { slipIds: string[] },
 ) {
   requireSalaryPermission(actor, "finance.salary.edit");
   const organization = (
@@ -844,7 +852,6 @@ export async function generatePayslips(
     if (data.status !== "ready" && data.status !== "payslipGenerated")
       throw new FinanceError("salarySlipNotReady", 409);
   }
-  const payslipIds: string[] = [];
   for (const snapshot of snapshots) {
     const slip = slipFrom(snapshot.id, snapshot.data()!);
     const user = (await db.collection("users").doc(slip.userId).get()).data();
@@ -871,41 +878,72 @@ export async function generatePayslips(
         }),
       ),
     });
-    let stored: { id: string };
-    try {
-      stored = await storeGeneratedPayslip(db, storage, actor, {
-        userId: slip.userId,
-        userName: slip.person.displayName,
-        period: slip.period,
-        salarySlipId: slip.id,
-        fileName: salarySlipFileName(
-          labels.title,
-          slip.period,
-          slip.person.displayName,
-        ),
-        pdf,
-        replaceExisting: input.replaceExisting,
+    const file: SalarySlipPdfFile = {
+      storagePath: `organizations/${actor.organizationId}/salaries/${slip.period}/${slip.userId}-${randomUUID()}.pdf`,
+      fileName: salarySlipFileName(
+        labels.title,
+        slip.period,
+        slip.person.displayName,
+      ),
+      size: pdf.length,
+      attached: false,
+    };
+    await storage
+      .bucket()
+      .file(file.storagePath)
+      .save(pdf, {
+        resumable: false,
+        metadata: {
+          contentType: "application/pdf",
+          cacheControl: "private, no-cache",
+        },
       });
-    } catch (error) {
-      if (error instanceof PayslipError && error.code === "payslipExists")
-        throw new FinanceError("payslipExists", 409);
-      throw error;
-    }
     const batch = db.batch();
     batch.update(snapshot.ref, {
       status: "payslipGenerated" satisfies SalarySlipStatus,
-      payslipId: stored.id,
+      pdf: file,
       version: Number(slip.version ?? 0) + 1,
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: actor.id,
     });
-    audit(db, batch, actor, "salarySlip.payslipGenerated", slip.id, {
-      payslipId: stored.id,
-    });
-    await batch.commit();
-    payslipIds.push(stored.id);
+    audit(db, batch, actor, "salarySlip.payslipGenerated", slip.id, {});
+    try {
+      await batch.commit();
+    } catch (error) {
+      await removePdfFile(storage, file);
+      throw error;
+    }
+    await removePdfFile(storage, slip.pdf);
   }
-  return payslipIds;
+}
+
+/** Deletes a generated payslip PDF unless expenses link to it. */
+async function removePdfFile(
+  storage: Storage,
+  file: SalarySlipPdfFile | null | undefined,
+) {
+  if (!file?.storagePath || file.attached) return;
+  await storage
+    .bucket()
+    .file(file.storagePath)
+    .delete({ ignoreNotFound: true })
+    .catch(() => undefined);
+}
+
+/** The generated payslip PDF of a row, for finance to check before booking. */
+export async function salarySlipPdfFile(
+  db: Firestore,
+  storage: Storage,
+  actor: PortalUser,
+  slipId: string,
+) {
+  requireSalaryPermission(actor, "finance.salary.view");
+  const data = (await db.collection("salarySlips").doc(slipId).get()).data();
+  const file = data?.pdf as SalarySlipPdfFile | null | undefined;
+  if (data?.organizationId !== actor.organizationId || !file?.storagePath)
+    throw new FinanceError("salarySlipMissing", 404);
+  const [contents] = await storage.bucket().file(file.storagePath).download();
+  return { contents, fileName: file.fileName };
 }
 
 const SALARY_CATEGORIES = [
@@ -961,24 +999,32 @@ async function salaryCategories(
 type BookingPart = { code: string; amount: number; label: MessageKey };
 
 /**
- * Books salaries as expenses in income and expenses: the payout (`salary`),
- * with `netPlusTax` also the withheld tax (`salary_tax`), and when asked the
- * employer contributions (`employer_tax`). Flexible consultants pay their
- * own salary from their balance; everyone else is a company expense. Each
- * expense carries the payslip: the same file as in the person's Pay slips.
+ * Books checked salaries, doing the steps chosen for them: publishing the
+ * payslip PDF to the person's Pay slips, and creating the expenses in income
+ * and expenses: the payout (`salary`), with `netPlusTax` also the withheld
+ * tax (`salary_tax`), and when asked the employer contributions
+ * (`employer_tax`), optionally with the PDF attached. Flexible consultants
+ * pay their own salary from their balance; everyone else is a company
+ * expense. Returns the published payslips, for the emails.
  */
 export async function bookSalarySlips(
   db: Firestore,
+  storage: Storage,
   actor: PortalUser,
-  input: {
+  input: SalaryBookingSteps & {
     slipIds: string[];
+    replaceExisting: boolean;
     mode: "net" | "netPlusTax";
     employerFee: boolean;
     employerFeeBps: number;
   },
 ) {
   requireSalaryPermission(actor, "finance.salary.book");
-  const categories = await salaryCategories(db, actor);
+  const steps = salaryBookingSteps(input);
+  if (!steps) throw new FinanceError("salaryBookingEmpty", 400);
+  const categories = steps.createExpenses
+    ? await salaryCategories(db, actor)
+    : new Map<string, string>();
   const snapshots = await db.getAll(
     ...input.slipIds.map((id) => db.collection("salarySlips").doc(id)),
   );
@@ -986,23 +1032,69 @@ export async function bookSalarySlips(
     const data = snapshot.data();
     if (!snapshot.exists || data?.organizationId !== actor.organizationId)
       throw new FinanceError("salarySlipMissing", 404);
-    if (data.status !== "payslipGenerated" || !data.payslipId)
+    if (data.status !== "payslipGenerated" || !data.pdf?.storagePath)
       throw new FinanceError("salarySlipNotBookable", 409);
   }
-  const booked: string[] = [];
+  // Ask before replacing an uploaded payslip, before anything is booked.
+  if (steps.publishPayslip && !input.replaceExisting) {
+    const existing = await db.getAll(
+      ...snapshots.map((snapshot) =>
+        db
+          .collection("payslips")
+          .doc(
+            payslipId(
+              actor.organizationId,
+              String(snapshot.data()!.userId),
+              String(snapshot.data()!.period),
+            ),
+          ),
+      ),
+    );
+    if (
+      existing.some(
+        (payslip, index) =>
+          payslip.exists &&
+          payslip.data()?.salarySlipId !== snapshots[index]!.id,
+      )
+    )
+      throw new FinanceError("payslipExists", 409);
+  }
+  const published: string[] = [];
   for (const snapshot of snapshots) {
     const slip = slipFrom(snapshot.id, snapshot.data()!);
-    const [user, payslip] = await Promise.all([
-      db.collection("users").doc(slip.userId).get(),
-      db.collection("payslips").doc(String(slip.payslipId)).get(),
-    ]);
-    const payslipData = payslip.data();
-    if (!payslipData?.storagePath)
-      throw new FinanceError("salarySlipNotBookable", 409);
+    const file = slip.pdf!;
+    const user = await db.collection("users").doc(slip.userId).get();
+    let publishedId: string | null = slip.payslipId ?? null;
+    if (steps.publishPayslip) {
+      const [contents] = await storage
+        .bucket()
+        .file(file.storagePath)
+        .download();
+      try {
+        publishedId = (
+          await storeGeneratedPayslip(db, storage, actor, {
+            userId: slip.userId,
+            userName: slip.person.displayName,
+            period: slip.period,
+            salarySlipId: slip.id,
+            fileName: file.fileName,
+            pdf: contents,
+            replaceExisting: input.replaceExisting,
+          })
+        ).id;
+      } catch (error) {
+        if (error instanceof PayslipError && error.code === "payslipExists")
+          throw new FinanceError("payslipExists", 409);
+        throw error;
+      }
+      published.push(publishedId);
+    }
     const role = String(user.data()?.role ?? "");
     const isConsultant = role === "consultant" || role === "employee";
-    const feeMinor = input.employerFee
-      ? employerFeeMinor(slip.totals.taxableMinor, input.employerFeeBps)
+    const expenseFeeBps =
+      steps.createExpenses && input.employerFee ? input.employerFeeBps : 0;
+    const feeMinor = expenseFeeBps
+      ? employerFeeMinor(slip.totals.taxableMinor, expenseFeeBps)
       : 0;
     const parts: BookingPart[] = [
       {
@@ -1026,7 +1118,7 @@ export async function bookSalarySlips(
     const locale = notificationLocale(user.data()?.locale);
     const batch = db.batch();
     const transactionIds: string[] = [];
-    for (const part of parts) {
+    for (const part of steps.createExpenses ? parts : []) {
       if (part.amount <= 0) continue;
       const reference = db.collection("financialTransactions").doc();
       transactionIds.push(reference.id);
@@ -1066,26 +1158,32 @@ export async function bookSalarySlips(
         createdAt: FieldValue.serverTimestamp(),
         createdBy: actor.id,
       });
-      batch.create(db.collection("financeAttachments").doc(), {
-        organizationId: actor.organizationId,
-        entityType: "transaction",
-        entityId: reference.id,
-        name: String(payslipData.fileName),
-        size: Number(payslipData.size ?? 0),
-        contentType: "application/pdf",
-        storagePath: String(payslipData.storagePath),
-        generated: true,
-        payslipId: payslip.id,
-        createdAt: FieldValue.serverTimestamp(),
-        createdBy: actor.id,
-      });
+      // The row's own PDF, kept as long as the expense links to it.
+      if (steps.attachPayslip)
+        batch.create(db.collection("financeAttachments").doc(), {
+          organizationId: actor.organizationId,
+          entityType: "transaction",
+          entityId: reference.id,
+          name: file.fileName,
+          size: file.size,
+          contentType: "application/pdf",
+          storagePath: file.storagePath,
+          generated: true,
+          salarySlipId: slip.id,
+          createdAt: FieldValue.serverTimestamp(),
+          createdBy: actor.id,
+        });
     }
+    const attached = steps.attachPayslip && transactionIds.length > 0;
     batch.update(snapshot.ref, {
       status: "booked" satisfies SalarySlipStatus,
       transactionIds,
+      payslipId: publishedId,
+      pdf: { ...file, attached: file.attached || attached },
       booking: {
-        mode: input.mode,
-        employerFeeBps: input.employerFee ? input.employerFeeBps : 0,
+        ...steps,
+        mode: steps.createExpenses ? input.mode : null,
+        employerFeeBps: expenseFeeBps,
         employerFeeMinor: feeMinor,
         bookedAt: FieldValue.serverTimestamp(),
         bookedBy: actor.id,
@@ -1095,14 +1193,15 @@ export async function bookSalarySlips(
       updatedBy: actor.id,
     });
     audit(db, batch, actor, "salarySlip.booked", slip.id, {
-      mode: input.mode,
-      employerFeeBps: input.employerFee ? input.employerFeeBps : 0,
+      ...steps,
+      mode: steps.createExpenses ? input.mode : null,
+      employerFeeBps: expenseFeeBps,
       transactionIds,
+      payslipId: steps.publishPayslip ? publishedId : null,
     });
     await batch.commit();
-    booked.push(slip.id);
   }
-  return booked;
+  return { published: steps.notifyEmployee ? published : [] };
 }
 
 /**

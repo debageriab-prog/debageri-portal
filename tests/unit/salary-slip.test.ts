@@ -10,6 +10,7 @@ import {
   hourlyRateMinor,
   type SalaryTimeEntry,
 } from "@/domain/salary/build";
+import { salaryBookingSteps } from "@/domain/salary/slip";
 import { parseTaxTables } from "@/domain/salary/tax";
 import {
   DEFAULT_EMPLOYER_FEE_BPS,
@@ -362,5 +363,40 @@ describe("one-time tax (engångsskatt)", () => {
       basis,
     );
     expect(totals.oneTimeMinor).toBe(0);
+  });
+});
+
+describe("salaryBookingSteps", () => {
+  const all = {
+    publishPayslip: true,
+    notifyEmployee: true,
+    createExpenses: true,
+    attachPayslip: true,
+  };
+
+  it("keeps every chosen step", () => {
+    expect(salaryBookingSteps(all)).toEqual(all);
+  });
+
+  it("emails only about a published payslip", () => {
+    expect(
+      salaryBookingSteps({ ...all, publishPayslip: false })?.notifyEmployee,
+    ).toBe(false);
+  });
+
+  it("attaches the PDF only to expenses that are created", () => {
+    expect(
+      salaryBookingSteps({ ...all, createExpenses: false })?.attachPayslip,
+    ).toBe(false);
+  });
+
+  it("refuses a booking that does nothing", () => {
+    expect(
+      salaryBookingSteps({
+        ...all,
+        publishPayslip: false,
+        createExpenses: false,
+      }),
+    ).toBeNull();
   });
 });

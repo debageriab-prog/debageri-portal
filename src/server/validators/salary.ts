@@ -66,13 +66,17 @@ export const setSalarySlipStatusSchema = z.object({
 export const generatePayslipsSchema = z.object({
   action: z.literal("generatePayslips"),
   slipIds: z.array(slipId).min(1).max(200),
-  /** Replaces an uploaded payslip for the same month. */
-  replaceExisting: z.boolean().default(false),
 });
 
 export const bookSalarySlipsSchema = z.object({
   action: z.literal("bookSalarySlips"),
   slipIds: z.array(slipId).min(1).max(200),
+  publishPayslip: z.boolean(),
+  notifyEmployee: z.boolean(),
+  createExpenses: z.boolean(),
+  attachPayslip: z.boolean(),
+  /** Replaces an uploaded payslip for the same month when publishing. */
+  replaceExisting: z.boolean().default(false),
   /** `net` books the payout; `netPlusTax` adds the withheld tax as well. */
   mode: z.enum(["net", "netPlusTax"]),
   employerFee: z.boolean(),

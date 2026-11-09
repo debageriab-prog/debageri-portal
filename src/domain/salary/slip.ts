@@ -5,8 +5,9 @@ import type { SalaryTotals } from "./totals";
 
 /**
  * One person's salary for one month moves from `initiated` (being prepared)
- * to `ready` (checked), `payslipGenerated` and finally `booked` in income and
- * expenses. Until it is booked it can be reopened for changes.
+ * to `ready` (checked), `payslipGenerated` (a PDF only finance sees, for a
+ * last check) and finally `booked`, when the steps chosen at booking happen.
+ * Until it is booked it can be reopened for changes.
  */
 export const SALARY_SLIP_STATUSES = [
   "initiated",
@@ -69,9 +70,48 @@ export interface SalarySlip {
   /** Earlier booked salaries of the same calendar year. */
   yearToDate: SalaryYearToDate;
   vacation: { paidDays: number; savedDays: number } | null;
+  /** The generated payslip PDF, seen only by finance until published. */
+  pdf: SalarySlipPdfFile | null;
+  /** The payslip published to the person's Pay slips at booking. */
   payslipId: string | null;
   transactionIds: string[];
   version: number;
+}
+
+export interface SalarySlipPdfFile {
+  storagePath: string;
+  fileName: string;
+  size: number;
+  /** Expenses link to the file, so it is kept when the PDF is redone. */
+  attached: boolean;
+}
+
+/** What booking a salary does; each step is chosen when booking. */
+export interface SalaryBookingSteps {
+  /** Publish the payslip to the person's Pay slips. */
+  publishPayslip: boolean;
+  /** Email the person that a payslip was published. */
+  notifyEmployee: boolean;
+  /** Create the salary expenses in income and expenses. */
+  createExpenses: boolean;
+  /** Attach the payslip PDF to each expense. */
+  attachPayslip: boolean;
+}
+
+/**
+ * The steps that can happen: an email needs a published payslip and an
+ * attachment needs expenses. Null when nothing would happen.
+ */
+export function salaryBookingSteps(
+  chosen: SalaryBookingSteps,
+): SalaryBookingSteps | null {
+  const steps = {
+    publishPayslip: chosen.publishPayslip,
+    notifyEmployee: chosen.publishPayslip && chosen.notifyEmployee,
+    createExpenses: chosen.createExpenses,
+    attachPayslip: chosen.createExpenses && chosen.attachPayslip,
+  };
+  return steps.publishPayslip || steps.createExpenses ? steps : null;
 }
 
 export function salarySlipId(
