@@ -730,7 +730,8 @@ function BookDialog({
   );
   const anything = publishPayslip || createExpenses;
 
-  // Net only leaves the withheld tax out of flexible consultants' balances.
+  // Net only leaves the withheld tax out of the expenses, though the company
+  // pays it to Skatteverket, and out of flexible consultants' balances.
   const flexibleNames = rows
     .filter((row) => row.fundedByConsultant)
     .map((row) => row.name);
@@ -739,7 +740,7 @@ function BookDialog({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!feeValid || !anything) return;
-    if (createExpenses && mode === "net" && flexibleNames.length) {
+    if (createExpenses && mode === "net") {
       setConfirmingNet(true);
       return;
     }
@@ -784,7 +785,12 @@ function BookDialog({
             </div>
           </header>
           <p className="notice notice-warning">
-            {t("bookNetWarning").replace("{names}", flexibleNames.join(", "))}
+            {t("bookNetWarning")}
+            {flexibleNames.length > 0 &&
+              ` ${t("bookNetWarningFlexible").replace(
+                "{names}",
+                flexibleNames.join(", "),
+              )}`}
           </p>
           <footer className="modal-actions">
             <button
