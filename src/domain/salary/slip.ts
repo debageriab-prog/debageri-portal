@@ -126,6 +126,28 @@ export function salaryRunId(organizationId: string, period: string) {
   return `${organizationId}_${period}`;
 }
 
+/** Lines added by hand, as opposed to built from the agreement and time. */
+export const isAddedLine = (line: Pick<SalaryLine, "id">) =>
+  line.id.startsWith("manual-");
+
+/**
+ * The lines added by hand to another month, ready to add to this one, such
+ * as a benefit or deduction that repeats: new ids, and without the other
+ * month's dates.
+ */
+export function copiedSalaryLines(
+  lines: SalaryLine[],
+  stamp: number,
+): SalaryLine[] {
+  return lines.filter(isAddedLine).map((line, index) => ({
+    ...line,
+    id: `manual-${stamp}-${index}`,
+    from: null,
+    to: null,
+    manual: true,
+  }));
+}
+
 /** A `YYYY-MM` month between 2020 and 2100. */
 export function validSalaryPeriod(period: string) {
   const match = /^(\d{4})-(\d{2})$/.exec(period);

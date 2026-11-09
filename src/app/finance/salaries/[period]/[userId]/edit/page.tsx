@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { can } from "@/domain/access/permissions";
-import { validSalaryPeriod } from "@/domain/salary/slip";
+import type { SalaryLine } from "@/domain/salary/articles";
+import {
+  isAddedLine,
+  salarySlipId,
+  validSalaryPeriod,
+} from "@/domain/salary/slip";
+import { previousMonth } from "@/domain/time/working-days";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
@@ -35,6 +41,18 @@ export default async function SalaryRowPage({
     row.eventFrom,
     row.eventTo,
   );
+  const previousPeriod = previousMonth(period);
+  const previousSlip = (
+    await db
+      .collection("salarySlips")
+      .doc(salarySlipId(actor.organizationId, row.userId, previousPeriod))
+      .get()
+  ).data();
+  const previousLines =
+    previousSlip?.organizationId === actor.organizationId &&
+    Array.isArray(previousSlip.lines)
+      ? (previousSlip.lines as SalaryLine[]).filter(isAddedLine)
+      : [];
   const taxTable =
     row.tax.table === null
       ? null
@@ -70,6 +88,7 @@ export default async function SalaryRowPage({
         row={row}
         taxRows={taxTable?.rows ?? null}
         timeSummary={timeSummary}
+        previous={{ period: previousPeriod, lines: previousLines }}
         canEdit={can(actor, "finance.salary.edit")}
         canBook={can(actor, "finance.salary.book")}
       />

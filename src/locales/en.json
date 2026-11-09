@@ -2019,5 +2019,8 @@
   "salarySlipBooking_grossDetail": "{net} net + {tax} tax",
   "bookNetWarningTitle": "Book net salary only?",
   "bookNetWarning": "The withheld tax is not booked, so it does not come off the balance of {names}. Record it yourself when it is paid to Skatteverket, or go back and choose net salary and withheld tax or gross salary.",
-  "bookNetAnyway": "Book net only"
+  "bookNetAnyway": "Book net only",
+  "copySalaryLines": "Copy rows from previous month",
+  "copySalaryLinesTip": "Adds the rows added by hand to {month}, such as benefits and deductions that repeat. Change or remove them as needed, then save.",
+  "salaryLinesCopied": "Copied {count} rows from {month}. Save the changes to keep them."
 }

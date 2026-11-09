@@ -10,7 +10,7 @@ import {
   hourlyRateMinor,
   type SalaryTimeEntry,
 } from "@/domain/salary/build";
-import { salaryBookingSteps } from "@/domain/salary/slip";
+import { copiedSalaryLines, salaryBookingSteps } from "@/domain/salary/slip";
 import { parseTaxTables } from "@/domain/salary/tax";
 import {
   DEFAULT_EMPLOYER_FEE_BPS,
@@ -398,5 +398,27 @@ describe("salaryBookingSteps", () => {
         createExpenses: false,
       }),
     ).toBeNull();
+  });
+});
+
+describe("copiedSalaryLines", () => {
+  const added: SalaryLine = {
+    ...manual("parking", "benefit", 126_000),
+    id: "manual-1",
+    from: "2026-07-01",
+    to: "2026-07-31",
+  };
+  const built: SalaryLine = { ...added, id: "monthlySalary" };
+
+  it("copies only lines added by hand, with new ids and no dates", () => {
+    const copied = copiedSalaryLines([built, added], 42);
+    expect(copied).toEqual([
+      { ...added, id: "manual-42-0", from: null, to: null, manual: true },
+    ]);
+  });
+
+  it("gives every copy its own id", () => {
+    const copied = copiedSalaryLines([added, { ...added, id: "manual-2" }], 7);
+    expect(copied.map((line) => line.id)).toEqual(["manual-7-0", "manual-7-1"]);
   });
 });

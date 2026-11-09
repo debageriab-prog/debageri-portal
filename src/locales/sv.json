@@ -2019,5 +2019,8 @@
   "salarySlipBooking_grossDetail": "{net} netto + {tax} skatt",
   "bookNetWarningTitle": "Bokföra endast nettolön?",
   "bookNetWarning": "Den avdragna skatten bokförs inte, så den dras inte från saldot för {names}. Registrera den själv när den betalas till Skatteverket, eller gå tillbaka och välj nettolön och avdragen skatt eller bruttolön.",
-  "bookNetAnyway": "Bokför endast netto"
+  "bookNetAnyway": "Bokför endast netto",
+  "copySalaryLines": "Kopiera rader från föregående månad",
+  "copySalaryLinesTip": "Lägger till de rader som lades till för hand i {month}, till exempel förmåner och avdrag som återkommer. Ändra eller ta bort dem vid behov och spara sedan.",
+  "salaryLinesCopied": "{count} rader kopierades från {month}. Spara ändringarna för att behålla dem."
 }

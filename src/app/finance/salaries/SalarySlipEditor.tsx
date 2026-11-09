@@ -19,6 +19,7 @@ import {
   type SalaryLineItem,
 } from "@/domain/salary/articles";
 import { ONE_TIME_ITEMS } from "@/domain/salary/one-time-tax";
+import { copiedSalaryLines, isAddedLine } from "@/domain/salary/slip";
 import type { TaxTableRow } from "@/domain/salary/tax";
 import { salaryTotals } from "@/domain/salary/totals";
 import { PayslipPdfButton } from "./PayslipPdfButton";
@@ -63,7 +64,7 @@ const isOneTimeItem = (item: LineValues["item"]) =>
   (ONE_TIME_ITEMS as readonly string[]).includes(item);
 
 /** Lines added by hand, as opposed to built from the agreement and time. */
-const isAdded = (id: string) => id.startsWith("manual-");
+const isAdded = (id: string) => isAddedLine({ id });
 
 function toValues(line: SalaryLine): LineValues {
   const plain = (value: number) => (value / 100).toFixed(2);
@@ -133,6 +134,7 @@ export function SalarySlipEditor({
   row,
   taxRows,
   timeSummary,
+  previous,
   canEdit,
   canBook,
 }: {
@@ -141,6 +143,8 @@ export function SalarySlipEditor({
   taxRows: TaxTableRow[] | null;
   /** Approved and not yet approved time of the event period. */
   timeSummary: SalaryTimeSummary;
+  /** Lines added by hand to the person's previous month, to copy. */
+  previous: { period: string; lines: SalaryLine[] };
   canEdit: boolean;
   canBook: boolean;
 }) {
@@ -571,7 +575,39 @@ export function SalarySlipEditor({
             >
               {t("addSalaryLine")}
             </button>{" "}
-            <InfoTip text={t("addSalaryLineTip")} />
+            <InfoTip text={t("addSalaryLineTip")} />{" "}
+            {previous.lines.length > 0 && (
+              <>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => {
+                    const copied = copiedSalaryLines(
+                      previous.lines,
+                      Date.now(),
+                    );
+                    setLines((current) => [
+                      ...current,
+                      ...copied.map(toValues),
+                    ]);
+                    setError("");
+                    setMessage(
+                      t("salaryLinesCopied")
+                        .replace("{count}", String(copied.length))
+                        .replace("{month}", previous.period),
+                    );
+                  }}
+                >
+                  {t("copySalaryLines")}
+                </button>{" "}
+                <InfoTip
+                  text={t("copySalaryLinesTip").replace(
+                    "{month}",
+                    previous.period,
+                  )}
+                />
+              </>
+            )}
           </p>
         )}
 
