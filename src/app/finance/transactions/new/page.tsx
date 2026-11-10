@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { expensableReceipt } from "@/server/services/receipt-service";
+import { requestCategoryId } from "@/domain/requests";
 import {
   expensableRequest,
   storedRequestFiles,
@@ -65,6 +66,7 @@ export default async function NewTransactionPage({
       description: String(data.description ?? ""),
       estimatedCostMinor: Number(data.estimatedCostMinor ?? 0),
       payer: data.payer === "self" ? "self" : "company",
+      categoryId: null,
       files: storedRequestFiles(data.files).map((file) => ({
         id: file.id,
         name: file.name,
@@ -99,6 +101,11 @@ export default async function NewTransactionPage({
     direction: document.data().direction as "income" | "expense",
     active: document.data().active !== false,
   }));
+  if (request)
+    request = {
+      ...request,
+      categoryId: requestCategoryId(request.type, categories),
+    };
   return (
     <TransactionForm
       users={await financeUsers()}

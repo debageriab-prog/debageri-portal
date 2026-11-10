@@ -10,6 +10,7 @@ import {
   canBecomeExpense,
   filterRequests,
   nextStatuses,
+  NOTE_REQUIRED_STATUSES,
   type RequestStatus,
   type RequestType,
 } from "@/domain/requests";
@@ -76,7 +77,7 @@ export function RequestReview({
     const note = String(
       new FormData(event.currentTarget).get("note") ?? "",
     ).trim();
-    if (decision === "rejected" && !note)
+    if (NOTE_REQUIRED_STATUSES.includes(decision) && !note)
       return setError(t("requestError_noteRequired"));
     setBusy(true);
     setError("");
@@ -295,13 +296,18 @@ export function RequestReview({
               <label>
                 {decision === "rejected"
                   ? t("requestReviewNoteRequired")
-                  : t("requestReviewNoteOptional")}
+                  : decision === "changes_requested"
+                    ? t("requestReviewNoteChanges")
+                    : t("requestReviewNoteOptional")}
                 <textarea
                   className="field"
                   name="note"
                   rows={3}
                   maxLength={1000}
-                  required={decision === "rejected"}
+                  required={
+                    decision !== null &&
+                    NOTE_REQUIRED_STATUSES.includes(decision)
+                  }
                 />
               </label>
               {error && (

@@ -265,10 +265,10 @@ export const defaultEmailTemplates: Record<
       ),
     },
     requestStatusChanged: {
-      subject: "Your request is now {{requestStatus}}: {{requestTitle}}",
+      subject: "Request status: {{requestStatus}} – {{requestTitle}}",
       body: emailBody(
         "en-SE",
-        'Your {{requestType}} request "{{requestTitle}}" is now {{requestStatus}}.',
+        'The status of your {{requestType}} request "{{requestTitle}}" is now: {{requestStatus}}.',
         "{{commentLine}}",
       ),
     },
@@ -354,10 +354,10 @@ export const defaultEmailTemplates: Record<
       ),
     },
     requestStatusChanged: {
-      subject: "Din förfrågan är nu {{requestStatus}}: {{requestTitle}}",
+      subject: "Status för förfrågan: {{requestStatus}} – {{requestTitle}}",
       body: emailBody(
         "sv-SE",
-        'Din förfrågan "{{requestTitle}}" ({{requestType}}) är nu {{requestStatus}}.',
+        'Statusen för din förfrågan "{{requestTitle}}" ({{requestType}}) är nu: {{requestStatus}}.',
         "{{commentLine}}",
       ),
     },
@@ -563,6 +563,7 @@ const requestStatusLabels: Record<
 > = {
   "en-SE": {
     requested: "requested",
+    changes_requested: "changes requested",
     under_review: "under review",
     accepted: "accepted",
     rejected: "rejected",
@@ -571,6 +572,7 @@ const requestStatusLabels: Record<
   },
   "sv-SE": {
     requested: "begärd",
+    changes_requested: "ändringar begärda",
     under_review: "under granskning",
     accepted: "godkänd",
     rejected: "avslagen",

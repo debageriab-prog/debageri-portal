@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
 import {
   notifyRequestStatusChanged,
+  notifyRequestSubmitted,
   portalUrlFrom,
 } from "@/server/services/notification-service";
 import { verifySession } from "@/server/auth/session";
@@ -19,7 +20,10 @@ import {
 
 type Context = { params: Promise<{ id: string }> };
 
-/** The requester edits their own request while it is still requested. */
+/**
+ * The requester edits their own request while it is still requested, or
+ * after a reviewer asked for changes, which sends it back for review.
+ */
 export async function PUT(request: Request, { params }: Context) {
   const { id } = await params;
   const actor = await verifySession();
@@ -34,8 +38,16 @@ export async function PUT(request: Request, { params }: Context) {
     .filter((file): file is File => file instanceof File && file.size > 0);
   const { db, storage } = getAdminServices();
   try {
-    await updateRequest(db, storage, actor, id, parsed.data, files);
-    return NextResponse.json({ ok: true, id });
+    const { resubmitted } = await updateRequest(
+      db,
+      storage,
+      actor,
+      id,
+      parsed.data,
+      files,
+    );
+    if (resubmitted) await notifyRequestSubmitted(id, portalUrlFrom(request));
+    return NextResponse.json({ ok: true, id, resubmitted });
   } catch (error) {
     if (error instanceof RequestError)
       return NextResponse.json({ error: error.code }, { status: error.status });

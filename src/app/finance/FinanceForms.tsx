@@ -120,6 +120,8 @@ export type ExpenseRequest = {
   description: string;
   estimatedCostMinor: number;
   payer: "company" | "self";
+  /** The expense category that fits the request type, if one does. */
+  categoryId: string | null;
   files: { id: string; name: string; contentType: string }[];
 };
 
@@ -1940,7 +1942,9 @@ export function TransactionForm({
   const [receiptFileError, setReceiptFileError] = useState(false);
   const [requestFilesFailed, setRequestFilesFailed] = useState(false);
   const [emailFilesFailed, setEmailFilesFailed] = useState(false);
-  const [categoryId, setCategoryId] = useState(transaction?.categoryId ?? "");
+  const [categoryId, setCategoryId] = useState(
+    transaction?.categoryId ?? request?.categoryId ?? "",
+  );
   const [date, setDate] = useState(
     transaction?.date ?? receipt?.date ?? defaultDate ?? today(),
   );

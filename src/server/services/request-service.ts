@@ -234,7 +234,12 @@ export async function createRequest(
   return ref.id;
 }
 
-/** The requester changes their own request while nobody has picked it up. */
+/**
+ * The requester changes their own request while nobody has picked it up, or
+ * after a reviewer asked for changes. Saving changes that were asked for
+ * sends the request back to requested. Returns whether that happened, so
+ * the reviewers can be told.
+ */
 export async function updateRequest(
   db: Firestore,
   storage: Storage,
@@ -261,6 +266,7 @@ export async function updateRequest(
   if (kept.length + files.length > REQUEST_MAX_FILES)
     throw new RequestError("requestTooManyFiles");
   const uploaded = await uploadFiles(storage, actor, requestId, files);
+  let resubmitted = false;
   try {
     await db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
@@ -271,15 +277,35 @@ export async function updateRequest(
       const latest = storedRequestFiles(data.files).filter((file) =>
         input.keepFileIds.includes(file.id),
       );
+      const resubmit = status === "changes_requested";
       transaction.update(ref, {
         ...requestFields(input),
         files: [...latest, ...uploaded],
+        ...(resubmit ? { status: "requested" } : {}),
         updatedAt: FieldValue.serverTimestamp(),
       });
+      if (resubmit)
+        transaction.create(db.collection("requestEvents").doc(), {
+          organizationId: actor.organizationId,
+          requestId,
+          userId: actor.id,
+          fromStatus: status,
+          toStatus: "requested",
+          note: "",
+          performedBy: actor.id,
+          performedByName: actor.displayName,
+          performedAt: FieldValue.serverTimestamp(),
+        });
       transaction.create(
         db.collection("auditLogs").doc(),
-        auditEntry(actor, "request.updated", requestId, { type: input.type }),
+        auditEntry(
+          actor,
+          resubmit ? "request.resubmitted" : "request.updated",
+          requestId,
+          { type: input.type },
+        ),
       );
+      resubmitted = resubmit;
     });
   } catch (error) {
     await removeFiles(storage, uploaded);
@@ -289,6 +315,7 @@ export async function updateRequest(
     storage,
     existing.filter((file) => !input.keepFileIds.includes(file.id)),
   );
+  return { resubmitted };
 }
 
 /**

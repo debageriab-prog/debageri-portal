@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   DATED_REQUEST_TYPES,
   isSafeLink,
+  NOTE_REQUIRED_STATUSES,
   REQUEST_MAX_LINKS,
   REQUEST_PAYERS,
   REQUEST_STATUSES,
@@ -63,7 +64,11 @@ export const requestStatusSchema = z
     status: z.enum(REQUEST_STATUSES),
     note: z.string().trim().max(1_000).default(""),
   })
-  .refine((value) => value.status !== "rejected" || value.note.length > 0, {
-    message: "A rejection needs a note",
-    path: ["note"],
-  });
+  .refine(
+    (value) =>
+      !NOTE_REQUIRED_STATUSES.includes(value.status) || value.note.length > 0,
+    {
+      message: "Asking for changes or rejecting needs a note",
+      path: ["note"],
+    },
+  );

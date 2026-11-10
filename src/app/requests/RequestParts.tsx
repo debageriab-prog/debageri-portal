@@ -67,6 +67,7 @@ export const personLabel = (name: string, employeeNumber: string) =>
 
 const statusClass: Record<RequestStatus, string> = {
   requested: "",
+  changes_requested: " status-changes",
   under_review: " status-vacation",
   accepted: " status-approved",
   rejected: " status-rejected",
@@ -76,6 +77,7 @@ const statusClass: Record<RequestStatus, string> = {
 
 const statusTone: Record<RequestStatus, DetailTone> = {
   requested: "neutral",
+  changes_requested: "negative",
   under_review: "neutral",
   accepted: "positive",
   rejected: "negative",

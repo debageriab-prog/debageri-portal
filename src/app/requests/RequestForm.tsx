@@ -135,6 +135,13 @@ export function RequestForm({
 
   return (
     <form className="card form-card" onSubmit={submit}>
+      {request?.status === "changes_requested" && (
+        <div className="notice notice-warning request-changes-notice">
+          <strong>{t("requestChangesNotice")}</strong>
+          {request.reviewNote && <p>{request.reviewNote}</p>}
+          <span>{t("requestChangesNoticeHelp")}</span>
+        </div>
+      )}
       <div className="form-grid">
         <label>
           {t("requestType")}
@@ -358,7 +365,13 @@ export function RequestForm({
           {t("cancel")}
         </button>
         <button className="button" disabled={busy || types.length === 0}>
-          {busy ? t("saving") : request ? t("saveChanges") : t("sendRequest")}
+          {busy
+            ? t("saving")
+            : request?.status === "changes_requested"
+              ? t("sendChanges")
+              : request
+                ? t("saveChanges")
+                : t("sendRequest")}
         </button>
       </footer>
     </form>

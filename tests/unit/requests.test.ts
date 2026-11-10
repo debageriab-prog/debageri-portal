@@ -15,6 +15,7 @@ import {
   isSafeLink,
   nextStatuses,
   REQUEST_STATUSES,
+  requestCategoryId,
   requestTypesFor,
 } from "@/domain/requests";
 import { transactionSchema } from "@/server/validators/finance";
@@ -27,14 +28,17 @@ import { rolePermissions } from "./role-permissions";
 describe("request statuses", () => {
   it("lets reviewers move a request forward and reopen a rejection", () => {
     expect(nextStatuses("requested", "reviewer")).toEqual([
+      "changes_requested",
       "under_review",
       "accepted",
       "rejected",
     ]);
     expect(nextStatuses("under_review", "reviewer")).toEqual([
+      "changes_requested",
       "accepted",
       "rejected",
     ]);
+    expect(nextStatuses("changes_requested", "reviewer")).toEqual(["rejected"]);
     expect(nextStatuses("accepted", "reviewer")).toEqual([
       "finalized",
       "rejected",
@@ -49,10 +53,12 @@ describe("request statuses", () => {
     }
   });
 
-  it("only lets the requester withdraw a request nobody picked up", () => {
-    expect(canTransition("requested", "withdrawn", "owner")).toBe(true);
-    for (const status of REQUEST_STATUSES.filter((s) => s !== "requested"))
-      expect(canTransition(status, "withdrawn", "owner")).toBe(false);
+  it("only lets the requester withdraw a request that waits on them", () => {
+    const open = ["requested", "changes_requested"];
+    for (const status of REQUEST_STATUSES)
+      expect(canTransition(status, "withdrawn", "owner")).toBe(
+        open.includes(status),
+      );
     expect(canTransition("requested", "accepted", "owner")).toBe(false);
     expect(canTransition("requested", "withdrawn", "reviewer")).toBe(false);
   });
@@ -62,9 +68,20 @@ describe("request statuses", () => {
     expect(canTransition("under_review", "finalized", "reviewer")).toBe(false);
   });
 
-  it("can only be edited while requested", () => {
+  it("can only be edited while requested or sent back for changes", () => {
     expect(isEditableRequest({ status: "requested" })).toBe(true);
+    expect(isEditableRequest({ status: "changes_requested" })).toBe(true);
     expect(isEditableRequest({ status: "under_review" })).toBe(false);
+  });
+
+  it("sends a changed request back to requested, by the requester only", () => {
+    expect(canTransition("changes_requested", "requested", "owner")).toBe(true);
+    expect(canTransition("changes_requested", "requested", "reviewer")).toBe(
+      false,
+    );
+    expect(canTransition("changes_requested", "accepted", "reviewer")).toBe(
+      false,
+    );
   });
 
   it("turns only finalized, unbooked requests into expenses", () => {
@@ -135,6 +152,44 @@ describe("request types per permission", () => {
     expect(
       togglePermission([], "my.requests.education", true, "staff"),
     ).toEqual(["my.requests", "my.requests.education"]);
+  });
+});
+
+describe("requestCategoryId", () => {
+  const category = (
+    id: string,
+    en: string,
+    sv: string,
+    extra: Partial<{ direction: "income" | "expense"; active: boolean }> = {},
+  ) => ({
+    id,
+    code: id,
+    name: { en, sv },
+    direction: "expense" as const,
+    active: true,
+    ...extra,
+  });
+
+  it("picks the expense category named after the request type", () => {
+    const categories = [
+      category("c1", "Travel", "Resor"),
+      category("c2", "Equipment", "Utrustning"),
+      category("c3", "Courses and training", "Kurser och utbildning"),
+    ];
+    expect(requestCategoryId("equipment", categories)).toBe("c2");
+    expect(requestCategoryId("travel", categories)).toBe("c1");
+    expect(requestCategoryId("education", categories)).toBe("c3");
+    expect(requestCategoryId("seminar", categories)).toBeNull();
+  });
+
+  it("matches the Swedish name and skips inactive or income categories", () => {
+    expect(
+      requestCategoryId("equipment", [
+        category("old", "Equipment", "Utrustning", { active: false }),
+        category("in", "Equipment", "Utrustning", { direction: "income" }),
+        category("sv", "Hardware", "Utrustning"),
+      ]),
+    ).toBe("sv");
   });
 });
 
@@ -243,6 +298,19 @@ describe("request form", () => {
     expect(isSafeLink("http://example.com")).toBe(true);
     expect(isSafeLink("ftp://example.com")).toBe(false);
     expect(isSafeLink("example.com")).toBe(false);
+  });
+
+  it("needs a note to ask for changes", () => {
+    expect(
+      requestStatusSchema.safeParse({ status: "changes_requested", note: "" })
+        .success,
+    ).toBe(false);
+    expect(
+      requestStatusSchema.safeParse({
+        status: "changes_requested",
+        note: "Please link a Swedish shop",
+      }).success,
+    ).toBe(true);
   });
 
   it("needs a note to reject", () => {
