@@ -16,6 +16,7 @@ export const emailNotificationsSchema = z.object({
     receipts: z.boolean(),
     payslips: z.boolean(),
     timesheets: z.boolean(),
+    requests: z.boolean().default(true),
   }),
 });
 

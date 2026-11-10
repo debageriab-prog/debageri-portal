@@ -234,6 +234,72 @@ export function notifyReceiptReviewed(receiptId: string, portalUrl: string) {
   });
 }
 
+function requestParams(
+  request: FirebaseFirestore.DocumentData,
+): NotificationParams {
+  return {
+    personName: String(request.userName),
+    requestTitle: String(request.title),
+    requestType: String(request.type),
+    requestStatus: String(request.status),
+    amountMinor: Number(request.estimatedCostMinor ?? 0),
+    comment: String(request.reviewNote ?? ""),
+  };
+}
+
+export function notifyRequestSubmitted(requestId: string, portalUrl: string) {
+  return safely("requestSubmitted", async () => {
+    const { db } = getAdminServices();
+    const request = (
+      await db.collection("requests").doc(requestId).get()
+    ).data();
+    if (!request) return;
+    const organizationId = String(request.organizationId);
+    const reviewers = await usersWhoCan(
+      db,
+      organizationId,
+      "documents.requests.review",
+    );
+    await deliver(
+      db,
+      organizationId,
+      "requestSubmitted",
+      requestId,
+      "/requests",
+      portalUrl,
+      requestParams(request),
+      reviewers.filter((reviewer) => reviewer.id !== request.userId),
+    );
+  });
+}
+
+/** `note` is the reviewer's note for this change only, so an old one is not repeated. */
+export function notifyRequestStatusChanged(
+  requestId: string,
+  portalUrl: string,
+  note: string,
+) {
+  return safely("requestStatusChanged", async () => {
+    const { db } = getAdminServices();
+    const request = (
+      await db.collection("requests").doc(requestId).get()
+    ).data();
+    if (!request) return;
+    const owner = await loadUser(db, request.userId);
+    if (!owner) return;
+    await deliver(
+      db,
+      String(request.organizationId),
+      "requestStatusChanged",
+      requestId,
+      "/requests?mine=1",
+      portalUrl,
+      { ...requestParams(request), comment: note },
+      [owner],
+    );
+  });
+}
+
 export function notifyPayslipPublished(payslipId: string, portalUrl: string) {
   return safely("payslipPublished", async () => {
     const { db } = getAdminServices();

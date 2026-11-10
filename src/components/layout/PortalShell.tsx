@@ -25,7 +25,7 @@ type NavIconName =
   | "reports"
   | "finance"
   | "documents"
-  | "receipts"
+  | "requests"
   | "bell"
   | "settings"
   | "admin";
@@ -64,10 +64,10 @@ function NavIcon({ name }: { name: NavIconName }) {
         <path d="M15 3.5V7h3M9 11h6M9 15h6" />
       </>
     ),
-    receipts: (
+    requests: (
       <>
-        <path d="M6 3.5h12v17l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z" />
-        <path d="M9 8h6M9 11.5h6M9 15h3.5" />
+        <path d="M5.5 4.5h13v10h-7l-4 3.5v-3.5h-2z" />
+        <path d="M9 8.5h6M9 11.5h4" />
       </>
     ),
     bell: (
@@ -196,6 +196,22 @@ function documentItems(user: PortalUser, t: Translate): NavItem[] {
   ];
 }
 
+function requestItems(user: PortalUser, t: Translate): NavItem[] {
+  const reviews = can(user, "documents.requests.review");
+  const ownRole = user.role !== "admin";
+  return [
+    ...(ownRole && can(user, "my.requests")
+      ? [
+          {
+            label: t("myRequests"),
+            href: reviews ? "/requests?mine=1" : "/requests",
+          },
+        ]
+      : []),
+    ...(reviews ? [{ label: t("reviewRequests"), href: "/requests" }] : []),
+  ];
+}
+
 function receiptItems(user: PortalUser, t: Translate): NavItem[] {
   const reviews = can(user, "documents.receipts.review");
   return [
@@ -207,9 +223,6 @@ function receiptItems(user: PortalUser, t: Translate): NavItem[] {
             href: reviews ? "/receipts?mine=1" : "/receipts",
           },
         ]
-      : []),
-    ...(can(user, "my.receipts.upload")
-      ? [{ label: t("uploadReceipt"), href: "/receipts/new" }]
       : []),
   ];
 }
@@ -274,10 +287,10 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
       items: documentItems(user, t),
     },
     {
-      id: "receipts",
-      label: t("receipts"),
-      icon: "receipts",
-      items: receiptItems(user, t),
+      id: "requests",
+      label: t("requests"),
+      icon: "requests",
+      items: [...requestItems(user, t), ...receiptItems(user, t)],
     },
     {
       id: "admin",
@@ -298,14 +311,21 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
   return groups.filter((group) => group.items.length > 0);
 }
 
+/** Pages under a list, such as a new or edit form, belong to "My …". */
+const OWN_SUBPAGES = /^\/(requests|receipts)\/.+/;
+
 function itemMatchesRoute(
   item: NavItem,
   pathname: string,
   financeSection: string | null,
-  mine: string | null,
+  mine: string | null | undefined,
 ) {
   const [targetPath, targetQuery] = item.href.split("?");
-  if ((new URLSearchParams(targetQuery).get("mine") ?? null) !== mine)
+  // `undefined` ignores the parameter, for people who only have their own list.
+  if (
+    mine !== undefined &&
+    (new URLSearchParams(targetQuery).get("mine") ?? null) !== mine
+  )
     return false;
   if (targetPath === "/finance") {
     const targetSection = new URLSearchParams(targetQuery).get("section");
@@ -333,17 +353,18 @@ export function PortalShell({
   // Articles are a tab of invoice management.
   const financeSection =
     rawFinanceSection === "articles" ? "invoices" : rawFinanceSection;
-  const activeItemHref = groups
-    .flatMap((group) => group.items)
-    .filter((item) =>
-      itemMatchesRoute(
-        item,
-        pathname,
-        financeSection,
-        searchParams.get("mine"),
-      ),
-    )
-    .sort((left, right) => right.href.length - left.href.length)[0]?.href;
+  const mine =
+    searchParams.get("mine") ?? (OWN_SUBPAGES.test(pathname) ? "1" : null);
+  const items = groups.flatMap((group) => group.items);
+  const matching = (wanted: string | null | undefined) =>
+    items
+      .filter((item) =>
+        itemMatchesRoute(item, pathname, financeSection, wanted),
+      )
+      .sort((left, right) => right.href.length - left.href.length);
+  const activeItemHref = (
+    matching(mine)[0] ?? (mine ? matching(undefined)[0] : undefined)
+  )?.href;
   const activeGroupId = groups.find((group) =>
     group.items.some((item) => item.href === activeItemHref),
   )?.id;

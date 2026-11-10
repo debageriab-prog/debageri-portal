@@ -221,7 +221,7 @@ export function FinanceAttachments({
   }, [entityId, entityType, t]);
 
   const uploaded = existing.filter((attachment) => !attachment.generated);
-  const remaining = Math.max(0, 3 - uploaded.length - files.length);
+  const remaining = Math.max(0, 8 - uploaded.length - files.length);
   // A newly made PDF replaces the stored one when the invoice is saved.
   const shownExisting = generated?.file ? uploaded : existing;
   const hasPdf = Boolean(

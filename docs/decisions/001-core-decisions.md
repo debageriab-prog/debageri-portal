@@ -54,3 +54,7 @@ Accepted. Roles remain and say who someone is. Permissions come from one admin-d
 ## 013: Payroll details kept apart from users
 
 Accepted. Personnummer, address and tax details are needed for payslips and tax deductions but are more sensitive than the rest of a profile. They are stored in a server-only `payrollProfiles` collection instead of the user document, which its owner can read, and audit entries name the changed fields without their values. Tax tables are imported from Skatteverket per organization and year, so a payslip is always worked out from the tables that applied when it was made.
+
+## 014: Requests follow the receipt review pattern
+
+Accepted. Requests for equipment, education, seminars and travel are their own server-only collection, with a status table in `src/domain/requests.ts` that only trusted code applies (see 008). Each request type has its own permission, so access can be given per type. A finalized request is not posted to the ledger by itself. A reviewer with ledger access turns it into an ordinary expense, as receipts do, so finance stays the only writer of transactions.

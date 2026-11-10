@@ -259,6 +259,7 @@ export const transactionSchema = z.object({
   action: z.literal("createTransaction"),
   ...transactionFields,
   receiptId: z.string().min(1).max(128).nullable().default(null),
+  requestId: z.string().min(1).max(128).nullable().default(null),
   incomingEmailId: z.string().min(1).max(128).nullable().default(null),
 });
 

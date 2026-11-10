@@ -252,6 +252,39 @@ describe("Firestore rules", () => {
       }),
     );
   });
+  it("keeps requests and their history server-only, even for their owner", async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "requests/q1"), {
+        organizationId: "debageri",
+        userId: "u1",
+        status: "requested",
+      });
+      await setDoc(doc(context.firestore(), "requestEvents/e1"), {
+        organizationId: "debageri",
+        userId: "u1",
+        requestId: "q1",
+        toStatus: "requested",
+      });
+    });
+    const consultant = env.authenticatedContext("u1").firestore();
+    await assertFails(getDoc(doc(consultant, "requests/q1")));
+    await assertFails(getDoc(doc(consultant, "requestEvents/e1")));
+    await assertFails(
+      setDoc(doc(consultant, "requests/q1"), {
+        organizationId: "debageri",
+        userId: "u1",
+        status: "accepted",
+      }),
+    );
+    await assertFails(
+      setDoc(doc(consultant, "requestEvents/e2"), {
+        organizationId: "debageri",
+        userId: "u1",
+        requestId: "q1",
+        toStatus: "finalized",
+      }),
+    );
+  });
   it("keeps time report files server-only, even for their owner", async () => {
     await env.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "timesheetAttachments/f1"), {

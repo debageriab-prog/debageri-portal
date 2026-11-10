@@ -89,7 +89,7 @@ describe("permissionTreeFor", () => {
       "time",
       "finance",
       "documents",
-      "receipts",
+      "requests",
     ]);
     expect(tree[0]!.nodes).toEqual([
       { key: "my.time.report" },
@@ -106,6 +106,7 @@ describe("permissionTreeFor", () => {
     );
     expect(keys).toContain("my.payslips");
     expect(keys).toContain("my.receipts");
+    expect(keys).toContain("my.requests");
     expect(keys).not.toContain("my.finance");
     expect(keys).not.toContain("my.contracts");
   });
@@ -171,7 +172,7 @@ describe("permission labels", () => {
     const known = keys(messages);
     for (const key of PERMISSION_KEYS)
       expect(known.has(`permission_${key.replaceAll(".", "_")}`)).toBe(true);
-    for (const group of ["time", "finance", "documents", "receipts"])
+    for (const group of ["time", "finance", "documents", "requests"])
       expect(known.has(`permissionGroup_${group}`)).toBe(true);
   });
 });

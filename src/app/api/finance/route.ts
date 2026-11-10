@@ -59,6 +59,11 @@ import {
   ReceiptError,
 } from "@/server/services/receipt-service";
 import {
+  expensableRequest,
+  linkRequestExpense,
+  RequestError,
+} from "@/server/services/request-service";
+import {
   convertibleIncomingEmail,
   IncomingEmailError,
   linkIncomingEmail,
@@ -248,13 +253,16 @@ export async function POST(request: Request) {
         id = await markInvoicePaid(db, actor, parsed.data);
         break;
       case "createTransaction": {
-        const { receiptId, incomingEmailId } = parsed.data;
+        const { receiptId, requestId, incomingEmailId } = parsed.data;
+        if ([receiptId, requestId, incomingEmailId].filter(Boolean).length > 1)
+          throw new FinanceError("invalidInput");
         if (incomingEmailId)
           await convertibleIncomingEmail(db, actor, incomingEmailId);
-        if (receiptId) {
+        if (receiptId || requestId) {
           if (parsed.data.direction !== "expense")
             throw new FinanceError("invalidInput");
-          await expensableReceipt(db, actor, receiptId);
+          if (receiptId) await expensableReceipt(db, actor, receiptId);
+          if (requestId) await expensableRequest(db, actor, requestId);
         }
         id = await createFinancialTransaction(db, actor, {
           direction: parsed.data.direction,
@@ -276,6 +284,17 @@ export async function POST(request: Request) {
             (error: unknown) =>
               console.error("Receipt expense link failed", {
                 receiptId,
+                transactionId,
+                errorClass: error instanceof Error ? error.name : "unknown",
+              }),
+          );
+        }
+        if (requestId) {
+          const transactionId = id;
+          await linkRequestExpense(db, actor, requestId, transactionId).catch(
+            (error: unknown) =>
+              console.error("Request expense link failed", {
+                requestId,
                 transactionId,
                 errorClass: error instanceof Error ? error.name : "unknown",
               }),
@@ -369,6 +388,11 @@ export async function POST(request: Request) {
     if (error instanceof ReceiptError)
       return NextResponse.json(
         { error: "receiptNotExpensable" },
+        { status: error.status === 403 ? 403 : 409 },
+      );
+    if (error instanceof RequestError)
+      return NextResponse.json(
+        { error: "requestNotExpensable" },
         { status: error.status === 403 ? 403 : 409 },
       );
     console.error("Finance operation failed", {

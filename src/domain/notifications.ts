@@ -8,7 +8,9 @@ export type NotificationKind =
   | "receiptRejected"
   | "payslipPublished"
   | "timesheetApproved"
-  | "timesheetRejected";
+  | "timesheetRejected"
+  | "requestSubmitted"
+  | "requestStatusChanged";
 
 export const EMAIL_NOTIFICATION_KINDS: NotificationKind[] = [
   "receiptSubmitted",
@@ -17,6 +19,8 @@ export const EMAIL_NOTIFICATION_KINDS: NotificationKind[] = [
   "payslipPublished",
   "timesheetApproved",
   "timesheetRejected",
+  "requestSubmitted",
+  "requestStatusChanged",
 ];
 
 /** Emails to the organization's accounting contacts about finance records. */
@@ -53,6 +57,8 @@ export const IN_APP_NOTIFICATION_KINDS: InAppNotificationKind[] = [
   "timesheetSubmitted",
   "timesheetApproved",
   "timesheetRejected",
+  "requestSubmitted",
+  "requestStatusChanged",
 ];
 
 export function isEmailKind(
@@ -72,9 +78,15 @@ export type NotificationParams = {
   month?: number;
   isoYear?: number;
   isoWeek?: number;
+  requestTitle?: string;
+  /** A `RequestType`, rendered per reader locale. */
+  requestType?: string;
+  /** A `RequestStatus`, rendered per reader locale. */
+  requestStatus?: string;
 };
 
-export type NotificationTopic = "receipts" | "payslips" | "timesheets";
+export type NotificationTopic =
+  "receipts" | "payslips" | "timesheets" | "requests";
 export type NotificationLocale = "sv-SE" | "en-SE";
 export type NotificationSettings = Record<NotificationTopic, boolean>;
 
@@ -84,6 +96,7 @@ export const NOTIFICATION_TOPICS: NotificationTopic[] = [
   "receipts",
   "payslips",
   "timesheets",
+  "requests",
 ];
 
 export const notificationTopic: Record<NotificationKind, NotificationTopic> = {
@@ -93,6 +106,8 @@ export const notificationTopic: Record<NotificationKind, NotificationTopic> = {
   payslipPublished: "payslips",
   timesheetApproved: "timesheets",
   timesheetRejected: "timesheets",
+  requestSubmitted: "requests",
+  requestStatusChanged: "requests",
 };
 
 /** Every notification type is on unless an admin has switched it off. */
@@ -105,6 +120,7 @@ export function notificationSettingsFrom(value: unknown): NotificationSettings {
     receipts: stored.receipts !== false,
     payslips: stored.payslips !== false,
     timesheets: stored.timesheets !== false,
+    requests: stored.requests !== false,
   };
 }
 
@@ -124,9 +140,11 @@ export function relevantEmailTopics(user: {
   return NOTIFICATION_TOPICS.filter((topic) =>
     topic === "receipts"
       ? can(user, "documents.receipts.review") || can(user, "my.receipts")
-      : topic === "payslips"
-        ? can(user, "my.payslips")
-        : user.reportsTime,
+      : topic === "requests"
+        ? can(user, "documents.requests.review") || can(user, "my.requests")
+        : topic === "payslips"
+          ? can(user, "my.payslips")
+          : user.reportsTime,
   );
 }
 
@@ -141,6 +159,9 @@ export type NotificationValues = {
   comment?: string;
   month?: string;
   week?: string;
+  requestTitle?: string;
+  requestType?: string;
+  requestStatus?: string;
 };
 
 export type EmailTemplate = { subject: string; body: string };
@@ -236,6 +257,21 @@ export const defaultEmailTemplates: Record<
         "{{commentLine}}",
       ),
     },
+    requestSubmitted: {
+      subject: "New {{requestType}} request: {{requestTitle}}",
+      body: emailBody(
+        "en-SE",
+        '{{personName}} has sent the {{requestType}} request "{{requestTitle}}" with an estimated cost of {{amount}}. It is waiting for your review.',
+      ),
+    },
+    requestStatusChanged: {
+      subject: "Request status: {{requestStatus}} – {{requestTitle}}",
+      body: emailBody(
+        "en-SE",
+        'The status of your {{requestType}} request "{{requestTitle}}" is now: {{requestStatus}}.',
+        "{{commentLine}}",
+      ),
+    },
     accountingTransaction: {
       subject: "{{organizationName}}: {{type}} {{date}}, {{total}}",
       body: accountingBody(
@@ -310,6 +346,21 @@ export const defaultEmailTemplates: Record<
         "{{commentLine}}",
       ),
     },
+    requestSubmitted: {
+      subject: "Ny förfrågan ({{requestType}}): {{requestTitle}}",
+      body: emailBody(
+        "sv-SE",
+        '{{personName}} har skickat förfrågan "{{requestTitle}}" ({{requestType}}) med en uppskattad kostnad på {{amount}}. Den väntar på din granskning.',
+      ),
+    },
+    requestStatusChanged: {
+      subject: "Status för förfrågan: {{requestStatus}} – {{requestTitle}}",
+      body: emailBody(
+        "sv-SE",
+        'Statusen för din förfrågan "{{requestTitle}}" ({{requestType}}) är nu: {{requestStatus}}.',
+        "{{commentLine}}",
+      ),
+    },
     accountingTransaction: {
       subject: "{{organizationName}}: {{type}} {{date}}, {{total}}",
       body: accountingBody(
@@ -346,6 +397,7 @@ export const defaultEmailTemplates: Record<
 const commonPlaceholders = ["recipientName", "organizationName", "link"];
 const receiptPlaceholders = ["receiptName", "receiptDate", "amount"];
 const commentPlaceholders = ["comment", "commentLine"];
+const requestPlaceholders = ["requestTitle", "requestType"];
 
 const accountingPlaceholders = [
   "recipientName",
@@ -374,6 +426,18 @@ export const emailPlaceholders: Record<EmailTemplateKind, string[]> = {
   payslipPublished: [...commonPlaceholders, "month"],
   timesheetApproved: [...commonPlaceholders, "week"],
   timesheetRejected: [...commonPlaceholders, "week", ...commentPlaceholders],
+  requestSubmitted: [
+    ...commonPlaceholders,
+    "personName",
+    ...requestPlaceholders,
+    "amount",
+  ],
+  requestStatusChanged: [
+    ...commonPlaceholders,
+    ...requestPlaceholders,
+    "requestStatus",
+    ...commentPlaceholders,
+  ],
   accountingTransaction: [
     ...accountingPlaceholders,
     "type",
@@ -466,8 +530,56 @@ export function notificationValuesFor(
       params.isoYear && params.isoWeek
         ? formatIsoWeek(locale, params.isoYear, params.isoWeek)
         : undefined,
+    requestTitle: params.requestTitle,
+    requestType: params.requestType
+      ? (requestTypeLabels[locale][params.requestType] ?? params.requestType)
+      : undefined,
+    requestStatus: params.requestStatus
+      ? (requestStatusLabels[locale][params.requestStatus] ??
+        params.requestStatus)
+      : undefined,
   };
 }
+
+/** Request words used inside emails, which are built without the catalogs. */
+const requestTypeLabels: Record<NotificationLocale, Record<string, string>> = {
+  "en-SE": {
+    equipment: "equipment",
+    education: "education",
+    seminar: "seminar",
+    travel: "travel",
+  },
+  "sv-SE": {
+    equipment: "utrustning",
+    education: "utbildning",
+    seminar: "seminarium",
+    travel: "resa",
+  },
+};
+
+const requestStatusLabels: Record<
+  NotificationLocale,
+  Record<string, string>
+> = {
+  "en-SE": {
+    requested: "requested",
+    changes_requested: "changes requested",
+    under_review: "under review",
+    accepted: "accepted",
+    rejected: "rejected",
+    finalized: "finalized",
+    withdrawn: "withdrawn",
+  },
+  "sv-SE": {
+    requested: "begärd",
+    changes_requested: "ändringar begärda",
+    under_review: "under granskning",
+    accepted: "godkänd",
+    rejected: "avslagen",
+    finalized: "slutförd",
+    withdrawn: "återkallad",
+  },
+};
 
 /** Fills `{placeholder}`s in the in-app notification texts. */
 export function fill(

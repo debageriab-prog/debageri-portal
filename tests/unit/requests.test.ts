@@ -1,0 +1,373 @@
+import { describe, expect, it } from "vitest";
+import {
+  togglePermission,
+  type PermissionKey,
+} from "@/domain/access/permissions";
+import {
+  buildNotification,
+  notificationValuesFor,
+} from "@/domain/notifications";
+import {
+  canBecomeExpense,
+  canTransition,
+  filterRequests,
+  isEditableRequest,
+  isSafeLink,
+  nextStatuses,
+  REQUEST_STATUSES,
+  requestCategoryId,
+  requestTypesFor,
+} from "@/domain/requests";
+import { transactionSchema } from "@/server/validators/finance";
+import {
+  parseRequestForm,
+  requestStatusSchema,
+} from "@/server/validators/requests";
+import { rolePermissions } from "./role-permissions";
+
+describe("request statuses", () => {
+  it("lets reviewers pick any other status except withdrawn", () => {
+    for (const from of REQUEST_STATUSES.filter((s) => s !== "finalized"))
+      expect(nextStatuses(from, "reviewer")).toEqual(
+        REQUEST_STATUSES.filter((s) => s !== from && s !== "withdrawn"),
+      );
+    expect(canTransition("requested", "finalized", "reviewer")).toBe(true);
+    expect(canTransition("withdrawn", "under_review", "reviewer")).toBe(true);
+  });
+
+  it("closes finalized requests for everyone", () => {
+    for (const actor of ["reviewer", "owner"] as const)
+      expect(nextStatuses("finalized", actor)).toEqual([]);
+    expect(nextStatuses("withdrawn", "owner")).toEqual([]);
+  });
+
+  it("only lets the requester withdraw a request that waits on them", () => {
+    const open = ["requested", "changes_requested"];
+    for (const status of REQUEST_STATUSES)
+      expect(canTransition(status, "withdrawn", "owner")).toBe(
+        open.includes(status),
+      );
+    expect(canTransition("requested", "accepted", "owner")).toBe(false);
+    expect(canTransition("requested", "withdrawn", "reviewer")).toBe(false);
+  });
+
+  it("can only be edited while requested or sent back for changes", () => {
+    expect(isEditableRequest({ status: "requested" })).toBe(true);
+    expect(isEditableRequest({ status: "changes_requested" })).toBe(true);
+    expect(isEditableRequest({ status: "under_review" })).toBe(false);
+  });
+
+  it("sends a changed request back to requested, by the requester only", () => {
+    expect(canTransition("changes_requested", "requested", "owner")).toBe(true);
+    expect(canTransition("changes_requested", "accepted", "owner")).toBe(false);
+    expect(canTransition("under_review", "requested", "owner")).toBe(false);
+  });
+
+  it("turns only finalized, unbooked requests into expenses", () => {
+    expect(
+      canBecomeExpense({ status: "finalized", expenseTransactionId: null }),
+    ).toBe(true);
+    expect(
+      canBecomeExpense({ status: "finalized", expenseTransactionId: "tx" }),
+    ).toBe(false);
+    expect(
+      canBecomeExpense({ status: "accepted", expenseTransactionId: null }),
+    ).toBe(false);
+  });
+});
+
+describe("request types per permission", () => {
+  it("offers only the types the profile allows", () => {
+    expect(
+      requestTypesFor({
+        permissions: [
+          "my.requests",
+          "my.requests.equipment",
+          "my.requests.education",
+        ],
+      }),
+    ).toEqual(["equipment", "education"]);
+    expect(
+      requestTypesFor({ permissions: rolePermissions("consultant") }),
+    ).toEqual(["equipment", "education", "seminar", "travel"]);
+    expect(requestTypesFor({ permissions: rolePermissions("admin") })).toEqual(
+      [],
+    );
+  });
+
+  it("clears every type when My requests is unticked", () => {
+    const selected: PermissionKey[] = [
+      "my.requests",
+      "my.requests.equipment",
+      "my.requests.seminar",
+    ];
+    expect(
+      togglePermission(selected, "my.requests", false, "consultant"),
+    ).toEqual([]);
+    expect(
+      togglePermission([], "my.requests.travel", true, "consultant"),
+    ).toEqual(["my.requests", "my.requests.travel"]);
+  });
+
+  it("ticks every type with My requests, and each can be unticked", () => {
+    const all = togglePermission([], "my.requests", true, "consultant");
+    expect(all).toEqual([
+      "my.requests",
+      "my.requests.equipment",
+      "my.requests.education",
+      "my.requests.seminar",
+      "my.requests.travel",
+    ]);
+    expect(
+      togglePermission(all, "my.requests.seminar", false, "consultant"),
+    ).not.toContain("my.requests.seminar");
+    // Other rows still tick only themselves.
+    expect(togglePermission([], "my.receipts", true, "consultant")).toEqual([
+      "my.receipts",
+    ]);
+  });
+
+  it("lets office staff hold request types too", () => {
+    expect(
+      togglePermission([], "my.requests.education", true, "staff"),
+    ).toEqual(["my.requests", "my.requests.education"]);
+  });
+});
+
+describe("requestCategoryId", () => {
+  const category = (
+    id: string,
+    en: string,
+    sv: string,
+    extra: Partial<{ direction: "income" | "expense"; active: boolean }> = {},
+  ) => ({
+    id,
+    code: id,
+    name: { en, sv },
+    direction: "expense" as const,
+    active: true,
+    ...extra,
+  });
+
+  it("picks the expense category named after the request type", () => {
+    const categories = [
+      category("c1", "Travel", "Resor"),
+      category("c2", "Equipment", "Utrustning"),
+      category("c3", "Courses and training", "Kurser och utbildning"),
+    ];
+    expect(requestCategoryId("equipment", categories)).toBe("c2");
+    expect(requestCategoryId("travel", categories)).toBe("c1");
+    expect(requestCategoryId("education", categories)).toBe("c3");
+    expect(requestCategoryId("seminar", categories)).toBeNull();
+  });
+
+  it("matches the Swedish name and skips inactive or income categories", () => {
+    expect(
+      requestCategoryId("equipment", [
+        category("old", "Equipment", "Utrustning", { active: false }),
+        category("in", "Equipment", "Utrustning", { direction: "income" }),
+        category("sv", "Hardware", "Utrustning"),
+      ]),
+    ).toBe("sv");
+  });
+});
+
+describe("filterRequests", () => {
+  const items = [
+    {
+      id: "a",
+      submittedOn: "2026-11-02",
+      status: "requested" as const,
+      type: "equipment" as const,
+      userId: "u1",
+    },
+    {
+      id: "b",
+      submittedOn: "2026-10-15",
+      status: "accepted" as const,
+      type: "seminar" as const,
+      userId: "u2",
+    },
+  ];
+
+  it("filters on period, status, type and person", () => {
+    const all = { period: null, status: "all", type: "all" } as const;
+    expect(filterRequests(items, all).map((item) => item.id)).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(
+      filterRequests(items, { ...all, period: "2026-11" }).map((i) => i.id),
+    ).toEqual(["a"]);
+    expect(
+      filterRequests(items, { ...all, period: "2026" }).map((i) => i.id),
+    ).toEqual(["a", "b"]);
+    expect(
+      filterRequests(items, { ...all, type: "seminar" }).map((i) => i.id),
+    ).toEqual(["b"]);
+    expect(
+      filterRequests(items, { ...all, status: "requested" }).map((i) => i.id),
+    ).toEqual(["a"]);
+    expect(
+      filterRequests(items, { ...all, userId: "u2" }).map((i) => i.id),
+    ).toEqual(["b"]);
+  });
+});
+
+function form(values: Record<string, string | string[]>) {
+  const data = new FormData();
+  for (const [key, value] of Object.entries(values))
+    for (const item of Array.isArray(value) ? value : [value])
+      data.append(key, item);
+  return data;
+}
+
+describe("request form", () => {
+  const valid = {
+    type: "education",
+    title: "Kubernetes course",
+    description: "Online",
+    links: ["https://example.com/course", ""],
+    estimatedCostMinor: "450000",
+    payer: "company",
+    vatRateBps: "2500",
+    startDate: "2026-12-01",
+    endDate: "2026-12-03",
+  };
+
+  it("accepts a complete request and drops empty links", () => {
+    const parsed = parseRequestForm(form(valid));
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.links).toEqual(["https://example.com/course"]);
+    expect(parsed.data?.startDate).toBe("2026-12-01");
+    expect(parsed.data?.keepFileIds).toEqual([]);
+  });
+
+  it("needs one of the Swedish VAT rates", () => {
+    expect(parseRequestForm(form(valid)).data?.vatRateBps).toBe(2500);
+    expect(
+      parseRequestForm(form({ ...valid, vatRateBps: "600" })).success,
+    ).toBe(true);
+    expect(parseRequestForm(form({ ...valid, vatRateBps: "0" })).success).toBe(
+      true,
+    );
+    expect(
+      parseRequestForm(form({ ...valid, vatRateBps: "1900" })).success,
+    ).toBe(false);
+    const withoutVat: Partial<typeof valid> = { ...valid };
+    delete withoutVat.vatRateBps;
+    expect(parseRequestForm(form(withoutVat)).success).toBe(false);
+  });
+
+  it("drops dates for equipment", () => {
+    const parsed = parseRequestForm(form({ ...valid, type: "equipment" }));
+    expect(parsed.data?.startDate).toBeNull();
+    expect(parsed.data?.endDate).toBeNull();
+  });
+
+  it("rejects script links, unknown types and payers, and reversed dates", () => {
+    expect(
+      parseRequestForm(form({ ...valid, links: ["javascript:alert(1)"] }))
+        .success,
+    ).toBe(false);
+    expect(parseRequestForm(form({ ...valid, type: "car" })).success).toBe(
+      false,
+    );
+    expect(parseRequestForm(form({ ...valid, payer: "client" })).success).toBe(
+      false,
+    );
+    expect(
+      parseRequestForm(form({ ...valid, endDate: "2026-11-30" })).success,
+    ).toBe(false);
+    expect(
+      parseRequestForm(form({ ...valid, estimatedCostMinor: "12.5" })).success,
+    ).toBe(false);
+  });
+
+  it("allows at most five links", () => {
+    const links = Array.from({ length: 6 }, (_, i) => `https://e.com/${i}`);
+    expect(parseRequestForm(form({ ...valid, links })).success).toBe(false);
+  });
+
+  it("only treats http and https as links", () => {
+    expect(isSafeLink("https://example.com")).toBe(true);
+    expect(isSafeLink("http://example.com")).toBe(true);
+    expect(isSafeLink("ftp://example.com")).toBe(false);
+    expect(isSafeLink("example.com")).toBe(false);
+  });
+
+  it("needs a note to ask for changes", () => {
+    expect(
+      requestStatusSchema.safeParse({ status: "changes_requested", note: "" })
+        .success,
+    ).toBe(false);
+    expect(
+      requestStatusSchema.safeParse({
+        status: "changes_requested",
+        note: "Please link a Swedish shop",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("needs a note to reject", () => {
+    expect(
+      requestStatusSchema.safeParse({ status: "rejected", note: "" }).success,
+    ).toBe(false);
+    expect(
+      requestStatusSchema.safeParse({ status: "rejected", note: "No budget" })
+        .success,
+    ).toBe(true);
+    expect(requestStatusSchema.safeParse({ status: "accepted" }).success).toBe(
+      true,
+    );
+  });
+});
+
+describe("expense from a request", () => {
+  it("accepts a requestId on a new transaction", () => {
+    const parsed = transactionSchema.parse({
+      action: "createTransaction",
+      direction: "expense",
+      categoryId: "cat",
+      consultantId: "u1",
+      date: "2026-11-10",
+      amountMode: "gross",
+      amountMinor: 450_000,
+      roundingMinor: 0,
+      vatRateBps: 2_500,
+      funding: "company",
+      requestId: "req-1",
+    });
+    expect(parsed.requestId).toBe("req-1");
+    expect(parsed.receiptId).toBeNull();
+  });
+});
+
+describe("request notifications", () => {
+  it("names the type and status in the reader's language", () => {
+    const params = {
+      personName: "Cleo",
+      requestTitle: "Course",
+      requestType: "education",
+      requestStatus: "under_review",
+      amountMinor: 450_000,
+      comment: "",
+    };
+    const sv = buildNotification("requestStatusChanged", "sv-SE", {
+      ...notificationValuesFor(params, "sv-SE"),
+      recipientName: "Cleo",
+      organizationName: "Debageri",
+      link: "https://portal/requests",
+    });
+    expect(sv.text).toContain("utbildning");
+    expect(sv.text).toContain("under granskning");
+    const en = buildNotification("requestSubmitted", "en-SE", {
+      ...notificationValuesFor(params, "en-SE"),
+      recipientName: "Ann",
+      organizationName: "Debageri",
+      link: "https://portal/requests",
+    });
+    expect(en.subject).toBe("New education request: Course");
+    expect(en.text).toContain("Cleo");
+  });
+});

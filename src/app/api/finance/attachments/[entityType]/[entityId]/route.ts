@@ -7,7 +7,7 @@ import { verifySession } from "@/server/auth/session";
 import { financeIsEnabled } from "@/server/services/finance-service";
 import { can, FINANCE_ENTITY_PERMISSIONS } from "@/domain/access/permissions";
 
-const MAX_FILES = 3;
+const MAX_FILES = 8;
 const MAX_BYTES = 10 * 1024 * 1024;
 const entityCollections = {
   transaction: "financialTransactions",
