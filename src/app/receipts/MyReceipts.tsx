@@ -24,7 +24,7 @@ export function MyReceipts({
   canUpload: boolean;
 }) {
   const { t, locale } = useLocale();
-  const [period, setPeriod] = useState<string | null>(currentPeriod);
+  const [period, setPeriod] = useState<string | null>(null);
   const [status, setStatus] = useState<ReceiptStatus | "all">("all");
   const [viewing, setViewing] = useState<ReceiptItem | null>(null);
   const filtered = filterReceipts(receipts, { period, status });

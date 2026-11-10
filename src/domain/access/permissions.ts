@@ -298,14 +298,31 @@ function descendantsOf(key: PermissionKey): PermissionKey[] {
   );
 }
 
-/** Ticking adds the parents; unticking also clears everything underneath. */
+/**
+ * Rows whose children are all ticked along with them, because the row on its
+ * own grants nothing useful. Each child can still be unticked afterwards.
+ */
+const TICKS_CHILDREN: readonly PermissionKey[] = ["my.requests"];
+
+/**
+ * Ticking adds the parents (and, for `TICKS_CHILDREN`, the children);
+ * unticking also clears everything underneath.
+ */
 export function togglePermission(
   selected: readonly PermissionKey[],
   key: PermissionKey,
   checked: boolean,
   audience: ProfileAudience,
 ) {
-  if (checked) return normalizePermissions([...selected, key], audience);
+  if (checked)
+    return normalizePermissions(
+      [
+        ...selected,
+        key,
+        ...(TICKS_CHILDREN.includes(key) ? descendantsOf(key) : []),
+      ],
+      audience,
+    );
   const removed = new Set([key, ...descendantsOf(key)]);
   return selected.filter((item) => !removed.has(item));
 }

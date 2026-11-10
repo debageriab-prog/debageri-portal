@@ -47,7 +47,7 @@ export function RequestReview({
 }) {
   const { t, locale } = useLocale();
   const router = useRouter();
-  const [period, setPeriod] = useState<string | null>(null);
+  const [period, setPeriod] = useState<string | null>(currentPeriod);
   const [status, setStatus] = useState<RequestStatus | "all">("all");
   const [type, setType] = useState<RequestType | "all">("all");
   const [personFilter, setPersonFilter] = useState("");

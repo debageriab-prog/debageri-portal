@@ -113,6 +113,24 @@ describe("request types per permission", () => {
     ).toEqual(["my.requests", "my.requests.travel"]);
   });
 
+  it("ticks every type with My requests, and each can be unticked", () => {
+    const all = togglePermission([], "my.requests", true, "consultant");
+    expect(all).toEqual([
+      "my.requests",
+      "my.requests.equipment",
+      "my.requests.education",
+      "my.requests.seminar",
+      "my.requests.travel",
+    ]);
+    expect(
+      togglePermission(all, "my.requests.seminar", false, "consultant"),
+    ).not.toContain("my.requests.seminar");
+    // Other rows still tick only themselves.
+    expect(togglePermission([], "my.receipts", true, "consultant")).toEqual([
+      "my.receipts",
+    ]);
+  });
+
   it("lets office staff hold request types too", () => {
     expect(
       togglePermission([], "my.requests.education", true, "staff"),

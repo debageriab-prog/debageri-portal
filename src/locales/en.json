@@ -2102,7 +2102,7 @@
   "requestLinksOptional": "Links (optional)",
   "requestLinksTip": "Links to the product, course, seminar or booking page. Up to 5 links starting with https:// or http://.",
   "requestLinkNumber": "Link {number}",
-  "requestAddLink": "Add link",
+  "requestAddLink": "Add another link",
   "requestRemoveLink": "Remove link",
   "requestFilesOptional": "Attachments (optional)",
   "requestFilesTip": "For example a quote, an offer or a course description. Up to 5 PDF, JPG, PNG or WebP files of at most 10 MB each.",

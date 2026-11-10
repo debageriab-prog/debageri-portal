@@ -290,10 +290,18 @@ export function RequestDetailModal({
               count={request.links.length}
             >
               <ul className="request-link-list">
-                {request.links.map((link) => (
-                  <li key={link}>
-                    <a href={link} target="_blank" rel="noopener noreferrer">
-                      {link}
+                {request.links.map((link, index) => (
+                  <li key={`${index}-${link}`}>
+                    <a
+                      href={link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={link}
+                    >
+                      {t("requestLinkNumber").replace(
+                        "{number}",
+                        String(index + 1),
+                      )}
                     </a>
                   </li>
                 ))}

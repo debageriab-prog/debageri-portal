@@ -2102,7 +2102,7 @@
   "requestLinksOptional": "Länkar (valfritt)",
   "requestLinksTip": "Länkar till produkten, kursen, seminariet eller bokningssidan. Upp till 5 länkar som börjar med https:// eller http://.",
   "requestLinkNumber": "Länk {number}",
-  "requestAddLink": "Lägg till länk",
+  "requestAddLink": "Lägg till en länk till",
   "requestRemoveLink": "Ta bort länk",
   "requestFilesOptional": "Bilagor (valfritt)",
   "requestFilesTip": "Till exempel en offert, ett erbjudande eller en kursbeskrivning. Upp till 5 PDF-, JPG-, PNG- eller WebP-filer på högst 10 MB vardera.",
