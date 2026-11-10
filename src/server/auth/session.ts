@@ -62,6 +62,7 @@ async function loadPortalUser(
       receipts: data.emailPreferences?.receipts !== false,
       payslips: data.emailPreferences?.payslips !== false,
       timesheets: data.emailPreferences?.timesheets !== false,
+      requests: data.emailPreferences?.requests !== false,
     },
     accessProfileId: data.accessProfileId ?? null,
     permissions: await permissionsOf(db, {

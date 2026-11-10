@@ -2,32 +2,34 @@
 
 Every organization-owned document has `organizationId`. Dates are `YYYY-MM-DD` in `Europe/Stockholm`; durations are integer minutes to avoid floating-point errors. Server timestamps provide audit chronology.
 
-| Collection                | ID / purpose                                                                                   | Write owner              | Reads                       |
-| ------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------ | --------------------------- |
-| `organizations`           | organization ID; locale, timezone, schedule defaults, `invoicing` company details              | admin service            | members                     |
-| `users`                   | Firebase UID; profile, role, reporting dates, `reportsTime`, active status, email `locale`     | admin service            | role/capability based       |
-| `timeCodes`               | stable code ID; localized names, category, behavior, effective range                           | admin service            | members                     |
-| `timesheets`              | `{org}_{uid}_{isoYear}-W{ww}`; week state and trusted totals                                   | trusted workflow         | self/assigned manager/admin |
-| `timeEntries`             | generated ID; date allocation and immutable code snapshot                                      | employee while editable  | self/assigned manager/admin |
-| `timesheetAttachments`    | generated; file metadata for a time report, keyed by `timesheetId`                             | timesheet attachment API | server only (role checked)  |
-| `approvalEvents`          | generated; append-only transition history                                                      | trusted workflow         | participants/admin          |
-| `holidays`                | stable date/region ID                                                                          | admin service            | members                     |
-| `auditLogs`               | generated; immutable sensitive action record                                                   | trusted services         | admin                       |
-| `compensationAgreements`  | effective-dated compensation: flexible (share plus requested salary), fixed, hybrid, salaried  | admin service            | finance server only         |
-| `payrollProfiles`         | `{org}_{uid}`; personnummer, address, kommun, tax table and column, jämkning, salary account   | admin user API           | server only                 |
-| `taxTables`               | `{org}_{year}_{table}`; Skatteverket's monthly brackets (amount or percent per column 1–6)     | tax table import         | server only                 |
-| `municipalTaxRates`       | `{org}_{year}`; every kommun's tax rate and its parishes' rates with church fee                | tax table import         | server only                 |
-| `salaryRuns`              | `{org}_{YYYY-MM}`; a month's payment date and the period its events come from                  | salary service           | server only                 |
-| `salarySlips`             | `{org}_{uid}_{YYYY-MM}`; one person's salary: lines, tax, totals, status, payslip and expenses | salary service           | server only                 |
-| `financeCategories`       | bilingual income/expense classifications                                                       | admin service            | finance server only         |
-| `financeCustomers`        | customer name, contacts, customer number, address, org/VAT number, invoice defaults            | finance service          | finance server only         |
-| `invoiceArticles`         | article number, description, unit, price, VAT, consultant scope, validity                      | finance service          | finance server only         |
-| `invoices`                | consultant attribution, rows, net/VAT/gross values, OCR, PDF and sending, payment state        | finance service          | admin/accountant server     |
-| `financialTransactions`   | immutable income, expense, and reversal ledger in integer Ã¶re                                 | finance service          | role-scoped finance server  |
-| `aiSettings`              | organization ID; AI on/off, provider, model, enabled sections, encrypted keys                  | admin service            | server only                 |
-| `accountingEmailSettings` | per-organization accounting email addresses and which finance changes each receives            | accounting email service | server only (admin API)     |
-| `incomingEmailSettings`   | organization ID; finance mailbox (IMAP, encrypted password), trusted senders, read state       | incoming email service   | server only (admin API)     |
-| `incomingFinanceEmails`   | generated; forwarded email, its files and what AI read, waiting to become a record             | incoming email service   | finance server only         |
+| Collection                | ID / purpose                                                                                   | Write owner              | Reads                           |
+| ------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------- |
+| `organizations`           | organization ID; locale, timezone, schedule defaults, `invoicing` company details              | admin service            | members                         |
+| `users`                   | Firebase UID; profile, role, reporting dates, `reportsTime`, active status, email `locale`     | admin service            | role/capability based           |
+| `timeCodes`               | stable code ID; localized names, category, behavior, effective range                           | admin service            | members                         |
+| `timesheets`              | `{org}_{uid}_{isoYear}-W{ww}`; week state and trusted totals                                   | trusted workflow         | self/assigned manager/admin     |
+| `timeEntries`             | generated ID; date allocation and immutable code snapshot                                      | employee while editable  | self/assigned manager/admin     |
+| `timesheetAttachments`    | generated; file metadata for a time report, keyed by `timesheetId`                             | timesheet attachment API | server only (role checked)      |
+| `approvalEvents`          | generated; append-only transition history                                                      | trusted workflow         | participants/admin              |
+| `holidays`                | stable date/region ID                                                                          | admin service            | members                         |
+| `auditLogs`               | generated; immutable sensitive action record                                                   | trusted services         | admin                           |
+| `compensationAgreements`  | effective-dated compensation: flexible (share plus requested salary), fixed, hybrid, salaried  | admin service            | finance server only             |
+| `payrollProfiles`         | `{org}_{uid}`; personnummer, address, kommun, tax table and column, jämkning, salary account   | admin user API           | server only                     |
+| `taxTables`               | `{org}_{year}_{table}`; Skatteverket's monthly brackets (amount or percent per column 1–6)     | tax table import         | server only                     |
+| `municipalTaxRates`       | `{org}_{year}`; every kommun's tax rate and its parishes' rates with church fee                | tax table import         | server only                     |
+| `salaryRuns`              | `{org}_{YYYY-MM}`; a month's payment date and the period its events come from                  | salary service           | server only                     |
+| `salarySlips`             | `{org}_{uid}_{YYYY-MM}`; one person's salary: lines, tax, totals, status, payslip and expenses | salary service           | server only                     |
+| `financeCategories`       | bilingual income/expense classifications                                                       | admin service            | finance server only             |
+| `financeCustomers`        | customer name, contacts, customer number, address, org/VAT number, invoice defaults            | finance service          | finance server only             |
+| `invoiceArticles`         | article number, description, unit, price, VAT, consultant scope, validity                      | finance service          | finance server only             |
+| `invoices`                | consultant attribution, rows, net/VAT/gross values, OCR, PDF and sending, payment state        | finance service          | admin/accountant server         |
+| `financialTransactions`   | immutable income, expense, and reversal ledger in integer Ã¶re                                 | finance service          | role-scoped finance server      |
+| `aiSettings`              | organization ID; AI on/off, provider, model, enabled sections, encrypted keys                  | admin service            | server only                     |
+| `accountingEmailSettings` | per-organization accounting email addresses and which finance changes each receives            | accounting email service | server only (admin API)         |
+| `incomingEmailSettings`   | organization ID; finance mailbox (IMAP, encrypted password), trusted senders, read state       | incoming email service   | server only (admin API)         |
+| `incomingFinanceEmails`   | generated; forwarded email, its files and what AI read, waiting to become a record             | incoming email service   | finance server only             |
+| `requests`                | generated; equipment, education, seminar or travel request, its links, files and status        | request service          | requester/reviewers server only |
+| `requestEvents`           | generated; append-only status history of a request                                             | request service          | requester/reviewers server only |
 
 Weekly sheets are approval/state units; entries remain separate so one date can have multiple codes and date-range reporting stays queryable. Each eligible weekday expects eight reported hours, while submitted sheets preserve their historical expected total. Code snapshots preserve historical meaning after a rename/deactivation. Approval events are append-only because current sheet fields are not history.
 
@@ -216,3 +218,5 @@ rules deny all direct access. `users/{uid}.accessProfileId` assigns one. The
 `financeAccess` and `documentAccess` fields on older user documents are unused.
 
 Indexes in `firestore.indexes.json` serve user date/week entry queries, user sheet history, and manager status queues. Future `leaveBalances`, `payslips`, `employeeDocuments`, `projects`, and `reportSummaries` retain organization isolation and server ownership. The portal database is separate because candidate recruitment data has a different purpose, access population, retention policy, and threat boundary.
+
+Requests are how people ask the company for equipment, education, seminars or travel. A request stores its `type`, title, description, up to five http(s) `links`, `estimatedCostMinor` (öre, including VAT), `payer` (`company` or `self`), optional `startDate`/`endDate` for education, seminars and travel, and up to five `files` kept at `organizations/{org}/requests/{uid}/{requestId}/{fileId}` and streamed through `/api/requests/{id}/files/{fileId}`. Each type has its own permission (`my.requests.equipment`, `my.requests.education`, `my.requests.seminar`, `my.requests.travel`) under `my.requests`, so a company can allow some types and not others. The status moves `requested` → `under_review` → `accepted` or `rejected` → `finalized`. Reviewers (`documents.requests.review`) make every change except `withdrawn`, which only the requester can choose, and only while the request is `requested`. Reviewers cannot decide on their own requests. A rejected request can be reopened to `under_review`. The requester can edit a request until it leaves `requested`. Each change writes a `requestEvents` entry and an audit entry (`request.submitted`, `request.updated`, `request.{status}`) in the same transaction. A finalized request becomes an expense through `/finance/transactions/new?requestId=…`, which fills in the consultant, amount, funding and files. Creating it sets `expenseTransactionId` (audit `request.expenseCreated`), so the request is never booked twice.

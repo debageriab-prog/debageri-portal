@@ -20,6 +20,7 @@ import {
   consultantServicesNote,
 } from "@/domain/finance/invoice-period";
 import { receiptVatRateBps } from "@/domain/receipts";
+import type { MessageKey } from "@/lib/localization/messages";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { addDays } from "@/domain/finance/invoice-settings";
 import {
@@ -107,6 +108,19 @@ export type ExpenseReceipt = {
   vatMinor: number;
   fileName: string;
   contentType: string;
+};
+
+/** A finalized request that is turned into an expense. */
+export type ExpenseRequest = {
+  id: string;
+  userId: string;
+  userName: string;
+  type: string;
+  title: string;
+  description: string;
+  estimatedCostMinor: number;
+  payer: "company" | "self";
+  files: { id: string; name: string; contentType: string }[];
 };
 
 function today() {
@@ -1803,6 +1817,7 @@ export function TransactionForm({
   defaultDate,
   transaction,
   receipt,
+  request,
   incomingEmail,
   accountingRecipients = [],
   aiEnabled = false,
@@ -1813,6 +1828,8 @@ export function TransactionForm({
   defaultDate?: string;
   transaction?: EditableTransaction;
   receipt?: ExpenseReceipt;
+  /** A finalized request whose details and files fill the form. */
+  request?: ExpenseRequest;
   /** A forwarded email whose AI reading and files fill the form. */
   incomingEmail?: IncomingEmailSource;
   aiEnabled?: boolean;
@@ -1823,15 +1840,20 @@ export function TransactionForm({
   const receiptConsultant = receipt
     ? users.find((user) => user.id === receipt.userId)
     : undefined;
+  const requestConsultant = request
+    ? users.find((user) => user.id === request.userId)
+    : undefined;
   const [direction, setDirection] = useState<"" | "income" | "expense">(
-    transaction?.direction ?? (receipt ? "expense" : ""),
+    transaction?.direction ?? (receipt || request ? "expense" : ""),
   );
   const [consultantId, setConsultantId] = useState(
     transaction
       ? (transaction.consultantId ?? COMPANY_ONLY)
       : receipt
         ? (receiptConsultant?.id ?? COMPANY_ONLY)
-        : "",
+        : request
+          ? (requestConsultant?.id ?? COMPANY_ONLY)
+          : "",
   );
   const hasConsultant = consultantId !== "" && consultantId !== COMPANY_ONLY;
   const [fieldErrors, setFieldErrors] = useState<
@@ -1873,7 +1895,9 @@ export function TransactionForm({
         ? (transaction.grossMinor / 100).toFixed(2)
         : receipt?.netMinor
           ? (receipt.netMinor / 100).toFixed(2)
-          : "",
+          : request?.estimatedCostMinor
+            ? (request.estimatedCostMinor / 100).toFixed(2)
+            : "",
   );
   const [vatAmount, setVatAmount] = useState(
     initialAmounts ? (initialAmounts.vatMinor / 100).toFixed(2) : "",
@@ -1884,7 +1908,8 @@ export function TransactionForm({
       : "",
   );
   const [funding, setFunding] = useState<"" | "company" | "consultant">(
-    transaction?.funding ?? "",
+    transaction?.funding ??
+      (request ? (request.payer === "self" ? "consultant" : "company") : ""),
   );
   const [vatPercent, setVatPercent] = useState(String(initialVatRateBps / 100));
   const [applyShare, setApplyShare] = useState(
@@ -1913,6 +1938,7 @@ export function TransactionForm({
     { entityType: "transaction", recipients: accountingRecipients },
   );
   const [receiptFileError, setReceiptFileError] = useState(false);
+  const [requestFilesFailed, setRequestFilesFailed] = useState(false);
   const [emailFilesFailed, setEmailFilesFailed] = useState(false);
   const [categoryId, setCategoryId] = useState(transaction?.categoryId ?? "");
   const [date, setDate] = useState(
@@ -1920,10 +1946,18 @@ export function TransactionForm({
   );
   const receiptText = receipt
     ? [receipt.name, receipt.description].filter(Boolean).join(" – ")
-    : "";
+    : request
+      ? request.title
+      : "";
   const [internalNote, setInternalNote] = useState(
     transaction?.internalNote ??
-      (receipt ? `${t("receipt")}: ${receiptText} (${receipt.userName})` : ""),
+      (receipt
+        ? `${t("receipt")}: ${receiptText} (${receipt.userName})`
+        : request
+          ? `${t("request")}: ${request.title} (${t(
+              `requestType_${request.type}` as MessageKey,
+            )}, ${request.userName})`.slice(0, 1_000)
+          : ""),
   );
   const [visibleDescription, setVisibleDescription] = useState(
     transaction?.visibleDescription ?? receiptText,
@@ -2097,6 +2131,31 @@ export function TransactionForm({
       active = false;
     };
   }, [receipt]);
+  useEffect(() => {
+    if (!request?.files.length) return;
+    let active = true;
+    void Promise.all(
+      request.files.map((file) =>
+        appCheckFetch(
+          `/api/requests/${encodeURIComponent(request.id)}/files/${encodeURIComponent(file.id)}`,
+        ).then(async (response) => {
+          if (!response.ok) throw new Error("requestFileUnavailable");
+          return new File([await response.blob()], file.name, {
+            type: file.contentType,
+          });
+        }),
+      ),
+    )
+      .then((files) => {
+        if (active) setAttachmentFiles(files);
+      })
+      .catch(() => {
+        if (active) setRequestFilesFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [request]);
   const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
   const roundingMinor = (() => {
     try {
@@ -2181,6 +2240,7 @@ export function TransactionForm({
       visibleDescription: hasConsultant ? visibleDescription : "",
       internalNote: form.get("internalNote"),
       ...(receipt && !transaction ? { receiptId: receipt.id } : {}),
+      ...(request && !transaction ? { requestId: request.id } : {}),
       ...(incomingEmail && !transaction
         ? { incomingEmailId: incomingEmail.id }
         : {}),
@@ -2224,9 +2284,11 @@ export function TransactionForm({
       backLabel={
         receipt
           ? t("backToReceipts")
-          : incomingEmail
-            ? t("backToIncomingEmails")
-            : t("backToTransactions")
+          : request
+            ? t("backToRequests")
+            : incomingEmail
+              ? t("backToIncomingEmails")
+              : t("backToTransactions")
       }
       notice={
         incomingEmail ? (
@@ -2234,6 +2296,31 @@ export function TransactionForm({
             email={incomingEmail}
             filesFailed={emailFilesFailed}
           />
+        ) : request ? (
+          <div className="notice notice-success receipt-expense-notice">
+            <strong>
+              {t("expenseFromRequest")
+                .replace("{name}", request.title)
+                .replace("{person}", request.userName)}
+            </strong>
+            <span>
+              {t("expenseFromRequestAmount").replace(
+                "{total}",
+                formatSek(request.estimatedCostMinor, locale),
+              )}
+            </span>
+            <span>
+              {requestConsultant
+                ? t("expenseFromRequestFundingHelp")
+                : t("expenseFromReceiptCompanyOnly").replace(
+                    "{person}",
+                    request.userName,
+                  )}
+            </span>
+            {requestFilesFailed && (
+              <span>{t("expenseRequestFilesMissing")}</span>
+            )}
+          </div>
         ) : (
           receipt && (
             <div className="notice notice-success receipt-expense-notice">

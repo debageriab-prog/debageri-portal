@@ -3660,6 +3660,57 @@ td.amount-cell {
   margin-bottom: 1rem;
 }
 
+.request-links {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+
+.request-link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.request-link-row .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.request-link-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.request-link-list a {
+  color: var(--accent-dark);
+  overflow-wrap: anywhere;
+}
+
+.request-history {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.request-history li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.request-history p {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .employee-editor {
   padding: 0;
   overflow: hidden;

@@ -1,9 +1,17 @@
 import { redirect } from "next/navigation";
 import { expensableReceipt } from "@/server/services/receipt-service";
+import {
+  expensableRequest,
+  storedRequestFiles,
+} from "@/server/services/request-service";
 import { aiExtractionEnabledFor } from "@/server/services/ai-service";
 import { accountingRecipientsFor } from "@/server/services/accounting-email-service";
 import { convertibleIncomingEmail } from "@/server/services/incoming-email-service";
-import { type ExpenseReceipt, TransactionForm } from "../../FinanceForms";
+import {
+  type ExpenseReceipt,
+  type ExpenseRequest,
+  TransactionForm,
+} from "../../FinanceForms";
 import type { IncomingEmailSource } from "../../incoming-email-prefill";
 import { financeFormContext, financeUsers } from "../../form-data";
 import {
@@ -17,6 +25,7 @@ export default async function NewTransactionPage({
   searchParams: Promise<{
     returnTo?: string;
     receiptId?: string;
+    requestId?: string;
     incomingEmailId?: string;
   }>;
 }) {
@@ -41,8 +50,30 @@ export default async function NewTransactionPage({
       contentType: String(data.contentType),
     };
   }
+  let request: ExpenseRequest | undefined;
+  if (params.requestId && !receipt) {
+    const data = await expensableRequest(db, actor, params.requestId).catch(
+      () => null,
+    );
+    if (!data) redirect("/requests");
+    request = {
+      id: data.id,
+      userId: String(data.userId),
+      userName: String(data.userName),
+      type: String(data.type),
+      title: String(data.title),
+      description: String(data.description ?? ""),
+      estimatedCostMinor: Number(data.estimatedCostMinor ?? 0),
+      payer: data.payer === "self" ? "self" : "company",
+      files: storedRequestFiles(data.files).map((file) => ({
+        id: file.id,
+        name: file.name,
+        contentType: file.contentType,
+      })),
+    };
+  }
   let incomingEmail: IncomingEmailSource | undefined;
-  if (params.incomingEmailId && !receipt) {
+  if (params.incomingEmailId && !receipt && !request) {
     incomingEmail = await convertibleIncomingEmail(
       db,
       actor,
@@ -52,9 +83,11 @@ export default async function NewTransactionPage({
   }
   const returnHref = receipt
     ? "/receipts"
-    : incomingEmail
-      ? "/finance/incoming-emails"
-      : safeTransactionReturnHref(params.returnTo);
+    : request
+      ? "/requests"
+      : incomingEmail
+        ? "/finance/incoming-emails"
+        : safeTransactionReturnHref(params.returnTo);
   const snapshot = await db
     .collection("financeCategories")
     .where("organizationId", "==", actor.organizationId)
@@ -72,6 +105,7 @@ export default async function NewTransactionPage({
       categories={categories}
       returnHref={returnHref}
       receipt={receipt}
+      request={request}
       incomingEmail={incomingEmail}
       accountingRecipients={await accountingRecipientsFor(
         actor,

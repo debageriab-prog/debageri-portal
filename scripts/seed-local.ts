@@ -99,6 +99,9 @@ const sampleProfiles: Array<{
       "my.payslips",
       "my.receipts",
       "my.receipts.upload",
+      "my.requests",
+      "my.requests.equipment",
+      "my.requests.education",
     ],
   },
 ];
@@ -705,6 +708,54 @@ async function seedDocuments() {
       createdAt: now,
       updatedAt: now,
     });
+  await db
+    .collection("requests")
+    .doc("seed-request")
+    .set({
+      organizationId: org,
+      userId: consultant,
+      userName: "Cleo Lind",
+      employeeNumber: "T006",
+      type: "education",
+      title: "Cloud architecture course",
+      description: "Fictional online course request",
+      links: ["https://example.com/course"],
+      estimatedCostMinor: 450_000,
+      payer: "company",
+      startDate: "2026-12-01",
+      endDate: "2026-12-05",
+      files: [
+        {
+          id: "seed-request-file",
+          name: "course-offer.pdf",
+          contentType: "application/pdf",
+          size: pdf.length,
+          storagePath: await storeFile(
+            `organizations/${org}/requests/${consultant}/seed-request/seed-request-file`,
+          ),
+        },
+      ],
+      status: "requested",
+      reviewNote: "",
+      reviewedBy: null,
+      reviewedAt: null,
+      expenseTransactionId: null,
+      submittedOn: "2026-11-02",
+      createdAt: now,
+      createdBy: consultant,
+      updatedAt: now,
+    });
+  await db.collection("requestEvents").doc("seed-request-submitted").set({
+    organizationId: org,
+    requestId: "seed-request",
+    userId: consultant,
+    fromStatus: null,
+    toStatus: "requested",
+    note: "",
+    performedBy: consultant,
+    performedByName: "Cleo Lind",
+    performedAt: now,
+  });
 }
 
 async function main() {

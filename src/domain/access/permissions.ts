@@ -50,6 +50,8 @@ export const PERMISSION_KEYS = [
   "documents.payslips.delete",
   "documents.receipts.review",
   "documents.receipts.book",
+  "documents.requests.review",
+  "documents.requests.book",
   "my.time.report",
   "my.time.history",
   "my.time.income",
@@ -62,6 +64,11 @@ export const PERMISSION_KEYS = [
   "my.payslips",
   "my.receipts",
   "my.receipts.upload",
+  "my.requests",
+  "my.requests.equipment",
+  "my.requests.education",
+  "my.requests.seminar",
+  "my.requests.travel",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -70,7 +77,7 @@ export type PermissionNode = {
   children?: PermissionNode[];
 };
 export type PermissionGroup = {
-  id: "time" | "finance" | "documents" | "receipts";
+  id: "time" | "finance" | "documents" | "requests";
   nodes: PermissionNode[];
 };
 export type ProfileAudience = "consultant" | "staff";
@@ -196,8 +203,21 @@ export const PERMISSION_TREE: PermissionGroup[] = [
     ],
   },
   {
-    id: "receipts",
+    id: "requests",
     nodes: [
+      {
+        key: "my.requests",
+        children: [
+          { key: "my.requests.equipment" },
+          { key: "my.requests.education" },
+          { key: "my.requests.seminar" },
+          { key: "my.requests.travel" },
+        ],
+      },
+      {
+        key: "documents.requests.review",
+        children: [{ key: "documents.requests.book" }],
+      },
       { key: "my.receipts", children: [{ key: "my.receipts.upload" }] },
       {
         key: "documents.receipts.review",
@@ -368,6 +388,8 @@ const FALLBACK_PAGES: Array<[PermissionKey, string]> = [
   ["my.payslips", "/documents/payslips"],
   ["documents.receipts.review", "/receipts"],
   ["my.receipts", "/receipts"],
+  ["documents.requests.review", "/requests"],
+  ["my.requests", "/requests"],
   ["time.reminders.view", "/reminders"],
 ];
 
@@ -412,6 +434,8 @@ const managerPermissions: PermissionKey[] = [
   "documents.contracts.add",
   "documents.contracts.edit",
   "documents.contracts.delete",
+  "documents.requests.review",
+  "documents.requests.book",
   ...ownTimePermissions,
 ];
 
@@ -459,6 +483,8 @@ const accountantPermissions: PermissionKey[] = [
   "documents.payslips.delete",
   "documents.receipts.review",
   "documents.receipts.book",
+  "documents.requests.review",
+  "documents.requests.book",
   ...ownTimePermissions,
 ];
 

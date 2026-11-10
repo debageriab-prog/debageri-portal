@@ -45,7 +45,10 @@ export interface PortalUser {
   paysSalary?: boolean;
   accessProfileId: string | null;
   permissions: PermissionKey[];
-  emailPreferences: Record<"receipts" | "payslips" | "timesheets", boolean>;
+  emailPreferences: Record<
+    "receipts" | "payslips" | "timesheets" | "requests",
+    boolean
+  >;
   /** The admin behind a read-only view of this user, when there is one. */
   impersonatedBy?: { id: string; displayName: string };
 }

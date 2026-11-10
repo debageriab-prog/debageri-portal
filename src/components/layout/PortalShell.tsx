@@ -14,6 +14,7 @@ import {
   canViewMyFinance,
   canViewMyTransactions,
 } from "@/domain/finance/calculations";
+import { requestTypesFor } from "@/domain/requests";
 import type { PortalUser } from "@/domain/types";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { BrandLogo } from "@/components/brand/BrandLogo";
@@ -25,7 +26,7 @@ type NavIconName =
   | "reports"
   | "finance"
   | "documents"
-  | "receipts"
+  | "requests"
   | "bell"
   | "settings"
   | "admin";
@@ -64,10 +65,10 @@ function NavIcon({ name }: { name: NavIconName }) {
         <path d="M15 3.5V7h3M9 11h6M9 15h6" />
       </>
     ),
-    receipts: (
+    requests: (
       <>
-        <path d="M6 3.5h12v17l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z" />
-        <path d="M9 8h6M9 11.5h6M9 15h3.5" />
+        <path d="M5.5 4.5h13v10h-7l-4 3.5v-3.5h-2z" />
+        <path d="M9 8.5h6M9 11.5h4" />
       </>
     ),
     bell: (
@@ -196,6 +197,25 @@ function documentItems(user: PortalUser, t: Translate): NavItem[] {
   ];
 }
 
+function requestItems(user: PortalUser, t: Translate): NavItem[] {
+  const reviews = can(user, "documents.requests.review");
+  const ownRole = user.role !== "admin";
+  return [
+    ...(ownRole && can(user, "my.requests")
+      ? [
+          {
+            label: t("myRequests"),
+            href: reviews ? "/requests?mine=1" : "/requests",
+          },
+        ]
+      : []),
+    ...(ownRole && can(user, "my.requests") && requestTypesFor(user).length
+      ? [{ label: t("newRequest"), href: "/requests/new" }]
+      : []),
+    ...(reviews ? [{ label: t("reviewRequests"), href: "/requests" }] : []),
+  ];
+}
+
 function receiptItems(user: PortalUser, t: Translate): NavItem[] {
   const reviews = can(user, "documents.receipts.review");
   return [
@@ -274,10 +294,10 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
       items: documentItems(user, t),
     },
     {
-      id: "receipts",
-      label: t("receipts"),
-      icon: "receipts",
-      items: receiptItems(user, t),
+      id: "requests",
+      label: t("requests"),
+      icon: "requests",
+      items: [...requestItems(user, t), ...receiptItems(user, t)],
     },
     {
       id: "admin",
