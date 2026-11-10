@@ -66,6 +66,8 @@ export default async function NewTransactionPage({
       description: String(data.description ?? ""),
       estimatedCostMinor: Number(data.estimatedCostMinor ?? 0),
       payer: data.payer === "self" ? "self" : "company",
+      vatRateBps:
+        typeof data.vatRateBps === "number" ? Number(data.vatRateBps) : null,
       categoryId: null,
       files: storedRequestFiles(data.files).map((file) => ({
         id: file.id,

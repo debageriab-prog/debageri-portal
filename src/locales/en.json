@@ -2132,7 +2132,7 @@
   "backToRequests": "Back to requests",
   "expenseFromRequest": "Expense from the request \"{name}\" by {person}",
   "expenseFromRequestAmount": "Estimated cost including VAT: {total}. Change it to the actual amount and VAT if they differ.",
-  "expenseFromRequestFundingHelp": "The consultant, amount, funding, descriptions and request files are filled in. Choose the category and VAT, check the date and add the receipt or invoice if you have it.",
+  "expenseFromRequestFundingHelp": "The consultant, amount, VAT rate, category, funding, descriptions and request files are filled in. Check them and the date, and add the receipt or invoice if you have it.",
   "expenseRequestFilesMissing": "The request's files could not be added. Download them from the request and attach them here.",
   "requestError_invalidInput": "Check the fields and try again.",
   "requestError_typeRequired": "Choose a type.",
@@ -2172,5 +2172,8 @@
   "requestReviewNoteChanges": "What should be changed (shown to the requester)",
   "requestChangesNotice": "The reviewer asked for changes:",
   "requestChangesNoticeHelp": "Update the request and save it to send it back for review.",
-  "sendChanges": "Send changes"
+  "sendChanges": "Send changes",
+  "requestVatRate": "VAT rate",
+  "requestVatRateTip": "The VAT included in the estimated cost. Usually 25 %; books and travel tickets often have 6 %, and courses and seminars can be free of VAT. It is used when the expense is created.",
+  "requestVatNone": "0 % (no VAT)"
 }

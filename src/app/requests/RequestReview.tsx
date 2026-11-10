@@ -67,7 +67,7 @@ export function RequestReview({
 
   function openReview(request: RequestItem) {
     setError("");
-    setDecision(nextStatuses(request.status, "reviewer")[0] ?? null);
+    setDecision(null);
     setReviewing(request);
   }
 
@@ -273,26 +273,29 @@ export function RequestReview({
               </button>
             </header>
             <form className="receipt-review-form" onSubmit={review}>
-              <fieldset className="receipt-decision">
-                <legend>{t("requestNewStatus")}</legend>
-                {nextStatuses(reviewing.status, "reviewer").map((value) => (
-                  <label className="checkbox-row" key={value}>
-                    <input
-                      type="radio"
-                      name="decision"
-                      value={value}
-                      checked={decision === value}
-                      onChange={() => {
-                        setDecision(value);
-                        setError("");
-                      }}
-                    />
-                    <span>
-                      <strong>{t(`requestStatus_${value}`)}</strong>
-                    </span>
-                  </label>
-                ))}
-              </fieldset>
+              <label>
+                {t("requestNewStatus")}
+                <select
+                  className="field"
+                  name="decision"
+                  required
+                  autoFocus
+                  value={decision ?? ""}
+                  onChange={(event) => {
+                    setDecision(
+                      (event.target.value || null) as RequestStatus | null,
+                    );
+                    setError("");
+                  }}
+                >
+                  <option value="">{t("select")}</option>
+                  {nextStatuses(reviewing.status, "reviewer").map((value) => (
+                    <option key={value} value={value}>
+                      {t(`requestStatus_${value}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label>
                 {decision === "rejected"
                   ? t("requestReviewNoteRequired")

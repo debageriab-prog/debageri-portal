@@ -122,6 +122,8 @@ export type ExpenseRequest = {
   payer: "company" | "self";
   /** The expense category that fits the request type, if one does. */
   categoryId: string | null;
+  /** The VAT rate the requester gave; null on older requests. */
+  vatRateBps: number | null;
   files: { id: string; name: string; contentType: string }[];
 };
 
@@ -1871,7 +1873,9 @@ export function TransactionForm({
   // open in net-and-VAT mode so the exact VAT is kept.
   const initialVatRateBps =
     transaction?.vatRateBps ??
-    (receipt ? receiptVatRateBps(receipt.netMinor, receipt.vatMinor) : 0);
+    (receipt
+      ? receiptVatRateBps(receipt.netMinor, receipt.vatMinor)
+      : (request?.vatRateBps ?? 0));
   const initialAmounts = transaction
     ? {
         netMinor: transaction.netMinor,

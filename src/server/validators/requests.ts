@@ -7,6 +7,7 @@ import {
   REQUEST_PAYERS,
   REQUEST_STATUSES,
   REQUEST_TYPES,
+  REQUEST_VAT_RATES_BPS,
 } from "@/domain/requests";
 
 const optionalDate = z
@@ -27,6 +28,12 @@ export const requestFormSchema = z
       }),
     estimatedCostMinor: z.coerce.number().int().min(0).max(10_000_000_000),
     payer: z.enum(REQUEST_PAYERS),
+    vatRateBps: z.coerce
+      .number()
+      .int()
+      .refine((value) =>
+        (REQUEST_VAT_RATES_BPS as readonly number[]).includes(value),
+      ),
     startDate: optionalDate,
     endDate: optionalDate,
     /** Ids of files already on the request that should be kept (edit only). */
@@ -53,6 +60,7 @@ export function parseRequestForm(form: FormData) {
     links: form.getAll("links").map(String),
     estimatedCostMinor: form.get("estimatedCostMinor"),
     payer: form.get("payer"),
+    vatRateBps: form.get("vatRateBps") ?? undefined,
     startDate: form.get("startDate") ?? "",
     endDate: form.get("endDate") ?? "",
     keepFileIds: form.getAll("keepFileIds").map(String),

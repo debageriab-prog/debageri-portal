@@ -26,31 +26,19 @@ import {
 import { rolePermissions } from "./role-permissions";
 
 describe("request statuses", () => {
-  it("lets reviewers move a request forward and reopen a rejection", () => {
-    expect(nextStatuses("requested", "reviewer")).toEqual([
-      "changes_requested",
-      "under_review",
-      "accepted",
-      "rejected",
-    ]);
-    expect(nextStatuses("under_review", "reviewer")).toEqual([
-      "changes_requested",
-      "accepted",
-      "rejected",
-    ]);
-    expect(nextStatuses("changes_requested", "reviewer")).toEqual(["rejected"]);
-    expect(nextStatuses("accepted", "reviewer")).toEqual([
-      "finalized",
-      "rejected",
-    ]);
-    expect(nextStatuses("rejected", "reviewer")).toEqual(["under_review"]);
+  it("lets reviewers pick any other status except withdrawn", () => {
+    for (const from of REQUEST_STATUSES.filter((s) => s !== "finalized"))
+      expect(nextStatuses(from, "reviewer")).toEqual(
+        REQUEST_STATUSES.filter((s) => s !== from && s !== "withdrawn"),
+      );
+    expect(canTransition("requested", "finalized", "reviewer")).toBe(true);
+    expect(canTransition("withdrawn", "under_review", "reviewer")).toBe(true);
   });
 
-  it("closes finalized and withdrawn requests for everyone", () => {
-    for (const actor of ["reviewer", "owner"] as const) {
+  it("closes finalized requests for everyone", () => {
+    for (const actor of ["reviewer", "owner"] as const)
       expect(nextStatuses("finalized", actor)).toEqual([]);
-      expect(nextStatuses("withdrawn", actor)).toEqual([]);
-    }
+    expect(nextStatuses("withdrawn", "owner")).toEqual([]);
   });
 
   it("only lets the requester withdraw a request that waits on them", () => {
@@ -63,11 +51,6 @@ describe("request statuses", () => {
     expect(canTransition("requested", "withdrawn", "reviewer")).toBe(false);
   });
 
-  it("never skips straight from requested to finalized", () => {
-    expect(canTransition("requested", "finalized", "reviewer")).toBe(false);
-    expect(canTransition("under_review", "finalized", "reviewer")).toBe(false);
-  });
-
   it("can only be edited while requested or sent back for changes", () => {
     expect(isEditableRequest({ status: "requested" })).toBe(true);
     expect(isEditableRequest({ status: "changes_requested" })).toBe(true);
@@ -76,12 +59,8 @@ describe("request statuses", () => {
 
   it("sends a changed request back to requested, by the requester only", () => {
     expect(canTransition("changes_requested", "requested", "owner")).toBe(true);
-    expect(canTransition("changes_requested", "requested", "reviewer")).toBe(
-      false,
-    );
-    expect(canTransition("changes_requested", "accepted", "reviewer")).toBe(
-      false,
-    );
+    expect(canTransition("changes_requested", "accepted", "owner")).toBe(false);
+    expect(canTransition("under_review", "requested", "owner")).toBe(false);
   });
 
   it("turns only finalized, unbooked requests into expenses", () => {
@@ -251,6 +230,7 @@ describe("request form", () => {
     links: ["https://example.com/course", ""],
     estimatedCostMinor: "450000",
     payer: "company",
+    vatRateBps: "2500",
     startDate: "2026-12-01",
     endDate: "2026-12-03",
   };
@@ -261,6 +241,22 @@ describe("request form", () => {
     expect(parsed.data?.links).toEqual(["https://example.com/course"]);
     expect(parsed.data?.startDate).toBe("2026-12-01");
     expect(parsed.data?.keepFileIds).toEqual([]);
+  });
+
+  it("needs one of the Swedish VAT rates", () => {
+    expect(parseRequestForm(form(valid)).data?.vatRateBps).toBe(2500);
+    expect(
+      parseRequestForm(form({ ...valid, vatRateBps: "600" })).success,
+    ).toBe(true);
+    expect(parseRequestForm(form({ ...valid, vatRateBps: "0" })).success).toBe(
+      true,
+    );
+    expect(
+      parseRequestForm(form({ ...valid, vatRateBps: "1900" })).success,
+    ).toBe(false);
+    const withoutVat: Partial<typeof valid> = { ...valid };
+    delete withoutVat.vatRateBps;
+    expect(parseRequestForm(form(withoutVat)).success).toBe(false);
   });
 
   it("drops dates for equipment", () => {

@@ -48,6 +48,8 @@ export type RequestItem = {
   links: string[];
   estimatedCostMinor: number;
   payer: RequestPayer;
+  /** Missing on requests sent before the VAT rate was asked for. */
+  vatRateBps: number | null;
   startDate: string | null;
   endDate: string | null;
   files: RequestFileItem[];
@@ -280,6 +282,12 @@ export function RequestDetailModal({
                 [
                   t("requestEstimatedCost"),
                   formatSek(request.estimatedCostMinor, locale),
+                ],
+                [
+                  t("requestVatRate"),
+                  request.vatRateBps === null
+                    ? ""
+                    : `${request.vatRateBps / 100} %`,
                 ],
                 [t("requestPayer"), t(`requestPayer_${request.payer}`)],
                 [t("requestDates"), dates],

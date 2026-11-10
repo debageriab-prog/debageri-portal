@@ -52,6 +52,8 @@ export function toRequestItem(
     description: String(data.description ?? ""),
     links: Array.isArray(data.links) ? data.links.map(String) : [],
     estimatedCostMinor: Number(data.estimatedCostMinor ?? 0),
+    vatRateBps:
+      typeof data.vatRateBps === "number" ? Number(data.vatRateBps) : null,
     payer: (REQUEST_PAYERS as readonly unknown[]).includes(data.payer)
       ? (data.payer as RequestPayer)
       : "company",

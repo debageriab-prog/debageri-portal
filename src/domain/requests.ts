@@ -23,6 +23,10 @@ export type RequestStatus = (typeof REQUEST_STATUSES)[number];
 export const REQUEST_PAYERS = ["company", "self"] as const;
 export type RequestPayer = (typeof REQUEST_PAYERS)[number];
 
+/** Swedish VAT rates in basis points; 25 % is the usual one. */
+export const REQUEST_VAT_RATES_BPS = [2_500, 1_200, 600, 0] as const;
+export const DEFAULT_REQUEST_VAT_RATE_BPS = 2_500;
+
 export const REQUEST_MAX_FILES = 5;
 export const REQUEST_MAX_BYTES = 10 * 1024 * 1024;
 export const REQUEST_MAX_LINKS = 5;
@@ -72,34 +76,32 @@ export function requestTypesFor(user: {
 export type RequestActor = "reviewer" | "owner";
 
 /**
- * Every allowed status change. Reviewers move a request forward, ask for
- * changes or reject it, and can reopen a rejection. The requester can
- * withdraw a request while it waits on them or nobody has picked it up yet;
- * saving changes sends it back to requested (see `resubmittedStatus`).
- * Finalized and withdrawn requests are closed.
+ * The requester's status changes. They can withdraw a request while it
+ * waits on them or nobody has picked it up yet, and saving changes that
+ * were asked for sends it back to requested.
  */
-export const REQUEST_TRANSITIONS: Record<
-  RequestActor,
-  Partial<Record<RequestStatus, readonly RequestStatus[]>>
+const OWNER_TRANSITIONS: Partial<
+  Record<RequestStatus, readonly RequestStatus[]>
 > = {
-  reviewer: {
-    requested: ["changes_requested", "under_review", "accepted", "rejected"],
-    changes_requested: ["rejected"],
-    under_review: ["changes_requested", "accepted", "rejected"],
-    accepted: ["finalized", "rejected"],
-    rejected: ["under_review"],
-  },
-  owner: {
-    requested: ["withdrawn"],
-    changes_requested: ["requested", "withdrawn"],
-  },
+  requested: ["withdrawn"],
+  changes_requested: ["requested", "withdrawn"],
 };
 
+/**
+ * Where a request can go next. Reviewers can pick any status, for example
+ * straight to finalized when they ordered the item themselves, except
+ * withdrawn, which is the requester's own choice. A finalized request is
+ * closed and cannot be changed by anyone.
+ */
 export function nextStatuses(
   from: RequestStatus,
   actor: RequestActor,
 ): readonly RequestStatus[] {
-  return REQUEST_TRANSITIONS[actor][from] ?? [];
+  if (from === "finalized") return [];
+  if (actor === "owner") return OWNER_TRANSITIONS[from] ?? [];
+  return REQUEST_STATUSES.filter(
+    (status) => status !== from && status !== "withdrawn",
+  );
 }
 
 export function canTransition(

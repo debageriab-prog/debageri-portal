@@ -9,6 +9,8 @@ import { InfoTip } from "@/components/ui/InfoTip";
 import { parseSek } from "@/domain/finance/calculations";
 import {
   DATED_REQUEST_TYPES,
+  DEFAULT_REQUEST_VAT_RATE_BPS,
+  REQUEST_VAT_RATES_BPS,
   isRequestContentType,
   isSafeLink,
   REQUEST_MAX_BYTES,
@@ -46,7 +48,10 @@ export function RequestForm({
   const [type, setType] = useState<RequestType | "">(
     request?.type ?? (types.length === 1 ? types[0]! : ""),
   );
-  const [payer, setPayer] = useState<RequestPayer>(request?.payer ?? "company");
+  const [payer, setPayer] = useState<RequestPayer>(request?.payer ?? "self");
+  const [vatRateBps, setVatRateBps] = useState<number>(
+    request?.vatRateBps ?? DEFAULT_REQUEST_VAT_RATE_BPS,
+  );
   const [cost, setCost] = useState(
     request ? (request.estimatedCostMinor / 100).toFixed(2) : "",
   );
@@ -103,6 +108,7 @@ export function RequestForm({
     body.set("description", String(form.get("description") ?? ""));
     body.set("estimatedCostMinor", String(costMinor));
     body.set("payer", payer);
+    body.set("vatRateBps", String(vatRateBps));
     body.set("startDate", startDate);
     body.set("endDate", endDate);
     for (const link of cleanLinks) body.append("links", link);
@@ -185,6 +191,22 @@ export function RequestForm({
             onChange={(event) => setCost(event.target.value)}
             required
           />
+        </label>
+        <label>
+          {t("requestVatRate")}
+          <InfoTip text={t("requestVatRateTip")} />
+          <select
+            className="field"
+            name="vatRateBps"
+            value={vatRateBps}
+            onChange={(event) => setVatRateBps(Number(event.target.value))}
+          >
+            {REQUEST_VAT_RATES_BPS.map((rate) => (
+              <option key={rate} value={rate}>
+                {rate === 0 ? t("requestVatNone") : `${rate / 100} %`}
+              </option>
+            ))}
+          </select>
         </label>
         <fieldset className="receipt-decision">
           <legend>

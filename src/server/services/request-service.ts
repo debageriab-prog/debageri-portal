@@ -172,6 +172,7 @@ function requestFields(input: RequestFormInput) {
     links: input.links,
     estimatedCostMinor: input.estimatedCostMinor,
     payer: input.payer,
+    vatRateBps: input.vatRateBps,
     startDate: input.startDate,
     endDate: input.endDate,
   };

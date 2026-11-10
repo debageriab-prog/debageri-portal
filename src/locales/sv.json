@@ -2132,7 +2132,7 @@
   "backToRequests": "Tillbaka till förfrågningar",
   "expenseFromRequest": "Utgift från förfrågan \"{name}\" av {person}",
   "expenseFromRequestAmount": "Uppskattad kostnad inklusive moms: {total}. Ändra till det verkliga beloppet och momsen om de skiljer sig.",
-  "expenseFromRequestFundingHelp": "Konsult, belopp, finansiering, beskrivningar och förfrågans filer är ifyllda. Välj kategori och moms, kontrollera datumet och bifoga kvittot eller fakturan om du har det.",
+  "expenseFromRequestFundingHelp": "Konsult, belopp, momssats, kategori, finansiering, beskrivningar och förfrågans filer är ifyllda. Kontrollera dem och datumet, och bifoga kvittot eller fakturan om du har det.",
   "expenseRequestFilesMissing": "Förfrågans filer kunde inte läggas till. Ladda ned dem från förfrågan och bifoga dem här.",
   "requestError_invalidInput": "Kontrollera fälten och försök igen.",
   "requestError_typeRequired": "Välj en typ.",
@@ -2172,5 +2172,8 @@
   "requestReviewNoteChanges": "Vad som ska ändras (visas för den som frågar)",
   "requestChangesNotice": "Granskaren har bett om ändringar:",
   "requestChangesNoticeHelp": "Uppdatera förfrågan och spara den för att skicka den till granskning igen.",
-  "sendChanges": "Skicka ändringar"
+  "sendChanges": "Skicka ändringar",
+  "requestVatRate": "Momssats",
+  "requestVatRateTip": "Momsen som ingår i den uppskattade kostnaden. Oftast 25 %; böcker och resebiljetter har ofta 6 %, och kurser och seminarier kan vara momsfria. Den används när utgiften skapas.",
+  "requestVatNone": "0 % (ingen moms)"
 }
