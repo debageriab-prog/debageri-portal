@@ -3660,6 +3660,23 @@ td.amount-cell {
   margin-bottom: 1rem;
 }
 
+/* The period gets its own row so the month picker stays beside its select. */
+.filters-card .receipt-period-filter {
+  grid-column: 1 / -1;
+}
+
+.receipt-period-filter .actions {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Same type size and weight as the other filter selects. */
+.receipt-period-filter .field {
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .request-links {
   display: grid;
   gap: 0.75rem;
