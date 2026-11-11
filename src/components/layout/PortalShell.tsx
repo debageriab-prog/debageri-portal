@@ -19,7 +19,12 @@ import { useLocale } from "@/components/localization/LocaleProvider";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 
-type NavItem = { label: string; href: string };
+type NavItem = {
+  label: string;
+  href: string;
+  /** Other pages that belong to this item, matched as path prefixes. */
+  alsoMatches?: string[];
+};
 type NavIconName =
   | "clock"
   | "reports"
@@ -225,7 +230,14 @@ function assetItems(user: PortalUser, t: Translate): NavItem[] {
       ? [{ label: t("assetRegister"), href: "/assets" }]
       : []),
     ...(can(user, "my.assets")
-      ? [{ label: t("myAssets"), href: "/assets/mine" }]
+      ? [
+          {
+            label: t("myAssets"),
+            href: "/assets/mine",
+            // Without the register, a receipt is always one's own.
+            alsoMatches: can(user, "assets.view") ? [] : ["/assets/handovers"],
+          },
+        ]
       : []),
   ];
 }
@@ -355,7 +367,9 @@ function itemMatchesRoute(
     const targetSection = new URLSearchParams(targetQuery).get("section");
     return pathname.startsWith("/finance") && financeSection === targetSection;
   }
-  return pathname === targetPath || pathname.startsWith(`${targetPath}/`);
+  return [targetPath, ...(item.alsoMatches ?? [])].some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
 }
 
 export function PortalShell({
