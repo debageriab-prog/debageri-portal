@@ -18,6 +18,7 @@ import {
   canAcceptHandover,
   canCancelHandover,
   canChangeHolder,
+  canDeleteAsset,
   canEditAsset,
   canIssueHandover,
   canLinkTransaction,
@@ -485,6 +486,52 @@ export async function createAsset(
       })
     : null;
   return { id: ref.id, handoverId };
+}
+
+/**
+ * Removes an asset with its history and documents. Closed receipts stay as
+ * the record of who had it, and the audit log keeps what was removed. A
+ * linked finance transaction is left as it is; the ledger never changes.
+ */
+export async function deleteAsset(
+  db: Firestore,
+  storage: Storage,
+  actor: PortalUser,
+  assetId: string,
+) {
+  if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
+  const ref = db.collection("assets").doc(assetId);
+  const files = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const data = snapshot.data();
+    if (!data || data.organizationId !== actor.organizationId)
+      throw new AssetError("notFound", 404);
+    const state = assetStateFrom(data);
+    if (!canDeleteAsset(state))
+      throw new AssetError(
+        state.handoverStatus === "pending" ? "handoverPending" : "handoverOpen",
+        409,
+      );
+    const events = await transaction.get(
+      db
+        .collection("assetEvents")
+        .where("organizationId", "==", actor.organizationId)
+        .where("assetId", "==", assetId),
+    );
+    transaction.delete(ref);
+    for (const event of events.docs) transaction.delete(event.ref);
+    transaction.create(
+      db.collection("auditLogs").doc(),
+      auditEntry(actor, "asset.deleted", "asset", assetId, {
+        name: String(data.name ?? ""),
+        purchasePriceMinor: state.purchasePriceMinor,
+        purchaseTransactionId: state.purchaseTransactionId,
+        saleTransactionId: state.saleTransactionId,
+      }),
+    );
+    return storedAssetFiles(data.files);
+  });
+  await removeFiles(storage, files);
 }
 
 export async function updateAsset(

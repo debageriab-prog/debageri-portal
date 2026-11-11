@@ -21,9 +21,12 @@ import type { AssetItem } from "./asset-types";
 export function AssetRegister({
   assets,
   canManage,
+  removed = false,
 }: {
   assets: AssetItem[];
   canManage: boolean;
+  /** Just came back from removing an asset. */
+  removed?: boolean;
 }) {
   const { t, locale } = useLocale();
   const holderLabel = useHolderLabel();
@@ -61,6 +64,11 @@ export function AssetRegister({
           </div>
         )}
       </AssetTopbar>
+      {removed && (
+        <p className="notice notice-success" role="status">
+          {t("assetRemoved")}
+        </p>
+      )}
       <section className="card filters-card">
         <div className="form-grid">
           <label>

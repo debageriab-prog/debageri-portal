@@ -257,6 +257,13 @@ export const canSell = (asset: AssetState) =>
 
 export const canRetire = canSell;
 
+/**
+ * Removing an asset, for example one added by mistake. Not while someone is
+ * asked to accept it or holds it on a receipt: that is closed first.
+ */
+export const canDeleteAsset = (asset: Pick<AssetState, "activeHandoverId">) =>
+  !asset.activeHandoverId;
+
 /** Edits are allowed until the equipment has left the company. */
 export const canEditAsset = (asset: Pick<AssetState, "status">) =>
   asset.status === "active";

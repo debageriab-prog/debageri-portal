@@ -2418,5 +2418,11 @@
   "assetReturnTitle": "Return to the company?",
   "assetReturnQuestion": "{name} has given the asset back. The receipt is closed as returned, the asset is with the company again and can be handed to someone else.",
   "assetReturnOthers": "The same receipt covers {count} other asset(s); they are returned too.",
-  "assetReturnedToCompany": "The asset is back with the company. You can now hand it to someone else."
+  "assetReturnedToCompany": "The asset is back with the company. You can now hand it to someone else.",
+  "assetMoreActions": "More actions",
+  "assetRemove": "Remove asset",
+  "assetRemoveTitle": "Remove the asset?",
+  "assetRemoveQuestion": "{name} is removed from Assets management with its history and documents. This cannot be undone. Closed receipts are kept, and a purchase or sale already booked in Finance is not changed.",
+  "assetRemoveBlocked": "Return the asset or cancel its receipt first.",
+  "assetRemoved": "The asset has been removed."
 }

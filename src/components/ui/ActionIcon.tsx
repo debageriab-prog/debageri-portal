@@ -12,7 +12,8 @@ export type ActionIconType =
   | "excel"
   | "pdf"
   | "paid"
-  | "info";
+  | "info"
+  | "more";
 
 export function ActionIcon({ type }: { type: ActionIconType }) {
   if (type === "excel" || type === "pdf")
@@ -95,6 +96,12 @@ export function ActionIcon({ type }: { type: ActionIconType }) {
     return (
       <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
         <path d="m5 12.5 4.5 4.5L19 7.5" />
+      </svg>
+    );
+  if (type === "more")
+    return (
+      <svg className="action-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <path strokeWidth={3} d="M12 5v.01M12 12v.01M12 19v.01" />
       </svg>
     );
   if (type === "reverse")

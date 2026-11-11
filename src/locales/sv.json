@@ -2418,5 +2418,11 @@
   "assetReturnTitle": "Återlämna till företaget?",
   "assetReturnQuestion": "{name} har lämnat tillbaka tillgången. Kvittensen avslutas som återlämnad, tillgången finns hos företaget igen och kan lämnas ut till någon annan.",
   "assetReturnOthers": "Samma kvittens gäller {count} andra tillgång(ar); de återlämnas också.",
-  "assetReturnedToCompany": "Tillgången är tillbaka hos företaget. Nu kan du lämna ut den till någon annan."
+  "assetReturnedToCompany": "Tillgången är tillbaka hos företaget. Nu kan du lämna ut den till någon annan.",
+  "assetMoreActions": "Fler åtgärder",
+  "assetRemove": "Ta bort tillgången",
+  "assetRemoveTitle": "Ta bort tillgången?",
+  "assetRemoveQuestion": "{name} tas bort från tillgångshanteringen med sin historik och sina dokument. Det går inte att ångra. Avslutade kvittenser sparas, och ett köp eller en försäljning som redan bokförts i ekonomin ändras inte.",
+  "assetRemoveBlocked": "Återlämna tillgången eller avbryt kvittensen först.",
+  "assetRemoved": "Tillgången har tagits bort."
 }

@@ -6,6 +6,7 @@ import {
   canAcceptHandover,
   canCancelHandover,
   canChangeHolder,
+  canDeleteAsset,
   canEditAsset,
   canIssueHandover,
   canLinkTransaction,
@@ -222,6 +223,23 @@ describe("asset rules", () => {
       filterAssets(assets, { ...all, status: "active" } as never),
     ).toHaveLength(1);
     expect(activePurchaseValueMinor(assets)).toBe(100_00);
+  });
+});
+
+describe("removing assets", () => {
+  it("is only possible while nobody holds the asset on a receipt", () => {
+    expect(canDeleteAsset(state())).toBe(true);
+    expect(canDeleteAsset(state({ status: "sold" }))).toBe(true);
+    expect(
+      canDeleteAsset(
+        state({ activeHandoverId: "h1", handoverStatus: "pending" }),
+      ),
+    ).toBe(false);
+    expect(
+      canDeleteAsset(
+        state({ activeHandoverId: "h1", handoverStatus: "accepted" }),
+      ),
+    ).toBe(false);
   });
 });
 

@@ -4705,3 +4705,59 @@ td.amount-cell {
 .asset-parts-total strong {
   font-size: 1.1rem;
 }
+
+.more-anchor {
+  position: relative;
+}
+
+.button.more-button {
+  display: inline-grid;
+  place-items: center;
+  padding-inline: 12px;
+}
+
+.more-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 240px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: white;
+  box-shadow: 0 22px 60px rgb(45 30 20 / 20%);
+  animation: modal-in 160ms ease;
+}
+
+.more-menu > a,
+.more-menu > button {
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 11px;
+  color: var(--foreground);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.more-menu > a:hover,
+.more-menu > button:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.more-menu > .more-menu-danger {
+  margin-top: 5px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 11px 11px;
+  color: var(--danger);
+}
+
+.more-menu > button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}

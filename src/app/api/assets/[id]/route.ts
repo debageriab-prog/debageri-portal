@@ -5,6 +5,7 @@ import {
   AssetError,
   canManageAssets,
   changeAsset,
+  deleteAsset,
   updateAsset,
 } from "@/server/services/asset-service";
 import { assetActionSchema, parseAssetForm } from "@/server/validators/assets";
@@ -54,6 +55,24 @@ export async function PATCH(request: Request, { params }: Context) {
     if (error instanceof AssetError)
       return NextResponse.json({ error: error.code }, { status: error.status });
     console.error("Asset change failed", { assetId: id, error });
+    return NextResponse.json({ error: "assetSaveFailed" }, { status: 500 });
+  }
+}
+
+/** Removes the asset; the person typed the confirmation phrase first. */
+export async function DELETE(_request: Request, { params }: Context) {
+  const { id } = await params;
+  const actor = await verifySession();
+  if (!actor || !canManageAssets(actor))
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const { db, storage } = getAdminServices();
+  try {
+    await deleteAsset(db, storage, actor, id);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    if (error instanceof AssetError)
+      return NextResponse.json({ error: error.code }, { status: error.status });
+    console.error("Asset removal failed", { assetId: id, error });
     return NextResponse.json({ error: "assetSaveFailed" }, { status: 500 });
   }
 }
