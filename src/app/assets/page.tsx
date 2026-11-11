@@ -10,12 +10,7 @@ import { AssetRegister } from "./AssetRegister";
 import { byName, toAssetItem } from "./asset-data";
 import type { AssetItem } from "./asset-types";
 
-export default async function AssetsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ removed?: string }>;
-}) {
-  const { removed } = await searchParams;
+export default async function AssetsPage() {
   const actor = (await verifySession())!;
   if (!canViewAssets(actor))
     redirect(canViewOwnAssets(actor) ? "/assets/mine" : "/unauthorized");
@@ -28,11 +23,5 @@ export default async function AssetsPage({
     .map((doc) => toAssetItem(doc, actor))
     .filter((item): item is AssetItem => item !== null)
     .sort(byName);
-  return (
-    <AssetRegister
-      assets={assets}
-      canManage={canManageAssets(actor)}
-      removed={removed === "1"}
-    />
-  );
+  return <AssetRegister assets={assets} canManage={canManageAssets(actor)} />;
 }

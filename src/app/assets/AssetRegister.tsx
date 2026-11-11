@@ -15,20 +15,27 @@ import {
   type AssetStatus,
 } from "@/domain/assets";
 import { formatSek } from "@/domain/finance/calculations";
+import { AssetActionsMenu } from "./AssetActionsMenu";
 import { AssetStatusBadge, AssetTopbar, useHolderLabel } from "./AssetParts";
 import type { AssetItem } from "./asset-types";
 
 export function AssetRegister({
   assets,
   canManage,
-  removed = false,
 }: {
   assets: AssetItem[];
   canManage: boolean;
-  /** Just came back from removing an asset. */
-  removed?: boolean;
 }) {
   const { t, locale } = useLocale();
+  const [done, setDone] = useState<"returned" | "removed" | null>(null);
+  const othersOnReceipt = (asset: AssetItem) =>
+    asset.activeHandoverId
+      ? assets.filter(
+          (other) =>
+            other.id !== asset.id &&
+            other.activeHandoverId === asset.activeHandoverId,
+        ).length
+      : 0;
   const holderLabel = useHolderLabel();
   const [status, setStatus] = useState<AssetStatus | "all">("active");
   const [category, setCategory] = useState<AssetCategory | "all">("all");
@@ -64,9 +71,9 @@ export function AssetRegister({
           </div>
         )}
       </AssetTopbar>
-      {removed && (
+      {done && (
         <p className="notice notice-success" role="status">
-          {t("assetRemoved")}
+          {t(done === "removed" ? "assetRemoved" : "assetReturnedToCompany")}
         </p>
       )}
       <section className="card filters-card">
@@ -210,6 +217,13 @@ export function AssetRegister({
                         >
                           <ActionIcon type="edit" />
                         </Link>
+                      )}
+                      {canManage && (
+                        <AssetActionsMenu
+                          asset={asset}
+                          othersOnReceipt={othersOnReceipt(asset)}
+                          onDone={setDone}
+                        />
                       )}
                     </div>
                   </td>

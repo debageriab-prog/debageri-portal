@@ -1,9 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { ActionIcon } from "@/components/ui/ActionIcon";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
   DetailFacts,
@@ -15,17 +12,9 @@ import {
   DetailTag,
 } from "@/components/ui/DetailView";
 import { FilePreviewAction } from "@/components/ui/FilePreview";
-import { appCheckFetch } from "@/lib/firebase/client";
-import { assetErrorKey } from "./AssetForm";
 import {
-  canChangeHolder,
-  canDeleteAsset,
   canEditAsset,
-  canIssueHandover,
   canLinkTransaction,
-  canRetire,
-  canReturnHandover,
-  canSell,
   type AssetLink,
 } from "@/domain/assets";
 import { formatSek } from "@/domain/finance/calculations";
@@ -62,164 +51,9 @@ export function AssetDetail({
   saved: boolean;
 }) {
   const { t, locale } = useLocale();
-  const router = useRouter();
   const holderLabel = useHolderLabel();
-  const [returning, setReturning] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [returned, setReturned] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [removing, setRemoving] = useState(false);
-  const [confirmation, setConfirmation] = useState("");
-  const phrase = t("attachmentDeleteConfirmationPhrase");
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = (event: MouseEvent | KeyboardEvent) => {
-      if (
-        event instanceof KeyboardEvent
-          ? event.key === "Escape"
-          : !menuRef.current?.contains(event.target as Node)
-      )
-        setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", close);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", close);
-    };
-  }, [menuOpen]);
-
-  const activeHandover = handovers.find(
-    (handover) => handover.id === asset.activeHandoverId,
-  );
-  const canReturn =
-    canManage &&
-    activeHandover !== undefined &&
-    canReturnHandover(activeHandover);
-  const othersOnReceipt = new Set(
-    (activeHandover?.lines ?? [])
-      .map((line) => line.assetId)
-      .filter((assetId) => assetId !== asset.id),
-  ).size;
-
-  async function returnToCompany() {
-    if (!activeHandover) return;
-    setBusy(true);
-    setError("");
-    try {
-      const response = await appCheckFetch(
-        `/api/assets/handovers/${encodeURIComponent(activeHandover.id)}`,
-        {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action: "return", location: "" }),
-        },
-      );
-      const result = (await response.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (!response.ok) return setError(t(assetErrorKey(result.error)));
-      setReturning(false);
-      setReturned(true);
-      router.refresh();
-    } catch {
-      setError(t("serverUnavailable"));
-    } finally {
-      setBusy(false);
-    }
-  }
   const id = encodeURIComponent(asset.id);
 
-  async function removeAsset() {
-    setBusy(true);
-    setError("");
-    try {
-      const response = await appCheckFetch(`/api/assets/${id}`, {
-        method: "DELETE",
-      });
-      const result = (await response.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (!response.ok) return setError(t(assetErrorKey(result.error)));
-      router.push("/assets?removed=1");
-      router.refresh();
-    } catch {
-      setError(t("serverUnavailable"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const menuItems = canManage
-    ? [
-        canIssueHandover(asset) && (
-          <Link
-            key="handover"
-            role="menuitem"
-            href={`/assets/handovers/new?assetId=${id}`}
-          >
-            {t("handoverNew")}
-          </Link>
-        ),
-        canReturn && (
-          <button
-            key="return"
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setMenuOpen(false);
-              setError("");
-              setReturning(true);
-            }}
-          >
-            {t("assetReturnToCompany")}
-          </button>
-        ),
-        asset.activeHandoverId && (
-          <Link
-            key="receipt"
-            role="menuitem"
-            href={`/assets/handovers/${encodeURIComponent(asset.activeHandoverId)}`}
-          >
-            {t("handoverOpen")}
-          </Link>
-        ),
-        canChangeHolder(asset) && (
-          <Link key="holder" role="menuitem" href={`/assets/${id}/holder`}>
-            {t("assetChangeHolder")}
-          </Link>
-        ),
-        canSell(asset) && (
-          <Link key="sell" role="menuitem" href={`/assets/${id}/sell`}>
-            {t("assetSell")}
-          </Link>
-        ),
-        canRetire(asset) && (
-          <Link key="retire" role="menuitem" href={`/assets/${id}/retire`}>
-            {t("assetRetire")}
-          </Link>
-        ),
-        <button
-          key="remove"
-          type="button"
-          role="menuitem"
-          className="more-menu-danger"
-          disabled={!canDeleteAsset(asset)}
-          title={canDeleteAsset(asset) ? undefined : t("assetRemoveBlocked")}
-          onClick={() => {
-            setMenuOpen(false);
-            setError("");
-            setConfirmation("");
-            setRemoving(true);
-          }}
-        >
-          {t("assetRemove")}
-        </button>,
-      ].filter(Boolean)
-    : [];
   const bookHref = (link: AssetLink) =>
     `/finance/transactions/new?assetId=${id}&assetLink=${link}`;
   const financeRow = (
@@ -258,36 +92,11 @@ export function AssetDetail({
               {t("assetEdit")}
             </Link>
           )}
-          {menuItems.length > 0 && (
-            <div className="more-anchor" ref={menuRef}>
-              <button
-                type="button"
-                className="button secondary more-button"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                aria-label={t("assetMoreActions")}
-                title={t("assetMoreActions")}
-                onClick={() => setMenuOpen((open) => !open)}
-              >
-                <ActionIcon type="more" />
-              </button>
-              {menuOpen && (
-                <div className="more-menu" role="menu">
-                  {menuItems}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </AssetTopbar>
       {saved && (
         <p className="notice notice-success" role="status">
           {t("assetSaved")}
-        </p>
-      )}
-      {returned && (
-        <p className="notice notice-success" role="status">
-          {t("assetReturnedToCompany")}
         </p>
       )}
       <section className="card">
@@ -493,126 +302,6 @@ export function AssetDetail({
           </DetailSection>
         )}
       </section>
-      {removing && (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="modal modal-small"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="asset-remove-title"
-          >
-            <header className="modal-header">
-              <div>
-                <h2 id="asset-remove-title">{t("assetRemoveTitle")}</h2>
-                <p>{t("assetRemoveQuestion").replace("{name}", asset.name)}</p>
-              </div>
-              <button
-                className="modal-close"
-                type="button"
-                aria-label={t("close")}
-                onClick={() => setRemoving(false)}
-              >
-                ×
-              </button>
-            </header>
-            <label>
-              {t("typeAttachmentDeleteConfirmation").replace(
-                "{phrase}",
-                phrase,
-              )}
-              <input
-                className="field"
-                value={confirmation}
-                onChange={(event) => setConfirmation(event.target.value)}
-                autoComplete="off"
-                autoFocus
-              />
-            </label>
-            {error && (
-              <p className="notice notice-error" role="alert">
-                {error}
-              </p>
-            )}
-            <footer className="modal-actions">
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => setRemoving(false)}
-              >
-                {t("cancel")}
-              </button>
-              <button
-                type="button"
-                className="button danger"
-                disabled={busy || confirmation.trim() !== phrase}
-                onClick={() => void removeAsset()}
-              >
-                {busy ? t("saving") : t("assetRemove")}
-              </button>
-            </footer>
-          </section>
-        </div>
-      )}
-      {returning && (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="modal modal-small"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="asset-return-title"
-          >
-            <header className="modal-header">
-              <div>
-                <h2 id="asset-return-title">{t("assetReturnTitle")}</h2>
-                <p>
-                  {t("assetReturnQuestion").replace(
-                    "{name}",
-                    activeHandover?.recipientName ?? "",
-                  )}
-                </p>
-                {othersOnReceipt > 0 && (
-                  <p>
-                    {t("assetReturnOthers").replace(
-                      "{count}",
-                      String(othersOnReceipt),
-                    )}
-                  </p>
-                )}
-              </div>
-              <button
-                className="modal-close"
-                type="button"
-                aria-label={t("close")}
-                onClick={() => setReturning(false)}
-              >
-                ×
-              </button>
-            </header>
-            {error && (
-              <p className="notice notice-error" role="alert">
-                {error}
-              </p>
-            )}
-            <footer className="modal-actions">
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => setReturning(false)}
-              >
-                {t("cancel")}
-              </button>
-              <button
-                type="button"
-                className="button"
-                disabled={busy}
-                onClick={() => void returnToCompany()}
-              >
-                {busy ? t("saving") : t("assetReturnToCompany")}
-              </button>
-            </footer>
-          </section>
-        </div>
-      )}
     </>
   );
 }

@@ -4761,3 +4761,10 @@ td.amount-cell {
   color: var(--muted);
   cursor: not-allowed;
 }
+
+.more-menu.more-menu-floating {
+  position: fixed;
+  top: auto;
+  right: auto;
+  z-index: 40;
+}
