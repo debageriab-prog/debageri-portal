@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getServerLocale } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
-import { handoverPdf, handoverVisible } from "@/server/services/asset-service";
+import {
+  handoverPdf,
+  handoverVisible,
+  storedSignature,
+} from "@/server/services/asset-service";
 import { fileResponse } from "../../../file-response";
 
 /**
@@ -34,7 +38,12 @@ export async function GET(
         .download();
       return fileResponse(request, file, contents);
     }
-    const pdf = await handoverPdf(db, data, await getServerLocale());
+    const pdf = await handoverPdf(
+      db,
+      data,
+      await getServerLocale(),
+      await storedSignature(storage, data),
+    );
     return fileResponse(request, file, pdf);
   } catch (error) {
     console.error("Equipment receipt PDF failed", { handoverId: id, error });

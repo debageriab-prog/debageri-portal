@@ -2334,7 +2334,7 @@
   "handoverScan": "Hand-signed copy",
   "handoverScanTip": "If the receipt was also signed on paper, add a scan of it here. It replaces an earlier copy.",
   "handoverAcceptTitle": "Accept the receipt",
-  "handoverAcceptQuestion": "Your acceptance is recorded with the date, time and place as your signature, and cannot be undone.",
+  "handoverAcceptQuestion": "Your signature is recorded with the date, time and place, and cannot be undone.",
   "handoverCancelTitle": "Cancel the receipt",
   "handoverCancelQuestion": "Cancel the receipt for {name}? The equipment goes back to whoever held it before.",
   "handoverReturnTitle": "Equipment returned",
@@ -2386,5 +2386,15 @@
   "assetOfferQuestion": "This expense is for equipment. Do you want to add it to Assets management now? The amount, date and files are filled in.",
   "assetOfferSkip": "Not now",
   "assetError_invalidTransaction": "The expense can't be used for an asset.",
-  "assetError_transactionLinked": "The expense is already linked to an asset."
+  "assetError_transactionLinked": "The expense is already linked to an asset.",
+  "handoverSignature": "Signature",
+  "handoverSignatureTip": "Draw your signature or type your name. It is printed on the signed receipt PDF together with the date, time and place.",
+  "handoverSignatureDraw": "Draw",
+  "handoverSignatureType": "Type",
+  "handoverSignatureDrawHint": "Sign in the box with your mouse, finger or a pen.",
+  "handoverSignatureClear": "Clear",
+  "handoverSignatureName": "Your name",
+  "handoverSignatureStyle": "Signature style",
+  "handoverSignatureStyleOption": "Style {number}",
+  "assetError_invalidSignature": "Draw your signature or type your name."
 }

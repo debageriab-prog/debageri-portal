@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { FilePreviewAction } from "@/components/ui/FilePreview";
 import { InfoTip } from "@/components/ui/InfoTip";
@@ -15,6 +15,7 @@ import {
 } from "@/domain/assets";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { assetErrorKey } from "./AssetForm";
+import { SignatureField, type SignatureHandle } from "./SignatureField";
 import { AssetTopbar, HandoverStatusBadge } from "./AssetParts";
 import {
   handoverPdfUrl,
@@ -41,6 +42,8 @@ export function HandoverView({
   const router = useRouter();
   const [place, setPlace] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const signature = useRef<SignatureHandle>(null);
+  const [signed, setSigned] = useState(false);
   const [location, setLocation] = useState("");
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState(false);
@@ -74,6 +77,20 @@ export function HandoverView({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function accept() {
+    const signed = await signature.current?.image();
+    if (!signed) return setError(t("assetError_invalidSignature"));
+    await act(
+      {
+        action: "accept",
+        place: place.trim(),
+        confirm: true,
+        signature: signed,
+      },
+      t("handoverAccepted"),
+    );
   }
 
   async function uploadScan(file: File) {
@@ -271,11 +288,16 @@ export function HandoverView({
               />
               <span>{t("handoverConfirmCheckbox")}</span>
             </label>
+            <SignatureField
+              ref={signature}
+              defaultName={handover.recipientName}
+              onChange={setSigned}
+            />
             <div className="actions">
               <button
                 type="button"
                 className="button"
-                disabled={!confirmed || !place.trim()}
+                disabled={!confirmed || !signed || !place.trim()}
                 onClick={() => setDialog("accept")}
               >
                 {t("handoverAccept")}
@@ -409,14 +431,7 @@ export function HandoverView({
                 disabled={busy}
                 onClick={() =>
                   dialog === "accept"
-                    ? act(
-                        {
-                          action: "accept",
-                          place: place.trim(),
-                          confirm: true,
-                        },
-                        t("handoverAccepted"),
-                      )
+                    ? accept()
                     : dialog === "cancel"
                       ? act({ action: "cancel" }, t("handoverCancelled"))
                       : act(

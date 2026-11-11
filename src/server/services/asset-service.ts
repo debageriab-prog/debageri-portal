@@ -26,13 +26,18 @@ import {
   canSell,
   COMPANY_HOLDER,
   handoverLine,
+  hasSignatureInk,
   isAssetContentType,
   isAssetStatus,
   isHandoverStatus,
+  SIGNATURE_DATA_URL_PREFIX,
+  SIGNATURE_MAX_HEIGHT,
+  SIGNATURE_MAX_WIDTH,
   type AssetHolder,
   type AssetLink,
   type AssetState,
   type HandoverLine,
+  type SignatureMethod,
 } from "@/domain/assets";
 import { invoiceSettingsFrom } from "@/domain/finance/invoice-settings";
 import type { PortalUser } from "@/domain/types";
@@ -43,6 +48,8 @@ import {
   assetReceiptPdf,
   type AssetReceiptPdfLabels,
 } from "@/server/export/asset-receipt-pdf";
+import type { PdfImage } from "@/server/export/pdf-document";
+import { pngAlpha } from "@/server/export/png";
 import { loadPayrollProfile } from "@/server/services/payroll-service";
 import type {
   AssetActionInput,
@@ -916,11 +923,63 @@ function receiptLabels(locale: Locale, signedBy: string, signedAt: string) {
   } satisfies AssetReceiptPdfLabels;
 }
 
+/**
+ * The signature the recipient drew or typed, as the browser sent it: a PNG
+ * of ink on a transparent background. Blank or malformed images are refused.
+ */
+export function readSignature(dataUrl: string) {
+  if (!dataUrl.startsWith(SIGNATURE_DATA_URL_PREFIX))
+    throw new AssetError("invalidSignature", 400);
+  const png = Buffer.from(
+    dataUrl.slice(SIGNATURE_DATA_URL_PREFIX.length),
+    "base64",
+  );
+  let image: PdfImage;
+  try {
+    image = pngAlpha(png, {
+      maxWidth: SIGNATURE_MAX_WIDTH,
+      maxHeight: SIGNATURE_MAX_HEIGHT,
+    });
+  } catch {
+    throw new AssetError("invalidSignature", 400);
+  }
+  if (!hasSignatureInk(image.alpha))
+    throw new AssetError("invalidSignature", 400);
+  return { png, image };
+}
+
+export const handoverSignaturePath = (
+  organizationId: string,
+  handoverId: string,
+) =>
+  `organizations/${organizationId}/assets/handovers/${handoverId}/signature.png`;
+
+/** The stored signature of an accepted receipt, or null without one. */
+export async function storedSignature(
+  storage: Storage,
+  data: FirebaseFirestore.DocumentData,
+): Promise<PdfImage | null> {
+  if (!data.signaturePath) return null;
+  try {
+    const [png] = await storage
+      .bucket()
+      .file(String(data.signaturePath))
+      .download();
+    return pngAlpha(png, {
+      maxWidth: SIGNATURE_MAX_WIDTH,
+      maxHeight: SIGNATURE_MAX_HEIGHT,
+    });
+  } catch {
+    return null;
+  }
+}
+
 /** The receipt as a PDF, signed once the recipient has accepted it. */
 export async function handoverPdf(
   db: Firestore,
   data: FirebaseFirestore.DocumentData,
   fallbackLocale: Locale,
+  signature: PdfImage | null = null,
 ) {
   const locale = isLocale(data.locale) ? data.locale : fallbackLocale;
   const acceptedAt =
@@ -961,6 +1020,7 @@ export async function handoverPdf(
           dateTime,
         }
       : null,
+    signature: acceptedAt ? signature : null,
     labels,
   });
 }
@@ -978,8 +1038,11 @@ export async function acceptHandover(
   actor: PortalUser,
   handoverId: string,
   place: string,
+  signature: { method: SignatureMethod; image: string },
   locale: Locale,
 ) {
+  const { png, image } = readSignature(signature.image);
+  const signaturePath = handoverSignaturePath(actor.organizationId, handoverId);
   const ref = db.collection("assetHandovers").doc(handoverId);
   const acceptedAt = Timestamp.now();
   await db.runTransaction(async (transaction) => {
@@ -1010,6 +1073,8 @@ export async function acceptHandover(
       acceptedAt,
       acceptedOn: stockholmToday(),
       acceptedPlace: place,
+      signatureMethod: signature.method,
+      signaturePath,
       locale,
     });
     for (const { snapshot: asset } of assets) {
@@ -1029,11 +1094,25 @@ export async function acceptHandover(
       }),
     );
   });
-  // The acceptance stands even if storing the PDF fails; it is then made
-  // from the same recorded facts when someone downloads it.
+  // The acceptance stands even if storing the files fails; the PDF is then
+  // made from the same recorded facts when someone downloads it.
+  try {
+    await storage
+      .bucket()
+      .file(signaturePath)
+      .save(png, {
+        resumable: false,
+        metadata: { contentType: "image/png", cacheControl: "private" },
+      });
+  } catch (error) {
+    console.error("Equipment receipt signature could not be stored", {
+      handoverId,
+      errorClass: error instanceof Error ? error.name : "unknown",
+    });
+  }
   try {
     const data = (await ref.get()).data()!;
-    const pdf = await handoverPdf(db, data, locale);
+    const pdf = await handoverPdf(db, data, locale, image);
     const path = handoverPdfPath(actor.organizationId, handoverId);
     await storage
       .bucket()

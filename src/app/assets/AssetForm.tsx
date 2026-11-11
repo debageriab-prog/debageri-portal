@@ -39,6 +39,7 @@ export const assetErrors: Record<string, MessageKey> = {
   invalidTransition: "assetError_invalidTransition",
   invalidTransaction: "assetError_invalidTransaction",
   transactionLinked: "assetError_transactionLinked",
+  invalidSignature: "assetError_invalidSignature",
 };
 
 /** The message for an API error code, or the general one. */

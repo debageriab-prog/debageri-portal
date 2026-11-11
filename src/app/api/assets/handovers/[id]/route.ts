@@ -40,6 +40,7 @@ export async function PATCH(
         actor,
         id,
         parsed.data.place,
+        parsed.data.signature,
         await getServerLocale(),
       );
       await notifyAssetHandoverAccepted(id, portalUrlFrom(request));

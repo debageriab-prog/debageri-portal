@@ -1,4 +1,10 @@
-import { pdfDocument, PdfPage, textWidth, wrapText } from "./pdf-document";
+import {
+  pdfDocument,
+  type PdfImage,
+  PdfPage,
+  textWidth,
+  wrapText,
+} from "./pdf-document";
 
 export { PDF_CONTENT_TYPE } from "./pdf-document";
 
@@ -47,6 +53,8 @@ export interface AssetReceiptPdfInput {
   }[];
   /** Missing while the receipt waits for the recipient. */
   accepted: { place: string; date: string; dateTime: string } | null;
+  /** The drawn or typed signature, once accepted with one. */
+  signature: PdfImage | null;
   labels: AssetReceiptPdfLabels;
 }
 
@@ -57,6 +65,9 @@ const CONTENT = WIDTH - 2 * MARGIN;
 const BOTTOM = HEIGHT - MARGIN;
 const MUTED = "555555";
 const HEADER_FILL = "F2EDE4";
+const SIGNATURE_INK = "1F2A44";
+const SIGNATURE_WIDTH = 210;
+const SIGNATURE_HEIGHT = 64;
 
 export function assetReceiptPdf(input: AssetReceiptPdfInput): Buffer {
   const { labels } = input;
@@ -185,6 +196,21 @@ export function assetReceiptPdf(input: AssetReceiptPdfInput): Buffer {
   room(40);
   page.text(`${labels.signature}`, MARGIN, y, 10.5, { bold: true });
   y += 18;
+  if (input.accepted && input.signature) {
+    const { width, height } = input.signature;
+    const scale = Math.min(SIGNATURE_WIDTH / width, SIGNATURE_HEIGHT / height);
+    room(height * scale + 30);
+    page.image(
+      { ...input.signature, color: SIGNATURE_INK },
+      MARGIN,
+      y,
+      width * scale,
+      height * scale,
+    );
+    y += height * scale + 4;
+    page.line(MARGIN, y, MARGIN + SIGNATURE_WIDTH, y, { color: MUTED });
+    y += 8;
+  }
   if (input.accepted) paragraph(labels.signedElectronically);
   else {
     page.text(labels.notYetAccepted, MARGIN, y, 10, { color: MUTED });

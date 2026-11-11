@@ -1,4 +1,4 @@
-import { inflateSync } from "node:zlib";
+import { deflateSync, inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import {
   activePurchaseValueMinor,
@@ -13,11 +13,13 @@ import {
   canSell,
   filterAssets,
   handoverLine,
+  hasSignatureInk,
   isAssetExpenseCategory,
   type AssetState,
 } from "@/domain/assets";
 import { can } from "@/domain/access/permissions";
 import { assetReceiptPdf } from "@/server/export/asset-receipt-pdf";
+import { pngAlpha } from "@/server/export/png";
 import {
   assetActionSchema,
   assetFormSchema,
@@ -302,7 +304,113 @@ describe("asset validators", () => {
         place: "Gothenburg",
         confirm: true,
       }).success,
+    ).toBe(false);
+    expect(
+      handoverActionSchema.safeParse({
+        action: "accept",
+        place: "Gothenburg",
+        confirm: true,
+        signature: { method: "typed", image: "data:image/png;base64,AAAA" },
+      }).success,
     ).toBe(true);
+    expect(
+      handoverActionSchema.safeParse({
+        action: "accept",
+        place: "Gothenburg",
+        confirm: true,
+        signature: { method: "typed", image: "data:image/jpeg;base64,AAAA" },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+/** An 8-bit RGBA PNG whose rows use each filter in turn, as browsers do. */
+function rgbaPng(
+  width: number,
+  height: number,
+  alphaAt: (x: number, y: number) => number,
+) {
+  const chunk = (type: string, body: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(body.length);
+    // The checksum is not checked by the reader, so zeros will do.
+    return Buffer.concat([
+      length,
+      Buffer.from(type, "latin1"),
+      body,
+      Buffer.alloc(4),
+    ]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 6, 0, 0, 0], 8);
+  const stride = width * 4;
+  const rows: Buffer[] = [];
+  let previous = Buffer.alloc(stride);
+  for (let y = 0; y < height; y += 1) {
+    const line = Buffer.alloc(stride);
+    for (let x = 0; x < width; x += 1) {
+      line.set([31, 42, 68, alphaAt(x, y)], x * 4);
+    }
+    const filter = y % 5;
+    const filtered = Buffer.alloc(stride);
+    for (let i = 0; i < stride; i += 1) {
+      const left = i >= 4 ? line[i - 4]! : 0;
+      const up = previous[i]!;
+      const upLeft = i >= 4 ? previous[i - 4]! : 0;
+      const p = left + up - upLeft;
+      const paeth =
+        Math.abs(p - left) <= Math.abs(p - up) &&
+        Math.abs(p - left) <= Math.abs(p - upLeft)
+          ? left
+          : Math.abs(p - up) <= Math.abs(p - upLeft)
+            ? up
+            : upLeft;
+      const predicted = [0, left, up, (left + up) >> 1, paeth][filter]!;
+      filtered[i] = (line[i]! - predicted) & 0xff;
+    }
+    rows.push(Buffer.from([filter]), filtered);
+    previous = line;
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", header),
+    chunk("IDAT", deflateSync(Buffer.concat(rows))),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+describe("signature images", () => {
+  const stripe = (x: number, y: number) =>
+    y >= 4 && y < 8 ? 255 : (x * 7) % 64;
+  const limits = { maxWidth: 1200, maxHeight: 400 };
+
+  it("reads the ink of a canvas PNG whatever filter each row uses", () => {
+    const image = pngAlpha(rgbaPng(30, 12, stripe), limits);
+    expect(image.width).toBe(30);
+    expect(image.height).toBe(12);
+    for (let y = 0; y < 12; y += 1)
+      for (let x = 0; x < 30; x += 1)
+        expect(image.alpha[y * 30 + x]).toBe(stripe(x, y));
+    expect(hasSignatureInk(image.alpha)).toBe(true);
+  });
+
+  it("refuses blank, oversized and non-PNG images", () => {
+    expect(
+      hasSignatureInk(
+        pngAlpha(
+          rgbaPng(30, 12, () => 0),
+          limits,
+        ).alpha,
+      ),
+    ).toBe(false);
+    expect(() =>
+      pngAlpha(rgbaPng(30, 12, stripe), { maxWidth: 20, maxHeight: 400 }),
+    ).toThrow();
+    expect(() =>
+      pngAlpha(Buffer.from("not a png at all, just some text"), limits),
+    ).toThrow();
   });
 });
 
@@ -360,6 +468,7 @@ describe("equipment receipt PDF", () => {
         date: "2026-08-21",
         dateTime: "2026-08-21 14:05",
       },
+      signature: { width: 2, height: 1, alpha: Buffer.from([255, 0]) },
       labels,
     });
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
@@ -369,6 +478,8 @@ describe("equipment receipt PDF", () => {
     expect(text).toContain("19900101-1234");
     expect(text).toContain("2026-08-21 Gothenburg");
     expect(text).toContain("Accepted electronically by Anna");
+    expect(text).toContain("/Im1 Do");
+    expect(pdf.toString("latin1")).toContain("/SMask");
   });
 
   it("leaves out the personal number and marks a receipt not yet accepted", () => {
@@ -385,6 +496,7 @@ describe("equipment receipt PDF", () => {
           accessories: "Cable",
         })),
         accepted: null,
+        signature: null,
         labels,
       }),
     );

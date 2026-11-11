@@ -3,6 +3,9 @@ import {
   ASSET_BUYER_TYPES,
   ASSET_CATEGORIES,
   ASSET_RETIRE_STATUSES,
+  SIGNATURE_DATA_URL_PREFIX,
+  SIGNATURE_MAX_DATA_URL,
+  SIGNATURE_METHODS,
 } from "@/domain/assets";
 import { REQUEST_VAT_RATES_BPS } from "@/domain/requests";
 
@@ -129,6 +132,14 @@ export const handoverActionSchema = z.discriminatedUnion("action", [
     place: z.string().trim().min(1).max(80),
     /** The recipient ticked that they received the equipment. */
     confirm: z.literal(true),
+    signature: z.object({
+      method: z.enum(SIGNATURE_METHODS),
+      /** A PNG of the signature from the browser canvas. */
+      image: z
+        .string()
+        .max(SIGNATURE_MAX_DATA_URL)
+        .startsWith(SIGNATURE_DATA_URL_PREFIX),
+    }),
   }),
   z.object({ action: z.literal("cancel") }),
   z.object({ action: z.literal("return"), location: text(120) }),

@@ -2334,7 +2334,7 @@
   "handoverScan": "Handsignerad kopia",
   "handoverScanTip": "Om kvittensen även signerats på papper kan du lägga till en skanning här. Den ersätter en tidigare kopia.",
   "handoverAcceptTitle": "Godkänn kvittensen",
-  "handoverAcceptQuestion": "Ditt godkännande sparas med datum, tid och ort som din signatur och kan inte ångras.",
+  "handoverAcceptQuestion": "Din namnteckning sparas med datum, tid och ort och kan inte ångras.",
   "handoverCancelTitle": "Avbryt kvittensen",
   "handoverCancelQuestion": "Avbryta kvittensen för {name}? Utrustningen går tillbaka till den som hade den innan.",
   "handoverReturnTitle": "Utrustning återlämnad",
@@ -2386,5 +2386,15 @@
   "assetOfferQuestion": "Utgiften gäller utrustning. Vill du lägga till den i tillgångshanteringen nu? Belopp, datum och filer fylls i.",
   "assetOfferSkip": "Inte nu",
   "assetError_invalidTransaction": "Utgiften kan inte användas för en tillgång.",
-  "assetError_transactionLinked": "Utgiften är redan kopplad till en tillgång."
+  "assetError_transactionLinked": "Utgiften är redan kopplad till en tillgång.",
+  "handoverSignature": "Namnteckning",
+  "handoverSignatureTip": "Rita din namnteckning eller skriv ditt namn. Den skrivs ut på den signerade kvittensen som PDF tillsammans med datum, tid och ort.",
+  "handoverSignatureDraw": "Rita",
+  "handoverSignatureType": "Skriv",
+  "handoverSignatureDrawHint": "Skriv under i rutan med musen, fingret eller en penna.",
+  "handoverSignatureClear": "Rensa",
+  "handoverSignatureName": "Ditt namn",
+  "handoverSignatureStyle": "Stil på namnteckningen",
+  "handoverSignatureStyleOption": "Stil {number}",
+  "assetError_invalidSignature": "Rita din namnteckning eller skriv ditt namn."
 }

@@ -52,6 +52,23 @@ export const ASSET_CONTENT_TYPES = [
 ] as const;
 
 /** The receipt's terms, in order, as locale keys. */
+/** How the recipient signs a receipt: drawn by hand or typed in a script. */
+export const SIGNATURE_METHODS = ["drawn", "typed"] as const;
+export type SignatureMethod = (typeof SIGNATURE_METHODS)[number];
+export const SIGNATURE_MAX_WIDTH = 1200;
+export const SIGNATURE_MAX_HEIGHT = 400;
+/** The PNG sent as a data URL, base64 included. */
+export const SIGNATURE_MAX_DATA_URL = 400_000;
+export const SIGNATURE_DATA_URL_PREFIX = "data:image/png;base64,";
+
+/** Enough ink to be a mark rather than a stray click: some covered pixels. */
+export function hasSignatureInk(alpha: Iterable<number>, minimumPixels = 40) {
+  let inked = 0;
+  for (const value of alpha)
+    if (value > 96 && ++inked >= minimumPixels) return true;
+  return false;
+}
+
 export const ASSET_TERM_KEYS = [
   "assetTerms_1",
   "assetTerms_2",

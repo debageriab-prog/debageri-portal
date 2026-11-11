@@ -4588,3 +4588,75 @@ td.amount-cell {
 .handover-personal-number {
   align-self: end;
 }
+
+.signature-field {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.signature-field legend {
+  padding: 0 6px;
+  margin-left: 12px;
+  font-weight: 600;
+}
+
+.signature-field .editor-tabs {
+  padding: 0 12px;
+}
+
+.signature-panel {
+  display: grid;
+  gap: 12px;
+  padding: 0 16px;
+}
+
+.signature-panel[hidden] {
+  display: none;
+}
+
+.signature-panel p {
+  margin: 0;
+}
+
+.signature-pad {
+  width: 100%;
+  max-width: 600px;
+  aspect-ratio: 3 / 1;
+  border: 1px dashed var(--muted);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.signature-styles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.signature-style {
+  min-height: 72px;
+  padding: 8px 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: #1f2a44;
+  font-size: 2rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.signature-style.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
