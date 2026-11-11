@@ -34,6 +34,13 @@ export function PrintIcon() {
 }
 
 /**
+ * PDF open parameters for the preview frame. Browsers open the page
+ * thumbnails on their own when the frame is wide enough; this keeps them
+ * closed. `navpanes` is read by Chrome and Edge, `pagemode` by Firefox.
+ */
+const PDF_VIEW = "#navpanes=0&pagemode=none";
+
+/**
  * Inline PDF or image preview of a server-protected file (`fileUrl`) or a
  * local file that is not uploaded yet (`blob`), with icon-only download and
  * print buttons. PDFs also get an open-in-new-tab button, since many mobile
@@ -191,7 +198,7 @@ export function DocumentPreview({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={url} alt={title} />
         ) : (
-          <iframe src={url} title={title} />
+          <iframe src={`${url}${PDF_VIEW}`} title={title} />
         )}
       </div>
     </div>
