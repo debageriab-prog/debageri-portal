@@ -358,6 +358,24 @@ export async function assetSourceTransaction(
   };
 }
 
+/**
+ * One file of the expense an asset is being created from, for previewing it
+ * or reading it with AI before the asset exists.
+ */
+export async function assetSourceFile(
+  db: Firestore,
+  storage: Storage,
+  actor: PortalUser,
+  transactionId: string,
+  attachmentId: string,
+) {
+  const source = await assetSourceTransaction(db, actor, transactionId);
+  const file = source.files.find((item) => item.id === attachmentId);
+  if (!file) throw new AssetError("notFound", 404);
+  const [bytes] = await storage.bucket().file(file.storagePath).download();
+  return { name: file.name, contentType: file.contentType, bytes };
+}
+
 /** Copies an expense's files to the asset, as its own documents. */
 async function copyFiles(
   storage: Storage,
@@ -406,7 +424,9 @@ export async function createAsset(
   const source = input.purchaseTransactionId
     ? await assetSourceTransaction(db, actor, input.purchaseTransactionId)
     : null;
-  const fromExpense = (source?.files ?? []).slice(0, ASSET_MAX_FILES);
+  const fromExpense = (source?.files ?? [])
+    .filter((file) => !input.skipSourceFileIds.includes(file.id))
+    .slice(0, ASSET_MAX_FILES);
   if (fromExpense.length + files.length > ASSET_MAX_FILES)
     throw new AssetError("assetTooManyFiles");
   const ref = db.collection("assets").doc();

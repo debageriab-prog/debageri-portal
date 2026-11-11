@@ -47,6 +47,8 @@ export const assetFormSchema = z.object({
   notes: text(2_000),
   /** Ids of files already on the asset that should be kept (edit only). */
   keepFileIds: z.array(z.string().min(1).max(64)).max(20).default([]),
+  /** Files of the expense the asset is created from that are left out. */
+  skipSourceFileIds: z.array(z.string().min(1).max(128)).max(20).default([]),
 });
 
 export type AssetFormInput = z.infer<typeof assetFormSchema>;
@@ -67,6 +69,7 @@ export function parseAssetForm(form: FormData) {
     purchaseTransactionId: form.get("purchaseTransactionId") ?? "",
     notes: form.get("notes") ?? "",
     keepFileIds: form.getAll("keepFileIds").map(String),
+    skipSourceFileIds: form.getAll("skipSourceFileIds").map(String),
   });
 }
 

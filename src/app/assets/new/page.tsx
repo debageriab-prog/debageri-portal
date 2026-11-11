@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
+import { isAiFeatureEnabled } from "@/server/services/ai-service";
 import {
   assetSourceTransaction,
   canManageAssets,
@@ -19,12 +20,13 @@ export default async function NewAssetPage({
   if (!canManageAssets(actor)) redirect("/unauthorized");
   const { transactionId } = await searchParams;
   const { db } = getAdminServices();
-  const [t, people, transaction] = await Promise.all([
+  const [t, people, transaction, aiEnabled] = await Promise.all([
     getTranslator(),
     handoverRecipients(db, actor.organizationId),
     transactionId
       ? assetSourceTransaction(db, actor, transactionId).catch(() => null)
       : null,
+    isAiFeatureEnabled(db, actor.organizationId, "financeAttachments"),
   ]);
   const source: AssetSource | undefined = transaction
     ? {
@@ -33,7 +35,11 @@ export default async function NewAssetPage({
         grossMinor: transaction.grossMinor,
         vatRateBps: transaction.vatRateBps,
         description: transaction.description,
-        fileNames: transaction.files.map((file) => file.name),
+        files: transaction.files.map(({ id, name, contentType }) => ({
+          id,
+          name,
+          contentType,
+        })),
       }
     : undefined;
   return (
@@ -54,7 +60,7 @@ export default async function NewAssetPage({
           {t("assetFromExpenseUnavailable")}
         </p>
       )}
-      <AssetForm people={people} source={source} />
+      <AssetForm people={people} source={source} aiEnabled={aiEnabled} />
     </>
   );
 }

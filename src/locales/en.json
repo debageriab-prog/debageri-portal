@@ -1006,7 +1006,7 @@
   "aiTab_sections": "Sections using AI",
   "aiSectionsDisabled": "Turn on the AI integration under Provider to choose sections.",
   "aiFeature_financeAttachments": "Finance: income and expense attachments",
-  "aiFeatureHelp_financeAttachments": "Adds “Process attachment with AI” next to each file, filling in date, amounts, VAT and category from the document.",
+  "aiFeatureHelp_financeAttachments": "Adds “Process attachment with AI” next to each file, filling in date, amounts, VAT and category from the document. Also used on assets, filling in name, brand, model, serial number, supplier and price from the purchase document.",
   "aiFeature_financeInvoices": "Finance: new invoices",
   "aiFeatureHelp_financeInvoices": "Adds “Process attachment with AI” next to each file on a new invoice, filling in invoice number, customer, consultant, dates, amount and VAT from the document.",
   "aiFeature_financeVatSettlements": "Finance: VAT settlements",
@@ -2379,7 +2379,6 @@
   "assetHandoverScanDocument": "Hand-signed copy: {name}",
   "assetSupplierTip": "The shop or company the asset was bought from, such as Dustin or Elgiganten. Useful for warranty claims and returns. Only shown in Assets management, never on the receipt.",
   "assetInUseByTip": "Company means it is in stock or used at the office. Choosing a person asks them to accept a receipt for it. Every change is kept in the asset's history.",
-  "assetFilesFromExpense": "These files from the expense are copied to the asset: {files}",
   "assetFromExpense": "This asset is created from an expense. Its date, amount, VAT and files are filled in, and the expense is linked to the asset.",
   "assetFromExpenseUnavailable": "The expense can't be used. It may already be linked to an asset, or it is not a posted expense.",
   "assetOfferTitle": "Register the asset too?",
@@ -2396,5 +2395,10 @@
   "handoverSignatureName": "Your name",
   "handoverSignatureStyle": "Signature style",
   "handoverSignatureStyleOption": "Style {number}",
-  "assetError_invalidSignature": "Draw your signature or type your name."
+  "assetError_invalidSignature": "Draw your signature or type your name.",
+  "assetFileFromExpense": "From the expense",
+  "assetAiFilled": "Filled in from {name}. Check the values before saving.",
+  "assetAiNothingFound": "No asset details could be read from {name}.",
+  "assetAiConverted": "The price was {amount} {currency} and has been converted to {sek}.",
+  "assetAiForeignCurrency": "The price is in {currency} and could not be converted. Enter it in SEK."
 }

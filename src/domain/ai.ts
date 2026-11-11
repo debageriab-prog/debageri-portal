@@ -1,3 +1,4 @@
+import { ASSET_CATEGORIES, type AssetCategory } from "@/domain/assets";
 import { receiptVatRateBps } from "@/domain/receipts";
 import { MAX_ROUNDING_MINOR } from "@/domain/finance/calculations";
 import { validInvoicePeriod } from "@/domain/finance/invoice-period";
@@ -394,6 +395,140 @@ export function convertExtractionToSek(
       currency: extraction.currency,
       grossMinor: extraction.grossMinor,
       netMinor: extraction.netMinor,
+      rate,
+    },
+  };
+}
+
+/** What the model is asked to return for a purchased asset. */
+export type RawAssetExtraction = {
+  name: string;
+  category: string;
+  brand: string;
+  model: string;
+  serialNumber: string;
+  accessories: string;
+  supplier: string;
+  date: string;
+  currency: string;
+  netAmount: number | null;
+  vatAmount: number | null;
+  totalAmount: number | null;
+  vatRatePercent: number | null;
+};
+
+/** JSON schema for reading an asset's purchase document. */
+export const ASSET_EXTRACTION_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "name",
+    "category",
+    "brand",
+    "model",
+    "serialNumber",
+    "accessories",
+    "supplier",
+    "date",
+    "currency",
+    "netAmount",
+    "vatAmount",
+    "totalAmount",
+    "vatRatePercent",
+  ],
+  properties: {
+    name: plainText,
+    category: { type: "string", enum: [...ASSET_CATEGORIES, ""] },
+    brand: plainText,
+    model: plainText,
+    serialNumber: plainText,
+    accessories: plainText,
+    supplier: plainText,
+    date: plainText,
+    currency: plainText,
+    netAmount: nullable({ type: "number" }),
+    vatAmount: nullable({ type: "number" }),
+    totalAmount: nullable({ type: "number" }),
+    vatRatePercent: nullable({ type: "number" }),
+  },
+};
+
+/** An asset's details read from its purchase document, ready for the form. */
+export type AssetExtraction = {
+  name: string | null;
+  category: AssetCategory | null;
+  make: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  accessories: string | null;
+  supplier: string | null;
+  date: string | null;
+  /** Currency of the amounts below; SEK once converted. */
+  currency: string;
+  /** Including VAT. */
+  grossMinor: number | null;
+  vatRateBps: number | null;
+  /** The document's own currency and total when it was converted to SEK. */
+  conversion: {
+    currency: string;
+    grossMinor: number;
+    rate: SekExchangeRate;
+  } | null;
+};
+
+/** Cleans model output into what the asset form can use. */
+export function normalizeAssetExtraction(
+  raw: RawAssetExtraction,
+): AssetExtraction {
+  let netMinor = toMinor(raw.netAmount);
+  const vatMinor = toMinor(raw.vatAmount);
+  let grossMinor = toMinor(raw.totalAmount);
+  if (grossMinor === null && netMinor !== null && vatMinor !== null)
+    grossMinor = netMinor + vatMinor;
+  if (netMinor === null && grossMinor !== null && vatMinor !== null)
+    netMinor = grossMinor - vatMinor;
+  let vatRateBps: number | null = null;
+  if (netMinor !== null && vatMinor !== null && netMinor > 0)
+    vatRateBps = snapVatRate(receiptVatRateBps(netMinor, vatMinor));
+  else if (
+    raw.vatRatePercent !== null &&
+    Number.isFinite(raw.vatRatePercent) &&
+    raw.vatRatePercent >= 0 &&
+    raw.vatRatePercent <= 100
+  )
+    vatRateBps = snapVatRate(Math.round(raw.vatRatePercent * 100));
+  const currency = text(raw.currency, 10)?.toUpperCase() ?? null;
+  return {
+    name: text(raw.name, 120),
+    category: (ASSET_CATEGORIES as readonly string[]).includes(raw.category)
+      ? (raw.category as AssetCategory)
+      : null,
+    make: text(raw.brand, 80),
+    model: text(raw.model, 120),
+    serialNumber: text(raw.serialNumber, 120),
+    accessories: text(raw.accessories, 300),
+    supplier: text(raw.supplier, 120),
+    date: validDate(raw.date),
+    currency: currency && /^[A-Z]{3}$/.test(currency) ? currency : "SEK",
+    grossMinor,
+    vatRateBps,
+    conversion: null,
+  };
+}
+
+/** Converts the asset's price to SEK, keeping the original for reference. */
+export function convertAssetExtractionToSek(
+  extraction: AssetExtraction,
+  rate: SekExchangeRate,
+): AssetExtraction {
+  if (extraction.grossMinor === null) return { ...extraction, currency: "SEK" };
+  return {
+    ...extraction,
+    currency: "SEK",
+    grossMinor: Math.round(extraction.grossMinor * rate.rate),
+    conversion: {
+      currency: extraction.currency,
+      grossMinor: extraction.grossMinor,
       rate,
     },
   };

@@ -133,7 +133,7 @@ export async function processAttachmentWithAi(
   }
 }
 
-function AiProcessButton({
+export function AiProcessButton({
   name,
   busy,
   disabled,

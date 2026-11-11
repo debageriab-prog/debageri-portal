@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { DateInput } from "@/components/ui/DateInput";
 import { FileRemoveIcon } from "@/components/ui/FileActionIcons";
+import {
+  FilePreviewAction,
+  FilePreviewModal,
+  PreviewButton,
+  canPreview,
+  type PreviewTarget,
+} from "@/components/ui/FilePreview";
 import { InfoTip } from "@/components/ui/InfoTip";
 import {
   ASSET_CATEGORIES,
@@ -13,14 +20,25 @@ import {
   isAssetContentType,
   type AssetCategory,
 } from "@/domain/assets";
-import { parseSek } from "@/domain/finance/calculations";
+import { formatSek, parseSek } from "@/domain/finance/calculations";
 import {
   DEFAULT_REQUEST_VAT_RATE_BPS,
   REQUEST_VAT_RATES_BPS,
 } from "@/domain/requests";
 import { appCheckFetch } from "@/lib/firebase/client";
 import type { MessageKey } from "@/lib/localization/messages";
-import type { AssetFileItem, AssetItem } from "./asset-types";
+import type { AssetExtraction } from "@/domain/ai";
+import { AiProcessButton } from "@/app/finance/FinanceAttachments";
+import {
+  AiNotices,
+  aiErrorNotice,
+  type AiNotice,
+} from "@/app/finance/ai-notices";
+import {
+  assetFileUrl,
+  type AssetFileItem,
+  type AssetItem,
+} from "./asset-types";
 
 export const assetErrors: Record<string, MessageKey> = {
   invalidInput: "assetError_invalidInput",
@@ -54,22 +72,63 @@ export type AssetSource = {
   grossMinor: number;
   vatRateBps: number;
   description: string;
-  fileNames: string[];
+  files: { id: string; name: string; contentType: string }[];
 };
+
+/** Where an expense's file can be looked at before the asset exists. */
+const expenseFileUrl = (transactionId: string, attachmentId: string) =>
+  `/api/assets/expense-files/${encodeURIComponent(transactionId)}/${encodeURIComponent(attachmentId)}`;
+
+/** Text fields the AI reading can fill in. */
+type TextFields = Record<
+  | "name"
+  | "make"
+  | "model"
+  | "serialNumber"
+  | "accessories"
+  | "supplier"
+  | "purchaseDate",
+  string
+>;
+
+type AiTarget = { file: File } | { attachmentId: string };
 
 export function AssetForm({
   asset,
   people = [],
   source,
+  aiEnabled = false,
 }: {
+  /** Shows "Process attachment with AI" next to each file. */
+  aiEnabled?: boolean;
   /** The asset being edited; a new asset when left out. */
   asset?: AssetItem;
   /** Who can be chosen under In use by, for a new asset. */
   people?: { id: string; name: string }[];
   source?: AssetSource;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const router = useRouter();
+  const [fields, setFields] = useState<TextFields>({
+    name: asset?.name ?? source?.description.slice(0, 120) ?? "",
+    make: asset?.make ?? "",
+    model: asset?.model ?? "",
+    serialNumber: asset?.serialNumber ?? "",
+    accessories: asset?.accessories ?? "",
+    supplier: asset?.supplier ?? "",
+    purchaseDate: asset?.purchaseDate ?? source?.date ?? "",
+  });
+  const field = (key: keyof TextFields) => ({
+    name: key,
+    value: fields[key],
+    onChange: (event: { target: { value: string } }) =>
+      setFields((current) => ({ ...current, [key]: event.target.value })),
+  });
+  const [sourceFiles, setSourceFiles] = useState(source?.files ?? []);
+  const [aiBusyKey, setAiBusyKey] = useState<string | null>(null);
+  const [aiProcessedKeys, setAiProcessedKeys] = useState<string[]>([]);
+  const [aiNotice, setAiNotice] = useState<AiNotice | null>(null);
+  const [previewing, setPreviewing] = useState<PreviewTarget | null>(null);
   const [category, setCategory] = useState<AssetCategory | "">(
     asset?.category ?? "",
   );
@@ -93,10 +152,7 @@ export function AssetForm({
   const [error, setError] = useState("");
   const [inUseBy, setInUseBy] = useState("");
   const fileRoom =
-    ASSET_MAX_FILES -
-    kept.length -
-    files.length -
-    (source?.fileNames.length ?? 0);
+    ASSET_MAX_FILES - kept.length - files.length - sourceFiles.length;
   const backHref = asset
     ? `/assets/${encodeURIComponent(asset.id)}`
     : "/assets";
@@ -112,6 +168,112 @@ export function AssetForm({
     setFiles((current) => [...current, ...selected]);
   }
 
+  /** Fills the form from an AI reading, keeping what it could not read. */
+  function applyExtraction(extraction: AssetExtraction, name: string) {
+    const found: Partial<TextFields> = {};
+    if (extraction.name) found.name = extraction.name;
+    if (extraction.make) found.make = extraction.make;
+    if (extraction.model) found.model = extraction.model;
+    if (extraction.serialNumber) found.serialNumber = extraction.serialNumber;
+    if (extraction.accessories) found.accessories = extraction.accessories;
+    if (extraction.supplier) found.supplier = extraction.supplier;
+    if (extraction.date) found.purchaseDate = extraction.date;
+    setFields((current) => ({ ...current, ...found }));
+    let filled = Object.keys(found).length;
+    if (extraction.category) {
+      setCategory(extraction.category);
+      filled++;
+    }
+    if (extraction.grossMinor !== null && extraction.currency === "SEK") {
+      setPrice((extraction.grossMinor / 100).toFixed(2));
+      filled++;
+    }
+    if (
+      extraction.vatRateBps !== null &&
+      (REQUEST_VAT_RATES_BPS as readonly number[]).includes(
+        extraction.vatRateBps,
+      )
+    ) {
+      setVatRateBps(extraction.vatRateBps);
+      filled++;
+    }
+    if (!filled)
+      return setAiNotice({
+        tone: "warning",
+        messages: [t("assetAiNothingFound").replace("{name}", name)],
+      });
+    const messages = [t("assetAiFilled").replace("{name}", name)];
+    if (extraction.conversion)
+      messages.push(
+        t("assetAiConverted")
+          .replace(
+            "{amount}",
+            (extraction.conversion.grossMinor / 100).toLocaleString(locale, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }),
+          )
+          .replace("{currency}", extraction.conversion.currency)
+          .replace("{sek}", formatSek(extraction.grossMinor ?? 0, locale)),
+      );
+    else if (extraction.currency !== "SEK")
+      messages.push(
+        t("assetAiForeignCurrency").replace("{currency}", extraction.currency),
+      );
+    setAiNotice({ tone: "success", messages });
+  }
+
+  async function processWithAi(target: AiTarget, key: string, name: string) {
+    setAiBusyKey(key);
+    setAiNotice(null);
+    let init: RequestInit;
+    if ("file" in target) {
+      const body = new FormData();
+      body.set("file", target.file);
+      init = { method: "POST", body };
+    } else
+      init = {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          transactionId: source?.id,
+          attachmentId: target.attachmentId,
+        }),
+      };
+    try {
+      const response = await appCheckFetch("/api/assets/ai", init);
+      const result = (await response.json().catch(() => ({}))) as {
+        extraction?: AssetExtraction;
+        error?: string;
+        detail?: string;
+      };
+      if (!response.ok || !result.extraction)
+        return setAiNotice(aiErrorNotice(result, t));
+      setAiProcessedKeys((keys) => [...keys, key]);
+      applyExtraction(result.extraction, name);
+    } catch {
+      setAiNotice(aiErrorNotice({ error: "aiProviderFailed" }, t));
+    } finally {
+      setAiBusyKey(null);
+    }
+  }
+
+  const aiButton = (
+    target: AiTarget,
+    key: string,
+    name: string,
+    contentType: string,
+  ) =>
+    aiEnabled && canPreview(contentType) ? (
+      <AiProcessButton
+        name={name}
+        busy={aiBusyKey === key}
+        disabled={aiBusyKey !== null}
+        processed={aiProcessedKeys.includes(key)}
+        onClick={() => void processWithAi(target, key, name)}
+      />
+    ) : null;
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!category) return setError(t("assetError_categoryRequired"));
@@ -123,22 +285,18 @@ export function AssetForm({
     }
     const form = new FormData(event.currentTarget);
     const body = new FormData();
-    for (const field of [
-      "name",
-      "make",
-      "model",
-      "serialNumber",
-      "accessories",
-      "supplier",
-      "purchaseDate",
-      "notes",
-    ])
-      body.set(field, String(form.get(field) ?? ""));
+    for (const [key, value] of Object.entries(fields)) body.set(key, value);
+    body.set("notes", String(form.get("notes") ?? ""));
     body.set("category", category);
     body.set("purchasePriceMinor", String(priceMinor));
     body.set("vatRateBps", String(vatRateBps));
     if (!asset) body.set("inUseBy", inUseBy);
-    if (source) body.set("purchaseTransactionId", source.id);
+    if (source) {
+      body.set("purchaseTransactionId", source.id);
+      for (const file of source.files)
+        if (!sourceFiles.some((item) => item.id === file.id))
+          body.append("skipSourceFileIds", file.id);
+    }
     for (const file of kept) body.append("keepFileIds", file.id);
     for (const file of files) body.append("files", file);
     setBusy(true);
@@ -183,11 +341,10 @@ export function AssetForm({
           {t("assetName")}
           <input
             className="field"
-            name="name"
+            {...field("name")}
             required
             maxLength={120}
             autoFocus
-            defaultValue={asset?.name ?? source?.description.slice(0, 120)}
             placeholder={t("assetNamePlaceholder")}
           />
         </label>
@@ -211,59 +368,30 @@ export function AssetForm({
         </label>
         <label>
           {t("assetMake")}
-          <input
-            className="field"
-            name="make"
-            maxLength={80}
-            defaultValue={asset?.make}
-          />
+          <input className="field" {...field("make")} maxLength={80} />
         </label>
         <label>
           {t("assetModel")}
-          <input
-            className="field"
-            name="model"
-            maxLength={120}
-            defaultValue={asset?.model}
-          />
+          <input className="field" {...field("model")} maxLength={120} />
         </label>
         <label>
           {t("assetSerialNumber")}
           <InfoTip text={t("assetSerialNumberTip")} />
-          <input
-            className="field"
-            name="serialNumber"
-            maxLength={120}
-            defaultValue={asset?.serialNumber}
-          />
+          <input className="field" {...field("serialNumber")} maxLength={120} />
         </label>
         <label>
           {t("assetAccessories")}
           <InfoTip text={t("assetAccessoriesTip")} />
-          <input
-            className="field"
-            name="accessories"
-            maxLength={300}
-            defaultValue={asset?.accessories}
-          />
+          <input className="field" {...field("accessories")} maxLength={300} />
         </label>
         <label>
           {t("assetPurchaseDate")}
-          <DateInput
-            className="field"
-            name="purchaseDate"
-            defaultValue={asset?.purchaseDate ?? source?.date ?? ""}
-          />
+          <DateInput className="field" {...field("purchaseDate")} />
         </label>
         <label>
           {t("assetSupplier")}
           <InfoTip text={t("assetSupplierTip")} />
-          <input
-            className="field"
-            name="supplier"
-            maxLength={120}
-            defaultValue={asset?.supplier}
-          />
+          <input className="field" {...field("supplier")} maxLength={120} />
         </label>
         <label>
           {t("assetPurchasePriceSek")}
@@ -325,19 +453,46 @@ export function AssetForm({
           <legend>
             {t("assetFiles")} <InfoTip text={t("assetFilesTip")} />
           </legend>
-          {source && source.fileNames.length > 0 && (
-            <p className="muted">
-              {t("assetFilesFromExpense").replace(
-                "{files}",
-                source.fileNames.join(", "),
-              )}
-            </p>
-          )}
-          {kept.length + files.length > 0 && (
+          {sourceFiles.length + kept.length + files.length > 0 && (
             <ul className="attachment-list pending-attachment-list">
+              {sourceFiles.map((file) => (
+                <li key={`source-${file.id}`}>
+                  <span>{file.name}</span>
+                  <span className="detail-tag detail-tag-neutral">
+                    {t("assetFileFromExpense")}
+                  </span>
+                  {aiButton(
+                    { attachmentId: file.id },
+                    `source-${file.id}`,
+                    file.name,
+                    file.contentType,
+                  )}
+                  <FilePreviewAction
+                    target={{
+                      name: file.name,
+                      contentType: file.contentType,
+                      fileUrl: expenseFileUrl(source!.id, file.id),
+                    }}
+                  />
+                  {removeButton(file.name, () =>
+                    setSourceFiles((current) =>
+                      current.filter((item) => item.id !== file.id),
+                    ),
+                  )}
+                </li>
+              ))}
               {kept.map((file) => (
                 <li key={file.id}>
                   <span>{file.name}</span>
+                  {asset && (
+                    <FilePreviewAction
+                      target={{
+                        name: file.name,
+                        contentType: file.contentType,
+                        fileUrl: assetFileUrl(asset.id, file.id),
+                      }}
+                    />
+                  )}
                   {removeButton(file.name, () =>
                     setKept((current) =>
                       current.filter((item) => item.id !== file.id),
@@ -348,6 +503,24 @@ export function AssetForm({
               {files.map((file, index) => (
                 <li key={`${file.name}-${index}`}>
                   <span>{file.name}</span>
+                  {aiButton(
+                    { file },
+                    `file-${file.name}-${file.size}-${file.lastModified}`,
+                    file.name,
+                    file.type,
+                  )}
+                  {canPreview(file.type) && (
+                    <PreviewButton
+                      name={file.name}
+                      onClick={() =>
+                        setPreviewing({
+                          name: file.name,
+                          contentType: file.type,
+                          blob: file,
+                        })
+                      }
+                    />
+                  )}
                   {removeButton(file.name, () =>
                     setFiles((current) =>
                       current.filter((_, position) => position !== index),
@@ -367,6 +540,13 @@ export function AssetForm({
                 addFiles(Array.from(event.currentTarget.files ?? []));
                 event.currentTarget.value = "";
               }}
+            />
+          )}
+          <AiNotices notice={aiNotice} currencyWarning={null} />
+          {previewing && (
+            <FilePreviewModal
+              target={previewing}
+              onClose={() => setPreviewing(null)}
             />
           )}
         </fieldset>

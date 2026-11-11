@@ -1006,7 +1006,7 @@
   "aiTab_sections": "Sektioner som använder AI",
   "aiSectionsDisabled": "Aktivera AI-integrationen under Leverantör för att välja sektioner.",
   "aiFeature_financeAttachments": "Ekonomi: bilagor till intäkter och kostnader",
-  "aiFeatureHelp_financeAttachments": "Lägger till ”Läs bilaga med AI” vid varje fil och fyller i datum, belopp, moms och kategori från dokumentet.",
+  "aiFeatureHelp_financeAttachments": "Lägger till ”Läs bilaga med AI” vid varje fil och fyller i datum, belopp, moms och kategori från dokumentet. Används också för tillgångar och fyller då i namn, märke, modell, serienummer, leverantör och pris från inköpsunderlaget.",
   "aiFeature_financeInvoices": "Ekonomi: nya fakturor",
   "aiFeatureHelp_financeInvoices": "Lägger till ”Läs bilaga med AI” vid varje fil på en ny faktura och fyller i fakturanummer, kund, konsult, datum, belopp och moms från dokumentet.",
   "aiFeature_financeVatSettlements": "Ekonomi: momsbetalningar",
@@ -2379,7 +2379,6 @@
   "assetHandoverScanDocument": "Handsignerad kopia: {name}",
   "assetSupplierTip": "Butiken eller företaget som tillgången köptes från, till exempel Dustin eller Elgiganten. Bra vid garantiärenden och returer. Visas bara i tillgångshanteringen, aldrig på kvittensen.",
   "assetInUseByTip": "Företaget betyder att den finns i lager eller används på kontoret. Väljer du en person ombeds hen godkänna en kvittens för den. Varje ändring sparas i tillgångens historik.",
-  "assetFilesFromExpense": "De här filerna från utgiften kopieras till tillgången: {files}",
   "assetFromExpense": "Tillgången skapas från en utgift. Datum, belopp, moms och filer är ifyllda, och utgiften kopplas till tillgången.",
   "assetFromExpenseUnavailable": "Utgiften kan inte användas. Den kan redan vara kopplad till en tillgång, eller så är den inte en bokförd utgift.",
   "assetOfferTitle": "Registrera tillgången också?",
@@ -2396,5 +2395,10 @@
   "handoverSignatureName": "Ditt namn",
   "handoverSignatureStyle": "Stil på namnteckningen",
   "handoverSignatureStyleOption": "Stil {number}",
-  "assetError_invalidSignature": "Rita din namnteckning eller skriv ditt namn."
+  "assetError_invalidSignature": "Rita din namnteckning eller skriv ditt namn.",
+  "assetFileFromExpense": "Från utgiften",
+  "assetAiFilled": "Ifyllt från {name}. Kontrollera uppgifterna innan du sparar.",
+  "assetAiNothingFound": "Inga uppgifter om tillgången kunde läsas från {name}.",
+  "assetAiConverted": "Priset var {amount} {currency} och har räknats om till {sek}.",
+  "assetAiForeignCurrency": "Priset är i {currency} och kunde inte räknas om. Ange det i kronor."
 }
