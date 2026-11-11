@@ -10,7 +10,9 @@ export type NotificationKind =
   | "timesheetApproved"
   | "timesheetRejected"
   | "requestSubmitted"
-  | "requestStatusChanged";
+  | "requestStatusChanged"
+  | "assetHandoverIssued"
+  | "assetHandoverAccepted";
 
 export const EMAIL_NOTIFICATION_KINDS: NotificationKind[] = [
   "receiptSubmitted",
@@ -21,6 +23,8 @@ export const EMAIL_NOTIFICATION_KINDS: NotificationKind[] = [
   "timesheetRejected",
   "requestSubmitted",
   "requestStatusChanged",
+  "assetHandoverIssued",
+  "assetHandoverAccepted",
 ];
 
 /** Emails to the organization's accounting contacts about finance records. */
@@ -59,6 +63,8 @@ export const IN_APP_NOTIFICATION_KINDS: InAppNotificationKind[] = [
   "timesheetRejected",
   "requestSubmitted",
   "requestStatusChanged",
+  "assetHandoverIssued",
+  "assetHandoverAccepted",
 ];
 
 export function isEmailKind(
@@ -83,10 +89,12 @@ export type NotificationParams = {
   requestType?: string;
   /** A `RequestStatus`, rendered per reader locale. */
   requestStatus?: string;
+  /** The equipment on a receipt, as one line. */
+  assetNames?: string;
 };
 
 export type NotificationTopic =
-  "receipts" | "payslips" | "timesheets" | "requests";
+  "receipts" | "payslips" | "timesheets" | "requests" | "assets";
 export type NotificationLocale = "sv-SE" | "en-SE";
 export type NotificationSettings = Record<NotificationTopic, boolean>;
 
@@ -97,6 +105,7 @@ export const NOTIFICATION_TOPICS: NotificationTopic[] = [
   "payslips",
   "timesheets",
   "requests",
+  "assets",
 ];
 
 export const notificationTopic: Record<NotificationKind, NotificationTopic> = {
@@ -108,6 +117,8 @@ export const notificationTopic: Record<NotificationKind, NotificationTopic> = {
   timesheetRejected: "timesheets",
   requestSubmitted: "requests",
   requestStatusChanged: "requests",
+  assetHandoverIssued: "assets",
+  assetHandoverAccepted: "assets",
 };
 
 /** Every notification type is on unless an admin has switched it off. */
@@ -121,6 +132,7 @@ export function notificationSettingsFrom(value: unknown): NotificationSettings {
     payslips: stored.payslips !== false,
     timesheets: stored.timesheets !== false,
     requests: stored.requests !== false,
+    assets: stored.assets !== false,
   };
 }
 
@@ -142,9 +154,11 @@ export function relevantEmailTopics(user: {
       ? can(user, "documents.receipts.review") || can(user, "my.receipts")
       : topic === "requests"
         ? can(user, "documents.requests.review") || can(user, "my.requests")
-        : topic === "payslips"
-          ? can(user, "my.payslips")
-          : user.reportsTime,
+        : topic === "assets"
+          ? can(user, "assets.manage") || can(user, "my.assets")
+          : topic === "payslips"
+            ? can(user, "my.payslips")
+            : user.reportsTime,
   );
 }
 
@@ -162,6 +176,7 @@ export type NotificationValues = {
   requestTitle?: string;
   requestType?: string;
   requestStatus?: string;
+  assetNames?: string;
 };
 
 export type EmailTemplate = { subject: string; body: string };
@@ -272,6 +287,20 @@ export const defaultEmailTemplates: Record<
         "{{commentLine}}",
       ),
     },
+    assetHandoverIssued: {
+      subject: "Company equipment for you to accept: {{assetNames}}",
+      body: emailBody(
+        "en-SE",
+        "{{personName}} has handed you company equipment: {{assetNames}}. Please open the receipt in the portal, check the details and accept it.",
+      ),
+    },
+    assetHandoverAccepted: {
+      subject: "Equipment receipt accepted: {{assetNames}}",
+      body: emailBody(
+        "en-SE",
+        "{{personName}} has accepted the receipt for {{assetNames}}. The signed receipt is in the portal.",
+      ),
+    },
     accountingTransaction: {
       subject: "{{organizationName}}: {{type}} {{date}}, {{total}}",
       body: accountingBody(
@@ -361,6 +390,20 @@ export const defaultEmailTemplates: Record<
         "{{commentLine}}",
       ),
     },
+    assetHandoverIssued: {
+      subject: "Utrustning att kvittera: {{assetNames}}",
+      body: emailBody(
+        "sv-SE",
+        "{{personName}} har lämnat ut företagsutrustning till dig: {{assetNames}}. Öppna kvittensen i portalen, kontrollera uppgifterna och godkänn den.",
+      ),
+    },
+    assetHandoverAccepted: {
+      subject: "Utrustningskvittens godkänd: {{assetNames}}",
+      body: emailBody(
+        "sv-SE",
+        "{{personName}} har godkänt kvittensen för {{assetNames}}. Den signerade kvittensen finns i portalen.",
+      ),
+    },
     accountingTransaction: {
       subject: "{{organizationName}}: {{type}} {{date}}, {{total}}",
       body: accountingBody(
@@ -438,6 +481,8 @@ export const emailPlaceholders: Record<EmailTemplateKind, string[]> = {
     "requestStatus",
     ...commentPlaceholders,
   ],
+  assetHandoverIssued: [...commonPlaceholders, "personName", "assetNames"],
+  assetHandoverAccepted: [...commonPlaceholders, "personName", "assetNames"],
   accountingTransaction: [
     ...accountingPlaceholders,
     "type",
@@ -538,6 +583,7 @@ export function notificationValuesFor(
       ? (requestStatusLabels[locale][params.requestStatus] ??
         params.requestStatus)
       : undefined,
+    assetNames: params.assetNames,
   };
 }
 

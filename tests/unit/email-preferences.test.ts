@@ -13,6 +13,7 @@ describe("email preferences", () => {
       payslips: true,
       timesheets: true,
       requests: true,
+      assets: true,
     });
     expect(emailPreferencesFrom({ receipts: false }).receipts).toBe(false);
   });
@@ -23,19 +24,19 @@ describe("email preferences", () => {
         reportsTime: false,
         permissions: rolePermissions("accountant"),
       }),
-    ).toEqual(["receipts", "requests"]);
+    ).toEqual(["receipts", "requests", "assets"]);
     expect(
       relevantEmailTopics({
         reportsTime: true,
         permissions: rolePermissions("consultant"),
       }),
-    ).toEqual(["receipts", "payslips", "timesheets", "requests"]);
+    ).toEqual(["receipts", "payslips", "timesheets", "requests", "assets"]);
     expect(
       relevantEmailTopics({
         reportsTime: false,
         permissions: rolePermissions("manager"),
       }),
-    ).toEqual(["requests"]);
+    ).toEqual(["requests", "assets"]);
   });
 
   it("requires a choice for every type and nothing for reminders", () => {

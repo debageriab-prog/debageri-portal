@@ -58,3 +58,7 @@ Accepted. Personnummer, address and tax details are needed for payslips and tax 
 ## 014: Requests follow the receipt review pattern
 
 Accepted. Requests for equipment, education, seminars and travel are their own server-only collection, with a status table in `src/domain/requests.ts` that only trusted code applies (see 008). Each request type has its own permission, so access can be given per type. A finalized request is not posted to the ledger by itself. A reviewer with ledger access turns it into an ordinary expense, as receipts do, so finance stays the only writer of transactions.
+
+## 015: Equipment receipts are accepted in the portal
+
+Accepted. When company equipment is handed to someone, the recipient accepts the receipt in the portal instead of signing paper. Acceptance is only possible for the signed-in recipient, after ticking a confirmation and giving the place. The time, place and language are recorded in a server-only `assetHandovers` document, and the signed PDF is generated once and stored so it never changes. The receipt keeps a snapshot of the equipment and company details from when it was issued. A hand-signed scan can be added when a paper signature is also needed. Personnummer is not copied onto the receipt; it is read from `payrollProfiles` when the PDF is made, only if the issuer chose to print it (see 013). As with requests (see 014), buying or selling equipment never posts to the ledger by itself; someone with ledger access turns it into an ordinary transaction.

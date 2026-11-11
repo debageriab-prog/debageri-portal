@@ -136,6 +136,7 @@ export function EmployeeEditor({
       payslips: true,
       timesheets: true,
       requests: true,
+      assets: true,
     },
   );
   const [language, setLanguage] = useState<Locale>(

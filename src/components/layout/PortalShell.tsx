@@ -26,6 +26,7 @@ type NavIconName =
   | "finance"
   | "documents"
   | "requests"
+  | "assets"
   | "bell"
   | "settings"
   | "admin";
@@ -68,6 +69,12 @@ function NavIcon({ name }: { name: NavIconName }) {
       <>
         <path d="M5.5 4.5h13v10h-7l-4 3.5v-3.5h-2z" />
         <path d="M9 8.5h6M9 11.5h4" />
+      </>
+    ),
+    assets: (
+      <>
+        <path d="M4.5 5.5h15v10h-15z" />
+        <path d="M9.5 19h5M12 15.5V19" />
       </>
     ),
     bell: (
@@ -212,6 +219,20 @@ function requestItems(user: PortalUser, t: Translate): NavItem[] {
   ];
 }
 
+function assetItems(user: PortalUser, t: Translate): NavItem[] {
+  return [
+    ...(can(user, "assets.view")
+      ? [
+          { label: t("assetRegister"), href: "/assets" },
+          { label: t("handovers"), href: "/assets/handovers" },
+        ]
+      : []),
+    ...(can(user, "my.assets")
+      ? [{ label: t("myAssets"), href: "/assets/mine" }]
+      : []),
+  ];
+}
+
 function receiptItems(user: PortalUser, t: Translate): NavItem[] {
   const reviews = can(user, "documents.receipts.review");
   return [
@@ -291,6 +312,12 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
       label: t("requests"),
       icon: "requests",
       items: [...requestItems(user, t), ...receiptItems(user, t)],
+    },
+    {
+      id: "assets",
+      label: t("assets"),
+      icon: "assets",
+      items: assetItems(user, t),
     },
     {
       id: "admin",

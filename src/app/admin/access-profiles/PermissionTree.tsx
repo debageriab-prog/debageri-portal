@@ -20,6 +20,8 @@ const tips: Partial<Record<PermissionKey, MessageKey>> = {
   "finance.overview.export": "permissionTip_financeExport",
   "my.finance.export": "permissionTip_financeExport",
   "documents.requests.book": "permissionTip_requestsBook",
+  "my.assets": "permissionTip_myAssets",
+  "assets.manage": "permissionTip_assetsManage",
 };
 
 export const permissionLabel = (key: PermissionKey) =>

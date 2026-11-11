@@ -22,6 +22,7 @@ export const emailPreferencesSchema = z.object({
   payslips: z.boolean(),
   timesheets: z.boolean(),
   requests: z.boolean().default(true),
+  assets: z.boolean().default(true),
 });
 
 export const localeSchema = z.enum(supportedLocales);

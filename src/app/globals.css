@@ -4508,3 +4508,83 @@ td.amount-cell {
     grid-template-columns: 1fr;
   }
 }
+
+/* Assets: equipment register and receipts */
+.asset-actions {
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+
+.handover-paper {
+  position: relative;
+  display: grid;
+  gap: 14px;
+}
+
+.handover-paper h2 {
+  margin: 0;
+  text-align: center;
+}
+
+.handover-paper h3 {
+  margin: 8px 0 0;
+}
+
+.handover-paper p {
+  margin: 0;
+}
+
+.handover-paper-status {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.handover-fields {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.handover-fields > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.handover-fields dt {
+  font-weight: 600;
+}
+
+.handover-fields dt::after {
+  content: ":";
+}
+
+.handover-fields dd {
+  margin: 0;
+}
+
+.handover-terms {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.handover-accept {
+  display: grid;
+  gap: 14px;
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.handover-manage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+
+.handover-personal-number {
+  align-self: end;
+}

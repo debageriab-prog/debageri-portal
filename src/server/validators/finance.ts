@@ -261,6 +261,9 @@ export const transactionSchema = z.object({
   receiptId: z.string().min(1).max(128).nullable().default(null),
   requestId: z.string().min(1).max(128).nullable().default(null),
   incomingEmailId: z.string().min(1).max(128).nullable().default(null),
+  /** Equipment whose purchase or sale this transaction books. */
+  assetId: z.string().min(1).max(128).nullable().default(null),
+  assetLink: z.enum(["purchase", "sale"]).nullable().default(null),
 });
 
 export const updateTransactionSchema = z.object({
