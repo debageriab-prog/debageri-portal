@@ -32,7 +32,7 @@ export function HandoverForm({
   const [error, setError] = useState("");
   const backHref = selected
     ? `/assets/${encodeURIComponent(selected)}`
-    : "/assets/handovers";
+    : "/assets";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

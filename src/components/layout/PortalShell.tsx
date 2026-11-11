@@ -222,10 +222,7 @@ function requestItems(user: PortalUser, t: Translate): NavItem[] {
 function assetItems(user: PortalUser, t: Translate): NavItem[] {
   return [
     ...(can(user, "assets.view")
-      ? [
-          { label: t("assetRegister"), href: "/assets" },
-          { label: t("handovers"), href: "/assets/handovers" },
-        ]
+      ? [{ label: t("assetRegister"), href: "/assets" }]
       : []),
     ...(can(user, "my.assets")
       ? [{ label: t("myAssets"), href: "/assets/mine" }]

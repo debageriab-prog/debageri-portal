@@ -31,6 +31,8 @@ import {
 } from "./AssetParts";
 import {
   assetFileUrl,
+  handoverPdfUrl,
+  handoverScanUrl,
   type AssetEventItem,
   type AssetItem,
   type HandoverItem,
@@ -202,8 +204,17 @@ export function AssetDetail({
             </DetailSection>
           )}
         </DetailSections>
-        {asset.files.length > 0 && (
-          <DetailSection title={t("assetFiles")} count={asset.files.length}>
+        <DetailSection
+          title={t("assetFiles")}
+          count={
+            asset.files.length +
+            handovers.length +
+            handovers.filter((handover) => handover.scan).length
+          }
+        >
+          {asset.files.length + handovers.length === 0 ? (
+            <p className="muted">{t("assetDocumentsEmpty")}</p>
+          ) : (
             <DetailFiles>
               {asset.files.map((file) => (
                 <DetailFile
@@ -221,25 +232,59 @@ export function AssetDetail({
                   />
                 </DetailFile>
               ))}
-            </DetailFiles>
-          </DetailSection>
-        )}
-        {handovers.length > 0 && (
-          <DetailSection title={t("handovers")} count={handovers.length}>
-            <ol className="request-history">
-              {handovers.map((handover) => (
-                <li key={handover.id}>
-                  <HandoverStatusBadge status={handover.status} />
-                  <Link
-                    href={`/assets/handovers/${encodeURIComponent(handover.id)}`}
+              {handovers.flatMap((handover) => {
+                const name = t("assetHandoverDocument")
+                  .replace("{name}", handover.recipientName)
+                  .replace("{date}", handover.issuedOn);
+                return [
+                  <DetailFile
+                    key={handover.id}
+                    name={name}
+                    contentType="application/pdf"
                   >
-                    {handover.issuedOn} · {handover.recipientName}
-                  </Link>
-                </li>
-              ))}
-            </ol>
-          </DetailSection>
-        )}
+                    <HandoverStatusBadge status={handover.status} />
+                    <Link
+                      className="table-action icon-action"
+                      aria-label={t("handoverOpen")}
+                      title={t("handoverOpen")}
+                      href={`/assets/handovers/${encodeURIComponent(handover.id)}`}
+                    >
+                      <span aria-hidden="true">i</span>
+                    </Link>
+                    <FilePreviewAction
+                      target={{
+                        name: `${name}.pdf`,
+                        contentType: "application/pdf",
+                        fileUrl: handoverPdfUrl(handover.id),
+                      }}
+                    />
+                  </DetailFile>,
+                  ...(handover.scan
+                    ? [
+                        <DetailFile
+                          key={`${handover.id}-scan`}
+                          name={t("assetHandoverScanDocument").replace(
+                            "{name}",
+                            handover.scan.name,
+                          )}
+                          contentType={handover.scan.contentType}
+                          size={handover.scan.size}
+                        >
+                          <FilePreviewAction
+                            target={{
+                              name: handover.scan.name,
+                              contentType: handover.scan.contentType,
+                              fileUrl: handoverScanUrl(handover.id),
+                            }}
+                          />
+                        </DetailFile>,
+                      ]
+                    : []),
+                ];
+              })}
+            </DetailFiles>
+          )}
+        </DetailSection>
         {history.length > 0 && (
           <DetailSection title={t("assetHistory")}>
             <ol className="request-history">

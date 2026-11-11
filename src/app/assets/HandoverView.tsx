@@ -118,7 +118,13 @@ export function HandoverView({
         <div className="actions">
           <Link
             className="button secondary"
-            href={canViewRegister ? "/assets/handovers" : "/assets/mine"}
+            href={
+              !canViewRegister
+                ? "/assets/mine"
+                : handover.lines.length === 1
+                  ? `/assets/${encodeURIComponent(handover.lines[0]!.assetId)}`
+                  : "/assets"
+            }
           >
             {t("back")}
           </Link>
