@@ -7,6 +7,7 @@ import {
   canManageAssets,
   handoverRecipients,
 } from "@/server/services/asset-service";
+import { FormHeader } from "../../FormHeader";
 import { HandoverForm } from "../../HandoverForm";
 import { byName, toAssetItem } from "../../asset-data";
 import type { AssetItem } from "../../asset-types";
@@ -37,15 +38,20 @@ export default async function NewHandoverPage({
     .sort(byName);
   return (
     <>
-      <div className="topbar">
-        <div>
-          <div className="eyebrow">{t("assets")}</div>
-          <h1>{t("handoverNew")}</h1>
-          <p className="muted page-description">
-            {t("handoverNewDescription")}
-          </p>
-        </div>
-      </div>
+      <FormHeader
+        backHref={
+          assetId && assets.some((asset) => asset.id === assetId)
+            ? `/assets/${encodeURIComponent(assetId)}`
+            : "/assets"
+        }
+        backLabel={t(
+          assetId && assets.some((asset) => asset.id === assetId)
+            ? "assetBackToAsset"
+            : "assetBackToRegister",
+        )}
+        title={t("handoverNew")}
+        description={t("handoverNewDescription")}
+      />
       <HandoverForm
         assets={assets}
         recipients={recipients}

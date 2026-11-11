@@ -30,8 +30,17 @@ export const assetFormSchema = z.object({
     .refine((value) =>
       (REQUEST_VAT_RATES_BPS as readonly number[]).includes(value),
     ),
-  /** Where new equipment is kept; only used when it is created. */
-  location: text(120),
+  /**
+   * Who uses a new asset: empty for the company, or a user id, who is
+   * then asked to accept a receipt. Only used when it is created.
+   */
+  inUseBy: z.string().max(128).default(""),
+  /** The expense that bought it, when created from one. */
+  purchaseTransactionId: z
+    .string()
+    .max(128)
+    .default("")
+    .transform((value) => value || null),
   notes: text(2_000),
   /** Ids of files already on the asset that should be kept (edit only). */
   keepFileIds: z.array(z.string().min(1).max(64)).max(20).default([]),
@@ -51,7 +60,8 @@ export function parseAssetForm(form: FormData) {
     purchaseDate: form.get("purchaseDate") ?? "",
     purchasePriceMinor: form.get("purchasePriceMinor") ?? 0,
     vatRateBps: form.get("vatRateBps") ?? 2_500,
-    location: form.get("location") ?? "",
+    inUseBy: form.get("inUseBy") ?? "",
+    purchaseTransactionId: form.get("purchaseTransactionId") ?? "",
     notes: form.get("notes") ?? "",
     keepFileIds: form.getAll("keepFileIds").map(String),
   });

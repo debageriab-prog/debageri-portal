@@ -3,6 +3,7 @@ import { canSell } from "@/domain/assets";
 import { getTranslator } from "@/lib/localization/server";
 import { byName } from "../../asset-data";
 import { AssetActionForm } from "../../AssetActionForm";
+import { FormHeader } from "../../FormHeader";
 import { loadAssetPage } from "../../load-asset";
 
 export default async function SellAssetPage({
@@ -22,13 +23,12 @@ export default async function SellAssetPage({
   ]);
   return (
     <>
-      <div className="topbar">
-        <div>
-          <div className="eyebrow">{asset.name}</div>
-          <h1>{t("assetSell")}</h1>
-          <p className="muted page-description">{t("assetSellDescription")}</p>
-        </div>
-      </div>
+      <FormHeader
+        backHref={`/assets/${encodeURIComponent(id)}`}
+        backLabel={t("assetBackToAsset")}
+        title={t("assetSell")}
+        description={t("assetSellDescription")}
+      />
       <AssetActionForm
         asset={asset}
         mode="sell"

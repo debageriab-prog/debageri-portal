@@ -1,3 +1,4 @@
+import { can } from "@/domain/access/permissions";
 import { redirect } from "next/navigation";
 import { expensableReceipt } from "@/server/services/receipt-service";
 import { requestCategoryId } from "@/domain/requests";
@@ -163,6 +164,7 @@ export default async function NewTransactionPage({
       receipt={receipt}
       request={request}
       asset={asset}
+      canCreateAssets={can(actor, "assets.manage")}
       incomingEmail={incomingEmail}
       accountingRecipients={await accountingRecipientsFor(
         actor,

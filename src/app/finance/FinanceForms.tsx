@@ -14,6 +14,7 @@ import {
   MAX_ROUNDING_MINOR,
   type TransactionAmountMode,
 } from "@/domain/finance/calculations";
+import { isAssetExpenseCategory } from "@/domain/assets";
 import { InfoTip } from "@/components/ui/InfoTip";
 import {
   consultantServicesDescription,
@@ -198,6 +199,8 @@ function useFinanceSubmit(
     entityType: AccountingEntityType;
     recipients: string[];
   },
+  /** Runs after a save instead of leaving, and leaves with `proceed`. */
+  afterSave?: (result: { id?: string }, proceed: () => void) => void,
 ) {
   const { t } = useLocale();
   const router = useRouter();
@@ -272,12 +275,15 @@ function useFinanceSubmit(
           return;
         }
       }
-      prompt.offer(attachment?.entityId ?? result.id, () => {
+      const leave = () => {
         router.push(
           typeof successPath === "string" ? successPath : successPath(result),
         );
         router.refresh();
-      });
+      };
+      prompt.offer(attachment?.entityId ?? result.id, () =>
+        afterSave ? afterSave(result, leave) : leave(),
+      );
     } catch {
       if (createdInvoiceId) {
         router.push(
@@ -1838,6 +1844,7 @@ export function TransactionForm({
   incomingEmail,
   accountingRecipients = [],
   aiEnabled = false,
+  canCreateAssets = false,
 }: {
   users: User[];
   categories: Category[];
@@ -1849,6 +1856,8 @@ export function TransactionForm({
   request?: ExpenseRequest;
   /** Equipment whose purchase or sale fills the form. */
   asset?: TransactionAsset;
+  /** Offers to register an asset after an equipment expense is saved. */
+  canCreateAssets?: boolean;
   /** A forwarded email whose AI reading and files fill the form. */
   incomingEmail?: IncomingEmailSource;
   aiEnabled?: boolean;
@@ -1856,6 +1865,7 @@ export function TransactionForm({
   accountingRecipients?: string[];
 }) {
   const { t, locale } = useLocale();
+  const router = useRouter();
   const receiptConsultant = receipt
     ? users.find((user) => user.id === receipt.userId)
     : undefined;
@@ -1971,9 +1981,27 @@ export function TransactionForm({
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
     [],
   );
+  const [assetOffer, setAssetOffer] = useState<{
+    transactionId: string;
+    proceed: () => void;
+  } | null>(null);
   const { busy, error, submit, accountingDialog } = useFinanceSubmit(
     returnHref,
     { entityType: "transaction", recipients: accountingRecipients },
+    (result, proceed) => {
+      // A new equipment expense may be the purchase of an asset.
+      const offer =
+        canCreateAssets &&
+        !transaction &&
+        !asset &&
+        direction === "expense" &&
+        result.id &&
+        isAssetExpenseCategory(
+          categories.find((category) => category.id === categoryId),
+        );
+      if (offer) setAssetOffer({ transactionId: result.id!, proceed });
+      else proceed();
+    },
   );
   const [receiptFileError, setReceiptFileError] = useState(false);
   const [requestFilesFailed, setRequestFilesFailed] = useState(false);
@@ -2736,6 +2764,64 @@ export function TransactionForm({
         </div>
         {error && <p className="form-wide notice notice-error">{error}</p>}
         {accountingDialog}
+        {assetOffer && (
+          <div className="modal-backdrop" role="presentation">
+            <section
+              className="modal modal-small"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="transaction-asset-offer-title"
+              aria-describedby="transaction-asset-offer-description"
+            >
+              <header className="modal-header">
+                <div>
+                  <h2 id="transaction-asset-offer-title">
+                    {t("assetOfferTitle")}
+                  </h2>
+                  <p id="transaction-asset-offer-description">
+                    {t("assetOfferQuestion")}
+                  </p>
+                </div>
+                <button
+                  className="modal-close"
+                  type="button"
+                  aria-label={t("close")}
+                  onClick={() => {
+                    const { proceed } = assetOffer;
+                    setAssetOffer(null);
+                    proceed();
+                  }}
+                >
+                  ×
+                </button>
+              </header>
+              <footer className="modal-actions">
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => {
+                    const { proceed } = assetOffer;
+                    setAssetOffer(null);
+                    proceed();
+                  }}
+                >
+                  {t("assetOfferSkip")}
+                </button>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    router.push(
+                      `/assets/new?transactionId=${encodeURIComponent(assetOffer.transactionId)}`,
+                    );
+                  }}
+                >
+                  {t("assetCreate")}
+                </button>
+              </footer>
+            </section>
+          </div>
+        )}
         {pendingVatMismatch && (
           <div className="modal-backdrop" role="presentation">
             <section

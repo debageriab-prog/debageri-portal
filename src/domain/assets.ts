@@ -268,3 +268,29 @@ export const activePurchaseValueMinor = (
   assets
     .filter((asset) => asset.status === "active")
     .reduce((sum, asset) => sum + asset.purchasePriceMinor, 0);
+
+/** Expense categories that buy an asset, matched on code or name. */
+export const ASSET_EXPENSE_CATEGORY_WORDS = ["equipment", "utrustning"];
+
+export function isAssetExpenseCategory(
+  category:
+    | {
+        code: string;
+        name: { en: string; sv: string };
+        direction: "income" | "expense";
+      }
+    | undefined,
+) {
+  if (!category || category.direction !== "expense") return false;
+  return [category.code, category.name.en, category.name.sv]
+    .map((text) =>
+      String(text ?? "")
+        .trim()
+        .toLowerCase(),
+    )
+    .some((text) =>
+      ASSET_EXPENSE_CATEGORY_WORDS.some(
+        (word) => text === word || text.split(/[^\p{L}]+/u).includes(word),
+      ),
+    );
+}

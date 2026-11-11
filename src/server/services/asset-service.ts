@@ -299,6 +299,87 @@ function assetFields(input: AssetFormInput) {
   };
 }
 
+/**
+ * An expense an asset can be created from: a posted company expense in this
+ * organization that no asset is linked to yet, with its attached files.
+ */
+export async function assetSourceTransaction(
+  db: Firestore,
+  actor: PortalUser,
+  transactionId: string,
+) {
+  if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
+  const [snapshot, linked, attachments] = await Promise.all([
+    db.collection("financialTransactions").doc(transactionId).get(),
+    db
+      .collection("assets")
+      .where("organizationId", "==", actor.organizationId)
+      .where("purchaseTransactionId", "==", transactionId)
+      .limit(1)
+      .get(),
+    db
+      .collection("financeAttachments")
+      .where("organizationId", "==", actor.organizationId)
+      .where("entityType", "==", "transaction")
+      .where("entityId", "==", transactionId)
+      .get(),
+  ]);
+  const data = snapshot.data();
+  if (
+    !data ||
+    data.organizationId !== actor.organizationId ||
+    data.direction !== "expense" ||
+    data.status !== "posted"
+  )
+    throw new AssetError("invalidTransaction", 409);
+  if (!linked.empty) throw new AssetError("transactionLinked", 409);
+  return {
+    id: snapshot.id,
+    date: String(data.date ?? ""),
+    grossMinor: Number(data.grossMinor ?? 0),
+    vatRateBps: Number(data.vatRateBps ?? 2_500),
+    description: String(data.visibleDescription || data.internalNote || ""),
+    files: attachments.docs
+      .map((doc) => ({
+        id: doc.id,
+        name: String(doc.data().name),
+        contentType: String(doc.data().contentType),
+        size: Number(doc.data().size ?? 0),
+        storagePath: String(doc.data().storagePath),
+      }))
+      .filter((file) => isAssetContentType(file.contentType)),
+  };
+}
+
+/** Copies an expense's files to the asset, as its own documents. */
+async function copyFiles(
+  storage: Storage,
+  actor: PortalUser,
+  assetId: string,
+  files: StoredAssetFile[],
+) {
+  const copied: StoredAssetFile[] = [];
+  try {
+    for (const file of files) {
+      const id = randomUUID();
+      const storagePath = `organizations/${actor.organizationId}/assets/${assetId}/${id}`;
+      await storage
+        .bucket()
+        .file(file.storagePath)
+        .copy(storage.bucket().file(storagePath));
+      copied.push({ ...file, id, storagePath });
+    }
+  } catch (error) {
+    await removeFiles(storage, copied);
+    throw error;
+  }
+  return copied;
+}
+
+/**
+ * Registers an asset with the company. When someone is chosen to use it, a
+ * receipt is issued for them to accept, and its id is returned too.
+ */
 export async function createAsset(
   db: Firestore,
   storage: Storage,
@@ -307,42 +388,76 @@ export async function createAsset(
   files: File[],
 ) {
   if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
-  if (files.length > ASSET_MAX_FILES) throw new AssetError("assetTooManyFiles");
   checkFiles(files);
+  if (
+    input.inUseBy &&
+    !(await handoverRecipients(db, actor.organizationId)).some(
+      (person) => person.id === input.inUseBy,
+    )
+  )
+    throw new AssetError("invalidRecipient");
+  const source = input.purchaseTransactionId
+    ? await assetSourceTransaction(db, actor, input.purchaseTransactionId)
+    : null;
+  const fromExpense = (source?.files ?? []).slice(0, ASSET_MAX_FILES);
+  if (fromExpense.length + files.length > ASSET_MAX_FILES)
+    throw new AssetError("assetTooManyFiles");
   const ref = db.collection("assets").doc();
-  const uploaded = await uploadFiles(storage, actor, ref.id, files);
-  const holder: AssetHolder = { ...COMPANY_HOLDER, location: input.location };
+  const uploaded = [
+    ...(await copyFiles(storage, actor, ref.id, fromExpense)),
+    ...(await uploadFiles(storage, actor, ref.id, files)),
+  ];
+  const holder: AssetHolder = { ...COMPANY_HOLDER };
   try {
-    const batch = db.batch();
-    batch.create(ref, {
-      organizationId: actor.organizationId,
-      ...assetFields(input),
-      files: uploaded,
-      status: "active",
-      holder,
-      activeHandoverId: null,
-      handoverStatus: null,
-      purchaseTransactionId: null,
-      sale: null,
-      saleTransactionId: null,
-      retirement: null,
-      createdAt: FieldValue.serverTimestamp(),
-      createdBy: actor.id,
-      updatedAt: FieldValue.serverTimestamp(),
+    await db.runTransaction(async (transaction) => {
+      if (source) {
+        const linked = await transaction.get(
+          db
+            .collection("assets")
+            .where("organizationId", "==", actor.organizationId)
+            .where("purchaseTransactionId", "==", source.id)
+            .limit(1),
+        );
+        if (!linked.empty) throw new AssetError("transactionLinked", 409);
+      }
+      transaction.create(ref, {
+        organizationId: actor.organizationId,
+        ...assetFields(input),
+        files: uploaded,
+        status: "active",
+        holder,
+        activeHandoverId: null,
+        handoverStatus: null,
+        purchaseTransactionId: source?.id ?? null,
+        sale: null,
+        saleTransactionId: null,
+        retirement: null,
+        createdAt: FieldValue.serverTimestamp(),
+        createdBy: actor.id,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      addEvent(db, transaction, actor, ref.id, "created", { holder });
+      if (source) addEvent(db, transaction, actor, ref.id, "purchaseBooked");
+      transaction.create(
+        db.collection("auditLogs").doc(),
+        auditEntry(actor, "asset.created", "asset", ref.id, {
+          name: input.name,
+          purchaseTransactionId: source?.id ?? null,
+        }),
+      );
     });
-    addEvent(db, batch, actor, ref.id, "created", { holder });
-    batch.create(
-      db.collection("auditLogs").doc(),
-      auditEntry(actor, "asset.created", "asset", ref.id, {
-        name: input.name,
-      }),
-    );
-    await batch.commit();
   } catch (error) {
     await removeFiles(storage, uploaded);
     throw error;
   }
-  return ref.id;
+  const handoverId = input.inUseBy
+    ? await issueHandover(db, actor, {
+        recipientUserId: input.inUseBy,
+        assetIds: [ref.id],
+        includePersonalNumber: false,
+      })
+    : null;
+  return { id: ref.id, handoverId };
 }
 
 export async function updateAsset(

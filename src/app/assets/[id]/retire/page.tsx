@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { canRetire } from "@/domain/assets";
 import { getTranslator } from "@/lib/localization/server";
 import { AssetActionForm } from "../../AssetActionForm";
+import { FormHeader } from "../../FormHeader";
 import { loadAssetPage } from "../../load-asset";
 
 export default async function RetireAssetPage({
@@ -15,15 +16,12 @@ export default async function RetireAssetPage({
   const t = await getTranslator();
   return (
     <>
-      <div className="topbar">
-        <div>
-          <div className="eyebrow">{asset.name}</div>
-          <h1>{t("assetRetire")}</h1>
-          <p className="muted page-description">
-            {t("assetRetireDescription")}
-          </p>
-        </div>
-      </div>
+      <FormHeader
+        backHref={`/assets/${encodeURIComponent(id)}`}
+        backLabel={t("assetBackToAsset")}
+        title={t("assetRetire")}
+        description={t("assetRetireDescription")}
+      />
       <AssetActionForm asset={asset} mode="retire" />
     </>
   );

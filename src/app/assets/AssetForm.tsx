@@ -37,6 +37,8 @@ export const assetErrors: Record<string, MessageKey> = {
   invalidRecipient: "assetError_invalidRecipient",
   invalidBuyer: "assetError_invalidBuyer",
   invalidTransition: "assetError_invalidTransition",
+  invalidTransaction: "assetError_invalidTransaction",
+  transactionLinked: "assetError_transactionLinked",
 };
 
 /** The message for an API error code, or the general one. */
@@ -44,7 +46,27 @@ export function assetErrorKey(code: string | undefined): MessageKey {
   return assetErrors[code ?? ""] ?? "assetError_saveFailed";
 }
 
-export function AssetForm({ asset }: { asset?: AssetItem }) {
+/** An expense the new asset is created from, filling the purchase details. */
+export type AssetSource = {
+  id: string;
+  date: string;
+  grossMinor: number;
+  vatRateBps: number;
+  description: string;
+  fileNames: string[];
+};
+
+export function AssetForm({
+  asset,
+  people = [],
+  source,
+}: {
+  /** The asset being edited; a new asset when left out. */
+  asset?: AssetItem;
+  /** Who can be chosen under In use by, for a new asset. */
+  people?: { id: string; name: string }[];
+  source?: AssetSource;
+}) {
   const { t } = useLocale();
   const router = useRouter();
   const [category, setCategory] = useState<AssetCategory | "">(
@@ -53,16 +75,27 @@ export function AssetForm({ asset }: { asset?: AssetItem }) {
   const [price, setPrice] = useState(
     asset?.purchasePriceMinor
       ? (asset.purchasePriceMinor / 100).toFixed(2)
-      : "",
+      : source?.grossMinor
+        ? (source.grossMinor / 100).toFixed(2)
+        : "",
   );
   const [vatRateBps, setVatRateBps] = useState<number>(
-    asset?.vatRateBps ?? DEFAULT_REQUEST_VAT_RATE_BPS,
+    asset?.vatRateBps ??
+      (source &&
+      (REQUEST_VAT_RATES_BPS as readonly number[]).includes(source.vatRateBps)
+        ? source.vatRateBps
+        : DEFAULT_REQUEST_VAT_RATE_BPS),
   );
   const [kept, setKept] = useState<AssetFileItem[]>(asset?.files ?? []);
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const fileRoom = ASSET_MAX_FILES - kept.length - files.length;
+  const [inUseBy, setInUseBy] = useState("");
+  const fileRoom =
+    ASSET_MAX_FILES -
+    kept.length -
+    files.length -
+    (source?.fileNames.length ?? 0);
   const backHref = asset
     ? `/assets/${encodeURIComponent(asset.id)}`
     : "/assets";
@@ -97,13 +130,14 @@ export function AssetForm({ asset }: { asset?: AssetItem }) {
       "accessories",
       "supplier",
       "purchaseDate",
-      "location",
       "notes",
     ])
       body.set(field, String(form.get(field) ?? ""));
     body.set("category", category);
     body.set("purchasePriceMinor", String(priceMinor));
     body.set("vatRateBps", String(vatRateBps));
+    if (!asset) body.set("inUseBy", inUseBy);
+    if (source) body.set("purchaseTransactionId", source.id);
     for (const file of kept) body.append("keepFileIds", file.id);
     for (const file of files) body.append("files", file);
     setBusy(true);
@@ -152,7 +186,7 @@ export function AssetForm({ asset }: { asset?: AssetItem }) {
             required
             maxLength={120}
             autoFocus
-            defaultValue={asset?.name}
+            defaultValue={asset?.name ?? source?.description.slice(0, 120)}
             placeholder={t("assetNamePlaceholder")}
           />
         </label>
@@ -217,11 +251,12 @@ export function AssetForm({ asset }: { asset?: AssetItem }) {
           <DateInput
             className="field"
             name="purchaseDate"
-            defaultValue={asset?.purchaseDate ?? ""}
+            defaultValue={asset?.purchaseDate ?? source?.date ?? ""}
           />
         </label>
         <label>
           {t("assetSupplier")}
+          <InfoTip text={t("assetSupplierTip")} />
           <input
             className="field"
             name="supplier"
@@ -258,9 +293,20 @@ export function AssetForm({ asset }: { asset?: AssetItem }) {
         </label>
         {!asset && (
           <label>
-            {t("assetLocation")}
-            <InfoTip text={t("assetLocationTip")} />
-            <input className="field" name="location" maxLength={120} />
+            {t("assetHolder")}
+            <InfoTip text={t("assetInUseByTip")} />
+            <select
+              className="field"
+              value={inUseBy}
+              onChange={(event) => setInUseBy(event.target.value)}
+            >
+              <option value="">{t("assetHolder_company")}</option>
+              {people.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name}
+                </option>
+              ))}
+            </select>
           </label>
         )}
         <label className="form-wide">
@@ -278,6 +324,14 @@ export function AssetForm({ asset }: { asset?: AssetItem }) {
           <legend>
             {t("assetFiles")} <InfoTip text={t("assetFilesTip")} />
           </legend>
+          {source && source.fileNames.length > 0 && (
+            <p className="muted">
+              {t("assetFilesFromExpense").replace(
+                "{files}",
+                source.fileNames.join(", "),
+              )}
+            </p>
+          )}
           {kept.length + files.length > 0 && (
             <ul className="attachment-list pending-attachment-list">
               {kept.map((file) => (

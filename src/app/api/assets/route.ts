@@ -6,6 +6,10 @@ import {
   canManageAssets,
   createAsset,
 } from "@/server/services/asset-service";
+import {
+  notifyAssetHandoverIssued,
+  portalUrlFrom,
+} from "@/server/services/notification-service";
 import { parseAssetForm } from "@/server/validators/assets";
 
 export async function POST(request: Request) {
@@ -21,8 +25,16 @@ export async function POST(request: Request) {
     .filter((file): file is File => file instanceof File && file.size > 0);
   const { db, storage } = getAdminServices();
   try {
-    const id = await createAsset(db, storage, actor, parsed.data, files);
-    return NextResponse.json({ ok: true, id }, { status: 201 });
+    const { id, handoverId } = await createAsset(
+      db,
+      storage,
+      actor,
+      parsed.data,
+      files,
+    );
+    if (handoverId)
+      await notifyAssetHandoverIssued(handoverId, portalUrlFrom(request));
+    return NextResponse.json({ ok: true, id, handoverId }, { status: 201 });
   } catch (error) {
     if (error instanceof AssetError)
       return NextResponse.json({ error: error.code }, { status: error.status });

@@ -13,6 +13,7 @@ import {
   canSell,
   filterAssets,
   handoverLine,
+  isAssetExpenseCategory,
   type AssetState,
 } from "@/domain/assets";
 import { can } from "@/domain/access/permissions";
@@ -175,6 +176,36 @@ describe("asset rules", () => {
   });
 });
 
+describe("equipment expenses", () => {
+  const category = (code: string, en: string, sv: string) => ({
+    code,
+    name: { en, sv },
+    direction: "expense" as const,
+  });
+
+  it("recognises equipment categories by code or name in either language", () => {
+    expect(
+      isAssetExpenseCategory(category("5410", "Equipment", "Utrustning")),
+    ).toBe(true);
+    expect(isAssetExpenseCategory(category("equipment", "", ""))).toBe(true);
+    expect(
+      isAssetExpenseCategory(
+        category("5410", "Office equipment", "Kontorsutrustning"),
+      ),
+    ).toBe(true);
+    expect(isAssetExpenseCategory(category("6200", "Travel", "Resor"))).toBe(
+      false,
+    );
+    expect(
+      isAssetExpenseCategory({
+        ...category("x", "Equipment", "Utrustning"),
+        direction: "income",
+      }),
+    ).toBe(false);
+    expect(isAssetExpenseCategory(undefined)).toBe(false);
+  });
+});
+
 describe("asset permissions", () => {
   it("gives managers and accountants the register and consultants their own", () => {
     for (const role of ["manager", "accountant"] as const) {
@@ -202,6 +233,12 @@ describe("asset validators", () => {
     const parsed = assetFormSchema.parse(form);
     expect(parsed.purchasePriceMinor).toBe(1_299_900);
     expect(parsed.purchaseDate).toBeNull();
+    expect(parsed.inUseBy).toBe("");
+    expect(parsed.purchaseTransactionId).toBeNull();
+    expect(
+      assetFormSchema.parse({ ...form, purchaseTransactionId: "t1" })
+        .purchaseTransactionId,
+    ).toBe("t1");
   });
 
   it("rejects unknown categories, fractions of öre and odd VAT", () => {

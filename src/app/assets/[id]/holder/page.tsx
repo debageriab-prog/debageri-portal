@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { canChangeHolder } from "@/domain/assets";
 import { getTranslator } from "@/lib/localization/server";
 import { AssetActionForm } from "../../AssetActionForm";
+import { FormHeader } from "../../FormHeader";
 import { loadAssetPage } from "../../load-asset";
 
 export default async function AssetHolderPage({
@@ -15,15 +16,12 @@ export default async function AssetHolderPage({
   const t = await getTranslator();
   return (
     <>
-      <div className="topbar">
-        <div>
-          <div className="eyebrow">{asset.name}</div>
-          <h1>{t("assetChangeHolder")}</h1>
-          <p className="muted page-description">
-            {t("assetChangeHolderDescription")}
-          </p>
-        </div>
-      </div>
+      <FormHeader
+        backHref={`/assets/${encodeURIComponent(id)}`}
+        backLabel={t("assetBackToAsset")}
+        title={t("assetChangeHolder")}
+        description={t("assetChangeHolderDescription")}
+      />
       <AssetActionForm asset={asset} mode="holder" />
     </>
   );
