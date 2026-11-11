@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import {
+  canCancelHandover,
   canChangeHolder,
   canDeleteAsset,
   canIssueHandover,
@@ -17,6 +18,9 @@ import {
 import { appCheckFetch } from "@/lib/firebase/client";
 import { assetErrorKey } from "./AssetForm";
 import type { AssetItem } from "./asset-types";
+
+/** What a menu action did, for the notice on the register. */
+export type AssetActionResult = "returned" | "removed" | "cancelled";
 
 /** Room the menu needs below the button before it opens upwards instead. */
 const MENU_HEIGHT = 340;
@@ -33,24 +37,27 @@ export function AssetActionsMenu({
   asset: AssetItem;
   /** Other assets on the same open receipt; they come back with this one. */
   othersOnReceipt: number;
-  onDone: (result: "returned" | "removed") => void;
+  onDone: (result: AssetActionResult) => void;
 }) {
   const { t } = useLocale();
   const router = useRouter();
   const anchorRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<CSSProperties | null>(null);
-  const [returning, setReturning] = useState(false);
+  /** The receipt is closed: given back, or cancelled before it was signed. */
+  const [closing, setClosing] = useState<"return" | "cancel" | null>(null);
   const [removing, setRemoving] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const phrase = t("attachmentDeleteConfirmationPhrase");
   const id = encodeURIComponent(asset.id);
-  const canReturn =
-    asset.activeHandoverId !== null &&
-    asset.handoverStatus !== null &&
-    canReturnHandover({ status: asset.handoverStatus });
+  const receipt =
+    asset.activeHandoverId && asset.handoverStatus
+      ? { id: asset.activeHandoverId, status: asset.handoverStatus }
+      : null;
+  const canReturn = receipt !== null && canReturnHandover(receipt);
+  const canCancel = receipt !== null && canCancelHandover(receipt);
 
   useEffect(() => {
     if (!position) return;
@@ -95,12 +102,12 @@ export function AssetActionsMenu({
     );
   }
 
-  function open(dialog: "return" | "remove") {
+  function open(dialog: "return" | "cancel" | "remove") {
     setPosition(null);
     setError("");
     setConfirmation("");
-    if (dialog === "return") setReturning(true);
-    else setRemoving(true);
+    if (dialog === "remove") setRemoving(true);
+    else setClosing(dialog);
   }
 
   async function send(url: string, init: RequestInit) {
@@ -124,19 +131,23 @@ export function AssetActionsMenu({
     }
   }
 
-  async function returnToCompany() {
-    if (!asset.activeHandoverId) return;
+  async function closeReceipt() {
+    if (!receipt || !closing) return;
     const ok = await send(
-      `/api/assets/handovers/${encodeURIComponent(asset.activeHandoverId)}`,
+      `/api/assets/handovers/${encodeURIComponent(receipt.id)}`,
       {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "return", location: "" }),
+        body: JSON.stringify(
+          closing === "return"
+            ? { action: "return", location: "" }
+            : { action: "cancel" },
+        ),
       },
     );
     if (!ok) return;
-    setReturning(false);
-    onDone("returned");
+    setClosing(null);
+    onDone(closing === "return" ? "returned" : "cancelled");
     router.refresh();
   }
 
@@ -187,6 +198,15 @@ export function AssetActionsMenu({
                   onClick={() => open("return")}
                 >
                   {t("assetReturnToCompany")}
+                </button>
+              )}
+              {canCancel && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => open("cancel")}
+                >
+                  {t("assetCancelReceipt")}
                 </button>
               )}
               {asset.activeHandoverId && (
@@ -292,7 +312,7 @@ export function AssetActionsMenu({
           </div>,
           document.body,
         )}
-      {returning &&
+      {closing &&
         createPortal(
           <div className="modal-backdrop" role="presentation">
             <section
@@ -304,20 +324,26 @@ export function AssetActionsMenu({
               <header className="modal-header">
                 <div>
                   <h2 id={`asset-return-title-${asset.id}`}>
-                    {t("assetReturnTitle")}
+                    {t(
+                      closing === "return"
+                        ? "assetReturnTitle"
+                        : "assetCancelReceiptTitle",
+                    )}
                   </h2>
                   <p>
-                    {t("assetReturnQuestion").replace(
-                      "{name}",
-                      asset.holder.name,
-                    )}
+                    {t(
+                      closing === "return"
+                        ? "assetReturnQuestion"
+                        : "assetCancelReceiptQuestion",
+                    ).replace("{name}", asset.holder.name)}
                   </p>
                   {othersOnReceipt > 0 && (
                     <p>
-                      {t("assetReturnOthers").replace(
-                        "{count}",
-                        String(othersOnReceipt),
-                      )}
+                      {t(
+                        closing === "return"
+                          ? "assetReturnOthers"
+                          : "assetCancelReceiptOthers",
+                      ).replace("{count}", String(othersOnReceipt))}
                     </p>
                   )}
                 </div>
@@ -325,7 +351,7 @@ export function AssetActionsMenu({
                   className="modal-close"
                   type="button"
                   aria-label={t("close")}
-                  onClick={() => setReturning(false)}
+                  onClick={() => setClosing(null)}
                 >
                   ×
                 </button>
@@ -339,17 +365,23 @@ export function AssetActionsMenu({
                 <button
                   type="button"
                   className="button secondary"
-                  onClick={() => setReturning(false)}
+                  onClick={() => setClosing(null)}
                 >
-                  {t("cancel")}
+                  {t(closing === "cancel" ? "close" : "cancel")}
                 </button>
                 <button
                   type="button"
                   className="button"
                   disabled={busy}
-                  onClick={() => void returnToCompany()}
+                  onClick={() => void closeReceipt()}
                 >
-                  {busy ? t("saving") : t("assetReturnToCompany")}
+                  {busy
+                    ? t("saving")
+                    : t(
+                        closing === "return"
+                          ? "assetReturnToCompany"
+                          : "assetCancelReceipt",
+                      )}
                 </button>
               </footer>
             </section>

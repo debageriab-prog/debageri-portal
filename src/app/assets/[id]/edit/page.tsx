@@ -15,7 +15,7 @@ export default async function EditAssetPage({
 }) {
   const { id } = await params;
   const { asset } = await loadAssetPage(id, true);
-  if (!canEditAsset(asset)) redirect(`/assets/${encodeURIComponent(id)}`);
+  if (!canEditAsset(asset)) redirect("/assets");
   const actor = (await verifySession())!;
   const [t, aiEnabled] = await Promise.all([
     getTranslator(),
@@ -28,8 +28,8 @@ export default async function EditAssetPage({
   return (
     <>
       <FormHeader
-        backHref={`/assets/${encodeURIComponent(id)}`}
-        backLabel={t("assetBackToAsset")}
+        backHref="/assets"
+        backLabel={t("assetBackToRegister")}
         title={t("assetEdit")}
         description={asset.name}
       />

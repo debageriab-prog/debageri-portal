@@ -13,7 +13,7 @@ export default async function SellAssetPage({
 }) {
   const { id } = await params;
   const { actor, db, asset } = await loadAssetPage(id, true);
-  if (!canSell(asset)) redirect(`/assets/${encodeURIComponent(id)}`);
+  if (!canSell(asset)) redirect("/assets");
   const [t, users] = await Promise.all([
     getTranslator(),
     db
@@ -24,8 +24,8 @@ export default async function SellAssetPage({
   return (
     <>
       <FormHeader
-        backHref={`/assets/${encodeURIComponent(id)}`}
-        backLabel={t("assetBackToAsset")}
+        backHref="/assets"
+        backLabel={t("assetBackToRegister")}
         title={t("assetSell")}
         description={t("assetSellDescription")}
       />

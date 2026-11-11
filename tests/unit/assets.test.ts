@@ -13,6 +13,7 @@ import {
   canReturnHandover,
   canSell,
   filterAssets,
+  assetDisplayStatus,
   assetPartsFrom,
   assetPriceMinor,
   handoverLines,
@@ -196,6 +197,7 @@ describe("asset rules", () => {
       category: "phone" as const,
       parts: assetPartsFrom({ name: "Phone", make: "Google", model: "Pixel" }),
       purchasePriceMinor: 100_00,
+      handoverStatus: null,
     };
     const assets = [
       {
@@ -220,9 +222,31 @@ describe("asset rules", () => {
       filterAssets(assets, { ...all, search: "erik" } as never)[0]?.name,
     ).toBe("Drive");
     expect(
-      filterAssets(assets, { ...all, status: "active" } as never),
+      filterAssets(assets, { ...all, status: "handedOver" } as never),
+    ).toHaveLength(1);
+    expect(
+      filterAssets(assets, { ...all, status: "sold" } as never),
     ).toHaveLength(1);
     expect(activePurchaseValueMinor(assets)).toBe(100_00);
+  });
+});
+
+describe("display status", () => {
+  const company = assetHolderFrom({ type: "company" });
+  const anna = assetHolderFrom({ type: "user", userId: "u1", name: "Anna" });
+  it("says where the asset stands", () => {
+    const of = (
+      status: "active" | "sold",
+      handoverStatus: "pending" | "accepted" | null,
+      holder = company,
+    ) => assetDisplayStatus({ status, handoverStatus, holder });
+    expect(of("active", null)).toBe("available");
+    expect(of("active", "pending", anna)).toBe("awaitingSignature");
+    expect(of("active", "accepted", anna)).toBe("handedOver");
+    expect(
+      of("active", null, assetHolderFrom({ type: "external", name: "Erik" })),
+    ).toBe("outside");
+    expect(of("sold", null, anna)).toBe("sold");
   });
 });
 

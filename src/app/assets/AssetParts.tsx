@@ -1,7 +1,13 @@
 "use client";
 
 import { useLocale } from "@/components/localization/LocaleProvider";
-import type { AssetHolder, AssetStatus, HandoverStatus } from "@/domain/assets";
+import {
+  assetDisplayStatus,
+  type AssetDisplayStatus,
+  type AssetHolder,
+  type AssetStatus,
+  type HandoverStatus,
+} from "@/domain/assets";
 
 const statusClass: Record<AssetStatus, string> = {
   active: " status-active",
@@ -22,6 +28,31 @@ export function AssetStatusBadge({ status }: { status: AssetStatus }) {
   return (
     <span className={`status${statusClass[status]}`}>
       {t(`assetStatus_${status}`)}
+    </span>
+  );
+}
+
+const displayClass: Record<AssetDisplayStatus, string> = {
+  available: " status-active",
+  awaitingSignature: " status-changes",
+  handedOver: " status-approved",
+  outside: " status-vacation",
+  sold: " status-inactive",
+  disposed: " status-inactive",
+  lost: " status-rejected",
+};
+
+/** Where the asset stands: available, waiting for signature, sold and so on. */
+export function AssetDisplayStatusBadge({
+  asset,
+}: {
+  asset: Parameters<typeof assetDisplayStatus>[0];
+}) {
+  const { t } = useLocale();
+  const status = assetDisplayStatus(asset);
+  return (
+    <span className={`status${displayClass[status]}`}>
+      {t(`assetDisplayStatus_${status}`)}
     </span>
   );
 }

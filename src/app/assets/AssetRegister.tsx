@@ -1,33 +1,63 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import {
   partsSummary,
   activePurchaseValueMinor,
   ASSET_CATEGORIES,
-  ASSET_STATUSES,
+  ASSET_DISPLAY_STATUSES,
   canEditAsset,
   filterAssets,
   type AssetCategory,
-  type AssetStatus,
+  type AssetDisplayStatus,
 } from "@/domain/assets";
 import { formatSek } from "@/domain/finance/calculations";
-import { AssetActionsMenu } from "./AssetActionsMenu";
-import { AssetStatusBadge, AssetTopbar, useHolderLabel } from "./AssetParts";
+import { AssetActionsMenu, type AssetActionResult } from "./AssetActionsMenu";
+import { AssetDetailModal } from "./AssetDetailModal";
+import {
+  AssetDisplayStatusBadge,
+  AssetTopbar,
+  useHolderLabel,
+} from "./AssetParts";
 import type { AssetItem } from "./asset-types";
+
+/** What just happened on another page, shown as a notice on arrival. */
+export type RegisterNotice = "saved" | "issued";
+
+const noticeKey = {
+  saved: "assetSaved",
+  issued: "handoverIssued",
+  returned: "assetReturnedToCompany",
+  removed: "assetRemoved",
+  cancelled: "assetReceiptCancelled",
+} as const;
 
 export function AssetRegister({
   assets,
   canManage,
+  openAssetId,
+  notice,
 }: {
   assets: AssetItem[];
   canManage: boolean;
+  /** The asset whose details popup opens on arrival. */
+  openAssetId: string | null;
+  notice: RegisterNotice | null;
 }) {
   const { t, locale } = useLocale();
-  const [done, setDone] = useState<"returned" | "removed" | null>(null);
+  const router = useRouter();
+  const [done, setDone] = useState<RegisterNotice | AssetActionResult | null>(
+    notice,
+  );
+  const [viewing, setViewing] = useState<string | null>(openAssetId);
+  const closeDetails = useCallback(() => {
+    setViewing(null);
+    if (openAssetId) router.replace("/assets", { scroll: false });
+  }, [openAssetId, router]);
   const othersOnReceipt = (asset: AssetItem) =>
     asset.activeHandoverId
       ? assets.filter(
@@ -37,7 +67,7 @@ export function AssetRegister({
         ).length
       : 0;
   const holderLabel = useHolderLabel();
-  const [status, setStatus] = useState<AssetStatus | "all">("active");
+  const [status, setStatus] = useState<AssetDisplayStatus | "all">("all");
   const [category, setCategory] = useState<AssetCategory | "all">("all");
   const [holder, setHolder] = useState("all");
   const [search, setSearch] = useState("");
@@ -73,7 +103,7 @@ export function AssetRegister({
       </AssetTopbar>
       {done && (
         <p className="notice notice-success" role="status">
-          {t(done === "removed" ? "assetRemoved" : "assetReturnedToCompany")}
+          {t(noticeKey[done])}
         </p>
       )}
       <section className="card filters-card">
@@ -129,13 +159,13 @@ export function AssetRegister({
               className="field"
               value={status}
               onChange={(event) =>
-                setStatus(event.target.value as AssetStatus | "all")
+                setStatus(event.target.value as AssetDisplayStatus | "all")
               }
             >
               <option value="all">{t("allStatuses")}</option>
-              {ASSET_STATUSES.map((item) => (
+              {ASSET_DISPLAY_STATUSES.map((item) => (
                 <option key={item} value={item}>
-                  {t(`assetStatus_${item}`)}
+                  {t(`assetDisplayStatus_${item}`)}
                 </option>
               ))}
             </select>
@@ -183,31 +213,25 @@ export function AssetRegister({
                     )}
                   </td>
                   <td>{partsSummary(asset.parts).serialNumber || "—"}</td>
-                  <td>
-                    {holderLabel(asset.holder)}
-                    {asset.handoverStatus === "pending" && (
-                      <div className="muted">
-                        {t("assetAwaitingAcceptance")}
-                      </div>
-                    )}
-                  </td>
+                  <td>{holderLabel(asset.holder)}</td>
                   <td>{asset.purchaseDate ?? "—"}</td>
                   <td className="amount-cell">
                     {formatSek(asset.purchasePriceMinor, locale)}
                   </td>
                   <td>
-                    <AssetStatusBadge status={asset.status} />
+                    <AssetDisplayStatusBadge asset={asset} />
                   </td>
                   <td>
                     <div className="row-actions">
-                      <Link
+                      <button
+                        type="button"
                         className="table-action icon-action"
                         aria-label={t("assetView")}
                         title={t("assetView")}
-                        href={`/assets/${encodeURIComponent(asset.id)}`}
+                        onClick={() => setViewing(asset.id)}
                       >
                         <span aria-hidden="true">i</span>
-                      </Link>
+                      </button>
                       {canManage && canEditAsset(asset) && (
                         <Link
                           className="table-action icon-action"
@@ -246,6 +270,13 @@ export function AssetRegister({
           </table>
         )}
       </section>
+      {viewing && (
+        <AssetDetailModal
+          assetId={viewing}
+          canManage={canManage}
+          onClose={closeDetails}
+        />
+      )}
     </>
   );
 }

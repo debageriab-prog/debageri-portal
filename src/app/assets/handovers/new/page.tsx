@@ -39,16 +39,8 @@ export default async function NewHandoverPage({
   return (
     <>
       <FormHeader
-        backHref={
-          assetId && assets.some((asset) => asset.id === assetId)
-            ? `/assets/${encodeURIComponent(assetId)}`
-            : "/assets"
-        }
-        backLabel={t(
-          assetId && assets.some((asset) => asset.id === assetId)
-            ? "assetBackToAsset"
-            : "assetBackToRegister",
-        )}
+        backHref="/assets"
+        backLabel={t("assetBackToRegister")}
         title={t("handoverNew")}
         description={t("handoverNewDescription")}
       />

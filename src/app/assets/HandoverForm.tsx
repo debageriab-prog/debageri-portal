@@ -30,9 +30,7 @@ export function HandoverForm({
   const [includePersonalNumber, setIncludePersonalNumber] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const backHref = selected
-    ? `/assets/${encodeURIComponent(selected)}`
-    : "/assets";
+  const backHref = "/assets";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,9 +53,7 @@ export function HandoverForm({
         id?: string;
       };
       if (!response.ok) return setError(t(assetErrorKey(result.error)));
-      router.push(
-        `/assets/handovers/${encodeURIComponent(result.id!)}?issued=1`,
-      );
+      router.push("/assets?issued=1");
       router.refresh();
     } catch {
       setError(t("serverUnavailable"));

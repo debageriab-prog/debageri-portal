@@ -308,8 +308,35 @@ export function handoverLines(asset: {
   }));
 }
 
+/**
+ * What the register shows as the asset's status: where it stands rather
+ * than only whether the company still owns it.
+ */
+export const ASSET_DISPLAY_STATUSES = [
+  "available",
+  "awaitingSignature",
+  "handedOver",
+  "outside",
+  "sold",
+  "disposed",
+  "lost",
+] as const;
+export type AssetDisplayStatus = (typeof ASSET_DISPLAY_STATUSES)[number];
+
+export function assetDisplayStatus(asset: {
+  status: AssetStatus;
+  handoverStatus: HandoverStatus | null;
+  holder: Pick<AssetHolder, "type">;
+}): AssetDisplayStatus {
+  if (asset.status !== "active") return asset.status;
+  if (asset.handoverStatus === "pending") return "awaitingSignature";
+  if (asset.holder.type === "user") return "handedOver";
+  if (asset.holder.type === "external") return "outside";
+  return "available";
+}
+
 export type AssetFilter = {
-  status: AssetStatus | "all";
+  status: AssetDisplayStatus | "all";
   category: AssetCategory | "all";
   /** A holder type, or `user:{id}` for one person. */
   holder: string;
@@ -319,6 +346,7 @@ export type AssetFilter = {
 export function filterAssets<
   T extends {
     status: AssetStatus;
+    handoverStatus: HandoverStatus | null;
     category: AssetCategory;
     holder: AssetHolder;
     name: string;
@@ -327,7 +355,8 @@ export function filterAssets<
 >(assets: readonly T[], filter: AssetFilter) {
   const words = filter.search.trim().toLowerCase().split(/\s+/).filter(Boolean);
   return assets.filter((asset) => {
-    if (filter.status !== "all" && asset.status !== filter.status) return false;
+    if (filter.status !== "all" && assetDisplayStatus(asset) !== filter.status)
+      return false;
     if (filter.category !== "all" && asset.category !== filter.category)
       return false;
     if (filter.holder.startsWith("user:")) {

@@ -189,9 +189,7 @@ export function AssetForm({
   const [inUseBy, setInUseBy] = useState("");
   const fileRoom =
     ASSET_MAX_FILES - kept.length - files.length - sourceFiles.length;
-  const backHref = asset
-    ? `/assets/${encodeURIComponent(asset.id)}`
-    : "/assets";
+  const backHref = "/assets";
 
   function addFiles(selected: File[]) {
     setError("");
@@ -357,9 +355,7 @@ export function AssetForm({
         id?: string;
       };
       if (!response.ok) return setError(t(assetErrorKey(result.error)));
-      router.push(
-        `/assets/${encodeURIComponent(result.id ?? asset?.id ?? "")}?saved=1`,
-      );
+      router.push("/assets?saved=1");
       router.refresh();
     } catch {
       setError(t("serverUnavailable"));

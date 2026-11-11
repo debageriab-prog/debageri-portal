@@ -1,16 +1,69 @@
 import { NextResponse } from "next/server";
+import {
+  toAssetEvent,
+  toAssetItem,
+  toHandoverItem,
+} from "@/app/assets/asset-data";
+import type { HandoverItem } from "@/app/assets/asset-types";
+import { can } from "@/domain/access/permissions";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
 import {
   AssetError,
   canManageAssets,
+  canViewAssets,
   changeAsset,
   deleteAsset,
   updateAsset,
 } from "@/server/services/asset-service";
+import { financeIsEnabled } from "@/server/services/finance-service";
 import { assetActionSchema, parseAssetForm } from "@/server/validators/assets";
 
 type Context = { params: Promise<{ id: string }> };
+
+/** The asset with its history and receipts, for the details popup. */
+export async function GET(_request: Request, { params }: Context) {
+  const { id } = await params;
+  const actor = await verifySession();
+  if (!actor || !canViewAssets(actor))
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const { db } = getAdminServices();
+  const snapshot = await db.collection("assets").doc(id).get();
+  const asset =
+    snapshot.data()?.organizationId === actor.organizationId
+      ? toAssetItem(snapshot, actor)
+      : null;
+  if (!asset) return NextResponse.json({ error: "notFound" }, { status: 404 });
+  const [events, handovers, financeEnabled] = await Promise.all([
+    db
+      .collection("assetEvents")
+      .where("organizationId", "==", actor.organizationId)
+      .where("assetId", "==", id)
+      .get(),
+    db
+      .collection("assetHandovers")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+    financeIsEnabled(db, actor.organizationId),
+  ]);
+  return NextResponse.json({
+    asset,
+    history: events.docs
+      .map(toAssetEvent)
+      .sort((a, b) => b.performedAt.localeCompare(a.performedAt)),
+    handovers: handovers.docs
+      .filter((doc) =>
+        (doc.data().assetIds as unknown[] | undefined)?.includes(id),
+      )
+      .map(toHandoverItem)
+      .filter((item): item is HandoverItem => item !== null)
+      .sort((a, b) => b.issuedOn.localeCompare(a.issuedOn)),
+    canBook:
+      canManageAssets(actor) &&
+      financeEnabled &&
+      can(actor, "finance.ledger.add"),
+  });
+}
 
 export async function PUT(request: Request, { params }: Context) {
   const { id } = await params;

@@ -46,7 +46,7 @@ export function AssetActionForm({
     useState<AssetRetireStatus>("disposed");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const backHref = `/assets/${encodeURIComponent(asset.id)}`;
+  const backHref = "/assets";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

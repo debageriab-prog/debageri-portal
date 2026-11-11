@@ -12,13 +12,13 @@ export default async function RetireAssetPage({
 }) {
   const { id } = await params;
   const { asset } = await loadAssetPage(id, true);
-  if (!canRetire(asset)) redirect(`/assets/${encodeURIComponent(id)}`);
+  if (!canRetire(asset)) redirect("/assets");
   const t = await getTranslator();
   return (
     <>
       <FormHeader
-        backHref={`/assets/${encodeURIComponent(id)}`}
-        backLabel={t("assetBackToAsset")}
+        backHref="/assets"
+        backLabel={t("assetBackToRegister")}
         title={t("assetRetire")}
         description={t("assetRetireDescription")}
       />

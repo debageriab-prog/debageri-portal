@@ -12,13 +12,13 @@ export default async function AssetHolderPage({
 }) {
   const { id } = await params;
   const { asset } = await loadAssetPage(id, true);
-  if (!canChangeHolder(asset)) redirect(`/assets/${encodeURIComponent(id)}`);
+  if (!canChangeHolder(asset)) redirect("/assets");
   const t = await getTranslator();
   return (
     <>
       <FormHeader
-        backHref={`/assets/${encodeURIComponent(id)}`}
-        backLabel={t("assetBackToAsset")}
+        backHref="/assets"
+        backLabel={t("assetBackToRegister")}
         title={t("assetChangeHolder")}
         description={t("assetChangeHolderDescription")}
       />
