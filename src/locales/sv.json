@@ -2424,5 +2424,6 @@
   "assetRemoveTitle": "Ta bort tillgången?",
   "assetRemoveQuestion": "{name} tas bort från tillgångshanteringen med sin historik och sina dokument. Det går inte att ångra. Avslutade kvittenser sparas, och ett köp eller en försäljning som redan bokförts i ekonomin ändras inte.",
   "assetRemoveBlocked": "Återlämna tillgången eller avbryt kvittensen först.",
-  "assetRemoved": "Tillgången har tagits bort."
+  "assetRemoved": "Tillgången har tagits bort.",
+  "handoverViewPdf": "Visa kvittensen som PDF"
 }

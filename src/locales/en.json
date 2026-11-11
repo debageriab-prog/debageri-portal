@@ -2424,5 +2424,6 @@
   "assetRemoveTitle": "Remove the asset?",
   "assetRemoveQuestion": "{name} is removed from Assets management with its history and documents. This cannot be undone. Closed receipts are kept, and a purchase or sale already booked in Finance is not changed.",
   "assetRemoveBlocked": "Return the asset or cancel its receipt first.",
-  "assetRemoved": "The asset has been removed."
+  "assetRemoved": "The asset has been removed.",
+  "handoverViewPdf": "View the receipt PDF"
 }
