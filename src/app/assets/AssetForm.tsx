@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { DateInput } from "@/components/ui/DateInput";
 import { FileRemoveIcon } from "@/components/ui/FileActionIcons";
+import { ActionIcon } from "@/components/ui/ActionIcon";
 import {
   FilePreviewAction,
   FilePreviewModal,
@@ -17,8 +18,10 @@ import {
   ASSET_CATEGORIES,
   ASSET_MAX_BYTES,
   ASSET_MAX_FILES,
+  ASSET_MAX_PARTS,
   isAssetContentType,
   type AssetCategory,
+  type AssetPart,
 } from "@/domain/assets";
 import { formatSek, parseSek } from "@/domain/finance/calculations";
 import {
@@ -80,16 +83,40 @@ const expenseFileUrl = (transactionId: string, attachmentId: string) =>
   `/api/assets/expense-files/${encodeURIComponent(transactionId)}/${encodeURIComponent(attachmentId)}`;
 
 /** Text fields the AI reading can fill in. */
-type TextFields = Record<
-  | "name"
-  | "make"
-  | "model"
-  | "serialNumber"
-  | "accessories"
-  | "supplier"
-  | "purchaseDate",
-  string
->;
+type TextFields = Record<"name" | "supplier" | "purchaseDate", string>;
+
+/** One item row as typed, with its price as text. */
+type PartDraft = {
+  key: number;
+  name: string;
+  make: string;
+  model: string;
+  serialNumber: string;
+  accessories: string;
+  price: string;
+};
+
+let nextPartKey = 1;
+const toPrice = (minor: number) => (minor ? (minor / 100).toFixed(2) : "");
+const partDraft = (part: Partial<AssetPart> = {}): PartDraft => ({
+  key: nextPartKey++,
+  name: part.name ?? "",
+  make: part.make ?? "",
+  model: part.model ?? "",
+  serialNumber: part.serialNumber ?? "",
+  accessories: part.accessories ?? "",
+  price: toPrice(part.priceMinor ?? 0),
+});
+
+/** A typed price in öre, 0 when empty, null when it is not a number. */
+function priceMinorOf(value: string) {
+  if (!value.trim()) return 0;
+  try {
+    return parseSek(value);
+  } catch {
+    return null;
+  }
+}
 
 type AiTarget = { file: File } | { attachmentId: string };
 
@@ -111,10 +138,6 @@ export function AssetForm({
   const router = useRouter();
   const [fields, setFields] = useState<TextFields>({
     name: asset?.name ?? source?.description.slice(0, 120) ?? "",
-    make: asset?.make ?? "",
-    model: asset?.model ?? "",
-    serialNumber: asset?.serialNumber ?? "",
-    accessories: asset?.accessories ?? "",
     supplier: asset?.supplier ?? "",
     purchaseDate: asset?.purchaseDate ?? source?.date ?? "",
   });
@@ -132,13 +155,26 @@ export function AssetForm({
   const [category, setCategory] = useState<AssetCategory | "">(
     asset?.category ?? "",
   );
-  const [price, setPrice] = useState(
-    asset?.purchasePriceMinor
-      ? (asset.purchasePriceMinor / 100).toFixed(2)
-      : source?.grossMinor
-        ? (source.grossMinor / 100).toFixed(2)
-        : "",
+  const [parts, setParts] = useState<PartDraft[]>(() =>
+    asset
+      ? asset.parts.map(partDraft)
+      : [
+          partDraft({
+            name: source?.description.slice(0, 120) ?? "",
+            priceMinor: source?.grossMinor ?? 0,
+          }),
+        ],
   );
+  const [otherCosts, setOtherCosts] = useState(
+    toPrice(asset?.otherCostsMinor ?? 0),
+  );
+  const totalMinor =
+    parts.reduce((sum, part) => sum + (priceMinorOf(part.price) ?? 0), 0) +
+    (priceMinorOf(otherCosts) ?? 0);
+  const setPart = (key: number, change: Partial<PartDraft>) =>
+    setParts((current) =>
+      current.map((part) => (part.key === key ? { ...part, ...change } : part)),
+    );
   const [vatRateBps, setVatRateBps] = useState<number>(
     asset?.vatRateBps ??
       (source &&
@@ -172,10 +208,6 @@ export function AssetForm({
   function applyExtraction(extraction: AssetExtraction, name: string) {
     const found: Partial<TextFields> = {};
     if (extraction.name) found.name = extraction.name;
-    if (extraction.make) found.make = extraction.make;
-    if (extraction.model) found.model = extraction.model;
-    if (extraction.serialNumber) found.serialNumber = extraction.serialNumber;
-    if (extraction.accessories) found.accessories = extraction.accessories;
     if (extraction.supplier) found.supplier = extraction.supplier;
     if (extraction.date) found.purchaseDate = extraction.date;
     setFields((current) => ({ ...current, ...found }));
@@ -184,9 +216,10 @@ export function AssetForm({
       setCategory(extraction.category);
       filled++;
     }
-    if (extraction.grossMinor !== null && extraction.currency === "SEK") {
-      setPrice((extraction.grossMinor / 100).toFixed(2));
-      filled++;
+    if (extraction.parts.length && extraction.currency === "SEK") {
+      setParts(extraction.parts.map(partDraft));
+      setOtherCosts(toPrice(extraction.otherCostsMinor));
+      filled += extraction.parts.length;
     }
     if (
       extraction.vatRateBps !== null &&
@@ -277,18 +310,31 @@ export function AssetForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!category) return setError(t("assetError_categoryRequired"));
-    let priceMinor: number;
-    try {
-      priceMinor = price.trim() ? parseSek(price) : 0;
-    } catch {
+    if (parts.some((part) => !part.name.trim()))
+      return setError(t("assetError_partNameRequired"));
+    const prices = parts.map((part) => priceMinorOf(part.price));
+    const otherCostsMinor = priceMinorOf(otherCosts);
+    if (prices.some((value) => value === null) || otherCostsMinor === null)
       return setError(t("assetError_invalidPrice"));
-    }
     const form = new FormData(event.currentTarget);
     const body = new FormData();
     for (const [key, value] of Object.entries(fields)) body.set(key, value);
     body.set("notes", String(form.get("notes") ?? ""));
     body.set("category", category);
-    body.set("purchasePriceMinor", String(priceMinor));
+    body.set(
+      "parts",
+      JSON.stringify(
+        parts.map((part, index) => ({
+          name: part.name.trim(),
+          make: part.make.trim(),
+          model: part.model.trim(),
+          serialNumber: part.serialNumber.trim(),
+          accessories: part.accessories.trim(),
+          priceMinor: prices[index],
+        })),
+      ),
+    );
+    body.set("otherCostsMinor", String(otherCostsMinor));
     body.set("vatRateBps", String(vatRateBps));
     if (!asset) body.set("inUseBy", inUseBy);
     if (source) {
@@ -366,24 +412,140 @@ export function AssetForm({
             ))}
           </select>
         </label>
-        <label>
-          {t("assetMake")}
-          <input className="field" {...field("make")} maxLength={80} />
-        </label>
-        <label>
-          {t("assetModel")}
-          <input className="field" {...field("model")} maxLength={120} />
-        </label>
-        <label>
-          {t("assetSerialNumber")}
-          <InfoTip text={t("assetSerialNumberTip")} />
-          <input className="field" {...field("serialNumber")} maxLength={120} />
-        </label>
-        <label>
-          {t("assetAccessories")}
-          <InfoTip text={t("assetAccessoriesTip")} />
-          <input className="field" {...field("accessories")} maxLength={300} />
-        </label>
+        <fieldset className="asset-parts form-wide">
+          <legend>
+            {t("assetParts")} <InfoTip text={t("assetPartsTip")} />
+          </legend>
+          {parts.map((part, index) => (
+            <div className="asset-part" key={part.key}>
+              <div className="asset-part-header">
+                <strong>
+                  {t("assetPartNumber").replace("{number}", String(index + 1))}
+                </strong>
+                {parts.length > 1 && (
+                  <button
+                    className="table-action icon-action"
+                    type="button"
+                    aria-label={t("assetPartRemove")}
+                    title={t("assetPartRemove")}
+                    onClick={() =>
+                      setParts((current) =>
+                        current.filter((item) => item.key !== part.key),
+                      )
+                    }
+                  >
+                    <ActionIcon type="delete" />
+                  </button>
+                )}
+              </div>
+              <div className="form-grid">
+                <label>
+                  {t("assetPartName")}
+                  <input
+                    className="field"
+                    required
+                    maxLength={120}
+                    value={part.name}
+                    onChange={(event) =>
+                      setPart(part.key, { name: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  {t("assetPartPriceSek")}
+                  <InfoTip text={t("assetPurchasePriceTip")} />
+                  <input
+                    className="field"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={part.price}
+                    onChange={(event) =>
+                      setPart(part.key, { price: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  {t("assetMake")}
+                  <input
+                    className="field"
+                    maxLength={80}
+                    value={part.make}
+                    onChange={(event) =>
+                      setPart(part.key, { make: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  {t("assetModel")}
+                  <input
+                    className="field"
+                    maxLength={120}
+                    value={part.model}
+                    onChange={(event) =>
+                      setPart(part.key, { model: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  {t("assetSerialNumber")}
+                  <InfoTip text={t("assetSerialNumberTip")} />
+                  <input
+                    className="field"
+                    maxLength={120}
+                    value={part.serialNumber}
+                    onChange={(event) =>
+                      setPart(part.key, { serialNumber: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  {t("assetAccessories")}
+                  <InfoTip text={t("assetAccessoriesTip")} />
+                  <input
+                    className="field"
+                    maxLength={300}
+                    value={part.accessories}
+                    onChange={(event) =>
+                      setPart(part.key, { accessories: event.target.value })
+                    }
+                  />
+                </label>
+              </div>
+            </div>
+          ))}
+          {parts.length < ASSET_MAX_PARTS && (
+            <div className="actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setParts((current) => [...current, partDraft()])}
+              >
+                {t("assetPartAdd")}
+              </button>
+            </div>
+          )}
+          <div className="form-grid">
+            <label>
+              {t("assetOtherCostsSek")}
+              <InfoTip text={t("assetOtherCostsTip")} />
+              <input
+                className="field"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={otherCosts}
+                onChange={(event) => setOtherCosts(event.target.value)}
+              />
+            </label>
+            <p className="asset-parts-total">
+              <span>{t("assetPurchasePrice")}</span>
+              <strong>{formatSek(totalMinor, locale)}</strong>
+            </p>
+          </div>
+        </fieldset>
         <label>
           {t("assetPurchaseDate")}
           <DateInput className="field" {...field("purchaseDate")} />
@@ -392,19 +554,6 @@ export function AssetForm({
           {t("assetSupplier")}
           <InfoTip text={t("assetSupplierTip")} />
           <input className="field" {...field("supplier")} maxLength={120} />
-        </label>
-        <label>
-          {t("assetPurchasePriceSek")}
-          <InfoTip text={t("assetPurchasePriceTip")} />
-          <input
-            className="field"
-            type="number"
-            inputMode="decimal"
-            min="0"
-            step="0.01"
-            value={price}
-            onChange={(event) => setPrice(event.target.value)}
-          />
         </label>
         <label>
           {t("requestVatRate")}

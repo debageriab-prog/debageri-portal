@@ -1,5 +1,6 @@
 "use client";
 
+import { partsSummary } from "@/domain/assets";
 import Link from "next/link";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { ActionIcon } from "@/components/ui/ActionIcon";
@@ -69,10 +70,23 @@ export function MyAssets({
                     </div>
                   </td>
                   <td>
-                    {[asset.make, asset.model].filter(Boolean).join(" ") || "—"}
+                    {partsSummary(asset.parts).makeModel || "—"}
+                    {partsSummary(asset.parts).more > 0 && (
+                      <div className="muted">
+                        {t("assetPartsMore").replace(
+                          "{count}",
+                          String(partsSummary(asset.parts).more),
+                        )}
+                      </div>
+                    )}
                   </td>
-                  <td>{asset.serialNumber || "—"}</td>
-                  <td>{asset.accessories || "—"}</td>
+                  <td>{partsSummary(asset.parts).serialNumber || "—"}</td>
+                  <td>
+                    {asset.parts
+                      .map((part) => part.accessories)
+                      .filter(Boolean)
+                      .join(", ") || "—"}
+                  </td>
                   <td>
                     {asset.handoverStatus ? (
                       <HandoverStatusBadge status={asset.handoverStatus} />

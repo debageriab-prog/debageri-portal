@@ -1,6 +1,7 @@
 import type {
   AssetCategory,
   AssetHolder,
+  AssetPart,
   AssetRetirement,
   AssetSale,
   AssetStatus,
@@ -27,10 +28,10 @@ export type AssetItem = {
   id: string;
   name: string;
   category: AssetCategory;
-  make: string;
-  model: string;
-  serialNumber: string;
-  accessories: string;
+  /** What the asset is made of, each with its own receipt row. */
+  parts: AssetPart[];
+  /** Shipping, fees and the like, including VAT. */
+  otherCostsMinor: number;
   supplier: string;
   purchaseDate: string | null;
   purchasePriceMinor: number;

@@ -118,6 +118,73 @@ export type AssetState = {
   saleTransactionId: string | null;
 };
 
+/**
+ * One thing an asset is made of, such as a tablet and its pen bought
+ * together. Each has its own row on the receipt and its own price.
+ */
+export type AssetPart = {
+  name: string;
+  make: string;
+  model: string;
+  serialNumber: string;
+  accessories: string;
+  /** Including VAT. */
+  priceMinor: number;
+};
+
+export const ASSET_MAX_PARTS = 20;
+
+/**
+ * The parts of a stored asset. Assets saved before parts existed describe
+ * one thing with fields of their own, which become its only part.
+ */
+export function assetPartsFrom(data: Record<string, unknown>): AssetPart[] {
+  if (Array.isArray(data.parts) && data.parts.length)
+    return data.parts
+      .filter(
+        (part): part is Record<string, unknown> =>
+          Boolean(part) && typeof part === "object",
+      )
+      .map((part) => ({
+        name: String(part.name ?? ""),
+        make: String(part.make ?? ""),
+        model: String(part.model ?? ""),
+        serialNumber: String(part.serialNumber ?? ""),
+        accessories: String(part.accessories ?? ""),
+        priceMinor: Number(part.priceMinor ?? 0),
+      }));
+  return [
+    {
+      name: String(data.name ?? ""),
+      make: String(data.make ?? ""),
+      model: String(data.model ?? ""),
+      serialNumber: String(data.serialNumber ?? ""),
+      accessories: String(data.accessories ?? ""),
+      priceMinor: Math.max(
+        0,
+        Number(data.purchasePriceMinor ?? 0) -
+          Number(data.otherCostsMinor ?? 0),
+      ),
+    },
+  ];
+}
+
+/** What the asset cost: its parts plus shipping, fees and the like. */
+export const assetPriceMinor = (
+  parts: readonly Pick<AssetPart, "priceMinor">[],
+  otherCostsMinor: number,
+) => parts.reduce((sum, part) => sum + part.priceMinor, 0) + otherCostsMinor;
+
+/** "Apple iPad Pro" for the first part, with how many more there are. */
+export function partsSummary(parts: readonly AssetPart[]) {
+  const first = parts[0];
+  return {
+    makeModel: first ? [first.make, first.model].filter(Boolean).join(" ") : "",
+    serialNumber: first?.serialNumber ?? "",
+    more: Math.max(0, parts.length - 1),
+  };
+}
+
 export type HandoverLine = {
   assetId: string;
   equipment: string;
@@ -217,23 +284,21 @@ export function canLinkTransaction(asset: AssetState, link: AssetLink) {
   );
 }
 
-export function handoverLine(asset: {
+/** The receipt rows for an asset: one for each of its parts. */
+export function handoverLines(asset: {
   id: string;
   name: string;
-  make: string;
-  model: string;
-  serialNumber: string;
-  accessories: string;
+  parts: readonly AssetPart[];
   holder: AssetHolder;
-}): HandoverLine {
-  return {
+}): HandoverLine[] {
+  return asset.parts.map((part) => ({
     assetId: asset.id,
-    equipment: asset.name,
-    makeModel: [asset.make, asset.model].filter(Boolean).join(" "),
-    serialNumber: asset.serialNumber,
-    accessories: asset.accessories,
+    equipment: part.name || asset.name,
+    makeModel: [part.make, part.model].filter(Boolean).join(" "),
+    serialNumber: part.serialNumber,
+    accessories: part.accessories,
     previousHolder: asset.holder,
-  };
+  }));
 }
 
 export type AssetFilter = {
@@ -250,9 +315,7 @@ export function filterAssets<
     category: AssetCategory;
     holder: AssetHolder;
     name: string;
-    make: string;
-    model: string;
-    serialNumber: string;
+    parts: readonly AssetPart[];
   },
 >(assets: readonly T[], filter: AssetFilter) {
   const words = filter.search.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -266,9 +329,12 @@ export function filterAssets<
       return false;
     const text = [
       asset.name,
-      asset.make,
-      asset.model,
-      asset.serialNumber,
+      ...asset.parts.flatMap((part) => [
+        part.name,
+        part.make,
+        part.model,
+        part.serialNumber,
+      ]),
       asset.holder.name,
       asset.holder.location,
     ]

@@ -115,9 +115,13 @@ export function HandoverForm({
                 />
                 <span>
                   <strong>{asset.name}</strong>
-                  {[asset.make, asset.model, asset.serialNumber]
+                  {asset.parts
+                    .flatMap((part) => [
+                      [part.make, part.model].filter(Boolean).join(" "),
+                      part.serialNumber,
+                    ])
                     .filter(Boolean)
-                    .map((part) => ` · ${part}`)
+                    .map((text) => ` · ${text}`)
                     .join("")}
                   <span className="muted"> — {holderLabel(asset.holder)}</span>
                 </span>

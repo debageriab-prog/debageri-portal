@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   ASSET_BUYER_TYPES,
   ASSET_CATEGORIES,
+  ASSET_MAX_PARTS,
   ASSET_RETIRE_STATUSES,
   SIGNATURE_DATA_URL_PREFIX,
   SIGNATURE_MAX_DATA_URL,
@@ -16,17 +17,38 @@ const optionalDate = z
   .union([z.iso.date(), z.literal("")])
   .transform((value) => value || null);
 
-export const assetFormSchema = z.object({
+export const assetPartSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  category: z.enum(ASSET_CATEGORIES),
   make: text(80),
   model: text(120),
   serialNumber: text(120),
   accessories: text(300),
+  /** Including VAT. */
+  priceMinor: minor,
+});
+
+/** The parts as the form sends them: JSON in one form field. */
+const partsField = z
+  .string()
+  .max(100_000)
+  .transform((value, context) => {
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      context.addIssue({ code: "custom", message: "invalidJson" });
+      return z.NEVER;
+    }
+  })
+  .pipe(z.array(assetPartSchema).min(1).max(ASSET_MAX_PARTS));
+
+export const assetFormSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  category: z.enum(ASSET_CATEGORIES),
+  parts: partsField,
   supplier: text(120),
   purchaseDate: optionalDate,
-  /** Including VAT. */
-  purchasePriceMinor: minor,
+  /** Shipping, fees and the like, including VAT. */
+  otherCostsMinor: minor.default(0),
   vatRateBps: z.coerce
     .number()
     .int()
@@ -57,13 +79,10 @@ export function parseAssetForm(form: FormData) {
   return assetFormSchema.safeParse({
     name: form.get("name"),
     category: form.get("category"),
-    make: form.get("make") ?? "",
-    model: form.get("model") ?? "",
-    serialNumber: form.get("serialNumber") ?? "",
-    accessories: form.get("accessories") ?? "",
+    parts: form.get("parts") ?? "",
     supplier: form.get("supplier") ?? "",
     purchaseDate: form.get("purchaseDate") ?? "",
-    purchasePriceMinor: form.get("purchasePriceMinor") ?? 0,
+    otherCostsMinor: form.get("otherCostsMinor") ?? 0,
     vatRateBps: form.get("vatRateBps") ?? 2_500,
     inUseBy: form.get("inUseBy") ?? "",
     purchaseTransactionId: form.get("purchaseTransactionId") ?? "",

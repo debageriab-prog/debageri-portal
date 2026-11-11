@@ -12,7 +12,9 @@ import {
   canReturnHandover,
   canSell,
   filterAssets,
-  handoverLine,
+  assetPartsFrom,
+  assetPriceMinor,
+  handoverLines,
   hasSignatureInk,
   isAssetExpenseCategory,
   type AssetState,
@@ -119,34 +121,79 @@ describe("asset rules", () => {
     expect(assetHolderFrom({ type: "weird", name: "x" }).type).toBe("company");
   });
 
-  it("builds receipt lines and remembers the previous holder", () => {
+  it("builds a receipt row for each item and remembers the previous holder", () => {
     const holder = assetHolderFrom({ type: "company", location: "Office" });
+    const part = {
+      make: "Apple",
+      serialNumber: "",
+      accessories: "",
+      priceMinor: 0,
+    };
     expect(
-      handoverLine({
+      handoverLines({
         id: "a1",
-        name: "Mobile phone",
-        make: "Google",
-        model: "Pixel 11 Pro",
-        serialNumber: "353",
-        accessories: "",
+        name: "iPad Pro with Pencil",
+        parts: [
+          { ...part, name: "Tablet", model: "iPad Pro", serialNumber: "353" },
+          { ...part, name: "", model: "Pencil Pro" },
+        ],
         holder,
       }),
-    ).toEqual({
-      assetId: "a1",
-      equipment: "Mobile phone",
-      makeModel: "Google Pixel 11 Pro",
-      serialNumber: "353",
-      accessories: "",
-      previousHolder: holder,
+    ).toEqual([
+      {
+        assetId: "a1",
+        equipment: "Tablet",
+        makeModel: "Apple iPad Pro",
+        serialNumber: "353",
+        accessories: "",
+        previousHolder: holder,
+      },
+      {
+        assetId: "a1",
+        equipment: "iPad Pro with Pencil",
+        makeModel: "Apple Pencil Pro",
+        serialNumber: "",
+        accessories: "",
+        previousHolder: holder,
+      },
+    ]);
+  });
+
+  it("reads assets saved before items as one item, and adds up the price", () => {
+    expect(
+      assetPartsFrom({
+        name: "Mobile phone",
+        make: "Google",
+        model: "Pixel",
+        serialNumber: "353",
+        accessories: "Charger",
+        purchasePriceMinor: 1_299_900,
+      }),
+    ).toEqual([
+      {
+        name: "Mobile phone",
+        make: "Google",
+        model: "Pixel",
+        serialNumber: "353",
+        accessories: "Charger",
+        priceMinor: 1_299_900,
+      },
+    ]);
+    const parts = assetPartsFrom({
+      name: "iPad",
+      parts: [
+        { name: "Tablet", priceMinor: 1_829_000 },
+        { name: "Stylus", priceMinor: 159_000 },
+      ],
     });
+    expect(parts.map((part) => part.name)).toEqual(["Tablet", "Stylus"]);
+    expect(assetPriceMinor(parts, 9_900)).toBe(1_997_900);
   });
 
   it("filters the register and sums what active equipment cost", () => {
     const base = {
       category: "phone" as const,
-      make: "Google",
-      model: "Pixel",
-      serialNumber: "",
+      parts: assetPartsFrom({ name: "Phone", make: "Google", model: "Pixel" }),
       purchasePriceMinor: 100_00,
     };
     const assets = [
@@ -226,14 +273,15 @@ describe("asset validators", () => {
   const form = {
     name: "Mobile phone",
     category: "phone",
-    purchasePriceMinor: "1299900",
+    parts: JSON.stringify([{ name: "Mobile phone", priceMinor: 1_299_900 }]),
     vatRateBps: "2500",
     purchaseDate: "",
   };
 
   it("accepts equipment and leaves out an empty date", () => {
     const parsed = assetFormSchema.parse(form);
-    expect(parsed.purchasePriceMinor).toBe(1_299_900);
+    expect(parsed.parts[0]?.priceMinor).toBe(1_299_900);
+    expect(parsed.otherCostsMinor).toBe(0);
     expect(parsed.purchaseDate).toBeNull();
     expect(parsed.inUseBy).toBe("");
     expect(parsed.purchaseTransactionId).toBeNull();
@@ -248,7 +296,7 @@ describe("asset validators", () => {
       assetFormSchema.safeParse({ ...form, category: "car" }).success,
     ).toBe(false);
     expect(
-      assetFormSchema.safeParse({ ...form, purchasePriceMinor: "1.5" }).success,
+      assetFormSchema.safeParse({ ...form, otherCostsMinor: "1.5" }).success,
     ).toBe(false);
     expect(
       assetFormSchema.safeParse({ ...form, vatRateBps: "1000" }).success,

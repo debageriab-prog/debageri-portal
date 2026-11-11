@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   assetHolderFrom,
+  assetPartsFrom,
   isAssetCategory,
   isHandoverStatus,
 } from "@/domain/assets";
@@ -43,10 +44,11 @@ export function toAssetItem(
     id: doc.id,
     name: String(data.name),
     category: data.category,
-    make: String(data.make ?? ""),
-    model: String(data.model ?? ""),
-    serialNumber: String(data.serialNumber ?? ""),
-    accessories: String(data.accessories ?? ""),
+    // Prices are only for people who see the register.
+    parts: assetPartsFrom(data).map((part) =>
+      register ? part : { ...part, priceMinor: 0 },
+    ),
+    otherCostsMinor: register ? Number(data.otherCostsMinor ?? 0) : 0,
     supplier: register ? String(data.supplier ?? "") : "",
     purchaseDate: data.purchaseDate ? String(data.purchaseDate) : null,
     purchasePriceMinor: register ? state.purchasePriceMinor : 0,

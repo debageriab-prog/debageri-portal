@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import {
+  partsSummary,
   activePurchaseValueMinor,
   ASSET_CATEGORIES,
   ASSET_STATUSES,
@@ -156,9 +157,17 @@ export function AssetRegister({
                     </div>
                   </td>
                   <td>
-                    {[asset.make, asset.model].filter(Boolean).join(" ") || "—"}
+                    {partsSummary(asset.parts).makeModel || "—"}
+                    {partsSummary(asset.parts).more > 0 && (
+                      <div className="muted">
+                        {t("assetPartsMore").replace(
+                          "{count}",
+                          String(partsSummary(asset.parts).more),
+                        )}
+                      </div>
+                    )}
                   </td>
-                  <td>{asset.serialNumber || "—"}</td>
+                  <td>{partsSummary(asset.parts).serialNumber || "—"}</td>
                   <td>
                     {holderLabel(asset.holder)}
                     {asset.handoverStatus === "pending" && (

@@ -1,4 +1,8 @@
-import { ASSET_CATEGORIES, type AssetCategory } from "@/domain/assets";
+import {
+  ASSET_CATEGORIES,
+  type AssetCategory,
+  type AssetPart,
+} from "@/domain/assets";
 import { receiptVatRateBps } from "@/domain/receipts";
 import { MAX_ROUNDING_MINOR } from "@/domain/finance/calculations";
 import { validInvoicePeriod } from "@/domain/finance/invoice-period";
@@ -400,19 +404,31 @@ export function convertExtractionToSek(
   };
 }
 
-/** What the model is asked to return for a purchased asset. */
-export type RawAssetExtraction = {
+/** One priced line of an asset's purchase document, as the model reads it. */
+export type RawAssetExtractionItem = {
   name: string;
-  category: string;
   brand: string;
   model: string;
   serialNumber: string;
   accessories: string;
+  /** The line total for all units, as printed. */
+  amount: number | null;
+  vatRatePercent: number | null;
+};
+
+/** What the model is asked to return for a purchased asset. */
+export type RawAssetExtraction = {
+  name: string;
+  category: string;
   supplier: string;
   date: string;
   currency: string;
-  netAmount: number | null;
-  vatAmount: number | null;
+  /** Whether the line amounts include VAT. */
+  amountsIncludeVat: boolean;
+  items: RawAssetExtractionItem[];
+  /** Shipping, fees and the like, on the same VAT basis as the lines. */
+  otherCosts: number | null;
+  /** The total to pay, including VAT. */
   totalAmount: number | null;
   vatRatePercent: number | null;
 };
@@ -424,30 +440,48 @@ export const ASSET_EXTRACTION_JSON_SCHEMA = {
   required: [
     "name",
     "category",
-    "brand",
-    "model",
-    "serialNumber",
-    "accessories",
     "supplier",
     "date",
     "currency",
-    "netAmount",
-    "vatAmount",
+    "amountsIncludeVat",
+    "items",
+    "otherCosts",
     "totalAmount",
     "vatRatePercent",
   ],
   properties: {
     name: plainText,
     category: { type: "string", enum: [...ASSET_CATEGORIES, ""] },
-    brand: plainText,
-    model: plainText,
-    serialNumber: plainText,
-    accessories: plainText,
     supplier: plainText,
     date: plainText,
     currency: plainText,
-    netAmount: nullable({ type: "number" }),
-    vatAmount: nullable({ type: "number" }),
+    amountsIncludeVat: { type: "boolean" },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "name",
+          "brand",
+          "model",
+          "serialNumber",
+          "accessories",
+          "amount",
+          "vatRatePercent",
+        ],
+        properties: {
+          name: plainText,
+          brand: plainText,
+          model: plainText,
+          serialNumber: plainText,
+          accessories: plainText,
+          amount: nullable({ type: "number" }),
+          vatRatePercent: nullable({ type: "number" }),
+        },
+      },
+    },
+    otherCosts: nullable({ type: "number" }),
     totalAmount: nullable({ type: "number" }),
     vatRatePercent: nullable({ type: "number" }),
   },
@@ -457,15 +491,15 @@ export const ASSET_EXTRACTION_JSON_SCHEMA = {
 export type AssetExtraction = {
   name: string | null;
   category: AssetCategory | null;
-  make: string | null;
-  model: string | null;
-  serialNumber: string | null;
-  accessories: string | null;
   supplier: string | null;
   date: string | null;
   /** Currency of the amounts below; SEK once converted. */
   currency: string;
-  /** Including VAT. */
+  /** Each priced line, with its price including VAT (0 when unknown). */
+  parts: AssetPart[];
+  /** Shipping, fees and rounding, so the parts add up to the total. */
+  otherCostsMinor: number;
+  /** Everything together, including VAT. */
   grossMinor: number | null;
   vatRateBps: number | null;
   /** The document's own currency and total when it was converted to SEK. */
@@ -476,60 +510,98 @@ export type AssetExtraction = {
   } | null;
 };
 
-/** Cleans model output into what the asset form can use. */
+/** A VAT rate in percent the document states, or null. */
+function vatPercent(value: number | null) {
+  return value !== null && Number.isFinite(value) && value >= 0 && value <= 100
+    ? value
+    : null;
+}
+
+/**
+ * Cleans model output into what the asset form can use. Line amounts become
+ * prices including VAT, and whatever the lines leave of the document total
+ * (shipping, fees, rounding) becomes other costs, so the asset costs exactly
+ * what was paid.
+ */
 export function normalizeAssetExtraction(
   raw: RawAssetExtraction,
 ): AssetExtraction {
-  let netMinor = toMinor(raw.netAmount);
-  const vatMinor = toMinor(raw.vatAmount);
-  let grossMinor = toMinor(raw.totalAmount);
-  if (grossMinor === null && netMinor !== null && vatMinor !== null)
-    grossMinor = netMinor + vatMinor;
-  if (netMinor === null && grossMinor !== null && vatMinor !== null)
-    netMinor = grossMinor - vatMinor;
-  let vatRateBps: number | null = null;
-  if (netMinor !== null && vatMinor !== null && netMinor > 0)
-    vatRateBps = snapVatRate(receiptVatRateBps(netMinor, vatMinor));
-  else if (
-    raw.vatRatePercent !== null &&
-    Number.isFinite(raw.vatRatePercent) &&
-    raw.vatRatePercent >= 0 &&
-    raw.vatRatePercent <= 100
-  )
-    vatRateBps = snapVatRate(Math.round(raw.vatRatePercent * 100));
+  const documentRate = vatPercent(raw.vatRatePercent);
+  const withVat = (amount: number | null, rate: number | null) => {
+    const minor = toMinor(amount);
+    if (minor === null) return null;
+    return raw.amountsIncludeVat
+      ? minor
+      : Math.round((minor * (100 + (rate ?? documentRate ?? 25))) / 100);
+  };
+  const parts = raw.items
+    .slice(0, 20)
+    .map((item) => ({
+      name: text(item.name, 120) ?? "",
+      make: text(item.brand, 80) ?? "",
+      model: text(item.model, 120) ?? "",
+      serialNumber: text(item.serialNumber, 120) ?? "",
+      accessories: text(item.accessories, 300) ?? "",
+      priceMinor: withVat(item.amount, vatPercent(item.vatRatePercent)) ?? 0,
+    }))
+    .filter((part) => part.name || part.make || part.model);
+  const partsMinor = parts.reduce((sum, part) => sum + part.priceMinor, 0);
+  const grossMinor = toMinor(raw.totalAmount);
+  const statedOther = withVat(raw.otherCosts, null) ?? 0;
+  const otherCostsMinor =
+    grossMinor !== null && grossMinor >= partsMinor
+      ? grossMinor - partsMinor
+      : statedOther;
+  const firstRate = raw.items
+    .map((item) => vatPercent(item.vatRatePercent))
+    .find((rate) => rate !== null);
+  const rate = documentRate ?? firstRate ?? null;
   const currency = text(raw.currency, 10)?.toUpperCase() ?? null;
   return {
     name: text(raw.name, 120),
     category: (ASSET_CATEGORIES as readonly string[]).includes(raw.category)
       ? (raw.category as AssetCategory)
       : null,
-    make: text(raw.brand, 80),
-    model: text(raw.model, 120),
-    serialNumber: text(raw.serialNumber, 120),
-    accessories: text(raw.accessories, 300),
     supplier: text(raw.supplier, 120),
     date: validDate(raw.date),
     currency: currency && /^[A-Z]{3}$/.test(currency) ? currency : "SEK",
-    grossMinor,
-    vatRateBps,
+    parts,
+    otherCostsMinor,
+    grossMinor:
+      grossMinor ?? (parts.length ? partsMinor + otherCostsMinor : null),
+    vatRateBps: rate === null ? null : snapVatRate(Math.round(rate * 100)),
     conversion: null,
   };
 }
 
-/** Converts the asset's price to SEK, keeping the original for reference. */
+/** Converts the asset's prices to SEK, keeping the original total. */
 export function convertAssetExtractionToSek(
   extraction: AssetExtraction,
   rate: SekExchangeRate,
 ): AssetExtraction {
-  if (extraction.grossMinor === null) return { ...extraction, currency: "SEK" };
+  const convert = (minor: number) => Math.round(minor * rate.rate);
+  const parts = extraction.parts.map((part) => ({
+    ...part,
+    priceMinor: convert(part.priceMinor),
+  }));
+  const otherCostsMinor = convert(extraction.otherCostsMinor);
   return {
     ...extraction,
     currency: "SEK",
-    grossMinor: Math.round(extraction.grossMinor * rate.rate),
-    conversion: {
-      currency: extraction.currency,
-      grossMinor: extraction.grossMinor,
-      rate,
-    },
+    parts,
+    otherCostsMinor,
+    grossMinor:
+      extraction.grossMinor === null
+        ? null
+        : parts.reduce((sum, part) => sum + part.priceMinor, 0) +
+          otherCostsMinor,
+    conversion:
+      extraction.grossMinor === null
+        ? null
+        : {
+            currency: extraction.currency,
+            grossMinor: extraction.grossMinor,
+            rate,
+          },
   };
 }

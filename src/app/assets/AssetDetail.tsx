@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useLocale } from "@/components/localization/LocaleProvider";
 import {
   DetailFacts,
@@ -12,12 +14,15 @@ import {
   DetailTag,
 } from "@/components/ui/DetailView";
 import { FilePreviewAction } from "@/components/ui/FilePreview";
+import { appCheckFetch } from "@/lib/firebase/client";
+import { assetErrorKey } from "./AssetForm";
 import {
   canChangeHolder,
   canEditAsset,
   canIssueHandover,
   canLinkTransaction,
   canRetire,
+  canReturnHandover,
   canSell,
   type AssetLink,
 } from "@/domain/assets";
@@ -55,7 +60,51 @@ export function AssetDetail({
   saved: boolean;
 }) {
   const { t, locale } = useLocale();
+  const router = useRouter();
   const holderLabel = useHolderLabel();
+  const [returning, setReturning] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [returned, setReturned] = useState(false);
+  const activeHandover = handovers.find(
+    (handover) => handover.id === asset.activeHandoverId,
+  );
+  const canReturn =
+    canManage &&
+    activeHandover !== undefined &&
+    canReturnHandover(activeHandover);
+  const othersOnReceipt = new Set(
+    (activeHandover?.lines ?? [])
+      .map((line) => line.assetId)
+      .filter((assetId) => assetId !== asset.id),
+  ).size;
+
+  async function returnToCompany() {
+    if (!activeHandover) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await appCheckFetch(
+        `/api/assets/handovers/${encodeURIComponent(activeHandover.id)}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "return", location: "" }),
+        },
+      );
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) return setError(t(assetErrorKey(result.error)));
+      setReturning(false);
+      setReturned(true);
+      router.refresh();
+    } catch {
+      setError(t("serverUnavailable"));
+    } finally {
+      setBusy(false);
+    }
+  }
   const id = encodeURIComponent(asset.id);
   const bookHref = (link: AssetLink) =>
     `/finance/transactions/new?assetId=${id}&assetLink=${link}`;
@@ -110,6 +159,11 @@ export function AssetDetail({
           {t("assetSaved")}
         </p>
       )}
+      {returned && (
+        <p className="notice notice-success" role="status">
+          {t("assetReturnedToCompany")}
+        </p>
+      )}
       <section className="card">
         <DetailSummary
           tone={asset.status === "active" ? "positive" : "neutral"}
@@ -128,6 +182,18 @@ export function AssetDetail({
         </DetailSummary>
         {canManage && (
           <div className="actions asset-actions">
+            {canReturn && (
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  setError("");
+                  setReturning(true);
+                }}
+              >
+                {t("assetReturnToCompany")}
+              </button>
+            )}
             {canChangeHolder(asset) && (
               <Link className="button secondary" href={`/assets/${id}/holder`}>
                 {t("assetChangeHolder")}
@@ -153,17 +219,55 @@ export function AssetDetail({
             )}
           </div>
         )}
+        <DetailSection title={t("assetParts")} count={asset.parts.length}>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("assetPartName")}</th>
+                  <th>{t("assetReceiptMakeModel")}</th>
+                  <th>{t("assetSerialNumber")}</th>
+                  <th>{t("assetAccessories")}</th>
+                  <th className="amount-heading">{t("assetPartPrice")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {asset.parts.map((part, index) => (
+                  <tr key={index}>
+                    <td>{part.name}</td>
+                    <td>
+                      {[part.make, part.model].filter(Boolean).join(" ") || "—"}
+                    </td>
+                    <td>{part.serialNumber || "—"}</td>
+                    <td>{part.accessories || "—"}</td>
+                    <td className="amount-cell">
+                      {formatSek(part.priceMinor, locale)}
+                    </td>
+                  </tr>
+                ))}
+                {asset.otherCostsMinor > 0 && (
+                  <tr>
+                    <td colSpan={4}>{t("assetOtherCosts")}</td>
+                    <td className="amount-cell">
+                      {formatSek(asset.otherCostsMinor, locale)}
+                    </td>
+                  </tr>
+                )}
+                <tr>
+                  <td colSpan={4}>
+                    <strong>{t("assetPurchasePrice")}</strong>
+                  </td>
+                  <td className="amount-cell">
+                    <strong>
+                      {formatSek(asset.purchasePriceMinor, locale)}
+                    </strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </DetailSection>
         <DetailSections>
-          <DetailSection title={t("assetDetails")}>
-            <DetailFacts
-              rows={[
-                [t("assetMake"), asset.make],
-                [t("assetModel"), asset.model],
-                [t("assetSerialNumber"), asset.serialNumber],
-                [t("assetAccessories"), asset.accessories],
-              ]}
-            />
-          </DetailSection>
           <DetailSection title={t("assetPurchase")}>
             <DetailFacts
               rows={[
@@ -302,6 +406,66 @@ export function AssetDetail({
           </DetailSection>
         )}
       </section>
+      {returning && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="modal modal-small"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="asset-return-title"
+          >
+            <header className="modal-header">
+              <div>
+                <h2 id="asset-return-title">{t("assetReturnTitle")}</h2>
+                <p>
+                  {t("assetReturnQuestion").replace(
+                    "{name}",
+                    activeHandover?.recipientName ?? "",
+                  )}
+                </p>
+                {othersOnReceipt > 0 && (
+                  <p>
+                    {t("assetReturnOthers").replace(
+                      "{count}",
+                      String(othersOnReceipt),
+                    )}
+                  </p>
+                )}
+              </div>
+              <button
+                className="modal-close"
+                type="button"
+                aria-label={t("close")}
+                onClick={() => setReturning(false)}
+              >
+                ×
+              </button>
+            </header>
+            {error && (
+              <p className="notice notice-error" role="alert">
+                {error}
+              </p>
+            )}
+            <footer className="modal-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setReturning(false)}
+              >
+                {t("cancel")}
+              </button>
+              <button
+                type="button"
+                className="button"
+                disabled={busy}
+                onClick={() => void returnToCompany()}
+              >
+                {busy ? t("saving") : t("assetReturnToCompany")}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
     </>
   );
 }

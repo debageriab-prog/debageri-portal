@@ -25,7 +25,9 @@ import {
   canReturnHandover,
   canSell,
   COMPANY_HOLDER,
-  handoverLine,
+  assetPartsFrom,
+  assetPriceMinor,
+  handoverLines,
   hasSignatureInk,
   isAssetContentType,
   isAssetStatus,
@@ -294,13 +296,11 @@ function assetFields(input: AssetFormInput) {
   return {
     name: input.name,
     category: input.category,
-    make: input.make,
-    model: input.model,
-    serialNumber: input.serialNumber,
-    accessories: input.accessories,
+    parts: input.parts,
+    otherCostsMinor: input.otherCostsMinor,
     supplier: input.supplier,
     purchaseDate: input.purchaseDate,
-    purchasePriceMinor: input.purchasePriceMinor,
+    purchasePriceMinor: assetPriceMinor(input.parts, input.otherCostsMinor),
     vatRateBps: input.vatRateBps,
     notes: input.notes,
   };
@@ -733,19 +733,16 @@ export async function issueHandover(
     const snapshots = await Promise.all(
       refs.map((item) => transaction.get(item)),
     );
-    const lines = snapshots.map((snapshot) => {
+    const lines = snapshots.flatMap((snapshot) => {
       const data = snapshot.data();
       if (!data || data.organizationId !== actor.organizationId)
         throw new AssetError("notFound", 404);
       if (!canIssueHandover(assetStateFrom(data)))
         throw new AssetError("assetNotAvailable", 409);
-      return handoverLine({
+      return handoverLines({
         id: snapshot.id,
         name: String(data.name),
-        make: String(data.make ?? ""),
-        model: String(data.model ?? ""),
-        serialNumber: String(data.serialNumber ?? ""),
-        accessories: String(data.accessories ?? ""),
+        parts: assetPartsFrom(data),
         holder: assetHolderFrom(data.holder),
       });
     });
@@ -802,8 +799,13 @@ async function tiedAssets(
   db: Firestore,
   transaction: Transaction,
   handoverId: string,
-  lines: HandoverLine[],
+  allLines: HandoverLine[],
 ) {
+  // A receipt has a row for each part, so an asset can appear more than once.
+  const lines = allLines.filter(
+    (line, index) =>
+      allLines.findIndex((other) => other.assetId === line.assetId) === index,
+  );
   const snapshots = await Promise.all(
     lines.map((line) =>
       transaction.get(db.collection("assets").doc(line.assetId)),

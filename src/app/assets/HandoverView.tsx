@@ -138,7 +138,7 @@ export function HandoverView({
             href={
               !canViewRegister
                 ? "/assets/mine"
-                : handover.lines.length === 1
+                : new Set(handover.lines.map((line) => line.assetId)).size === 1
                   ? `/assets/${encodeURIComponent(handover.lines[0]!.assetId)}`
                   : "/assets"
             }
@@ -209,8 +209,8 @@ export function HandoverView({
               </tr>
             </thead>
             <tbody>
-              {handover.lines.map((line) => (
-                <tr key={line.assetId}>
+              {handover.lines.map((line, index) => (
+                <tr key={`${line.assetId}-${index}`}>
                   <td>
                     {canViewRegister ? (
                       <Link
