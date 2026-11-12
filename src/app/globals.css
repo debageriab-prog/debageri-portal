@@ -4585,10 +4585,6 @@ td.amount-cell {
   margin: 12px 0 18px;
 }
 
-.handover-personal-number {
-  align-self: end;
-}
-
 .signature-field {
   display: grid;
   gap: 12px;

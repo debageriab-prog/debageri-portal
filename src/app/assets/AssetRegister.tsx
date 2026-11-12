@@ -96,9 +96,6 @@ export function AssetRegister({
       >
         {canManage && (
           <div className="actions">
-            <Link className="button secondary" href="/assets/handovers/new">
-              {t("handoverNew")}
-            </Link>
             <Link className="button" href="/assets/new">
               {t("assetNew")}
             </Link>
