@@ -18,6 +18,7 @@ import {
 import { formatSek } from "@/domain/finance/calculations";
 import { AssetActionsMenu, type AssetActionResult } from "./AssetActionsMenu";
 import { AssetDetailModal } from "./AssetDetailModal";
+import type { HandoverRecipient } from "./HandoverModal";
 import {
   AssetDisplayStatusBadge,
   AssetTopbar,
@@ -40,12 +41,15 @@ export function AssetRegister({
   assets,
   canManage,
   openAssetId,
+  recipients,
   notice,
 }: {
   assets: AssetItem[];
   canManage: boolean;
   /** The asset whose details popup opens on arrival. */
   openAssetId: string | null;
+  /** Who assets can be handed to; empty for people who cannot manage. */
+  recipients: HandoverRecipient[];
   notice: RegisterNotice | null;
 }) {
   const { t, locale } = useLocale();
@@ -246,6 +250,7 @@ export function AssetRegister({
                         <AssetActionsMenu
                           asset={asset}
                           othersOnReceipt={othersOnReceipt(asset)}
+                          recipients={recipients}
                           onDone={setDone}
                         />
                       )}

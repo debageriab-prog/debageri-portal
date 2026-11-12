@@ -17,10 +17,11 @@ import {
 } from "@/domain/assets";
 import { appCheckFetch } from "@/lib/firebase/client";
 import { assetErrorKey } from "./AssetForm";
+import { HandoverModal, type HandoverRecipient } from "./HandoverModal";
 import type { AssetItem } from "./asset-types";
 
 /** What a menu action did, for the notice on the register. */
-export type AssetActionResult = "returned" | "removed" | "cancelled";
+export type AssetActionResult = "issued" | "returned" | "removed" | "cancelled";
 
 /** Room the menu needs below the button before it opens upwards instead. */
 const MENU_HEIGHT = 340;
@@ -32,9 +33,12 @@ const MENU_HEIGHT = 340;
 export function AssetActionsMenu({
   asset,
   othersOnReceipt,
+  recipients,
   onDone,
 }: {
   asset: AssetItem;
+  /** Who the asset can be handed to. */
+  recipients: HandoverRecipient[];
   /** Other assets on the same open receipt; they come back with this one. */
   othersOnReceipt: number;
   onDone: (result: AssetActionResult) => void;
@@ -44,6 +48,7 @@ export function AssetActionsMenu({
   const anchorRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<CSSProperties | null>(null);
+  const [handingOver, setHandingOver] = useState(false);
   /** The receipt is closed: given back, or cancelled before it was signed. */
   const [closing, setClosing] = useState<"return" | "cancel" | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -184,12 +189,16 @@ export function AssetActionsMenu({
               style={position}
             >
               {canIssueHandover(asset) && (
-                <Link
+                <button
+                  type="button"
                   role="menuitem"
-                  href={`/assets/handovers/new?assetId=${id}`}
+                  onClick={() => {
+                    setPosition(null);
+                    setHandingOver(true);
+                  }}
                 >
                   {t("handoverNew")}
-                </Link>
+                </button>
               )}
               {canReturn && (
                 <button
@@ -246,6 +255,18 @@ export function AssetActionsMenu({
             document.body,
           )}
       </div>
+      {handingOver && (
+        <HandoverModal
+          asset={asset}
+          recipients={recipients}
+          onClose={() => setHandingOver(false)}
+          onIssued={() => {
+            setHandingOver(false);
+            onDone("issued");
+            router.refresh();
+          }}
+        />
+      )}
       {removing &&
         createPortal(
           <div className="modal-backdrop" role="presentation">

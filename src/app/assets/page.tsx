@@ -5,6 +5,7 @@ import {
   canManageAssets,
   canViewAssets,
   canViewOwnAssets,
+  handoverRecipients,
 } from "@/server/services/asset-service";
 import { AssetRegister, type RegisterNotice } from "./AssetRegister";
 import { byName, toAssetItem } from "./asset-data";
@@ -20,10 +21,14 @@ export default async function AssetsPage({
     redirect(canViewOwnAssets(actor) ? "/assets/mine" : "/unauthorized");
   const { asset, saved, issued } = await searchParams;
   const { db } = getAdminServices();
-  const snapshot = await db
-    .collection("assets")
-    .where("organizationId", "==", actor.organizationId)
-    .get();
+  const canManage = canManageAssets(actor);
+  const [snapshot, recipients] = await Promise.all([
+    db
+      .collection("assets")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+    canManage ? handoverRecipients(db, actor.organizationId) : [],
+  ]);
   const assets = snapshot.docs
     .map((doc) => toAssetItem(doc, actor))
     .filter((item): item is AssetItem => item !== null)
@@ -33,7 +38,8 @@ export default async function AssetsPage({
   return (
     <AssetRegister
       assets={assets}
-      canManage={canManageAssets(actor)}
+      canManage={canManage}
+      recipients={recipients}
       openAssetId={asset ?? null}
       notice={notice}
     />

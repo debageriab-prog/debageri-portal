@@ -4768,3 +4768,12 @@ td.amount-cell {
   right: auto;
   z-index: 40;
 }
+
+.handover-modal-form {
+  display: grid;
+  gap: 18px;
+}
+
+.handover-modal-form .table-wrap table {
+  min-width: 0;
+}
