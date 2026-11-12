@@ -90,6 +90,7 @@ describe("permissionTreeFor", () => {
       "finance",
       "documents",
       "requests",
+      "assets",
     ]);
     expect(tree[0]!.nodes).toEqual([
       { key: "my.time.report" },
@@ -172,7 +173,7 @@ describe("permission labels", () => {
     const known = keys(messages);
     for (const key of PERMISSION_KEYS)
       expect(known.has(`permission_${key.replaceAll(".", "_")}`)).toBe(true);
-    for (const group of ["time", "finance", "documents", "requests"])
+    for (const group of ["time", "finance", "documents", "requests", "assets"])
       expect(known.has(`permissionGroup_${group}`)).toBe(true);
   });
 });

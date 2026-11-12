@@ -54,6 +54,11 @@ import {
 } from "@/server/services/notification-service";
 import { PDF_CONTENT_TYPE } from "@/server/export/invoice-pdf";
 import {
+  AssetError,
+  linkableAsset,
+  linkAssetTransaction,
+} from "@/server/services/asset-service";
+import {
   expensableReceipt,
   linkReceiptExpense,
   ReceiptError,
@@ -253,9 +258,23 @@ export async function POST(request: Request) {
         id = await markInvoicePaid(db, actor, parsed.data);
         break;
       case "createTransaction": {
-        const { receiptId, requestId, incomingEmailId } = parsed.data;
-        if ([receiptId, requestId, incomingEmailId].filter(Boolean).length > 1)
+        const { receiptId, requestId, incomingEmailId, assetId, assetLink } =
+          parsed.data;
+        if (
+          [receiptId, requestId, incomingEmailId, assetId].filter(Boolean)
+            .length > 1 ||
+          Boolean(assetId) !== Boolean(assetLink)
+        )
           throw new FinanceError("invalidInput");
+        if (assetId && assetLink) {
+          // A purchase is an expense and a sale is income.
+          if (
+            parsed.data.direction !==
+            (assetLink === "purchase" ? "expense" : "income")
+          )
+            throw new FinanceError("invalidInput");
+          await linkableAsset(db, actor, assetId, assetLink);
+        }
         if (incomingEmailId)
           await convertibleIncomingEmail(db, actor, incomingEmailId);
         if (receiptId || requestId) {
@@ -298,6 +317,22 @@ export async function POST(request: Request) {
                 transactionId,
                 errorClass: error instanceof Error ? error.name : "unknown",
               }),
+          );
+        }
+        if (assetId && assetLink) {
+          const transactionId = id;
+          await linkAssetTransaction(
+            db,
+            actor,
+            assetId,
+            assetLink,
+            transactionId,
+          ).catch((error: unknown) =>
+            console.error("Asset transaction link failed", {
+              assetId,
+              transactionId,
+              errorClass: error instanceof Error ? error.name : "unknown",
+            }),
           );
         }
         if (incomingEmailId)
@@ -393,6 +428,11 @@ export async function POST(request: Request) {
     if (error instanceof RequestError)
       return NextResponse.json(
         { error: "requestNotExpensable" },
+        { status: error.status === 403 ? 403 : 409 },
+      );
+    if (error instanceof AssetError)
+      return NextResponse.json(
+        { error: "assetNotLinkable" },
         { status: error.status === 403 ? 403 : 409 },
       );
     console.error("Finance operation failed", {

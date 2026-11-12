@@ -1,3 +1,4 @@
+import { can } from "@/domain/access/permissions";
 import { redirect } from "next/navigation";
 import { expensableReceipt } from "@/server/services/receipt-service";
 import { requestCategoryId } from "@/domain/requests";
@@ -5,12 +6,17 @@ import {
   expensableRequest,
   storedRequestFiles,
 } from "@/server/services/request-service";
+import {
+  linkableAsset,
+  storedAssetFiles,
+} from "@/server/services/asset-service";
 import { aiExtractionEnabledFor } from "@/server/services/ai-service";
 import { accountingRecipientsFor } from "@/server/services/accounting-email-service";
 import { convertibleIncomingEmail } from "@/server/services/incoming-email-service";
 import {
   type ExpenseReceipt,
   type ExpenseRequest,
+  type TransactionAsset,
   TransactionForm,
 } from "../../FinanceForms";
 import type { IncomingEmailSource } from "../../incoming-email-prefill";
@@ -28,6 +34,8 @@ export default async function NewTransactionPage({
     receiptId?: string;
     requestId?: string;
     incomingEmailId?: string;
+    assetId?: string;
+    assetLink?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -76,8 +84,46 @@ export default async function NewTransactionPage({
       })),
     };
   }
+  let asset: TransactionAsset | undefined;
+  const assetLink =
+    params.assetLink === "purchase" || params.assetLink === "sale"
+      ? params.assetLink
+      : null;
+  if (params.assetId && assetLink && !receipt && !request) {
+    const data = await linkableAsset(
+      db,
+      actor,
+      params.assetId,
+      assetLink,
+    ).catch(() => null);
+    if (!data) redirect(`/assets/${encodeURIComponent(params.assetId)}`);
+    asset = {
+      id: data.id,
+      link: assetLink,
+      name: String(data.name),
+      amountMinor:
+        assetLink === "purchase"
+          ? Number(data.purchasePriceMinor ?? 0)
+          : Number(data.sale?.priceMinor ?? 0),
+      vatRateBps: Number(data.vatRateBps ?? 2_500),
+      date:
+        assetLink === "purchase"
+          ? data.purchaseDate
+            ? String(data.purchaseDate)
+            : null
+          : String(data.sale?.date ?? "") || null,
+      files:
+        assetLink === "purchase"
+          ? storedAssetFiles(data.files).map((file) => ({
+              id: file.id,
+              name: file.name,
+              contentType: file.contentType,
+            }))
+          : [],
+    };
+  }
   let incomingEmail: IncomingEmailSource | undefined;
-  if (params.incomingEmailId && !receipt && !request) {
+  if (params.incomingEmailId && !receipt && !request && !asset) {
     incomingEmail = await convertibleIncomingEmail(
       db,
       actor,
@@ -89,9 +135,11 @@ export default async function NewTransactionPage({
     ? "/receipts"
     : request
       ? "/requests"
-      : incomingEmail
-        ? "/finance/incoming-emails"
-        : safeTransactionReturnHref(params.returnTo);
+      : asset
+        ? `/assets/${encodeURIComponent(asset.id)}`
+        : incomingEmail
+          ? "/finance/incoming-emails"
+          : safeTransactionReturnHref(params.returnTo);
   const snapshot = await db
     .collection("financeCategories")
     .where("organizationId", "==", actor.organizationId)
@@ -115,6 +163,8 @@ export default async function NewTransactionPage({
       returnHref={returnHref}
       receipt={receipt}
       request={request}
+      asset={asset}
+      canCreateAssets={can(actor, "assets.manage")}
       incomingEmail={incomingEmail}
       accountingRecipients={await accountingRecipientsFor(
         actor,

@@ -119,9 +119,20 @@ export type CellOptions = {
   align?: "left" | "center" | "right";
 };
 
+/** Ink on a transparent background, such as a signature. */
+export interface PdfImage {
+  width: number;
+  height: number;
+  /** One byte per pixel, row by row from the top: how much ink covers it. */
+  alpha: Buffer;
+  /** The ink colour as hex, black by default. */
+  color?: string;
+}
+
 /** Draws on one page, measuring from the top left like a screen. */
 export class PdfPage {
   private readonly ops: string[] = ["0.5 w 0 0 0 RG"];
+  readonly images: PdfImage[] = [];
 
   constructor(
     readonly width: number,
@@ -227,6 +238,20 @@ export class PdfPage {
       this.ops.push(`q 0.5 w ${rgb(options.stroke)} RG ${box} S Q`);
   }
 
+  /** Places an image in the box, stretched to it. */
+  image(
+    image: PdfImage,
+    x: number,
+    top: number,
+    width: number,
+    height: number,
+  ) {
+    const index = this.images.push(image);
+    this.ops.push(
+      `q ${num(width)} 0 0 ${num(height)} ${num(x)} ${num(this.height - top - height)} cm /Im${index} Do Q`,
+    );
+  }
+
   content() {
     return this.ops.join("\n");
   }
@@ -265,6 +290,15 @@ export function pdfDocument(pages: readonly PdfPage[]): Buffer {
   const add = (body: Buffer | string) =>
     objects.push(typeof body === "string" ? Buffer.from(body, "latin1") : body);
   const pageIds = pages.map((_, index) => 6 + index * 2);
+  // Each image takes two objects after the pages: the ink and its alpha.
+  let nextImageId = 6 + pages.length * 2;
+  const imageIds = pages.map((page) =>
+    page.images.map(() => {
+      const id = nextImageId;
+      nextImageId += 2;
+      return id;
+    }),
+  );
   add("<< /Type /Catalog /Pages 2 0 R >>");
   add(
     `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pages.length} >>`,
@@ -280,8 +314,11 @@ export function pdfDocument(pages: readonly PdfPage[]): Buffer {
   );
   pages.forEach((page, index) => {
     const content = deflateSync(Buffer.from(page.content(), "latin1"));
+    const xObjects = imageIds[index]!.length
+      ? ` /XObject << ${imageIds[index]!.map((id, number) => `/Im${number + 1} ${id} 0 R`).join(" ")} >>`
+      : "";
     add(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents ${pageIds[index]! + 1} 0 R >>`,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >>${xObjects} >> /Contents ${pageIds[index]! + 1} 0 R >>`,
     );
     add(
       Buffer.concat([
@@ -294,6 +331,36 @@ export function pdfDocument(pages: readonly PdfPage[]): Buffer {
       ]),
     );
   });
+
+  const stream = (dictionary: string, data: Buffer) => {
+    const packed = deflateSync(data);
+    add(
+      Buffer.concat([
+        Buffer.from(
+          `<< ${dictionary} /Length ${packed.length} /Filter /FlateDecode >>\nstream\n`,
+          "latin1",
+        ),
+        packed,
+        Buffer.from("\nendstream", "latin1"),
+      ]),
+    );
+  };
+  pages.forEach((page, index) =>
+    page.images.forEach((image, number) => {
+      const size = `/Width ${image.width} /Height ${image.height} /BitsPerComponent 8`;
+      const ink = Buffer.from(image.color ?? "000000", "hex");
+      const colour = Buffer.alloc(image.width * image.height * 3);
+      for (let i = 0; i < colour.length; i += 3) ink.copy(colour, i);
+      stream(
+        `/Type /XObject /Subtype /Image ${size} /ColorSpace /DeviceRGB /SMask ${imageIds[index]![number]! + 1} 0 R`,
+        colour,
+      );
+      stream(
+        `/Type /XObject /Subtype /Image ${size} /ColorSpace /DeviceGray`,
+        image.alpha,
+      );
+    }),
+  );
 
   const parts: Buffer[] = [
     Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n", "latin1"),

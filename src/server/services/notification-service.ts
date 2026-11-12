@@ -300,6 +300,72 @@ export function notifyRequestStatusChanged(
   });
 }
 
+function handoverAssetNames(handover: FirebaseFirestore.DocumentData) {
+  return (Array.isArray(handover.lines) ? handover.lines : [])
+    .map((line: { equipment?: unknown }) => String(line.equipment ?? ""))
+    .filter(Boolean)
+    .join(", ")
+    .slice(0, 300);
+}
+
+/** Tells the recipient there is a receipt waiting for them to accept. */
+export function notifyAssetHandoverIssued(
+  handoverId: string,
+  portalUrl: string,
+) {
+  return safely("assetHandoverIssued", async () => {
+    const { db } = getAdminServices();
+    const handover = (
+      await db.collection("assetHandovers").doc(handoverId).get()
+    ).data();
+    if (!handover) return;
+    const recipient = await loadUser(db, handover.recipientUserId);
+    if (!recipient) return;
+    await deliver(
+      db,
+      String(handover.organizationId),
+      "assetHandoverIssued",
+      handoverId,
+      `/assets/handovers/${handoverId}`,
+      portalUrl,
+      {
+        personName: String(handover.issuedByName ?? ""),
+        assetNames: handoverAssetNames(handover),
+      },
+      [recipient],
+    );
+  });
+}
+
+/** Tells whoever issued the receipt that it has been accepted. */
+export function notifyAssetHandoverAccepted(
+  handoverId: string,
+  portalUrl: string,
+) {
+  return safely("assetHandoverAccepted", async () => {
+    const { db } = getAdminServices();
+    const handover = (
+      await db.collection("assetHandovers").doc(handoverId).get()
+    ).data();
+    if (!handover || handover.status !== "accepted") return;
+    const issuer = await loadUser(db, handover.issuedBy);
+    if (!issuer) return;
+    await deliver(
+      db,
+      String(handover.organizationId),
+      "assetHandoverAccepted",
+      handoverId,
+      `/assets/handovers/${handoverId}`,
+      portalUrl,
+      {
+        personName: String(handover.recipientName ?? ""),
+        assetNames: handoverAssetNames(handover),
+      },
+      [issuer],
+    );
+  });
+}
+
 export function notifyPayslipPublished(payslipId: string, portalUrl: string) {
   return safely("payslipPublished", async () => {
     const { db } = getAdminServices();

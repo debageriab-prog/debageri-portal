@@ -52,6 +52,8 @@ export const PERMISSION_KEYS = [
   "documents.receipts.book",
   "documents.requests.review",
   "documents.requests.book",
+  "assets.view",
+  "assets.manage",
   "my.time.report",
   "my.time.history",
   "my.time.income",
@@ -69,6 +71,7 @@ export const PERMISSION_KEYS = [
   "my.requests.education",
   "my.requests.seminar",
   "my.requests.travel",
+  "my.assets",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -77,7 +80,7 @@ export type PermissionNode = {
   children?: PermissionNode[];
 };
 export type PermissionGroup = {
-  id: "time" | "finance" | "documents" | "requests";
+  id: "time" | "finance" | "documents" | "requests" | "assets";
   nodes: PermissionNode[];
 };
 export type ProfileAudience = "consultant" | "staff";
@@ -223,6 +226,13 @@ export const PERMISSION_TREE: PermissionGroup[] = [
         key: "documents.receipts.review",
         children: [{ key: "documents.receipts.book" }],
       },
+    ],
+  },
+  {
+    id: "assets",
+    nodes: [
+      { key: "my.assets" },
+      { key: "assets.view", children: [{ key: "assets.manage" }] },
     ],
   },
 ];
@@ -407,6 +417,8 @@ const FALLBACK_PAGES: Array<[PermissionKey, string]> = [
   ["my.receipts", "/receipts"],
   ["documents.requests.review", "/requests"],
   ["my.requests", "/requests"],
+  ["assets.view", "/assets"],
+  ["my.assets", "/assets/mine"],
   ["time.reminders.view", "/reminders"],
 ];
 
@@ -453,7 +465,10 @@ const managerPermissions: PermissionKey[] = [
   "documents.contracts.delete",
   "documents.requests.review",
   "documents.requests.book",
+  "assets.view",
+  "assets.manage",
   ...ownTimePermissions,
+  "my.assets",
 ];
 
 const accountantPermissions: PermissionKey[] = [
@@ -502,7 +517,10 @@ const accountantPermissions: PermissionKey[] = [
   "documents.receipts.book",
   "documents.requests.review",
   "documents.requests.book",
+  "assets.view",
+  "assets.manage",
   ...ownTimePermissions,
+  "my.assets",
 ];
 
 /** Admins do everything for the company and have no own records to open. */

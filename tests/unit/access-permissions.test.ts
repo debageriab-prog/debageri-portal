@@ -66,6 +66,8 @@ const matrix: Array<[PermissionKey, manager: boolean, accountant: boolean]> = [
   ["documents.receipts.book", false, true],
   ["documents.requests.review", true, true],
   ["documents.requests.book", true, true],
+  ["assets.view", true, true],
+  ["assets.manage", true, true],
 ];
 
 function keysIn(nodes: PermissionNode[]): PermissionKey[] {

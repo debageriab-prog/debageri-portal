@@ -32,12 +32,14 @@ describe("notification settings", () => {
       payslips: true,
       timesheets: true,
       requests: true,
+      assets: true,
     });
     expect(notificationSettingsFrom({ payslips: false })).toEqual({
       receipts: true,
       payslips: false,
       timesheets: true,
       requests: true,
+      assets: true,
     });
   });
 });

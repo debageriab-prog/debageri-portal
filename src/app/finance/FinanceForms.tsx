@@ -14,6 +14,7 @@ import {
   MAX_ROUNDING_MINOR,
   type TransactionAmountMode,
 } from "@/domain/finance/calculations";
+import { isAssetExpenseCategory } from "@/domain/assets";
 import { InfoTip } from "@/components/ui/InfoTip";
 import {
   consultantServicesDescription,
@@ -127,6 +128,18 @@ export type ExpenseRequest = {
   files: { id: string; name: string; contentType: string }[];
 };
 
+/** Equipment whose purchase (an expense) or sale (income) is booked. */
+export type TransactionAsset = {
+  id: string;
+  link: "purchase" | "sale";
+  name: string;
+  amountMinor: number;
+  vatRateBps: number;
+  date: string | null;
+  /** The purchase receipt and other files, attached to a purchase. */
+  files: { id: string; name: string; contentType: string }[];
+};
+
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -186,6 +199,8 @@ function useFinanceSubmit(
     entityType: AccountingEntityType;
     recipients: string[];
   },
+  /** Runs after a save instead of leaving, and leaves with `proceed`. */
+  afterSave?: (result: { id?: string }, proceed: () => void) => void,
 ) {
   const { t } = useLocale();
   const router = useRouter();
@@ -260,12 +275,15 @@ function useFinanceSubmit(
           return;
         }
       }
-      prompt.offer(attachment?.entityId ?? result.id, () => {
+      const leave = () => {
         router.push(
           typeof successPath === "string" ? successPath : successPath(result),
         );
         router.refresh();
-      });
+      };
+      prompt.offer(attachment?.entityId ?? result.id, () =>
+        afterSave ? afterSave(result, leave) : leave(),
+      );
     } catch {
       if (createdInvoiceId) {
         router.push(
@@ -1822,9 +1840,11 @@ export function TransactionForm({
   transaction,
   receipt,
   request,
+  asset,
   incomingEmail,
   accountingRecipients = [],
   aiEnabled = false,
+  canCreateAssets = false,
 }: {
   users: User[];
   categories: Category[];
@@ -1834,6 +1854,10 @@ export function TransactionForm({
   receipt?: ExpenseReceipt;
   /** A finalized request whose details and files fill the form. */
   request?: ExpenseRequest;
+  /** Equipment whose purchase or sale fills the form. */
+  asset?: TransactionAsset;
+  /** Offers to register an asset after an equipment expense is saved. */
+  canCreateAssets?: boolean;
   /** A forwarded email whose AI reading and files fill the form. */
   incomingEmail?: IncomingEmailSource;
   aiEnabled?: boolean;
@@ -1841,6 +1865,7 @@ export function TransactionForm({
   accountingRecipients?: string[];
 }) {
   const { t, locale } = useLocale();
+  const router = useRouter();
   const receiptConsultant = receipt
     ? users.find((user) => user.id === receipt.userId)
     : undefined;
@@ -1848,7 +1873,14 @@ export function TransactionForm({
     ? users.find((user) => user.id === request.userId)
     : undefined;
   const [direction, setDirection] = useState<"" | "income" | "expense">(
-    transaction?.direction ?? (receipt || request ? "expense" : ""),
+    transaction?.direction ??
+      (receipt || request
+        ? "expense"
+        : asset
+          ? asset.link === "purchase"
+            ? "expense"
+            : "income"
+          : ""),
   );
   const [consultantId, setConsultantId] = useState(
     transaction
@@ -1857,7 +1889,9 @@ export function TransactionForm({
         ? (receiptConsultant?.id ?? COMPANY_ONLY)
         : request
           ? (requestConsultant?.id ?? COMPANY_ONLY)
-          : "",
+          : asset
+            ? COMPANY_ONLY
+            : "",
   );
   const hasConsultant = consultantId !== "" && consultantId !== COMPANY_ONLY;
   const [fieldErrors, setFieldErrors] = useState<
@@ -1875,7 +1909,7 @@ export function TransactionForm({
     transaction?.vatRateBps ??
     (receipt
       ? receiptVatRateBps(receipt.netMinor, receipt.vatMinor)
-      : (request?.vatRateBps ?? 0));
+      : (request?.vatRateBps ?? asset?.vatRateBps ?? 0));
   const initialAmounts = transaction
     ? {
         netMinor: transaction.netMinor,
@@ -1903,7 +1937,9 @@ export function TransactionForm({
           ? (receipt.netMinor / 100).toFixed(2)
           : request?.estimatedCostMinor
             ? (request.estimatedCostMinor / 100).toFixed(2)
-            : "",
+            : asset?.amountMinor
+              ? (asset.amountMinor / 100).toFixed(2)
+              : "",
   );
   const [vatAmount, setVatAmount] = useState(
     initialAmounts ? (initialAmounts.vatMinor / 100).toFixed(2) : "",
@@ -1915,7 +1951,13 @@ export function TransactionForm({
   );
   const [funding, setFunding] = useState<"" | "company" | "consultant">(
     transaction?.funding ??
-      (request ? (request.payer === "self" ? "consultant" : "company") : ""),
+      (request
+        ? request.payer === "self"
+          ? "consultant"
+          : "company"
+        : asset?.link === "purchase"
+          ? "company"
+          : ""),
   );
   const [vatPercent, setVatPercent] = useState(String(initialVatRateBps / 100));
   const [applyShare, setApplyShare] = useState(
@@ -1939,9 +1981,27 @@ export function TransactionForm({
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
     [],
   );
+  const [assetOffer, setAssetOffer] = useState<{
+    transactionId: string;
+    proceed: () => void;
+  } | null>(null);
   const { busy, error, submit, accountingDialog } = useFinanceSubmit(
     returnHref,
     { entityType: "transaction", recipients: accountingRecipients },
+    (result, proceed) => {
+      // A new equipment expense may be the purchase of an asset.
+      const offer =
+        canCreateAssets &&
+        !transaction &&
+        !asset &&
+        direction === "expense" &&
+        result.id &&
+        isAssetExpenseCategory(
+          categories.find((category) => category.id === categoryId),
+        );
+      if (offer) setAssetOffer({ transactionId: result.id!, proceed });
+      else proceed();
+    },
   );
   const [receiptFileError, setReceiptFileError] = useState(false);
   const [requestFilesFailed, setRequestFilesFailed] = useState(false);
@@ -1950,7 +2010,7 @@ export function TransactionForm({
     transaction?.categoryId ?? request?.categoryId ?? "",
   );
   const [date, setDate] = useState(
-    transaction?.date ?? receipt?.date ?? defaultDate ?? today(),
+    transaction?.date ?? receipt?.date ?? asset?.date ?? defaultDate ?? today(),
   );
   const receiptText = receipt
     ? [receipt.name, receipt.description].filter(Boolean).join(" – ")
@@ -1965,7 +2025,13 @@ export function TransactionForm({
           ? `${t("request")}: ${request.title} (${t(
               `requestType_${request.type}` as MessageKey,
             )}, ${request.userName})`.slice(0, 1_000)
-          : ""),
+          : asset
+            ? `${t(
+                asset.link === "purchase"
+                  ? "assetPurchaseNote"
+                  : "assetSaleNote",
+              )}: ${asset.name}`.slice(0, 1_000)
+            : ""),
   );
   const [visibleDescription, setVisibleDescription] = useState(
     transaction?.visibleDescription ?? receiptText,
@@ -2164,6 +2230,31 @@ export function TransactionForm({
       active = false;
     };
   }, [request]);
+  useEffect(() => {
+    if (!asset?.files.length) return;
+    let active = true;
+    void Promise.all(
+      asset.files.map((file) =>
+        appCheckFetch(
+          `/api/assets/${encodeURIComponent(asset.id)}/files/${encodeURIComponent(file.id)}`,
+        ).then(async (response) => {
+          if (!response.ok) throw new Error("assetFileUnavailable");
+          return new File([await response.blob()], file.name, {
+            type: file.contentType,
+          });
+        }),
+      ),
+    )
+      .then((files) => {
+        if (active) setAttachmentFiles(files);
+      })
+      .catch(() => {
+        if (active) setRequestFilesFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [asset]);
   const vatRateBps = Math.round(Number(vatPercent || 0) * 100);
   const roundingMinor = (() => {
     try {
@@ -2249,6 +2340,9 @@ export function TransactionForm({
       internalNote: form.get("internalNote"),
       ...(receipt && !transaction ? { receiptId: receipt.id } : {}),
       ...(request && !transaction ? { requestId: request.id } : {}),
+      ...(asset && !transaction
+        ? { assetId: asset.id, assetLink: asset.link }
+        : {}),
       ...(incomingEmail && !transaction
         ? { incomingEmailId: incomingEmail.id }
         : {}),
@@ -2294,9 +2388,11 @@ export function TransactionForm({
           ? t("backToReceipts")
           : request
             ? t("backToRequests")
-            : incomingEmail
-              ? t("backToIncomingEmails")
-              : t("backToTransactions")
+            : asset
+              ? t("assetBackToAsset")
+              : incomingEmail
+                ? t("backToIncomingEmails")
+                : t("backToTransactions")
       }
       notice={
         incomingEmail ? (
@@ -2304,6 +2400,25 @@ export function TransactionForm({
             email={incomingEmail}
             filesFailed={emailFilesFailed}
           />
+        ) : asset ? (
+          <div className="notice notice-success receipt-expense-notice">
+            <strong>
+              {t(
+                asset.link === "purchase"
+                  ? "assetBookPurchaseNotice"
+                  : "assetBookSaleNotice",
+              ).replace("{name}", asset.name)}
+            </strong>
+            <span>
+              {t("assetBookNoticeHelp").replace(
+                "{total}",
+                formatSek(asset.amountMinor, locale),
+              )}
+            </span>
+            {requestFilesFailed && (
+              <span>{t("expenseRequestFilesMissing")}</span>
+            )}
+          </div>
         ) : request ? (
           <div className="notice notice-success receipt-expense-notice">
             <strong>
@@ -2649,6 +2764,64 @@ export function TransactionForm({
         </div>
         {error && <p className="form-wide notice notice-error">{error}</p>}
         {accountingDialog}
+        {assetOffer && (
+          <div className="modal-backdrop" role="presentation">
+            <section
+              className="modal modal-small"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="transaction-asset-offer-title"
+              aria-describedby="transaction-asset-offer-description"
+            >
+              <header className="modal-header">
+                <div>
+                  <h2 id="transaction-asset-offer-title">
+                    {t("assetOfferTitle")}
+                  </h2>
+                  <p id="transaction-asset-offer-description">
+                    {t("assetOfferQuestion")}
+                  </p>
+                </div>
+                <button
+                  className="modal-close"
+                  type="button"
+                  aria-label={t("close")}
+                  onClick={() => {
+                    const { proceed } = assetOffer;
+                    setAssetOffer(null);
+                    proceed();
+                  }}
+                >
+                  ×
+                </button>
+              </header>
+              <footer className="modal-actions">
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => {
+                    const { proceed } = assetOffer;
+                    setAssetOffer(null);
+                    proceed();
+                  }}
+                >
+                  {t("assetOfferSkip")}
+                </button>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    router.push(
+                      `/assets/new?transactionId=${encodeURIComponent(assetOffer.transactionId)}`,
+                    );
+                  }}
+                >
+                  {t("assetCreate")}
+                </button>
+              </footer>
+            </section>
+          </div>
+        )}
         {pendingVatMismatch && (
           <div className="modal-backdrop" role="presentation">
             <section

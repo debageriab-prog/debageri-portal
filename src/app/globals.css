@@ -4508,3 +4508,268 @@ td.amount-cell {
     grid-template-columns: 1fr;
   }
 }
+
+/* Assets: equipment register and receipts */
+.asset-actions {
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+
+.handover-paper {
+  position: relative;
+  display: grid;
+  gap: 14px;
+}
+
+.handover-paper h2 {
+  margin: 0;
+  text-align: center;
+}
+
+.handover-paper h3 {
+  margin: 8px 0 0;
+}
+
+.handover-paper p {
+  margin: 0;
+}
+
+.handover-paper-status {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.handover-fields {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.handover-fields > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.handover-fields dt {
+  font-weight: 600;
+}
+
+.handover-fields dt::after {
+  content: ":";
+}
+
+.handover-fields dd {
+  margin: 0;
+}
+
+.handover-terms {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.handover-accept {
+  display: grid;
+  gap: 14px;
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.handover-manage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+
+.signature-field {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.signature-field legend {
+  padding: 0 6px;
+  margin-left: 12px;
+  font-weight: 600;
+}
+
+.signature-field .editor-tabs {
+  padding: 0 12px;
+}
+
+.signature-panel {
+  display: grid;
+  gap: 12px;
+  padding: 0 16px;
+}
+
+.signature-panel[hidden] {
+  display: none;
+}
+
+.signature-panel p {
+  margin: 0;
+}
+
+.signature-pad {
+  width: 100%;
+  max-width: 600px;
+  aspect-ratio: 3 / 1;
+  border: 1px dashed var(--muted);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.signature-styles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.signature-style {
+  min-height: 72px;
+  padding: 8px 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: #1f2a44;
+  font-size: 2rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.signature-style.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.asset-parts {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.asset-parts legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+.asset-part {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbf8f5;
+}
+
+.asset-part-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+}
+
+.asset-parts-total {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding-bottom: 10px;
+}
+
+.asset-parts-total strong {
+  font-size: 1.1rem;
+}
+
+.more-anchor {
+  position: relative;
+}
+
+.button.more-button {
+  display: inline-grid;
+  place-items: center;
+  padding-inline: 12px;
+}
+
+.more-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 240px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: white;
+  box-shadow: 0 22px 60px rgb(45 30 20 / 20%);
+  animation: modal-in 160ms ease;
+}
+
+.more-menu > a,
+.more-menu > button {
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 11px;
+  color: var(--foreground);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.more-menu > a:hover,
+.more-menu > button:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.more-menu > .more-menu-danger {
+  margin-top: 5px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 11px 11px;
+  color: var(--danger);
+}
+
+.more-menu > button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.more-menu.more-menu-floating {
+  position: fixed;
+  top: auto;
+  right: auto;
+  z-index: 40;
+}
+
+.handover-modal-form {
+  display: grid;
+  gap: 18px;
+}
+
+.handover-modal-form .table-wrap table {
+  min-width: 0;
+}

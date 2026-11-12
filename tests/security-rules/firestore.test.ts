@@ -285,6 +285,42 @@ describe("Firestore rules", () => {
       }),
     );
   });
+  it("keeps equipment and receipts server-only, even for their holder", async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "assets/a1"), {
+        organizationId: "debageri",
+        status: "active",
+        holder: { type: "user", userId: "u1", name: "Anna" },
+      });
+      await setDoc(doc(context.firestore(), "assetHandovers/h1"), {
+        organizationId: "debageri",
+        recipientUserId: "u1",
+        status: "pending",
+      });
+      await setDoc(doc(context.firestore(), "assetEvents/e1"), {
+        organizationId: "debageri",
+        assetId: "a1",
+        kind: "created",
+      });
+    });
+    const holder = env.authenticatedContext("u1").firestore();
+    await assertFails(getDoc(doc(holder, "assets/a1")));
+    await assertFails(getDoc(doc(holder, "assetHandovers/h1")));
+    await assertFails(getDoc(doc(holder, "assetEvents/e1")));
+    await assertFails(
+      setDoc(doc(holder, "assetHandovers/h1"), {
+        organizationId: "debageri",
+        recipientUserId: "u1",
+        status: "accepted",
+      }),
+    );
+    await assertFails(
+      setDoc(doc(holder, "assets/a2"), {
+        organizationId: "debageri",
+        status: "active",
+      }),
+    );
+  });
   it("keeps time report files server-only, even for their owner", async () => {
     await env.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "timesheetAttachments/f1"), {

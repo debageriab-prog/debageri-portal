@@ -758,12 +758,170 @@ async function seedDocuments() {
   });
 }
 
+async function seedAssets() {
+  const consultant = "seed-consultant-flexible";
+  const holder = {
+    type: "user",
+    userId: consultant,
+    name: "Cleo Lind",
+    location: "",
+  };
+  const office = {
+    type: "company",
+    userId: null,
+    name: "",
+    location: "Gothenburg office",
+  };
+  const asset = (
+    name: string,
+    category: string,
+    make: string,
+    model: string,
+    serialNumber: string,
+    purchasePriceMinor: number,
+    extra: Record<string, unknown>,
+  ) => ({
+    organizationId: org,
+    name,
+    category,
+    make,
+    model,
+    serialNumber,
+    accessories: "",
+    supplier: "Fictional Electronics AB",
+    purchaseDate: "2026-08-15",
+    purchasePriceMinor,
+    vatRateBps: 2_500,
+    notes: "",
+    files: [],
+    status: "active",
+    holder: office,
+    activeHandoverId: null,
+    handoverStatus: null,
+    purchaseTransactionId: null,
+    sale: null,
+    saleTransactionId: null,
+    retirement: null,
+    createdAt: now,
+    createdBy: "seed-manager",
+    updatedAt: now,
+    ...extra,
+  });
+  await db
+    .collection("assets")
+    .doc("seed-asset-phone")
+    .set(
+      asset(
+        "Mobile phone",
+        "phone",
+        "Google",
+        "Pixel 11 Pro",
+        "353000000000064",
+        1_299_000,
+        {
+          holder,
+          activeHandoverId: "seed-handover-pending",
+          handoverStatus: "pending",
+        },
+      ),
+    );
+  await db
+    .collection("assets")
+    .doc("seed-asset-drive")
+    .set(
+      asset(
+        "Hard drive",
+        "storage",
+        "LaCie",
+        "Rugged 4TB",
+        "NT0000001",
+        289_000,
+        {
+          holder,
+          activeHandoverId: "seed-handover-accepted",
+          handoverStatus: "accepted",
+        },
+      ),
+    );
+  await db
+    .collection("assets")
+    .doc("seed-asset-monitor")
+    .set(
+      asset("Monitor", "monitor", "Dell", "U2724D", "CN0000002", 459_000, {}),
+    );
+  const line = (
+    assetId: string,
+    equipment: string,
+    makeModel: string,
+    serialNumber: string,
+  ) => ({
+    assetId,
+    equipment,
+    makeModel,
+    serialNumber,
+    accessories: "",
+    previousHolder: office,
+  });
+  const handover = {
+    organizationId: org,
+    recipientUserId: consultant,
+    recipientName: "Cleo Lind",
+    company: { legalName: "Debageri AB", orgNumber: "559000-0000" },
+    includePersonalNumber: false,
+    issuedBy: "seed-manager",
+    issuedByName: "Mira Manager",
+    issuedAt: now,
+    pdfStoragePath: null,
+    scan: null,
+    closedAt: null,
+    closedBy: null,
+  };
+  await db
+    .collection("assetHandovers")
+    .doc("seed-handover-accepted")
+    .set({
+      ...handover,
+      assetIds: ["seed-asset-drive"],
+      lines: [
+        line("seed-asset-drive", "Hard drive", "LaCie Rugged 4TB", "NT0000001"),
+      ],
+      status: "accepted",
+      issuedOn: "2026-08-21",
+      acceptedAt: now,
+      acceptedOn: "2026-08-21",
+      acceptedPlace: "Gothenburg",
+      locale: "en-SE",
+    });
+  await db
+    .collection("assetHandovers")
+    .doc("seed-handover-pending")
+    .set({
+      ...handover,
+      assetIds: ["seed-asset-phone"],
+      lines: [
+        line(
+          "seed-asset-phone",
+          "Mobile phone",
+          "Google Pixel 11 Pro",
+          "353000000000064",
+        ),
+      ],
+      status: "pending",
+      issuedOn: "2026-11-10",
+      acceptedAt: null,
+      acceptedOn: null,
+      acceptedPlace: "",
+      locale: null,
+    });
+}
+
 async function main() {
   await seedProfiles();
   await seedPeople();
   await seedFinance();
   await seedTimeReports();
   await seedDocuments();
+  await seedAssets();
   console.log("Seeded the local emulators:");
   for (const [, email, displayName, role, profile] of people)
     console.log(

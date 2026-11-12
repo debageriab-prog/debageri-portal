@@ -1,0 +1,45 @@
+import { redirect } from "next/navigation";
+import { canSell } from "@/domain/assets";
+import { getTranslator } from "@/lib/localization/server";
+import { byName } from "../../asset-data";
+import { AssetActionForm } from "../../AssetActionForm";
+import { FormHeader } from "../../FormHeader";
+import { loadAssetPage } from "../../load-asset";
+
+export default async function SellAssetPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const { actor, db, asset } = await loadAssetPage(id, true);
+  if (!canSell(asset)) redirect("/assets");
+  const [t, users] = await Promise.all([
+    getTranslator(),
+    db
+      .collection("users")
+      .where("organizationId", "==", actor.organizationId)
+      .get(),
+  ]);
+  return (
+    <>
+      <FormHeader
+        backHref="/assets"
+        backLabel={t("assetBackToRegister")}
+        title={t("assetSell")}
+        description={t("assetSellDescription")}
+      />
+      <AssetActionForm
+        asset={asset}
+        mode="sell"
+        users={users.docs
+          .filter(
+            (doc) =>
+              doc.data().status === "active" || doc.id === asset.holder.userId,
+          )
+          .map((doc) => ({ id: doc.id, name: String(doc.data().displayName) }))
+          .sort(byName)}
+      />
+    </>
+  );
+}
