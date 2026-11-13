@@ -13,6 +13,10 @@ import {
 } from "@/domain/finance/csv";
 import { parseSek } from "@/domain/finance/calculations";
 import {
+  FingerprintPool,
+  transactionFingerprint,
+} from "@/domain/finance/transaction-export";
+import {
   createFinancialTransaction,
   createInvoice,
   FinanceError,
@@ -26,6 +30,14 @@ const requestSchema = z.object({
 });
 
 const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Kronor that may be negative, as reversals and rounding are in a backup. */
+function parseSignedSek(value: string) {
+  const trimmed = value.trim();
+  return trimmed.startsWith("-")
+    ? -parseSek(trimmed.slice(1))
+    : parseSek(trimmed);
+}
 
 const importPermissions: Record<
   z.infer<typeof requestSchema>["kind"],
@@ -161,6 +173,24 @@ export async function POST(request: Request) {
           (!data.validTo || data.validTo >= date)
         );
       });
+    // Payments already in the portal under another key are recognised by
+    // what they are, so importing the same backup twice adds nothing.
+    const existingPayments = new FingerprintPool(
+      transactions.docs.map((document) => {
+        const data = document.data();
+        return transactionFingerprint({
+          direction: String(data.direction),
+          date: String(data.date),
+          categoryId: String(data.categoryId),
+          consultantId: data.consultantId ?? null,
+          netMinor: Number(data.netMinor),
+          vatRateBps: Number(data.vatRateBps ?? 0),
+          visibleDescription: String(data.visibleDescription ?? ""),
+        });
+      }),
+    );
+    const ledgerImport = parsedRequest.data.kind !== "invoices";
+    let duplicates = 0;
     const fileKeys = new Set<string>();
     const errors: Array<{ row: number; message: string }> = [];
     const prepared: Array<Record<string, unknown>> = [];
@@ -169,6 +199,18 @@ export async function POST(request: Request) {
       const rowNumber = index + 2;
       const value = (key: string) => row[key] ?? "";
       const importKey = value("import_key");
+      const rowErrorsFrom = errors.length;
+      // Rows already in the portal are skipped, so they need no checks.
+      if (
+        ledgerImport &&
+        importKey &&
+        transactionImportKeys.has(importKey) &&
+        !fileKeys.has(importKey)
+      ) {
+        fileKeys.add(importKey);
+        duplicates += 1;
+        return;
+      }
       const employeeNumber = value("consultant_employee_number");
       const consultantId = employeeNumber
         ? usersByNumber.get(employeeNumber)
@@ -205,7 +247,9 @@ export async function POST(request: Request) {
           message: "importRowCategoryInvalid",
         });
       try {
-        const netMinor = parseSek(value("net_sek"));
+        const netMinor = ledgerImport
+          ? parseSignedSek(value("net_sek"))
+          : parseSek(value("net_sek"));
         const vatRateBps = Math.round(Number(value("vat_percent")) * 100);
         if (
           !Number.isInteger(vatRateBps) ||
@@ -286,7 +330,40 @@ export async function POST(request: Request) {
               shareBpsOverride > 10_000)
           )
             throw new Error();
+          // A backup keeps the stored VAT, rounding and total exactly.
+          const storedAmounts = value("gross_sek")
+            ? {
+                vatMinor: parseSignedSek(value("vat_sek") || "0"),
+                roundingMinor: parseSignedSek(value("rounding_sek") || "0"),
+                grossMinor: parseSignedSek(value("gross_sek")),
+              }
+            : null;
+          if (
+            storedAmounts &&
+            storedAmounts.grossMinor !==
+              netMinor + storedAmounts.vatMinor + storedAmounts.roundingMinor
+          )
+            throw new Error();
+          if (
+            category &&
+            existingPayments.take(
+              transactionFingerprint({
+                direction,
+                date: value("date"),
+                categoryId: category.id,
+                consultantId: consultantId ?? null,
+                netMinor,
+                vatRateBps,
+                visibleDescription: value("description"),
+              }),
+            )
+          ) {
+            errors.length = rowErrorsFrom;
+            duplicates += 1;
+            return;
+          }
           prepared.push({
+            ...storedAmounts,
             importKey,
             direction,
             categoryId: category?.id,
@@ -315,11 +392,12 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: errors.length === 0,
         rows: rows.length,
+        duplicates,
         errors,
       });
 
     let imported = 0;
-    let skipped = 0;
+    let skipped = duplicates;
     for (const item of prepared) {
       const importKey = String(item.importKey);
       if (parsedRequest.data.kind === "invoices") {
@@ -390,6 +468,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       rows: rows.length,
+      duplicates,
       imported,
       skipped,
       errors: [],

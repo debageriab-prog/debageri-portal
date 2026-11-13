@@ -4773,3 +4773,31 @@ td.amount-cell {
 .handover-modal-form .table-wrap table {
   min-width: 0;
 }
+
+/* Import and export on Income and expenses: a button that opens a menu. */
+.button.menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.button.menu-button .action-icon-svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.import-export-notice {
+  flex-basis: 100%;
+  order: 99;
+  margin: 0;
+}
+
+.backup-import-body {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.backup-import-body .notice {
+  margin: 0;
+}
