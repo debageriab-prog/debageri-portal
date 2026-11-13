@@ -75,10 +75,7 @@ import {
   DetailSummary,
   DetailTag,
 } from "@/components/ui/DetailView";
-import {
-  createFinanceCsv,
-  transactionExportCsvHeaders,
-} from "@/domain/finance/csv";
+import { TransactionImportExport } from "./TransactionImportExport";
 
 export interface FinancePageData {
   financeEnabled: boolean;
@@ -1686,19 +1683,20 @@ export function FinanceDashboard({
     transactionConsultantFilter !== "company";
   const managerConsultantTransactionList =
     manager && transactionListShowsConsultant;
-  const transactionListTransactions = data.transactions.filter(
+  // Everything for the chosen consultant filter, whatever the period, so the
+  // exports can show the real balance after each row.
+  const transactionScopeTransactions = data.transactions.filter(
+    (transaction) =>
+      transactionConsultantFilter === "all" ||
+      (transactionConsultantFilter === "company" &&
+        belongsToCompany(transaction)) ||
+      (transactionListShowsConsultant &&
+        (manager
+          ? belongsToConsultantLedger(transaction, transactionConsultantFilter)
+          : belongsToConsultant(transaction, transactionConsultantFilter))),
+  );
+  const transactionListTransactions = transactionScopeTransactions.filter(
     (transaction) => {
-      const matchesConsultant =
-        transactionConsultantFilter === "all" ||
-        (transactionConsultantFilter === "company" &&
-          belongsToCompany(transaction)) ||
-        (transactionListShowsConsultant &&
-          (manager
-            ? belongsToConsultantLedger(
-                transaction,
-                transactionConsultantFilter,
-              )
-            : belongsToConsultant(transaction, transactionConsultantFilter)));
       const matchesPeriod = inFinancePeriod(
         transaction.date,
         transactionPeriod,
@@ -1714,7 +1712,6 @@ export function FinanceDashboard({
         .join(" ")
         .toLocaleLowerCase(locale);
       return (
-        matchesConsultant &&
         matchesPeriod &&
         (!normalizedTransactionSearch ||
           searchable.includes(normalizedTransactionSearch))
@@ -1763,75 +1760,6 @@ export function FinanceDashboard({
   const transactionFormHref = (path: string) =>
     `${path}?${new URLSearchParams({ returnTo: transactionReturnHref })}`;
 
-  function downloadTransactionCsv() {
-    const userNumber = new Map(
-      data.users.map((user) => [user.id, user.employeeNumber]),
-    );
-    const categoryCodeById = new Map(
-      data.categories.map((category) => [category.id, category.code]),
-    );
-    const csv = createFinanceCsv(
-      transactionExportCsvHeaders,
-      transactionListTransactions.map((transaction) => ({
-        direction: transaction.direction,
-        import_key: transaction.id,
-        consultant_employee_number:
-          userNumber.get(transaction.consultantId ?? "") ?? "",
-        date: transaction.date,
-        category_code: categoryCodeById.get(transaction.categoryId) ?? "",
-        net_sek: (transaction.netMinor / 100).toFixed(2),
-        vat_percent: (transaction.vatRateBps / 100).toFixed(2),
-        funding: transaction.funding ?? "",
-        apply_share: transaction.applyConsultantShare ? "true" : "false",
-        description: transaction.visibleDescription,
-        internal_note: transaction.internalNote,
-        share_percent:
-          transaction.shareBpsOverride === null
-            ? ""
-            : (transaction.shareBpsOverride / 100).toFixed(2),
-      })),
-    );
-    const url = URL.createObjectURL(
-      new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }),
-    );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `income-expenses-${today()}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function printTransactionPdf() {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-    const escapeHtml = (value: string) =>
-      value
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;");
-    const rows = transactionListTransactions
-      .map(
-        (transaction) => `<tr>
-          <td>${escapeHtml(transaction.date)}</td>
-          <td>${escapeHtml(t(transaction.direction))}</td>
-          <td>${escapeHtml(categoryName(transaction.categoryId))}</td>
-          <td>${escapeHtml(consultantName(transaction.consultantId))}</td>
-          <td>${escapeHtml(transactionTableDescription(transaction) || "—")}</td>
-          <td>${escapeHtml(formatSek(transaction.netMinor, locale))}</td>
-          <td>${escapeHtml(formatSek(transaction.grossMinor, locale))}</td>
-        </tr>`,
-      )
-      .join("");
-    printWindow.document
-      .write(`<!doctype html><html lang="${locale.slice(0, 2)}"><head><title>${escapeHtml(t("incomeExpenseManagement"))}</title><style>
-      body{font:12px Arial,sans-serif;color:#172033;margin:24px}h1{font-size:22px} .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}.summary div{border:1px solid #ccd3dd;border-radius:6px;padding:10px}.summary span{display:block;color:#526070;margin-bottom:5px}.summary strong{font-size:14px}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #dfe4ea;padding:8px;text-align:left}th{background:#f3f5f7}@page{size:landscape;margin:12mm}
-    </style></head><body><h1>${escapeHtml(t("incomeExpenseManagement"))}</h1>
-      <div class="summary" style="grid-template-columns:repeat(${Math.min(transactionTotalsSummary.length, 3)},1fr)">
-        ${transactionTotalsSummary.map(({ label, netMinor, grossMinor }, index) => `<div${startsExpenseRow(index) ? ' style="grid-column-start:1"' : ""}><span>${escapeHtml(t(label))}</span><strong>${escapeHtml(formatTotalWithVat(netMinor, grossMinor))}</strong></div>`).join("")}
-      </div><table><thead><tr><th>${escapeHtml(t("date"))}</th><th>${escapeHtml(t("type"))}</th><th>${escapeHtml(t("category"))}</th><th>${escapeHtml(t("consultant"))}</th><th>${escapeHtml(t("description"))}</th><th>${escapeHtml(t("netAmount"))}</th><th>${escapeHtml(t("totalIncludingVat"))}</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>{window.print();window.close()}<\/script></body></html>`);
-    printWindow.document.close();
-  }
   const chartMode =
     !manager || earnsInvoiceShare(selectedModel) ? "balance" : "result";
 
@@ -1979,6 +1907,36 @@ export function FinanceDashboard({
   );
   const startsExpenseRow = (index: number) =>
     transactionTotalsSummary.length > 2 && index === firstExpenseTotal;
+  const transactionExportPeriod =
+    transactionPeriod === "month"
+      ? transactionPeriodAnchor
+      : transactionPeriod === "year"
+        ? transactionPeriodAnchor.slice(0, 4)
+        : transactionPeriod === "range"
+          ? `${transactionRangeFrom || "…"} – ${transactionRangeTo || "…"}`
+          : t("allTime");
+  const transactionExportDetails = [
+    `${t("period")}: ${transactionExportPeriod}`,
+    `${t("showFinancialDataFor")}: ${
+      transactionConsultantFilter === "all"
+        ? t("allConsultantsAndCompany")
+        : consultantName(
+            transactionConsultantFilter === "company"
+              ? null
+              : transactionConsultantFilter,
+          )
+    }`,
+    ...(transactionSearch.trim()
+      ? [`${t("searchTransactions")}: ${transactionSearch.trim()}`]
+      : []),
+  ];
+  const transactionExportFileStem = `income-expenses-${
+    transactionPeriod === "all"
+      ? "all"
+      : transactionPeriod === "range"
+        ? `${transactionRangeFrom}_${transactionRangeTo}`
+        : transactionExportPeriod
+  }`.replace(/[^\w.-]/g, "-");
   function formatTotalWithVat(netMinor: number, grossMinor?: number) {
     if (grossMinor === undefined) return formatSekCompact(netMinor, locale);
     return t("amountPlusVat")
@@ -2731,23 +2689,32 @@ export function FinanceDashboard({
         <>
           {manager && (
             <div className="actions finance-page-actions">
-              {can(actor, "finance.ledger.export") && (
-                <>
-                  <button
-                    className="button secondary"
-                    type="button"
-                    onClick={downloadTransactionCsv}
-                  >
-                    {t("exportCsv")}
-                  </button>
-                  <button
-                    className="button secondary"
-                    type="button"
-                    onClick={printTransactionPdf}
-                  >
-                    {t("exportPdf")}
-                  </button>
-                </>
+              {(can(actor, "finance.ledger.export") ||
+                can(actor, "finance.ledger.import")) && (
+                <TransactionImportExport
+                  transactions={transactionListTransactions}
+                  scopeTransactions={transactionScopeTransactions}
+                  balanceChange={transactionListBalanceChange}
+                  categoryName={categoryName}
+                  categoryCode={categoryCode}
+                  consultantName={consultantName}
+                  employeeNumber={(id) =>
+                    String(
+                      data.users.find((user) => user.id === id)
+                        ?.employeeNumber ?? "",
+                    )
+                  }
+                  details={transactionExportDetails}
+                  summary={transactionTotalsSummary.map(
+                    ({ label, netMinor, grossMinor }) => ({
+                      label: t(label),
+                      value: formatTotalWithVat(netMinor, grossMinor),
+                    }),
+                  )}
+                  fileStem={transactionExportFileStem}
+                  canExport={can(actor, "finance.ledger.export")}
+                  canImport={can(actor, "finance.ledger.import")}
+                />
               )}
               {canAddLedger && (
                 <Link
@@ -2755,14 +2722,6 @@ export function FinanceDashboard({
                   href="/finance/transactions/copy-expenses"
                 >
                   {t("copyExpensesButton")}
-                </Link>
-              )}
-              {can(actor, "finance.ledger.import") && (
-                <Link
-                  className="button secondary"
-                  href="/finance/transactions/import"
-                >
-                  {t("csvImport")}
                 </Link>
               )}
               {canAddLedger && (
