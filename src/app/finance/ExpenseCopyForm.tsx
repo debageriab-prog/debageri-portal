@@ -48,8 +48,11 @@ export function ExpenseCopyForm({
   users,
   categories,
   expenses,
+  reachesCompany = true,
 }: {
   users: Array<{ id: string; displayName: string }>;
+  /** Whether company expenses can be copied. */
+  reachesCompany?: boolean;
   categories: Array<{
     id: string;
     name: { en: string; sv: string };
@@ -280,7 +283,9 @@ export function ExpenseCopyForm({
               }}
             >
               <option value="all">{t("allOwners")}</option>
-              <option value="company">{t("companyOnly")}</option>
+              {reachesCompany && (
+                <option value="company">{t("companyOnly")}</option>
+              )}
               {users.map((user) => (
                 <option key={user.id} value={user.id}>
                   {user.displayName}

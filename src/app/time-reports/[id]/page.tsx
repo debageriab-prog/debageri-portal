@@ -9,6 +9,8 @@ import {
   timesheetStatusLabel,
 } from "@/lib/localization/timesheets";
 import { TimesheetAttachments } from "@/components/timesheets/TimesheetAttachments";
+import { reportVisibleTo } from "@/domain/reports/time-report-export";
+import { reachOf } from "@/server/auth/reach";
 
 export default async function TimeReportPage({
   params,
@@ -29,15 +31,12 @@ export default async function TimeReportPage({
   ]);
   if (!userDoc.exists) notFound();
   const user = userDoc.data()!;
-  const consultant = ["employee", "consultant"].includes(String(user.role));
-  const adminVisible =
-    consultant ||
-    (["manager", "accountant"].includes(String(user.role)) &&
-      user.reportsTime === true);
   if (
-    (actor.role === "accountant" && !consultant) ||
-    (actor.role === "manager" && !consultant) ||
-    (actor.role === "admin" && !adminVisible)
+    !reportVisibleTo(
+      actor.role,
+      { id: userDoc.id, role: user.role, reportsTime: user.reportsTime },
+      await reachOf(db, actor),
+    )
   )
     redirect("/unauthorized");
 

@@ -1,8 +1,10 @@
+import { reachesRecord } from "@/domain/access/groups";
 import { ExpenseCopyForm } from "../../ExpenseCopyForm";
 import { financeFormContext, financeUsers } from "../../form-data";
 
 export default async function CopyExpensesPage() {
-  const { actor, db } = await financeFormContext("finance.ledger.add");
+  const { actor, db, reach, reachesCompany } =
+    await financeFormContext("finance.ledger.add");
   const [categorySnapshot, transactionSnapshot, users] = await Promise.all([
     db
       .collection("financeCategories")
@@ -26,6 +28,7 @@ export default async function CopyExpensesPage() {
     .map((document) => ({
       id: document.id,
       consultantId: document.data().consultantId ?? null,
+      employeeId: document.data().employeeId ?? null,
       date: String(document.data().date),
       categoryId: String(document.data().categoryId),
       netMinor: Number(document.data().netMinor),
@@ -40,6 +43,10 @@ export default async function CopyExpensesPage() {
     .filter(
       (transaction) =>
         transaction.direction === "expense" &&
+        reachesRecord(
+          reach,
+          transaction.consultantId || transaction.employeeId,
+        ) &&
         transaction.status === "posted" &&
         !transaction.reversedByTransactionId &&
         transaction.netMinor >= 0,
@@ -49,6 +56,7 @@ export default async function CopyExpensesPage() {
       users={users}
       categories={categories}
       expenses={expenses}
+      reachesCompany={reachesCompany}
     />
   );
 }

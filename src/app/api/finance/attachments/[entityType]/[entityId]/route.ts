@@ -4,7 +4,10 @@ import { FieldValue } from "firebase-admin/firestore";
 import { canViewMyTransactions } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
-import { financeIsEnabled } from "@/server/services/finance-service";
+import {
+  financeIsEnabled,
+  financeRecordReached,
+} from "@/server/services/finance-service";
 import { can, FINANCE_ENTITY_PERMISSIONS } from "@/domain/access/permissions";
 
 const MAX_FILES = 8;
@@ -58,9 +61,17 @@ async function context(entityType: string, entityId: string, write: boolean) {
       entityType as "transaction" | "invoice" | "vatSettlement"
     ];
   // Files can be added while creating a record, not only when editing one.
-  const manager = write
-    ? can(actor, permissions.add) || can(actor, permissions.edit)
-    : can(actor, permissions.view);
+  // Staff only reach records of consultants in their employee groups.
+  const manager =
+    (write
+      ? can(actor, permissions.add) || can(actor, permissions.edit)
+      : can(actor, permissions.view)) &&
+    (await financeRecordReached(
+      db,
+      actor,
+      entityType as "transaction" | "invoice" | "vatSettlement",
+      data,
+    ));
   const consultantCanRead =
     !write &&
     data?.consultantId === actor.id &&

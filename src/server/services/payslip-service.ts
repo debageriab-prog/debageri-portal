@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
+import { reachesUser, type Reach } from "@/domain/access/groups";
 import { can } from "@/domain/access/permissions";
 import type { PortalUser } from "@/domain/types";
 import {
@@ -11,6 +12,7 @@ import {
   payslipId,
   payslipPeriod,
 } from "@/domain/payslips";
+import { reachOf } from "@/server/auth/reach";
 import { receivesDocuments } from "@/server/validators/user-access";
 
 export class PayslipError extends Error {
@@ -40,13 +42,18 @@ export const canViewOwnPayslips = (actor: PortalUser) =>
 export const canReadPayslips = (actor: PortalUser) =>
   canReadAllPayslips(actor) || canViewOwnPayslips(actor);
 
+/**
+ * Someone's own payslips come through `my.payslips`; anyone else's need
+ * `documents.payslips.view` and a group that reaches that person.
+ */
 export function payslipVisible(
   actor: PortalUser,
   data: FirebaseFirestore.DocumentData,
+  reach: Reach,
 ) {
   if (data.organizationId !== actor.organizationId) return false;
-  if (canReadAllPayslips(actor)) return true;
-  return canViewOwnPayslips(actor) && data.userId === actor.id;
+  if (canViewOwnPayslips(actor) && data.userId === actor.id) return true;
+  return canReadAllPayslips(actor) && reachesUser(reach, String(data.userId));
 }
 
 export async function uploadPayslip(
@@ -71,6 +78,7 @@ export async function uploadPayslip(
   if (
     !recipientData ||
     recipientData.organizationId !== actor.organizationId ||
+    !reachesUser(await reachOf(db, actor), input.userId) ||
     !receivesDocuments(recipientData) ||
     !RECIPIENT_ROLES.includes(String(recipientData.role))
   )
@@ -217,7 +225,11 @@ export async function deletePayslip(
   const ref = db.collection("payslips").doc(id);
   const snapshot = await ref.get();
   const data = snapshot.data();
-  if (!snapshot.exists || data?.organizationId !== actor.organizationId)
+  if (
+    !snapshot.exists ||
+    data?.organizationId !== actor.organizationId ||
+    !reachesUser(await reachOf(db, actor), String(data.userId))
+  )
     throw new PayslipError("notFound", 404);
   // Salary expenses keep their own copy of a generated payslip.
   await storage

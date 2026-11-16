@@ -1,9 +1,17 @@
 import Link from "next/link";
+import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
+import { verifySession } from "@/server/auth/session";
+import { listUserGroups } from "@/server/services/user-group-service";
 import { AccessProfileForm } from "../AccessProfileForm";
 
 export default async function NewAccessProfilePage() {
+  const actor = (await verifySession())!;
   const t = await getTranslator();
+  const groups = await listUserGroups(
+    getAdminServices().db,
+    actor.organizationId,
+  );
   return (
     <>
       <div className="topbar">
@@ -17,7 +25,7 @@ export default async function NewAccessProfilePage() {
           </p>
         </div>
       </div>
-      <AccessProfileForm />
+      <AccessProfileForm groups={groups} />
     </>
   );
 }

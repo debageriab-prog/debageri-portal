@@ -3,6 +3,7 @@ import {
   PERMISSION_KEYS,
   permissionsForAudience,
 } from "@/domain/access/permissions";
+import { groupIdsSchema } from "@/server/validators/user-group";
 
 export const accessProfileSchema = z
   .object({
@@ -10,6 +11,9 @@ export const accessProfileSchema = z
     description: z.string().trim().max(300),
     audience: z.enum(["consultant", "staff"]),
     permissions: z.array(z.enum(PERMISSION_KEYS)).max(PERMISSION_KEYS.length),
+    /** Whose records the profile reaches; consultant profiles ignore it. */
+    scope: z.enum(["all", "groups"]).default("all"),
+    groupIds: groupIdsSchema.default([]),
   })
   .superRefine((value, context) => {
     const allowed = permissionsForAudience(value.audience);

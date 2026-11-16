@@ -23,6 +23,7 @@ import {
 import type { getAdminServices } from "@/lib/firebase/admin";
 import { translate, type MessageKey } from "@/lib/localization/messages";
 import { decryptPassword } from "@/server/services/reminder-service";
+import { financeRecordReached } from "@/server/services/finance-service";
 
 type Storage = ReturnType<typeof getAdminServices>["storage"];
 
@@ -326,7 +327,11 @@ export async function sendAccountingEmail(
         .get(),
     ]);
   const data = entity.data();
-  if (!data || data.organizationId !== actor.organizationId)
+  if (
+    !data ||
+    data.organizationId !== actor.organizationId ||
+    !(await financeRecordReached(db, actor, entityType, data))
+  )
     throw new AccountingEmailError("notFound", 404);
   const recipients = accountingRecipients(
     contacts,

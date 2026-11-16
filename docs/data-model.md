@@ -217,7 +217,12 @@ voided.
 
 `accessProfiles` holds `organizationId`, `name`, `description`, `audience`
 (`consultant` or `staff`), `permissions` and `defaultForRole`. It is server-only:
-rules deny all direct access. `users/{uid}.accessProfileId` assigns one. The
+rules deny all direct access. `users/{uid}.accessProfileId` assigns one. A
+staff profile also stores `scope` (`all` or `groups`) and `groupIds`, the
+employee groups it manages (`company` stands for records with no employee).
+`userGroups` holds `organizationId`, `name`, `description` and `status`
+(`active` or `disabled`), and `users/{uid}.groupIds` lists memberships; both
+are server-only. The
 `financeAccess` and `documentAccess` fields on older user documents are unused.
 
 Indexes in `firestore.indexes.json` serve user date/week entry queries, user sheet history, and manager status queues. Future `leaveBalances`, `payslips`, `employeeDocuments`, `projects`, and `reportSummaries` retain organization isolation and server ownership. The portal database is separate because candidate recruitment data has a different purpose, access population, retention policy, and threat boundary.

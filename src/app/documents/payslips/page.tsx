@@ -1,5 +1,7 @@
 import { parsePayslipPeriod } from "@/domain/payslips";
+import { reachesUser } from "@/domain/access/groups";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import {
   canDeletePayslips,
@@ -46,6 +48,7 @@ export default async function PayslipsPage({
     month: "2-digit",
   }).format(new Date());
   const params = await searchParams;
+  const reach = await reachOf(db, actor);
   if (
     !canReadAllPayslips(actor) ||
     (params.mine === "1" && canViewOwnPayslips(actor))
@@ -56,7 +59,7 @@ export default async function PayslipsPage({
       .where("userId", "==", actor.id)
       .get();
     const payslips = snapshot.docs
-      .filter((doc) => payslipVisible(actor, doc.data()))
+      .filter((doc) => payslipVisible(actor, doc.data(), reach))
       .map(toItem)
       .sort((a, b) => b.period.localeCompare(a.period));
     return <PayslipViewer payslips={payslips} currentPeriod={currentPeriod} />;
@@ -86,6 +89,7 @@ export default async function PayslipsPage({
       .get(),
   ]);
   const payslips = snapshot.docs
+    .filter((doc) => reachesUser(reach, String(doc.data().userId)))
     .map(toItem)
     .sort(
       (a, b) =>
@@ -93,13 +97,15 @@ export default async function PayslipsPage({
         a.userName.localeCompare(b.userName),
     );
   const people = new Map(
-    users.docs.map((doc) => [
-      doc.id,
-      {
-        name: String(doc.data().displayName),
-        employeeNumber: String(doc.data().employeeNumber ?? ""),
-      },
-    ]),
+    users.docs
+      .filter((doc) => reachesUser(reach, doc.id))
+      .map((doc) => [
+        doc.id,
+        {
+          name: String(doc.data().displayName),
+          employeeNumber: String(doc.data().employeeNumber ?? ""),
+        },
+      ]),
   );
   for (const item of payslips)
     if (!people.has(item.userId))

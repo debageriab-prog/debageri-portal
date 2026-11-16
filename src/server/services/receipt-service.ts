@@ -3,8 +3,10 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
+import { reachesUser, type Reach } from "@/domain/access/groups";
 import { can } from "@/domain/access/permissions";
 import type { PortalUser } from "@/domain/types";
+import { reachOf } from "@/server/auth/reach";
 import {
   canBecomeExpense,
   isReceiptContentType,
@@ -39,13 +41,18 @@ export const canSubmitReceipts = (actor: PortalUser) =>
 export const canUseReceipts = (actor: PortalUser) =>
   canReviewReceipts(actor) || canViewOwnReceipts(actor);
 
+/**
+ * Own receipts through `my.receipts`; others' only when the reviewer's reach
+ * includes the submitter.
+ */
 export function receiptVisible(
   actor: PortalUser,
   data: FirebaseFirestore.DocumentData,
+  reach: Reach,
 ) {
   if (data.organizationId !== actor.organizationId) return false;
-  if (canReviewReceipts(actor)) return true;
-  return canViewOwnReceipts(actor) && data.userId === actor.id;
+  if (canViewOwnReceipts(actor) && data.userId === actor.id) return true;
+  return canReviewReceipts(actor) && reachesUser(reach, data.userId);
 }
 
 async function audit(
@@ -131,11 +138,16 @@ export async function reviewReceipt(
   input: { status: "approved" | "rejected"; note: string },
 ) {
   if (!canReviewReceipts(actor)) throw new ReceiptError("forbidden", 403);
+  const reach = await reachOf(db, actor);
   const ref = db.collection("receipts").doc(receiptId);
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     const data = snapshot.data();
-    if (!snapshot.exists || data?.organizationId !== actor.organizationId)
+    if (
+      !snapshot.exists ||
+      data?.organizationId !== actor.organizationId ||
+      !reachesUser(reach, data.userId)
+    )
       throw new ReceiptError("notFound", 404);
     if (data.expenseTransactionId)
       throw new ReceiptError("receiptExpenseLinked", 409);
@@ -158,9 +170,16 @@ export async function expensableReceipt(
   receiptId: string,
 ) {
   if (!canBookReceipts(actor)) throw new ReceiptError("forbidden", 403);
-  const snapshot = await db.collection("receipts").doc(receiptId).get();
+  const [snapshot, reach] = await Promise.all([
+    db.collection("receipts").doc(receiptId).get(),
+    reachOf(db, actor),
+  ]);
   const data = snapshot.data();
-  if (!snapshot.exists || data?.organizationId !== actor.organizationId)
+  if (
+    !snapshot.exists ||
+    data?.organizationId !== actor.organizationId ||
+    !reachesUser(reach, data.userId)
+  )
     throw new ReceiptError("notFound", 404);
   const status = isReceiptStatus(data.status) ? data.status : "pending";
   if (
@@ -181,6 +200,7 @@ export async function linkReceiptExpense(
   receiptId: string,
   transactionId: string,
 ) {
+  const reach = await reachOf(db, actor);
   const ref = db.collection("receipts").doc(receiptId);
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
@@ -188,6 +208,7 @@ export async function linkReceiptExpense(
     if (
       !snapshot.exists ||
       data?.organizationId !== actor.organizationId ||
+      !reachesUser(reach, data.userId) ||
       data.status !== "approved" ||
       data.expenseTransactionId
     )

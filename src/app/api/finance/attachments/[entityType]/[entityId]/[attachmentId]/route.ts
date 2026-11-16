@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { canViewMyTransactions } from "@/domain/finance/calculations";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
-import { financeIsEnabled } from "@/server/services/finance-service";
+import {
+  financeIsEnabled,
+  financeRecordReached,
+} from "@/server/services/finance-service";
 import { can, FINANCE_ENTITY_PERMISSIONS } from "@/domain/access/permissions";
 
 async function authorized(
@@ -48,7 +51,16 @@ async function authorized(
     FINANCE_ENTITY_PERMISSIONS[
       entityType as "transaction" | "invoice" | "vatSettlement"
     ];
-  const manager = can(actor, write ? permissions.edit : permissions.view);
+  // Staff only reach records of consultants in their employee groups.
+  const manager =
+    can(actor, write ? permissions.edit : permissions.view) &&
+    entity.exists &&
+    (await financeRecordReached(
+      db,
+      actor,
+      entityType as "transaction" | "invoice" | "vatSettlement",
+      entityData!,
+    ));
   const consultantCanRead =
     !write &&
     entityData?.consultantId === actor.id &&

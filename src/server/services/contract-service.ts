@@ -3,6 +3,11 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
+import {
+  reachesCompany,
+  reachesUser,
+  type Reach,
+} from "@/domain/access/groups";
 import { can } from "@/domain/access/permissions";
 import type { PortalUser } from "@/domain/types";
 
@@ -27,28 +32,52 @@ export const canReadContracts = (actor: PortalUser) =>
   canReadAllContracts(actor) ||
   (actor.role === "consultant" && can(actor, "my.contracts"));
 
+/**
+ * Checks the owner of a contract being saved: a consultant must be one the
+ * actor reaches, and a company contract needs the company group.
+ */
 export async function assertConsultant(
   db: Firestore,
   actor: PortalUser,
   id: string | null,
+  reach: Reach,
 ) {
-  if (!id) return null;
+  if (!id) {
+    if (!reachesCompany(reach)) throw new ContractError("forbidden", 403);
+    return null;
+  }
   const snapshot = await db.collection("users").doc(id).get();
   const data = snapshot.data();
   if (
     !snapshot.exists ||
     data?.organizationId !== actor.organizationId ||
-    data?.role !== "consultant"
+    data?.role !== "consultant" ||
+    !reachesUser(reach, id)
   )
     throw new ContractError("invalidConsultant");
   return String(data.displayName);
 }
 
+/** Whether staff with the given reach reach the owner of a contract. */
+export function reachesContract(
+  reach: Reach,
+  data: FirebaseFirestore.DocumentData,
+) {
+  return data.ownerType === "consultant"
+    ? reachesUser(reach, data.consultantId ? String(data.consultantId) : null)
+    : reachesCompany(reach);
+}
+
+/**
+ * A consultant sees their own shared contracts through `my.contracts`; staff
+ * see the contracts of people (or the company) their groups reach.
+ */
 export function contractVisible(
   actor: PortalUser,
   data: FirebaseFirestore.DocumentData,
+  reach: Reach,
 ) {
-  if (canReadAllContracts(actor)) return true;
+  if (canReadAllContracts(actor) && reachesContract(reach, data)) return true;
   return (
     actor.role === "consultant" &&
     can(actor, "my.contracts") &&

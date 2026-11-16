@@ -79,6 +79,8 @@ import { TransactionImportExport } from "./TransactionImportExport";
 
 export interface FinancePageData {
   financeEnabled: boolean;
+  /** Whether a staff member's groups reach records of no consultant. */
+  reachesCompany: boolean;
   users: Array<{
     id: string;
     displayName: string;
@@ -1340,7 +1342,7 @@ export function FinanceDashboard({
   const [includeVatInIncomeExpense, setIncludeVatInIncomeExpense] =
     useState(false);
   const [selectedConsultant, setSelectedConsultant] = useState(
-    manager ? "company" : actor.id,
+    manager ? (data.reachesCompany ? "company" : "all") : actor.id,
   );
   const [expenseFundingFilter, setExpenseFundingFilter] =
     useState<ExpenseFundingFilter>("all");
@@ -2068,6 +2070,7 @@ export function FinanceDashboard({
             {manager && (
               <>
                 {can(actor, "finance.vat.view") &&
+                  data.reachesCompany &&
                   (selectedConsultant === "all" ||
                     selectedConsultant === "company") && (
                     <div className="metric">
@@ -2282,7 +2285,9 @@ export function FinanceDashboard({
                         <option value="all">
                           {t("allConsultantsAndCompany")}
                         </option>
-                        <option value="company">{t("companyOnly")}</option>
+                        {data.reachesCompany && (
+                          <option value="company">{t("companyOnly")}</option>
+                        )}
                         {data.users.map((user) => (
                           <option key={user.id} value={user.id}>
                             {user.displayName}
@@ -2496,6 +2501,7 @@ export function FinanceDashboard({
           users={data.users}
           canAdd={can(actor, "finance.articles.add")}
           canEdit={can(actor, "finance.articles.edit")}
+          reachesCompany={data.reachesCompany}
         />
       )}
 
@@ -2532,7 +2538,9 @@ export function FinanceDashboard({
                     }
                   >
                     <option value="all">{t("allConsultantsAndCompany")}</option>
-                    <option value="company">{t("companyOnly")}</option>
+                    {data.reachesCompany && (
+                      <option value="company">{t("companyOnly")}</option>
+                    )}
                     {data.users.map((user) => (
                       <option key={user.id} value={user.id}>
                         {user.displayName}
@@ -2747,7 +2755,9 @@ export function FinanceDashboard({
                     }
                   >
                     <option value="all">{t("allConsultantsAndCompany")}</option>
-                    <option value="company">{t("companyOnly")}</option>
+                    {data.reachesCompany && (
+                      <option value="company">{t("companyOnly")}</option>
+                    )}
                     {data.users.map((user) => (
                       <option key={user.id} value={user.id}>
                         {user.displayName}

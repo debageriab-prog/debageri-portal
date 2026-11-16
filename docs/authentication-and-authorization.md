@@ -42,6 +42,17 @@ Profiles live in `accessProfiles`, one is assigned through `users/{uid}.accessPr
 - Own time pages need both the profile permission and `reportsTime`.
 - Nobody reviews their own report, whatever their profile allows.
 
+### Employee groups
+
+Permissions say what someone can do; employee groups say whose data it applies to.
+
+- Admins keep groups in `userGroups` (Administration → Groups) with a name, a description and `status` (`active` or `disabled`). Each user lists their memberships in `users/{uid}.groupIds`.
+- A `staff` profile has `scope`: `all` (every employee and company data, which is also how profiles saved before groups behave) or `groups` with `groupIds`. Its holders then reach only members of those groups.
+- The built-in group `company` ("Company related data") cannot be renamed, disabled or joined. Ticking it in a profile reaches records that belong to no employee: company expenses and invoices, VAT settlements, customers, categories, company articles and contracts, company-held assets and incoming emails.
+- An employee in no active group is reached only by admins and `all` profiles. A disabled group grants nothing, but its memberships and profile choices are kept for when it is enabled again.
+- `reachOf(db, actor)` in `src/server/auth/reach.ts` resolves this once per request (the pure rules are in `src/domain/access/groups.ts`). Lists, totals, employee pickers, by-id pages, API writes, exports and notification recipients all apply it. A person's own `my.*` records never depend on it.
+- Groups nest by membership: a manager in "Business managers" can be managed by a profile that manages that group, such as one for "Level 2 managers".
+
 ## Viewing as an employee
 
 Admins can open the portal as any other active user in their organization from

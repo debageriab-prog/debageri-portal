@@ -49,7 +49,11 @@ import {
 } from "./VacationPanel";
 import type { AccessProfile } from "@/server/services/access-profile-service";
 import { PermissionSummary } from "../access-profiles/PermissionTree";
-import { accessProfileError } from "../access-profiles/AccessProfileForm";
+import {
+  accessProfileError,
+  type GroupChoice,
+} from "../access-profiles/AccessProfileForm";
+import { userGroupError } from "../groups/UserGroupForm";
 
 const staffRoles = ["manager", "accountant"];
 
@@ -80,6 +84,7 @@ export function EmployeeEditor({
   isSelf = false,
   financeEnabled,
   accessProfiles,
+  groups = [],
   agreements = [],
   initialTab = "general",
   compensationFailed = false,
@@ -89,6 +94,7 @@ export function EmployeeEditor({
 }: {
   employee?: ManagedUser;
   accessProfiles: AccessProfile[];
+  groups?: GroupChoice[];
   isSelf?: boolean;
   financeEnabled: boolean;
   agreements?: CompensationRecord[];
@@ -130,6 +136,7 @@ export function EmployeeEditor({
     employee?.accessProfileId ??
       (employee ? "" : defaultProfileFor("consultant")),
   );
+  const [groupIds, setGroupIds] = useState<string[]>(employee?.groupIds ?? []);
   const [emailPreferences, setEmailPreferences] = useState<EmailPreferences>(
     employee?.emailPreferences ?? {
       receipts: true,
@@ -259,6 +266,7 @@ export function EmployeeEditor({
       employmentStartDate: values.employmentStartDate || null,
       reportingStartDate: reportsTime ? values.reportingStartDate : null,
       accessProfileId: audience ? accessProfileId : null,
+      groupIds,
       emailPreferences,
       locale: language,
       ...vacationPayload(vacation, role, creating),
@@ -292,7 +300,9 @@ export function EmployeeEditor({
         setError(
           result.error?.startsWith("profile")
             ? t(accessProfileError(result.error))
-            : (result.error ?? t("employeeSaveFailed")),
+            : result.error === "groupInvalid"
+              ? t(userGroupError(result.error))
+              : (result.error ?? t("employeeSaveFailed")),
         );
         return;
       }
@@ -732,6 +742,54 @@ export function EmployeeEditor({
                 </Link>
               </p>
             </>
+          )}
+          {role !== "admin" && (
+            <fieldset className="access-section">
+              <legend>
+                {t("employeeGroups")} <InfoTip text={t("employeeGroupsTip")} />
+              </legend>
+              {groups.filter(
+                (group) =>
+                  group.status === "active" || groupIds.includes(group.id),
+              ).length === 0 ? (
+                <p className="muted">{t("noUserGroups")}</p>
+              ) : (
+                groups
+                  .filter(
+                    (group) =>
+                      group.status === "active" || groupIds.includes(group.id),
+                  )
+                  .map((group) => (
+                    <label className="checkbox-row" key={group.id}>
+                      <input
+                        type="checkbox"
+                        disabled={isSelf}
+                        checked={groupIds.includes(group.id)}
+                        onChange={(event) =>
+                          setGroupIds((current) =>
+                            event.target.checked
+                              ? [...current, group.id]
+                              : current.filter((id) => id !== group.id),
+                          )
+                        }
+                      />
+                      <span>
+                        {group.name}
+                        {group.status === "disabled" &&
+                          ` (${t("userGroupStatus_disabled")})`}
+                      </span>
+                      {group.description && (
+                        <InfoTip text={group.description} />
+                      )}
+                    </label>
+                  ))
+              )}
+              <p>
+                <Link className="text-link" href="/admin/groups">
+                  {t("manageUserGroups")}
+                </Link>
+              </p>
+            </fieldset>
           )}
         </section>
 

@@ -73,6 +73,7 @@ import {
   IncomingEmailError,
   linkIncomingEmail,
 } from "@/server/services/incoming-email-service";
+import { OutOfReachError } from "@/server/auth/reach";
 import type { PortalUser } from "@/domain/types";
 import type { Firestore } from "firebase-admin/firestore";
 
@@ -420,6 +421,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.code }, { status: error.status });
     if (error instanceof IncomingEmailError)
       return NextResponse.json({ error: error.code }, { status: error.status });
+    if (error instanceof OutOfReachError)
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     if (error instanceof ReceiptError)
       return NextResponse.json(
         { error: "receiptNotExpensable" },

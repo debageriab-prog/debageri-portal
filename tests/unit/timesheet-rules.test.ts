@@ -4,11 +4,12 @@ import type { TimeCode, TimeEntry, UserRole } from "@/domain/types";
 import {
   assertTransition,
   calculateTotals,
-  canReview,
+  canReview as canReviewWithin,
   hasSameEntries,
   isAfterEmployment,
   validateEntry,
 } from "@/domain/timesheets/rules";
+import { FULL_REACH, type Reach } from "@/domain/access/groups";
 
 const code: TimeCode = {
   id: "REG",
@@ -59,6 +60,12 @@ const reviewer = (id: string, role: UserRole, organizationId = "debageri") => ({
   organizationId,
   permissions: rolePermissions(role),
 });
+
+const canReview = (
+  actor: Parameters<typeof canReviewWithin>[0],
+  subject: Parameters<typeof canReviewWithin>[1],
+  reach: Reach = FULL_REACH,
+) => canReviewWithin(actor, subject, reach);
 
 describe("timesheet rules", () => {
   it("allows only supported transitions", () => {
@@ -154,6 +161,32 @@ describe("timesheet rules", () => {
         },
         { ...consultant, id: "c2" },
       ),
+    ).toBe(false);
+  });
+});
+
+describe("review reach", () => {
+  const consultant = (id: string) => ({
+    id,
+    role: "consultant" as const,
+    reportsTime: true,
+    organizationId: "debageri",
+  });
+  const itGroup: Reach = {
+    all: false,
+    company: false,
+    userIds: new Set(["it1"]),
+  };
+  it("limits reviewers to people in the groups they manage", () => {
+    const manager = reviewer("m1", "manager");
+    expect(canReview(manager, consultant("it1"), itGroup)).toBe(true);
+    expect(canReview(manager, consultant("fin1"), itGroup)).toBe(false);
+    expect(
+      canReview(manager, consultant("fin1"), {
+        all: false,
+        company: true,
+        userIds: new Set(),
+      }),
     ).toBe(false);
   });
 });

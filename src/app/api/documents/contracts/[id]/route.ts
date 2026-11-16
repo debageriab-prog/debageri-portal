@@ -1,6 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { parseContractForm } from "@/server/validators/contracts";
 import {
@@ -9,6 +10,7 @@ import {
   canEditContracts,
   ContractError,
   contractVisible,
+  reachesContract,
   removeContractFiles,
   uploadContractFiles,
 } from "@/server/services/contract-service";
@@ -21,13 +23,14 @@ async function load(id: string) {
     };
   const services = getAdminServices();
   const contract = await services.db.collection("contracts").doc(id).get();
+  const reach = await reachOf(services.db, actor);
   if (
     !contract.exists ||
     contract.data()?.organizationId !== actor.organizationId ||
-    !contractVisible(actor, contract.data()!)
+    !contractVisible(actor, contract.data()!, reach)
   )
     return { error: NextResponse.json({ error: "notFound" }, { status: 404 }) };
-  return { actor, contract, ...services };
+  return { actor, contract, reach, ...services };
 }
 
 export async function PATCH(
@@ -37,7 +40,10 @@ export async function PATCH(
   const { id } = await params;
   const value = await load(id);
   if ("error" in value) return value.error;
-  if (!canEditContracts(value.actor))
+  if (
+    !canEditContracts(value.actor) ||
+    !reachesContract(value.reach, value.contract.data()!)
+  )
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const form = await request.formData();
   const parsed = parseContractForm(form);
@@ -72,6 +78,7 @@ export async function PATCH(
       value.db,
       value.actor,
       parsed.data.consultantId,
+      value.reach,
     );
     await uploadContractFiles(value.db, value.storage, value.actor, id, files);
     await value.contract.ref.update({
@@ -112,7 +119,10 @@ export async function DELETE(
   const { id } = await params;
   const value = await load(id);
   if ("error" in value) return value.error;
-  if (!canDeleteContracts(value.actor))
+  if (
+    !canDeleteContracts(value.actor) ||
+    !reachesContract(value.reach, value.contract.data()!)
+  )
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const body = (await request.json().catch(() => null)) as {
     confirmation?: unknown;

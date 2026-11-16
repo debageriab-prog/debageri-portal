@@ -3,6 +3,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
 import { listAccessProfiles } from "@/server/services/access-profile-service";
+import { listUserGroups } from "@/server/services/user-group-service";
 import { stockholmDateTime } from "@/lib/dates/stockholm";
 import { municipalitiesFor } from "@/server/services/tax-table-service";
 import { EmployeeEditor } from "../EmployeeEditor";
@@ -12,15 +13,17 @@ export default async function NewEmployeePage() {
   const actor = (await verifySession())!;
   const t = await getTranslator();
   const { db } = getAdminServices();
-  const [canManageCompensation, accessProfiles, rates] = await Promise.all([
-    financeEnabled(db, actor.organizationId),
-    listAccessProfiles(db, actor.organizationId),
-    municipalitiesFor(
-      db,
-      actor.organizationId,
-      Number(stockholmDateTime().date.slice(0, 4)),
-    ),
-  ]);
+  const [canManageCompensation, accessProfiles, rates, groups] =
+    await Promise.all([
+      financeEnabled(db, actor.organizationId),
+      listAccessProfiles(db, actor.organizationId),
+      municipalitiesFor(
+        db,
+        actor.organizationId,
+        Number(stockholmDateTime().date.slice(0, 4)),
+      ),
+      listUserGroups(db, actor.organizationId),
+    ]);
   return (
     <>
       <div className="topbar">
@@ -37,6 +40,7 @@ export default async function NewEmployeePage() {
       <EmployeeEditor
         financeEnabled={canManageCompensation}
         accessProfiles={accessProfiles}
+        groups={groups}
         municipalities={rates?.municipalities ?? []}
         taxYear={rates?.year ?? null}
       />

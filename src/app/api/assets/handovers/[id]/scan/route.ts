@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import {
   AssetError,
@@ -18,10 +19,13 @@ export async function GET(request: Request, { params }: Context) {
   if (!actor)
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const { db, storage } = getAdminServices();
-  const snapshot = await db.collection("assetHandovers").doc(id).get();
+  const [snapshot, reach] = await Promise.all([
+    db.collection("assetHandovers").doc(id).get(),
+    reachOf(db, actor),
+  ]);
   const data = snapshot.data();
   const [scan] = storedAssetFiles(data?.scan ? [data.scan] : []);
-  if (!data || !handoverVisible(actor, data) || !scan)
+  if (!data || !handoverVisible(actor, data, reach) || !scan)
     return NextResponse.json({ error: "notFound" }, { status: 404 });
   const [contents] = await storage.bucket().file(scan.storagePath).download();
   return fileResponse(request, scan, contents);

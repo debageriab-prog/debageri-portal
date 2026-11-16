@@ -10,6 +10,7 @@ import {
 } from "@/domain/timesheets/attachments";
 import { can } from "@/domain/access/permissions";
 import type { PortalUser } from "@/domain/types";
+import { reachOf } from "@/server/auth/reach";
 
 export class TimesheetAttachmentError extends Error {
   constructor(
@@ -25,13 +26,18 @@ const attachments = (db: Firestore) => db.collection("timesheetAttachments");
 async function accessFor(db: Firestore, actor: PortalUser, ownerId: string) {
   const owner = (await db.collection("users").doc(ownerId).get()).data();
   if (!owner) throw new TimesheetAttachmentError("notFound", 404);
-  return timesheetAttachmentAccess(actor, ownerId, {
-    role: owner.role,
-    reportsTime:
-      owner.reportsTime ??
-      ["employee", "consultant"].includes(String(owner.role)),
-    organizationId: owner.organizationId,
-  });
+  return timesheetAttachmentAccess(
+    actor,
+    ownerId,
+    {
+      role: owner.role,
+      reportsTime:
+        owner.reportsTime ??
+        ["employee", "consultant"].includes(String(owner.role)),
+      organizationId: owner.organizationId,
+    },
+    await reachOf(db, actor),
+  );
 }
 
 async function loadAttachment(

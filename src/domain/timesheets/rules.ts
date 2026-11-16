@@ -1,3 +1,4 @@
+import { reachesUser, type Reach } from "@/domain/access/groups";
 import { can, type PermissionKey } from "@/domain/access/permissions";
 import type {
   TimeCode,
@@ -107,6 +108,7 @@ export function calculateTotals(
   );
 }
 
+/** Whether the actor may approve, reject or reopen the subject's reports. */
 export function canReview(
   actor: {
     id: string;
@@ -120,11 +122,13 @@ export function canReview(
     reportsTime: boolean;
     organizationId: string;
   },
+  reach: Reach,
 ): boolean {
   if (
     !can(actor, "time.approvals.review") ||
     actor.organizationId !== subject.organizationId ||
-    actor.id === subject.id
+    actor.id === subject.id ||
+    !reachesUser(reach, subject.id)
   )
     return false;
   if (["employee", "consultant"].includes(subject.role)) return true;

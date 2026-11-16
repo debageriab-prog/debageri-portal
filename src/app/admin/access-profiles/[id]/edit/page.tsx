@@ -4,6 +4,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { verifySession } from "@/server/auth/session";
 import { listAccessProfiles } from "@/server/services/access-profile-service";
+import { listUserGroups } from "@/server/services/user-group-service";
 import { AccessProfileForm } from "../../AccessProfileForm";
 
 export default async function EditAccessProfilePage({
@@ -14,10 +15,11 @@ export default async function EditAccessProfilePage({
   const actor = (await verifySession())!;
   const { id } = await params;
   const t = await getTranslator();
-  const profiles = await listAccessProfiles(
-    getAdminServices().db,
-    actor.organizationId,
-  );
+  const { db } = getAdminServices();
+  const [profiles, groups] = await Promise.all([
+    listAccessProfiles(db, actor.organizationId),
+    listUserGroups(db, actor.organizationId),
+  ]);
   const profile = profiles.find((candidate) => candidate.id === id);
   if (!profile) notFound();
   return (
@@ -33,7 +35,7 @@ export default async function EditAccessProfilePage({
           </p>
         </div>
       </div>
-      <AccessProfileForm profile={profile} />
+      <AccessProfileForm profile={profile} groups={groups} />
     </>
   );
 }

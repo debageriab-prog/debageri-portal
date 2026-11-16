@@ -1,3 +1,4 @@
+import { reachesUser, type Reach } from "@/domain/access/groups";
 import { can, type PermissionKey } from "@/domain/access/permissions";
 import type { UserRole } from "@/domain/types";
 import { canReview } from "@/domain/timesheets/rules";
@@ -45,7 +46,8 @@ export function isUnsentTimesheetAttachment(
 /**
  * The person who reported the time adds and views files, and removes them only
  * before sending. After that, only someone who may review the report removes
- * them, so a manager's own report needs an admin.
+ * them, so a manager's own report needs an admin. Staff only reach the files
+ * of people within their reach.
  */
 export function timesheetAttachmentAccess(
   actor: {
@@ -56,11 +58,13 @@ export function timesheetAttachmentAccess(
   },
   ownerId: string,
   owner: { role: UserRole; reportsTime: boolean; organizationId: string },
+  reach: Reach,
 ) {
   const own = actor.id === ownerId;
-  const canRemove = !own && canReview(actor, { ...owner, id: ownerId });
+  const canRemove = !own && canReview(actor, { ...owner, id: ownerId }, reach);
   const reader =
     can(actor, "time.reports.view") &&
+    reachesUser(reach, ownerId) &&
     actor.organizationId === owner.organizationId &&
     ["employee", "consultant"].includes(owner.role);
   return {

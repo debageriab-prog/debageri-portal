@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import {
+  assetVisible,
   canManageAssets,
   canViewAssets,
   canViewOwnAssets,
@@ -22,14 +24,16 @@ export default async function AssetsPage({
   const { asset, saved, issued } = await searchParams;
   const { db } = getAdminServices();
   const canManage = canManageAssets(actor);
+  const reach = await reachOf(db, actor);
   const [snapshot, recipients] = await Promise.all([
     db
       .collection("assets")
       .where("organizationId", "==", actor.organizationId)
       .get(),
-    canManage ? handoverRecipients(db, actor.organizationId) : [],
+    canManage ? handoverRecipients(db, actor.organizationId, reach) : [],
   ]);
   const assets = snapshot.docs
+    .filter((doc) => assetVisible(actor, doc.data(), reach))
     .map((doc) => toAssetItem(doc, actor))
     .filter((item): item is AssetItem => item !== null)
     .sort(byName);

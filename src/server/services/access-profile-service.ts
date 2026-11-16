@@ -7,7 +7,9 @@ import {
   type PermissionKey,
   type ProfileAudience,
 } from "@/domain/access/permissions";
+import { scopeFromProfile, type AccessScope } from "@/domain/access/groups";
 import type { PortalUser } from "@/domain/types";
+import { existingGroupIds } from "@/server/services/user-group-service";
 import type { AccessProfileInput } from "@/server/validators/access-profile";
 
 export class AccessProfileError extends Error {
@@ -27,7 +29,7 @@ export type AccessProfile = {
   permissions: PermissionKey[];
   defaultForRole: string | null;
   assignedUsers: number;
-};
+} & AccessScope;
 
 const profiles = (db: Firestore) => db.collection("accessProfiles");
 
@@ -55,6 +57,7 @@ export async function listAccessProfiles(
         permissions: normalizePermissions(data.permissions, data.audience),
         defaultForRole: data.defaultForRole ?? null,
         assignedUsers: assigned.get(document.id) ?? 0,
+        ...scopeFromProfile(data),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -116,6 +119,22 @@ function audit(
   });
 }
 
+/** Only staff profiles manage other people; groups must exist. */
+async function scopeFields(
+  db: Firestore,
+  organizationId: string,
+  input: AccessProfileInput,
+): Promise<AccessScope> {
+  if (input.audience !== "staff" || input.scope === "all")
+    return { scope: "all", groupIds: [] };
+  const groupIds = await existingGroupIds(db, organizationId, input.groupIds, {
+    allowCompany: true,
+  }).catch(() => {
+    throw new AccessProfileError("groupInvalid");
+  });
+  return { scope: "groups", groupIds };
+}
+
 export async function createAccessProfile(
   db: Firestore,
   actor: PortalUser,
@@ -124,6 +143,7 @@ export async function createAccessProfile(
   await assertNameFree(db, actor.organizationId, input.name);
   const reference = profiles(db).doc();
   const permissions = normalizePermissions(input.permissions, input.audience);
+  const scope = await scopeFields(db, actor.organizationId, input);
   const batch = db.batch();
   batch.create(reference, {
     organizationId: actor.organizationId,
@@ -131,6 +151,7 @@ export async function createAccessProfile(
     description: input.description,
     audience: input.audience,
     permissions,
+    ...scope,
     defaultForRole: null,
     createdBy: actor.id,
     createdAt: FieldValue.serverTimestamp(),
@@ -141,6 +162,7 @@ export async function createAccessProfile(
     name: input.name,
     audience: input.audience,
     permissions,
+    ...scope,
   });
   await batch.commit();
   return reference.id;
@@ -161,12 +183,14 @@ export async function updateAccessProfile(
   )
     throw new AccessProfileError("audienceLocked", 409);
   const permissions = normalizePermissions(input.permissions, input.audience);
+  const scope = await scopeFields(db, actor.organizationId, input);
   const batch = db.batch();
   batch.update(current.ref, {
     name: input.name,
     description: input.description,
     audience: input.audience,
     permissions,
+    ...scope,
     updatedBy: actor.id,
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -175,6 +199,8 @@ export async function updateAccessProfile(
     audience: input.audience,
     permissions,
     previousPermissions: previous.permissions,
+    ...scope,
+    previousScope: scopeFromProfile(previous),
   });
   await batch.commit();
 }

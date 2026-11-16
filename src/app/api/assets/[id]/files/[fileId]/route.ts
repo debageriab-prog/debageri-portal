@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import {
   assetVisible,
@@ -16,9 +17,12 @@ export async function GET(
   if (!actor)
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const { db, storage } = getAdminServices();
-  const snapshot = await db.collection("assets").doc(id).get();
+  const [snapshot, reach] = await Promise.all([
+    db.collection("assets").doc(id).get(),
+    reachOf(db, actor),
+  ]);
   const data = snapshot.data();
-  if (!snapshot.exists || !data || !assetVisible(actor, data))
+  if (!snapshot.exists || !data || !assetVisible(actor, data, reach))
     return NextResponse.json({ error: "notFound" }, { status: 404 });
   const file = storedAssetFiles(data.files).find((item) => item.id === fileId);
   if (!file) return NextResponse.json({ error: "notFound" }, { status: 404 });

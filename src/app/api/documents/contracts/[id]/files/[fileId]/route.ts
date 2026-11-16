@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { contractVisible } from "@/server/services/contract-service";
 
@@ -24,7 +25,7 @@ export async function GET(
     contractData?.organizationId !== actor.organizationId ||
     fileData?.organizationId !== actor.organizationId ||
     fileData?.contractId !== id ||
-    !contractVisible(actor, contractData!)
+    !contractVisible(actor, contractData!, await reachOf(db, actor))
   )
     return NextResponse.json({ error: "notFound" }, { status: 404 });
   const [contents] = await storage

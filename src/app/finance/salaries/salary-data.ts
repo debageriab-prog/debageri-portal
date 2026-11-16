@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Firestore } from "firebase-admin/firestore";
+import { reachesUser, type Reach } from "@/domain/access/groups";
 import type { SalaryLine } from "@/domain/salary/articles";
 import type {
   SalarySlipProblem,
@@ -198,10 +199,15 @@ async function consultantBalance(
   );
 }
 
+/**
+ * The month's salary run as far as `reach` goes: only rows of people the
+ * viewer's groups reach, so everything shown and summed is theirs.
+ */
 export async function loadSalaryRun(
   db: Firestore,
   organizationId: string,
   period: string,
+  reach: Reach,
 ): Promise<{ run: SalaryRunInfo | null; rows: SalaryRow[] }> {
   const [run, slips] = await Promise.all([
     db.collection("salaryRuns").doc(`${organizationId}_${period}`).get(),
@@ -211,8 +217,11 @@ export async function loadSalaryRun(
       .where("period", "==", period)
       .get(),
   ]);
+  const reached = slips.docs.filter((document) =>
+    reachesUser(reach, String(document.data().userId)),
+  );
   const rows = await Promise.all(
-    slips.docs.map(async (document) => {
+    reached.map(async (document) => {
       const row = rowFrom(document.id, document.data());
       return {
         ...row,
@@ -231,7 +240,9 @@ export async function loadSalaryRun(
           eventFrom: String(data.eventFrom),
           eventTo: String(data.eventTo),
           excludedUserIds: Array.isArray(data.excludedUserIds)
-            ? data.excludedUserIds.map(String)
+            ? data.excludedUserIds
+                .map(String)
+                .filter((userId: string) => reachesUser(reach, userId))
             : [],
         }
       : null,
@@ -239,12 +250,15 @@ export async function loadSalaryRun(
   };
 }
 
+/** One salary row, or null when it is missing or out of `reach`. */
 export async function loadSalaryRow(
   db: Firestore,
   organizationId: string,
   period: string,
   userId: string,
+  reach: Reach,
 ): Promise<SalaryRow | null> {
+  if (!reachesUser(reach, userId)) return null;
   const snapshot = await db
     .collection("salarySlips")
     .doc(`${organizationId}_${userId}_${period}`)

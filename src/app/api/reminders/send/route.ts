@@ -4,6 +4,7 @@ import { resolvePortalUrl } from "@/lib/config/portal-url";
 import { stockholmDateTime } from "@/lib/dates/stockholm";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { permissionResolver } from "@/server/auth/permissions";
+import { reachOf, reachesUser } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { sendReminderSchema } from "@/server/validators/reminder";
 import {
@@ -29,6 +30,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Select an employee." }, { status: 400 });
 
   const { db } = getAdminServices();
+  // Nobody outside the sender's groups is reminded, not even partly.
+  const reach = await reachOf(db, actor);
+  if (!parsed.data.userIds.every((userId) => reachesUser(reach, userId)))
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   const [settingsDoc, templatesDoc, organizationDoc, holidayDocs] =
     await Promise.all([
       db.collection("reminderSettings").doc(actor.organizationId).get(),

@@ -6,6 +6,7 @@ import { monthBounds, previousMonth } from "@/domain/time/working-days";
 import { stockholmDateTime } from "@/lib/dates/stockholm";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { salaryCandidates } from "@/server/services/salary-service";
 import { invoiceSettingsFrom } from "@/domain/finance/invoice-settings";
@@ -27,9 +28,10 @@ export default async function SalariesPage({
       ? requested
       : stockholmDateTime().date.slice(0, 7);
   const { db } = getAdminServices();
+  const reach = await reachOf(db, actor);
   const [{ run, rows }, candidates, organization] = await Promise.all([
-    loadSalaryRun(db, actor.organizationId, period),
-    salaryCandidates(db, actor.organizationId, period),
+    loadSalaryRun(db, actor.organizationId, period, reach),
+    salaryCandidates(db, actor, period),
     db.collection("organizations").doc(actor.organizationId).get(),
   ]);
   const company = invoiceSettingsFrom(
@@ -68,6 +70,7 @@ export default async function SalariesPage({
         }}
         canEdit={can(actor, "finance.salary.edit")}
         canBook={can(actor, "finance.salary.book")}
+        canExportAgi={can(actor, "finance.salary.book") && reach.all}
         agiContact={{
           name: actor.displayName,
           phone: company.phone,

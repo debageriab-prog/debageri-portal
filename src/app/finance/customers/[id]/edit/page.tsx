@@ -8,7 +8,9 @@ export default async function EditCustomerPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { actor, db } = await financeFormContext("finance.customers.edit");
+  const { actor, db } = await financeFormContext("finance.customers.edit", {
+    company: true,
+  });
   const document = await db.collection("financeCustomers").doc(id).get();
   const data = document.data();
   if (!document.exists || data?.organizationId !== actor.organizationId)

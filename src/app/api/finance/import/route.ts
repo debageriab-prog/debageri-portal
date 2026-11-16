@@ -3,6 +3,8 @@ import { z } from "zod";
 import { can, type PermissionKey } from "@/domain/access/permissions";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachesCompany, reachesUser } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import {
   invoiceCsvHeaders,
@@ -130,11 +132,16 @@ export async function POST(request: Request) {
           .where("organizationId", "==", actor.organizationId)
           .get(),
       ]);
+    // Rows can only be for consultants the importer's groups reach, and rows
+    // without a consultant need the company group.
+    const reach = await reachOf(db, actor);
     const usersByNumber = new Map(
-      users.docs.map((document) => [
-        String(document.data().employeeNumber),
-        document.id,
-      ]),
+      users.docs
+        .filter((document) => reachesUser(reach, document.id))
+        .map((document) => [
+          String(document.data().employeeNumber),
+          document.id,
+        ]),
     );
     const categoriesByCode = new Map(
       categories.docs.map((document) => [
@@ -240,6 +247,11 @@ export async function POST(request: Request) {
         errors.push({
           row: rowNumber,
           message: "importRowConsultantMissing",
+        });
+      if (!employeeNumber && !reachesCompany(reach))
+        errors.push({
+          row: rowNumber,
+          message: "importRowCompanyOutOfReach",
         });
       if (!category || category.direction !== direction)
         errors.push({

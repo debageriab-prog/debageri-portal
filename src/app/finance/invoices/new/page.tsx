@@ -17,7 +17,9 @@ export default async function NewInvoicePage({
 }: {
   searchParams: Promise<{ incomingEmailId?: string }>;
 }) {
-  const { actor, db } = await financeFormContext("finance.invoices.add");
+  const { actor, db, reach, reachesCompany } = await financeFormContext(
+    "finance.invoices.add",
+  );
   const { incomingEmailId } = await searchParams;
   let incomingEmail: IncomingEmailSource | undefined;
   if (incomingEmailId) {
@@ -31,9 +33,10 @@ export default async function NewInvoicePage({
   return (
     <InvoiceForm
       users={await financeUsers()}
+      reachesCompany={reachesCompany}
       customers={await invoiceCustomers(db, actor.organizationId)}
       defaults={await invoiceDefaults(db, actor.organizationId)}
-      articles={await invoiceArticles(db, actor.organizationId)}
+      articles={await invoiceArticles(db, actor.organizationId, reach)}
       accountingRecipients={await accountingRecipientsFor(
         actor,
         db,

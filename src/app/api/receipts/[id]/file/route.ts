@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { receiptVisible } from "@/server/services/receipt-service";
 
@@ -12,9 +13,12 @@ export async function GET(
   if (!actor)
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const { db, storage } = getAdminServices();
-  const receipt = await db.collection("receipts").doc(id).get();
+  const [receipt, reach] = await Promise.all([
+    db.collection("receipts").doc(id).get(),
+    reachOf(db, actor),
+  ]);
   const data = receipt.data();
-  if (!receipt.exists || !receiptVisible(actor, data!))
+  if (!receipt.exists || !receiptVisible(actor, data!, reach))
     return NextResponse.json({ error: "notFound" }, { status: 404 });
   const [contents] = await storage
     .bucket()

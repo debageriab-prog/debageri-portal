@@ -8,6 +8,8 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
 import type { z } from "zod";
 import { can } from "@/domain/access/permissions";
+import { reachesCompany } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import type { FinanceExtraction } from "@/domain/ai";
 import {
   canApplyIncomingEmailAction,
@@ -626,6 +628,12 @@ function requireProcess(actor: PortalUser) {
     throw new IncomingEmailError("forbidden", 403);
 }
 
+/** The company mailbox belongs to the company group. */
+async function requireCompany(db: Firestore, actor: PortalUser) {
+  if (!reachesCompany(await reachOf(db, actor)))
+    throw new IncomingEmailError("forbidden", 403);
+}
+
 export async function updateIncomingEmail(
   db: Firestore,
   storage: Storage,
@@ -634,6 +642,7 @@ export async function updateIncomingEmail(
   action: IncomingEmailAction,
 ) {
   requireProcess(actor);
+  await requireCompany(db, actor);
   const { ref, data } = await ownEmail(db, actor.organizationId, id);
   const status = isIncomingEmailStatus(data.status) ? data.status : "failed";
   if (!canApplyIncomingEmailAction(status, action))
@@ -688,6 +697,7 @@ export async function convertibleIncomingEmail(
   id: string,
 ) {
   requireProcess(actor);
+  await requireCompany(db, actor);
   const { data } = await ownEmail(db, actor.organizationId, id);
   if (
     !isIncomingEmailStatus(data.status) ||
@@ -740,6 +750,7 @@ export async function readIncomingEmailAttachment(
 ) {
   if (!can(actor, "finance.incomingEmails.view"))
     throw new IncomingEmailError("forbidden", 403);
+  await requireCompany(db, actor);
   const { data } = await ownEmail(db, actor.organizationId, id);
   const file = ((data.attachments ?? []) as IncomingEmailAttachment[]).find(
     (attachment) => attachment.id === attachmentId,

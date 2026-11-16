@@ -5,6 +5,7 @@ import {
   canEditContracts,
   canReadAllContracts,
 } from "@/server/services/contract-service";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { contractVisible } from "@/server/services/contract-service";
 import { ContractList } from "./ContractList";
@@ -16,8 +17,9 @@ export default async function ContractsPage() {
     .collection("contracts")
     .where("organizationId", "==", actor.organizationId)
     .get();
+  const reach = await reachOf(db, actor);
   const visible = snapshot.docs.filter((doc) =>
-    contractVisible(actor, doc.data()),
+    contractVisible(actor, doc.data(), reach),
   );
   const files = await Promise.all(
     visible.map(async (doc) => {

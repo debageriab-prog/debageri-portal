@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import type { AccessScope } from "@/domain/access/groups";
 import {
   can,
   canViewOwnHistory,
@@ -22,6 +23,7 @@ import {
   XLSX_CONTENT_TYPE,
   type WorkbookLabels,
 } from "@/server/export/time-report-workbook";
+import { reachOf } from "@/server/auth/reach";
 
 export class TimeReportExportError extends Error {
   constructor(
@@ -38,6 +40,7 @@ type Actor = {
   role: string;
   reportsTime: boolean;
   permissions: readonly PermissionKey[];
+  accessScope?: AccessScope;
 };
 
 export const canExportOwnTimeReport = (actor: Actor) =>
@@ -68,10 +71,11 @@ export async function exportTimeReport(
     !user ||
     user.organizationId !== actor.organizationId ||
     (!own &&
-      !reportVisibleTo(actor.role, {
-        role: user.role,
-        reportsTime: user.reportsTime,
-      }))
+      !reportVisibleTo(
+        actor.role,
+        { id: userId, role: user.role, reportsTime: user.reportsTime },
+        await reachOf(db, actor),
+      ))
   )
     throw new TimeReportExportError("notFound", 404);
 
