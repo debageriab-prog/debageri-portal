@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getServerLocale } from "@/lib/localization/server";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import {
   handoverPdf,
@@ -22,9 +23,12 @@ export async function GET(
   if (!actor)
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const { db, storage } = getAdminServices();
-  const snapshot = await db.collection("assetHandovers").doc(id).get();
+  const [snapshot, reach] = await Promise.all([
+    db.collection("assetHandovers").doc(id).get(),
+    reachOf(db, actor),
+  ]);
   const data = snapshot.data();
-  if (!snapshot.exists || !data || !handoverVisible(actor, data))
+  if (!snapshot.exists || !data || !handoverVisible(actor, data, reach))
     return NextResponse.json({ error: "notFound" }, { status: 404 });
   const file = {
     name: `equipment-receipt-${String(data.issuedOn ?? id)}.pdf`,

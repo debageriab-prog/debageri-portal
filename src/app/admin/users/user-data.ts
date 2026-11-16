@@ -8,6 +8,7 @@ import {
   isCompensationModel,
   type CompensationRecord,
 } from "@/domain/finance/compensation";
+import { membershipIds } from "@/domain/access/groups";
 import { vacationSettingsFrom } from "@/server/services/vacation-service";
 import type { ManagedUser } from "./UserManagement";
 
@@ -67,6 +68,7 @@ export function toManagedUser(
     reportingStartDate: String(data.reportingStartDate ?? ""),
     accessProfileId: data.accessProfileId ?? null,
     accessProfileName: profileNames.get(data.accessProfileId) ?? null,
+    groupIds: membershipIds(data.groupIds),
     emailPreferences: emailPreferencesFrom(data.emailPreferences),
     locale: notificationLocale(data.locale),
     compensationModel: isCompensationModel(data.compensationModel)

@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
+import { reachesCompany, reachesUser } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { canAddContracts } from "@/server/services/contract-service";
 import { receivesDocuments } from "@/server/validators/user-access";
@@ -16,8 +18,11 @@ export default async function NewContractPage() {
     .where("organizationId", "==", actor.organizationId)
     .where("role", "==", "consultant")
     .get();
+  const reach = await reachOf(db, actor);
   const consultants = users.docs
-    .filter((doc) => receivesDocuments(doc.data()))
+    .filter(
+      (doc) => receivesDocuments(doc.data()) && reachesUser(reach, doc.id),
+    )
     .map((doc) => ({ id: doc.id, name: String(doc.data().displayName) }))
     .sort((a, b) => a.name.localeCompare(b.name));
   return (
@@ -31,7 +36,10 @@ export default async function NewContractPage() {
           </p>
         </div>
       </div>
-      <ContractForm consultants={consultants} />
+      <ContractForm
+        consultants={consultants}
+        allowCompany={reachesCompany(reach)}
+      />
     </>
   );
 }

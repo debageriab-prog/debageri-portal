@@ -3,6 +3,8 @@
  * month and a column per month, with weekends and red days marked.
  */
 
+import { reachesUser, type Reach } from "@/domain/access/groups";
+
 export type ExportEntry = {
   date: string;
   minutes: number;
@@ -188,12 +190,15 @@ export function exportFileName(
 
 /**
  * Whose time reports staff may open: consultants for everyone with access,
- * and managers or accountants who report time only for admins.
+ * and managers or accountants who report time only for admins. Either way the
+ * person must be within the actor's reach.
  */
 export function reportVisibleTo(
   actorRole: string,
-  user: { role: unknown; reportsTime?: unknown },
+  user: { id: string; role: unknown; reportsTime?: unknown },
+  reach: Reach,
 ) {
+  if (!reachesUser(reach, user.id)) return false;
   const role = String(user.role);
   if (["employee", "consultant"].includes(role)) return true;
   return (

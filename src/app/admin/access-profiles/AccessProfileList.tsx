@@ -7,19 +7,36 @@ import { useLocale } from "@/components/localization/LocaleProvider";
 import { ActionIcon } from "@/components/ui/ActionIcon";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { appCheckFetch } from "@/lib/firebase/client";
+import { COMPANY_GROUP_ID } from "@/domain/access/groups";
 import {
   accessProfileError,
   type AccessProfileFormValues,
+  type GroupChoice,
 } from "./AccessProfileForm";
 
 export function AccessProfileList({
   profiles,
+  groups,
   saved,
 }: {
   profiles: AccessProfileFormValues[];
+  groups: GroupChoice[];
   saved: "created" | "updated" | null;
 }) {
   const { t } = useLocale();
+  const groupNames = new Map<string, string>([
+    [COMPANY_GROUP_ID, t("companyGroupName")],
+    ...groups.map((group): [string, string] => [group.id, group.name]),
+  ]);
+  const scopeText = (profile: AccessProfileFormValues) =>
+    profile.audience !== "staff"
+      ? "-"
+      : profile.scope === "all"
+        ? t("accessProfileScope_all")
+        : profile.groupIds
+            .map((id) => groupNames.get(id))
+            .filter(Boolean)
+            .join(", ") || t("accessProfileScope_none");
   const router = useRouter();
   const [deleting, setDeleting] = useState<AccessProfileFormValues | null>(
     null,
@@ -86,6 +103,7 @@ export function AccessProfileList({
                 <th>{t("accessProfileAudience")}</th>
                 <th>{t("accessProfileAssigned")}</th>
                 <th>{t("accessProfilePermissions")}</th>
+                <th>{t("accessProfileManagedGroups")}</th>
                 <th>
                   <span className="sr-only">{t("actions")}</span>
                 </th>
@@ -103,6 +121,7 @@ export function AccessProfileList({
                   <td>{t(`accessProfileAudience_${profile.audience}`)}</td>
                   <td>{profile.assignedUsers}</td>
                   <td>{profile.permissions.length}</td>
+                  <td>{scopeText(profile)}</td>
                   <td>
                     <div className="row-actions">
                       <Link

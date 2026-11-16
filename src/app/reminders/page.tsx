@@ -2,6 +2,7 @@ import { getAdminServices } from "@/lib/firebase/admin";
 import { can } from "@/domain/access/permissions";
 import { stockholmDateTime } from "@/lib/dates/stockholm";
 import { permissionResolver } from "@/server/auth/permissions";
+import { reachOf, reachesUser } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { getTranslator } from "@/lib/localization/server";
 import {
@@ -27,7 +28,10 @@ export default async function RemindersPage({
   const t = await getTranslator();
   const { tab } = await searchParams;
   const { db } = getAdminServices();
-  const permissionsFor = await permissionResolver(db, actor.organizationId);
+  const [permissionsFor, reach] = await Promise.all([
+    permissionResolver(db, actor.organizationId),
+    reachOf(db, actor),
+  ]);
   const [
     usersSnapshot,
     settingsDoc,
@@ -71,6 +75,7 @@ export default async function RemindersPage({
     .filter((doc) => {
       const data = doc.data();
       return (
+        reachesUser(reach, doc.id) &&
         receivesReminders(data) &&
         permissionsFor({
           role: String(data.role),

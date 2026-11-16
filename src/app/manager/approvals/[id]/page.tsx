@@ -16,6 +16,8 @@ import {
 } from "@/components/vacation/VacationOverviewCard";
 import { stockholmDateTime } from "@/lib/dates/stockholm";
 import { getVacationOverview } from "@/server/services/vacation-service";
+import { reportVisibleTo } from "@/domain/reports/time-report-export";
+import { reachOf } from "@/server/auth/reach";
 
 export default async function ReviewPage({
   params,
@@ -34,14 +36,18 @@ export default async function ReviewPage({
     db.collection("timeEntries").where("timesheetId", "==", id).get(),
   ]);
   const user = userDoc.data();
-  const consultant = ["employee", "consultant"].includes(String(user?.role));
   const allowed =
     sheet.organizationId === actor.organizationId &&
-    (actor.role === "admin"
-      ? consultant ||
-        (["manager", "accountant"].includes(String(user?.role)) &&
-          user?.reportsTime === true)
-      : consultant);
+    Boolean(user) &&
+    reportVisibleTo(
+      actor.role,
+      {
+        id: String(sheet.userId),
+        role: user?.role,
+        reportsTime: user?.reportsTime,
+      },
+      await reachOf(db, actor),
+    );
   if (!allowed) redirect("/unauthorized");
   const entryData = entries.docs.map((entryDoc) => entryDoc.data());
   const reportVacation = vacationMinutesIn(entryData);

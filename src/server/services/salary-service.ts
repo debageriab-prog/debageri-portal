@@ -8,6 +8,7 @@ import {
   type QueryDocumentSnapshot,
   type WriteBatch,
 } from "firebase-admin/firestore";
+import { reachesUser, type Reach } from "@/domain/access/groups";
 import { can } from "@/domain/access/permissions";
 import { payslipId } from "@/domain/payslips";
 import {
@@ -69,6 +70,7 @@ import {
   FinanceError,
   voidFinancialTransaction,
 } from "@/server/services/finance-service";
+import { reachOf } from "@/server/auth/reach";
 import { loadTaxTable } from "@/server/services/tax-table-service";
 import {
   getVacationSummary,
@@ -98,6 +100,36 @@ export function requireSalaryPermission(
   key: "finance.salary.view" | "finance.salary.edit" | "finance.salary.book",
 ) {
   if (!can(actor, key)) throw new FinanceError("forbidden", 403);
+}
+
+/**
+ * A salary row of someone the actor's groups do not reach looks the same as
+ * a missing one.
+ */
+async function assertSlipReach(
+  db: Firestore,
+  actor: PortalUser,
+  data: DocumentData,
+) {
+  if (!reachesUser(await reachOf(db, actor), String(data.userId)))
+    throw new FinanceError("salarySlipMissing", 404);
+}
+
+/** Rows chosen together must all belong to people the actor reaches. */
+async function assertSlipsReach(
+  db: Firestore,
+  actor: PortalUser,
+  snapshots: FirebaseFirestore.DocumentSnapshot[],
+) {
+  const reach = await reachOf(db, actor);
+  if (
+    snapshots.some(
+      (snapshot) =>
+        snapshot.exists &&
+        !reachesUser(reach, String(snapshot.data()?.userId ?? "")),
+    )
+  )
+    throw new FinanceError("forbidden", 403);
 }
 
 function audit(
@@ -359,11 +391,15 @@ type Eligible = {
   agreement: NonNullable<Awaited<ReturnType<typeof agreementForMonth>>>;
 };
 
-/** Everyone the company pays in the month: active, employed and agreed. */
+/**
+ * Everyone the company pays in the month: active, employed and agreed, among
+ * the people `reach` covers.
+ */
 async function eligiblePeople(
   db: Firestore,
   organizationId: string,
   period: string,
+  reach: Reach,
 ): Promise<Eligible[]> {
   const { from, to } = monthBounds(period);
   const users = await db
@@ -373,6 +409,7 @@ async function eligiblePeople(
   const people: Eligible[] = [];
   for (const user of users.docs) {
     const data = user.data();
+    if (!reachesUser(reach, user.id)) continue;
     if (data.status !== "active") continue;
     if (
       !receivesSalary({ role: String(data.role), paysSalary: data.paysSalary })
@@ -397,13 +434,22 @@ async function eligiblePeople(
   );
 }
 
-/** Who can get a salary row for the month, for choosing whom to pay. */
+/**
+ * Who can get a salary row for the month, for choosing whom to pay: only
+ * people the actor's groups reach.
+ */
 export async function salaryCandidates(
   db: Firestore,
-  organizationId: string,
+  actor: PortalUser,
   period: string,
 ): Promise<SalaryCandidate[]> {
-  const people = await eligiblePeople(db, organizationId, period);
+  const { organizationId } = actor;
+  const people = await eligiblePeople(
+    db,
+    organizationId,
+    period,
+    await reachOf(db, actor),
+  );
   const profiles = people.length
     ? await db.getAll(
         ...people.map(({ user }) =>
@@ -567,15 +613,26 @@ export async function generateSalaryRun(
   },
 ) {
   requireSalaryPermission(actor, "finance.salary.edit");
-  const [people, holidays] = await Promise.all([
-    eligiblePeople(db, actor.organizationId, input.period),
+  const reach = await reachOf(db, actor);
+  if (input.userIds.some((userId) => !reachesUser(reach, userId)))
+    throw new FinanceError("forbidden", 403);
+  const runId = salaryRunId(actor.organizationId, input.period);
+  const [people, holidays, run] = await Promise.all([
+    eligiblePeople(db, actor.organizationId, input.period, reach),
     holidaysBetween(
       db,
       actor.organizationId,
       sickLookbackFrom(input.eventFrom),
       input.eventTo,
     ),
+    db.collection("salaryRuns").doc(runId).get(),
   ]);
+  // People outside the actor's groups keep whatever was chosen for them.
+  const othersExcluded = (
+    Array.isArray(run.data()?.excludedUserIds)
+      ? (run.data()!.excludedUserIds as unknown[]).map(String)
+      : []
+  ).filter((userId) => !reachesUser(reach, userId));
   const chosen = new Set(input.userIds);
   const context: SlipContext = { ...input, holidays, tables: new Map() };
   const batch = db.batch();
@@ -607,7 +664,6 @@ export async function generateSalaryRun(
     (existing.exists ? rebuilt : created).push(id);
   }
 
-  const runId = salaryRunId(actor.organizationId, input.period);
   batch.set(
     db.collection("salaryRuns").doc(runId),
     {
@@ -616,9 +672,12 @@ export async function generateSalaryRun(
       paymentDate: input.paymentDate,
       eventFrom: input.eventFrom,
       eventTo: input.eventTo,
-      excludedUserIds: people
-        .map((person) => person.user.id)
-        .filter((userId) => !chosen.has(userId)),
+      excludedUserIds: [
+        ...othersExcluded,
+        ...people
+          .map((person) => person.user.id)
+          .filter((userId) => !chosen.has(userId)),
+      ],
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: actor.id,
     },
@@ -644,6 +703,7 @@ async function initiatedSlip(db: Firestore, actor: PortalUser, slipId: string) {
   const data = snapshot.data();
   if (!snapshot.exists || data?.organizationId !== actor.organizationId)
     throw new FinanceError("salarySlipMissing", 404);
+  await assertSlipReach(db, actor, data);
   if (data.status !== "initiated")
     throw new FinanceError("salarySlipLocked", 409);
   return { reference, data };
@@ -663,7 +723,12 @@ export async function setSalarySlipTimeReports(
   if (data.version !== input.version)
     throw new FinanceError("salarySlipChanged", 409);
   const person = (
-    await eligiblePeople(db, actor.organizationId, String(data.period))
+    await eligiblePeople(
+      db,
+      actor.organizationId,
+      String(data.period),
+      await reachOf(db, actor),
+    )
   ).find(({ user }) => user.id === data.userId);
   if (!person) throw new FinanceError("salarySlipMissing", 404);
   const batch = db.batch();
@@ -750,6 +815,7 @@ export async function updateSalarySlip(
   const data = snapshot.data();
   if (!snapshot.exists || data?.organizationId !== actor.organizationId)
     throw new FinanceError("salarySlipMissing", 404);
+  await assertSlipReach(db, actor, data);
   if (data.status !== "initiated")
     throw new FinanceError("salarySlipLocked", 409);
   if (data.version !== input.version)
@@ -810,6 +876,7 @@ export async function setSalarySlipStatus(
   const snapshots = await db.getAll(
     ...input.slipIds.map((id) => db.collection("salarySlips").doc(id)),
   );
+  await assertSlipsReach(db, actor, snapshots);
   const batch = db.batch();
   for (const snapshot of snapshots) {
     const data = snapshot.data();
@@ -911,6 +978,7 @@ export async function generatePayslips(
   const snapshots = await db.getAll(
     ...input.slipIds.map((id) => db.collection("salarySlips").doc(id)),
   );
+  await assertSlipsReach(db, actor, snapshots);
   for (const snapshot of snapshots) {
     const data = snapshot.data();
     if (!snapshot.exists || data?.organizationId !== actor.organizationId)
@@ -1008,6 +1076,7 @@ export async function salarySlipPdfFile(
   const file = data?.pdf as SalarySlipPdfFile | null | undefined;
   if (data?.organizationId !== actor.organizationId || !file?.storagePath)
     throw new FinanceError("salarySlipMissing", 404);
+  await assertSlipReach(db, actor, data);
   const [contents] = await storage.bucket().file(file.storagePath).download();
   return { contents, fileName: file.fileName };
 }
@@ -1108,6 +1177,7 @@ export async function bookSalarySlips(
   const snapshots = await db.getAll(
     ...input.slipIds.map((id) => db.collection("salarySlips").doc(id)),
   );
+  await assertSlipsReach(db, actor, snapshots);
   for (const snapshot of snapshots) {
     const data = snapshot.data();
     if (!snapshot.exists || data?.organizationId !== actor.organizationId)
@@ -1315,6 +1385,7 @@ export async function reverseSalarySlip(
   const data = snapshot.data();
   if (!snapshot.exists || data?.organizationId !== actor.organizationId)
     throw new FinanceError("salarySlipMissing", 404);
+  await assertSlipReach(db, actor, data);
   if (data.status !== "booked") throw new FinanceError("salarySlipLocked", 409);
   const transactionIds = (data.transactionIds ?? []) as string[];
   for (const transactionId of transactionIds) {
@@ -1373,6 +1444,9 @@ export async function salaryAgiFile(
   input: { period: string; contact: AgiContact },
 ) {
   requireSalaryPermission(actor, "finance.salary.book");
+  // The file declares every salary of the company and must be complete, so
+  // only someone reaching all employees and the company can make it.
+  if (!(await reachOf(db, actor)).all) throw new FinanceError("forbidden", 403);
   const organization = (
     await db.collection("organizations").doc(actor.organizationId).get()
   ).data();

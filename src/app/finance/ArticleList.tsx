@@ -22,11 +22,14 @@ export function ArticleList({
   users,
   canAdd,
   canEdit,
+  reachesCompany = true,
 }: {
   articles: InvoiceArticle[];
   users: Array<{ id: string; displayName: string }>;
   canAdd: boolean;
   canEdit: boolean;
+  /** Articles for all or for company invoices need the company group. */
+  reachesCompany?: boolean;
 }) {
   const { t, locale } = useLocale();
   const [scope, setScope] = useState("any");
@@ -134,14 +137,19 @@ export function ArticleList({
                     <td>{t(`articleStatus_${state}`)}</td>
                     {canEdit && (
                       <td>
-                        <Link
-                          className="table-action icon-action"
-                          href={`/finance/articles/${encodeURIComponent(article.id)}/edit`}
-                          aria-label={t("editArticle")}
-                          title={t("editArticle")}
-                        >
-                          <ActionIcon type="edit" />
-                        </Link>
+                        {(reachesCompany ||
+                          (article.consultantScope !== ARTICLE_FOR_ALL &&
+                            article.consultantScope !==
+                              ARTICLE_FOR_COMPANY)) && (
+                          <Link
+                            className="table-action icon-action"
+                            href={`/finance/articles/${encodeURIComponent(article.id)}/edit`}
+                            aria-label={t("editArticle")}
+                            title={t("editArticle")}
+                          >
+                            <ActionIcon type="edit" />
+                          </Link>
+                        )}
                       </td>
                     )}
                   </tr>

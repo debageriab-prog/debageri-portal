@@ -3,6 +3,8 @@ import { can } from "@/domain/access/permissions";
 import { redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
+import { reachesCompany } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { vatPayableMinor } from "@/domain/finance/calculations";
 import { aiExtractionEnabledFor } from "@/server/services/ai-service";
@@ -14,6 +16,8 @@ export default async function NewVatSettlementPage() {
   if (!can(actor, "finance.vat.add")) redirect("/unauthorized");
   const t = await getTranslator();
   const { db } = getAdminServices();
+  // VAT belongs to the company group.
+  if (!reachesCompany(await reachOf(db, actor))) redirect("/unauthorized");
   const [transactions, settlements] = await Promise.all([
     db
       .collection("financialTransactions")

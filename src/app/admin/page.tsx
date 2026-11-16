@@ -11,6 +11,7 @@ export default function AdminPage() {
       t("accessProfilesDescription"),
       "/admin/access-profiles",
     ],
+    [t("userGroups"), t("userGroupsDescription"), "/admin/groups"],
     [t("organization"), t("organizationDescription"), "/admin/settings"],
     [
       t("emailSettings"),

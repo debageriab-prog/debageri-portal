@@ -1,8 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
+import { reachesCompany, reachesUser } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
-import { canEditContracts } from "@/server/services/contract-service";
+import {
+  canEditContracts,
+  reachesContract,
+} from "@/server/services/contract-service";
 import { ContractForm } from "../../ContractForm";
 
 export default async function EditContractPage({
@@ -34,6 +39,8 @@ export default async function EditContractPage({
   )
     notFound();
   const data = snapshot.data()!;
+  const reach = await reachOf(db, actor);
+  if (!reachesContract(reach, data)) notFound();
   const contract = {
     id,
     name: String(data.name),
@@ -51,6 +58,7 @@ export default async function EditContractPage({
     })),
   };
   const consultants = users.docs
+    .filter((doc) => reachesUser(reach, doc.id))
     .map((doc) => ({ id: doc.id, name: String(doc.data().displayName) }))
     .sort((a, b) => a.name.localeCompare(b.name));
   return (
@@ -64,7 +72,11 @@ export default async function EditContractPage({
           </p>
         </div>
       </div>
-      <ContractForm consultants={consultants} contract={contract} />
+      <ContractForm
+        consultants={consultants}
+        contract={contract}
+        allowCompany={reachesCompany(reach)}
+      />
     </>
   );
 }

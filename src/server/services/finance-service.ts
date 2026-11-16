@@ -2,6 +2,8 @@ import "server-only";
 
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { can, type PermissionKey } from "@/domain/access/permissions";
+import { reachesRecord, type Reach } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import type { CompensationModel, PortalUser } from "@/domain/types";
 import {
   allocateInvoiceIncome,
@@ -33,6 +35,10 @@ import {
   validityOverlaps,
 } from "@/domain/finance/invoice-articles";
 import {
+  articleScopeEditableBy,
+  articleVisibleTo,
+} from "@/domain/finance/reach";
+import {
   formatOrgNumber,
   ocrReferenceFor,
   validOrgNumber,
@@ -52,6 +58,64 @@ export function requireFinancePermission(
   key: PermissionKey,
 ) {
   if (!can(actor, key)) throw new FinanceError("forbidden", 403);
+}
+
+/**
+ * Throws `code` unless the actor's employee groups reach a record of this
+ * consultant, or of the company when `ownerId` is null.
+ */
+async function requireReach(
+  db: Firestore,
+  actor: PortalUser,
+  ownerId: string | null | undefined,
+  code = "forbidden",
+  status = 403,
+) {
+  if (!reachesRecord(await reachOf(db, actor), ownerId))
+    throw new FinanceError(code, status);
+}
+
+/** Customers, categories and VAT belong to the company group. */
+const requireCompanyReach = (db: Firestore, actor: PortalUser) =>
+  requireReach(db, actor, null);
+
+/**
+ * The person behind a transaction: its consultant, the employee whose salary
+ * it is, or else its invoice's consultant.
+ */
+async function transactionOwner(
+  read: (
+    reference: FirebaseFirestore.DocumentReference,
+  ) => Promise<FirebaseFirestore.DocumentSnapshot>,
+  db: Firestore,
+  data: FirebaseFirestore.DocumentData,
+): Promise<string | null> {
+  if (data.consultantId) return String(data.consultantId);
+  if (data.employeeId) return String(data.employeeId);
+  if (!data.invoiceId) return null;
+  const invoice = await read(
+    db.collection("invoices").doc(String(data.invoiceId)),
+  );
+  return invoice.data()?.consultantId ?? null;
+}
+
+/**
+ * Whether a staff member's employee groups reach a transaction, invoice or
+ * VAT settlement (and so its files). VAT belongs to the company group.
+ */
+export async function financeRecordReached(
+  db: Firestore,
+  actor: PortalUser,
+  entityType: "transaction" | "invoice" | "vatSettlement",
+  data: FirebaseFirestore.DocumentData,
+) {
+  const owner =
+    entityType === "transaction"
+      ? await transactionOwner((reference) => reference.get(), db, data)
+      : entityType === "invoice"
+        ? (data.consultantId ?? null)
+        : null;
+  return reachesRecord(await reachOf(db, actor), owner);
 }
 
 export async function financeIsEnabled(db: Firestore, organizationId: string) {
@@ -343,6 +407,7 @@ export async function createCustomer(
   input: CustomerInput,
 ) {
   requireFinancePermission(actor, "finance.customers.add");
+  await requireCompanyReach(db, actor);
   const duplicate = await db
     .collection("financeCustomers")
     .where("organizationId", "==", actor.organizationId)
@@ -399,6 +464,7 @@ export async function updateCustomer(
   input: CustomerInput & { customerId: string },
 ) {
   requireFinancePermission(actor, "finance.customers.edit");
+  await requireCompanyReach(db, actor);
   const reference = db.collection("financeCustomers").doc(input.customerId);
   const snapshot = await reference.get();
   if (
@@ -454,6 +520,7 @@ export async function updateCategory(
   },
 ) {
   requireFinancePermission(actor, "finance.categories.edit");
+  await requireCompanyReach(db, actor);
   const reference = db.collection("financeCategories").doc(input.categoryId);
   const snapshot = await reference.get();
   if (
@@ -493,6 +560,7 @@ export async function createCategory(
   },
 ) {
   requireFinancePermission(actor, "finance.categories.add");
+  await requireCompanyReach(db, actor);
   const duplicate = await db
     .collection("financeCategories")
     .where("organizationId", "==", actor.organizationId)
@@ -550,10 +618,14 @@ async function checkArticle(
 ) {
   if (input.validTo && input.validTo < input.validFrom)
     throw new FinanceError("articleDatesInvalid");
-  if (
+  const isConsultantScope =
     input.consultantScope !== ARTICLE_FOR_ALL &&
-    input.consultantScope !== ARTICLE_FOR_COMPANY
-  ) {
+    input.consultantScope !== ARTICLE_FOR_COMPANY;
+  if (!articleScopeEditableBy(await reachOf(db, actor), input.consultantScope))
+    throw isConsultantScope
+      ? new FinanceError("consultantInvalid", 404)
+      : new FinanceError("forbidden", 403);
+  if (isConsultantScope) {
     const user = await db.collection("users").doc(input.consultantScope).get();
     if (
       !user.exists ||
@@ -633,6 +705,12 @@ export async function updateInvoiceArticle(
     snapshot.data()?.organizationId !== actor.organizationId
   )
     throw new FinanceError("articleMissing", 404);
+  const reach = await reachOf(db, actor);
+  const previousScope = String(snapshot.data()?.consultantScope ?? "all");
+  if (!articleVisibleTo(reach, previousScope))
+    throw new FinanceError("articleMissing", 404);
+  if (!articleScopeEditableBy(reach, previousScope))
+    throw new FinanceError("forbidden", 403);
   await checkArticle(db, actor, input, input.articleId);
   const batch = db.batch();
   batch.update(reference, {
@@ -787,6 +865,9 @@ async function preparedInvoice(
   const periodTo = input.periodTo ?? null;
   if (!validInvoicePeriod(periodFrom, periodTo))
     throw new FinanceError("invoicePeriodInvalid");
+  if (input.consultantId)
+    await requireReach(db, actor, input.consultantId, "consultantInvalid", 404);
+  else await requireCompanyReach(db, actor);
 
   const customer = await db
     .collection("financeCustomers")
@@ -978,6 +1059,7 @@ export async function updateInvoice(
   const data = existing.data();
   if (!existing.exists || data?.organizationId !== actor.organizationId)
     throw new FinanceError("invoiceMissing", 404);
+  await requireReach(db, actor, data.consultantId, "invoiceMissing", 404);
   if (data.status !== "issued" || data.sentAt)
     throw new FinanceError("invoiceLocked", 409);
   const organization = db.collection("organizations").doc(actor.organizationId);
@@ -1059,6 +1141,7 @@ export async function updateInvoiceLabels(
   const data = snapshot.data();
   if (!snapshot.exists || data?.organizationId !== actor.organizationId)
     throw new FinanceError("invoiceMissing", 404);
+  await requireReach(db, actor, data.consultantId, "invoiceMissing", 404);
   if (data.status !== "paid") throw new FinanceError("invoiceLocked", 409);
   const changed = INVOICE_LABEL_FIELDS.filter(
     (field) => String(data[field] ?? "") !== input[field],
@@ -1085,6 +1168,7 @@ export async function markInvoicePaid(
   input: { invoiceId: string; paidDate: string; categoryId: string },
 ) {
   requireFinancePermission(actor, "finance.invoices.edit");
+  const reach = await reachOf(db, actor);
   const invoiceRef = db.collection("invoices").doc(input.invoiceId);
   const categoryRef = db.collection("financeCategories").doc(input.categoryId);
   const companyTransactionRef = db.collection("financialTransactions").doc();
@@ -1095,7 +1179,11 @@ export async function markInvoicePaid(
       transaction.get(categoryRef),
     ]);
     const data = invoice.data();
-    if (!invoice.exists || data?.organizationId !== actor.organizationId)
+    if (
+      !invoice.exists ||
+      data?.organizationId !== actor.organizationId ||
+      !reachesRecord(reach, data.consultantId)
+    )
       throw new FinanceError("invoiceMissing", 404);
     if (data.status !== "issued")
       throw new FinanceError("invoiceNotPayable", 409);
@@ -1218,6 +1306,9 @@ async function validateFinancialTransaction(
   actor: PortalUser,
   input: FinancialTransactionInput,
 ) {
+  if (input.consultantId)
+    await requireReach(db, actor, input.consultantId, "consultantInvalid", 404);
+  else await requireCompanyReach(db, actor);
   const category = await db
     .collection("financeCategories")
     .doc(input.categoryId)
@@ -1330,6 +1421,13 @@ export async function updateFinancialTransaction(
   const current = snapshot.data();
   if (!snapshot.exists || current?.organizationId !== actor.organizationId)
     throw new FinanceError("transactionMissing", 404);
+  await requireReach(
+    db,
+    actor,
+    await transactionOwner((reference) => reference.get(), db, current),
+    "transactionMissing",
+    404,
+  );
   if (
     current.invoiceId ||
     current.salarySlipId ||
@@ -1399,6 +1497,9 @@ export async function createExpenseCopies(
   },
 ) {
   requireFinancePermission(actor, "finance.ledger.add");
+  if (input.consultantId)
+    await requireReach(db, actor, input.consultantId, "consultantInvalid", 404);
+  else await requireCompanyReach(db, actor);
   const categoryIds = [
     ...new Set(input.expenses.map((item) => item.categoryId)),
   ];
@@ -1504,6 +1605,8 @@ export async function voidFinancialTransaction(
   options: { salary?: boolean } = {},
 ) {
   if (!options.salary) requireFinancePermission(actor, "finance.ledger.delete");
+  // Salary rows check whose salary it is themselves.
+  const reach: Reach | null = options.salary ? null : await reachOf(db, actor);
   const originalRef = db
     .collection("financialTransactions")
     .doc(input.transactionId);
@@ -1512,6 +1615,18 @@ export async function voidFinancialTransaction(
     const original = await transaction.get(originalRef);
     const data = original.data();
     if (!original.exists || data?.organizationId !== actor.organizationId)
+      throw new FinanceError("transactionMissing", 404);
+    if (
+      reach &&
+      !reachesRecord(
+        reach,
+        await transactionOwner(
+          (reference) => transaction.get(reference),
+          db,
+          data,
+        ),
+      )
+    )
       throw new FinanceError("transactionMissing", 404);
     if (data.reversedByTransactionId || data.status === "reversal")
       throw new FinanceError("transactionAlreadyReversed", 409);
@@ -1564,6 +1679,13 @@ export async function deleteFinancialTransaction(
   const data = snapshot.data();
   if (!snapshot.exists || data?.organizationId !== actor.organizationId)
     throw new FinanceError("transactionMissing", 404);
+  await requireReach(
+    db,
+    actor,
+    await transactionOwner((reference) => reference.get(), db, data),
+    "transactionMissing",
+    404,
+  );
   if (data.invoiceId) throw new FinanceError("transactionInvoiceLinked", 409);
   if (data.salarySlipId) throw new FinanceError("transactionSalaryLinked", 409);
   if (data.status === "reversal" || data.reversedByTransactionId)
@@ -1598,6 +1720,7 @@ export async function voidInvoice(
   const data = snapshot.data();
   if (!snapshot.exists || data?.organizationId !== actor.organizationId)
     throw new FinanceError("invoiceMissing", 404);
+  await requireReach(db, actor, data.consultantId, "invoiceMissing", 404);
   if (data.status === "void") throw new FinanceError("invoiceAlreadyVoid", 409);
   if (data.status === "paid") {
     const transactionIds: string[] = Array.isArray(data.incomeTransactionIds)
@@ -1641,6 +1764,7 @@ export async function createVatSettlement(
   },
 ) {
   requireFinancePermission(actor, "finance.vat.add");
+  await requireCompanyReach(db, actor);
   const settlementRef = db.collection("vatSettlements").doc();
   await db.runTransaction(async (transaction) => {
     const [transactionsSnapshot, settlementsSnapshot] = await Promise.all([
@@ -1708,6 +1832,7 @@ export async function reverseVatSettlement(
   input: { settlementId: string; reason: string },
 ) {
   requireFinancePermission(actor, "finance.vat.delete");
+  await requireCompanyReach(db, actor);
   const reference = db.collection("vatSettlements").doc(input.settlementId);
   await db.runTransaction(async (transaction) => {
     const document = await transaction.get(reference);
@@ -1750,6 +1875,7 @@ export async function updateVatSettlement(
   },
 ) {
   requireFinancePermission(actor, "finance.vat.edit");
+  await requireCompanyReach(db, actor);
   const reference = db.collection("vatSettlements").doc(input.settlementId);
   await db.runTransaction(async (transaction) => {
     const current = await transaction.get(reference);

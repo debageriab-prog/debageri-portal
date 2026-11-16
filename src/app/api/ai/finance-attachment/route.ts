@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { verifySession } from "@/server/auth/session";
-import { financeIsEnabled } from "@/server/services/finance-service";
+import {
+  financeIsEnabled,
+  financeRecordReached,
+} from "@/server/services/finance-service";
 import { can } from "@/domain/access/permissions";
 import type { AiExtractionPurpose } from "@/domain/ai";
 import { financeAttachmentReferenceSchema } from "@/server/validators/ai";
@@ -69,6 +72,22 @@ export async function POST(request: Request) {
       data?.organizationId !== actor.organizationId ||
       data?.entityType !== parsed.data.purpose ||
       data?.entityId !== parsed.data.entityId
+    )
+      return NextResponse.json({ error: "notFound" }, { status: 404 });
+    // The record the file belongs to must be one the reader's groups reach.
+    const entity = await db
+      .collection(
+        parsed.data.purpose === "vatSettlement"
+          ? "vatSettlements"
+          : "financialTransactions",
+      )
+      .doc(parsed.data.entityId)
+      .get();
+    const entityData = entity.data();
+    if (
+      !entity.exists ||
+      entityData?.organizationId !== actor.organizationId ||
+      !(await financeRecordReached(db, actor, parsed.data.purpose, entityData))
     )
       return NextResponse.json({ error: "notFound" }, { status: 404 });
     const [bytes] = await storage

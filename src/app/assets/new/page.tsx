@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { isAiFeatureEnabled } from "@/server/services/ai-service";
 import {
@@ -20,9 +21,10 @@ export default async function NewAssetPage({
   if (!canManageAssets(actor)) redirect("/unauthorized");
   const { transactionId } = await searchParams;
   const { db } = getAdminServices();
+  const reach = await reachOf(db, actor);
   const [t, people, transaction, aiEnabled] = await Promise.all([
     getTranslator(),
-    handoverRecipients(db, actor.organizationId),
+    handoverRecipients(db, actor.organizationId, reach),
     transactionId
       ? assetSourceTransaction(db, actor, transactionId).catch(() => null)
       : null,

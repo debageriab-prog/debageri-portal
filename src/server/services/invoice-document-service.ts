@@ -36,9 +36,12 @@ import {
   type InvoicePdfLabels,
 } from "@/server/export/invoice-pdf";
 import { smtpSettings } from "@/server/services/accounting-email-service";
+import { reachesUser } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import {
   FinanceError,
   financeIsEnabled,
+  financeRecordReached,
   prepareInvoice,
   requireFinancePermission,
   type InvoiceInput,
@@ -147,7 +150,11 @@ async function loadInvoice(
   const reference = db.collection("invoices").doc(invoiceId);
   const snapshot = await reference.get();
   const data = snapshot.data();
-  if (!snapshot.exists || data?.organizationId !== actor.organizationId)
+  if (
+    !snapshot.exists ||
+    data?.organizationId !== actor.organizationId ||
+    !(await financeRecordReached(db, actor, "invoice", data))
+  )
     throw new FinanceError("invoiceMissing", 404);
   return { reference, data };
 }
@@ -612,7 +619,11 @@ export async function approvedInvoiceHours(
   if (input.periodTo < input.periodFrom)
     throw new FinanceError("invoicePeriodInvalid");
   const user = await db.collection("users").doc(input.consultantId).get();
-  if (!user.exists || user.data()?.organizationId !== actor.organizationId)
+  if (
+    !user.exists ||
+    user.data()?.organizationId !== actor.organizationId ||
+    !reachesUser(await reachOf(db, actor), input.consultantId)
+  )
     throw new FinanceError("consultantInvalid", 404);
   const [entries, timesheets, codes] = await Promise.all([
     db

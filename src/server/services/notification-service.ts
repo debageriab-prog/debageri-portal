@@ -14,10 +14,12 @@ import {
   type InAppNotificationKind,
   type NotificationParams,
 } from "@/domain/notifications";
+import { reachesUser } from "@/domain/access/groups";
 import type { PermissionKey } from "@/domain/access/permissions";
 import { resolvePortalUrl } from "@/lib/config/portal-url";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { permissionResolver, permissionsOf } from "@/server/auth/permissions";
+import { reachResolver } from "@/server/auth/reach";
 import { decryptPassword } from "@/server/services/reminder-service";
 
 type Recipient = { id: string; data: FirebaseFirestore.DocumentData };
@@ -159,24 +161,34 @@ async function loadUser(db: Firestore, id: string): Promise<Recipient | null> {
   return snapshot.exists ? { id: snapshot.id, data: snapshot.data()! } : null;
 }
 
+/**
+ * People holding `key`. About another person's record, only those whose
+ * employee groups reach that person are included.
+ */
 async function usersWhoCan(
   db: Firestore,
   organizationId: string,
   key: PermissionKey,
+  aboutUserId?: string,
 ): Promise<Recipient[]> {
-  const [snapshot, permissionsFor] = await Promise.all([
+  const [snapshot, permissionsFor, reachFor] = await Promise.all([
     db.collection("users").where("organizationId", "==", organizationId).get(),
     permissionResolver(db, organizationId),
+    aboutUserId ? reachResolver(db, organizationId) : null,
   ]);
   return snapshot.docs
     .map((doc) => ({ id: doc.id, data: doc.data() }))
-    .filter(({ data }) =>
-      permissionsFor({
+    .filter(({ data }) => {
+      const user = {
         role: String(data.role),
         organizationId: String(data.organizationId),
         accessProfileId: data.accessProfileId,
-      }).includes(key),
-    );
+      };
+      return (
+        permissionsFor(user).includes(key) &&
+        (!reachFor || reachesUser(reachFor(user), aboutUserId))
+      );
+    });
 }
 
 function receiptParams(
@@ -207,7 +219,12 @@ export function notifyReceiptSubmitted(receiptId: string, portalUrl: string) {
       "/receipts",
       portalUrl,
       receiptParams(receipt),
-      await usersWhoCan(db, organizationId, "documents.receipts.review"),
+      await usersWhoCan(
+        db,
+        organizationId,
+        "documents.receipts.review",
+        String(receipt.userId),
+      ),
     );
   });
 }
@@ -259,6 +276,7 @@ export function notifyRequestSubmitted(requestId: string, portalUrl: string) {
       db,
       organizationId,
       "documents.requests.review",
+      String(request.userId),
     );
     await deliver(
       db,
@@ -410,7 +428,7 @@ export function notifyTimesheetSubmitted(
     const organizationId = String(sheet.organizationId);
     // Managers review consultants' reports; admins review managers' reports.
     const reviewers = (
-      await usersWhoCan(db, organizationId, "time.approvals.review")
+      await usersWhoCan(db, organizationId, "time.approvals.review", owner.id)
     ).filter(
       (reviewer) =>
         (reviewer.data.role === "admin") ===

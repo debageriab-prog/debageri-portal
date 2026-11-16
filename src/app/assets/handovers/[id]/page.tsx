@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import {
   canManageAssets,
@@ -20,9 +21,12 @@ export default async function HandoverPage({
   const { issued } = await searchParams;
   const actor = (await verifySession())!;
   const { db } = getAdminServices();
-  const snapshot = await db.collection("assetHandovers").doc(id).get();
+  const [snapshot, reach] = await Promise.all([
+    db.collection("assetHandovers").doc(id).get(),
+    reachOf(db, actor),
+  ]);
   const data = snapshot.data();
-  if (!data || !handoverVisible(actor, data)) notFound();
+  if (!data || !handoverVisible(actor, data, reach)) notFound();
   const handover = toHandoverItem(snapshot);
   if (!handover) notFound();
   return (

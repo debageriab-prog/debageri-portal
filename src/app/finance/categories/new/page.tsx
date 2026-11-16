@@ -2,6 +2,8 @@ import { CategoryForm } from "../../FinanceForms";
 import { financeFormContext } from "../../form-data";
 
 export default async function NewCategoryPage() {
-  await financeFormContext("finance.categories.add");
+  await financeFormContext("finance.categories.add", {
+    company: true,
+  });
   return <CategoryForm />;
 }

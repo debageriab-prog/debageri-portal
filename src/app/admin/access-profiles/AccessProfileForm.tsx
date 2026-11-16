@@ -10,6 +10,11 @@ import {
   type PermissionKey,
   type ProfileAudience,
 } from "@/domain/access/permissions";
+import {
+  COMPANY_GROUP_ID,
+  type ProfileScope,
+  type UserGroupStatus,
+} from "@/domain/access/groups";
 import { appCheckFetch } from "@/lib/firebase/client";
 import type { MessageKey } from "@/lib/localization/messages";
 import { PermissionTree } from "./PermissionTree";
@@ -22,6 +27,15 @@ export type AccessProfileFormValues = {
   permissions: PermissionKey[];
   defaultForRole: string | null;
   assignedUsers: number;
+  scope: ProfileScope;
+  groupIds: string[];
+};
+
+export type GroupChoice = {
+  id: string;
+  name: string;
+  description: string;
+  status: UserGroupStatus;
 };
 
 export const accessProfileError = (code?: string) =>
@@ -29,8 +43,10 @@ export const accessProfileError = (code?: string) =>
 
 export function AccessProfileForm({
   profile,
+  groups,
 }: {
   profile?: AccessProfileFormValues;
+  groups: GroupChoice[];
 }) {
   const { t } = useLocale();
   const router = useRouter();
@@ -42,6 +58,8 @@ export function AccessProfileForm({
   const [permissions, setPermissions] = useState<PermissionKey[]>(
     profile?.permissions ?? [],
   );
+  const [scope, setScope] = useState<ProfileScope>(profile?.scope ?? "all");
+  const [groupIds, setGroupIds] = useState<string[]>(profile?.groupIds ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const audienceLocked =
@@ -59,7 +77,14 @@ export function AccessProfileForm({
         {
           method: profile ? "PATCH" : "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ name, description, audience, permissions }),
+          body: JSON.stringify({
+            name,
+            description,
+            audience,
+            permissions,
+            scope,
+            groupIds: scope === "groups" ? groupIds : [],
+          }),
         },
       );
       if (!response.ok) {
@@ -141,6 +166,73 @@ export function AccessProfileForm({
         selected={permissions}
         onChange={setPermissions}
       />
+      {audience === "staff" && (
+        <fieldset className="access-section">
+          <legend>
+            {t("accessProfileManagedGroups")}{" "}
+            <InfoTip text={t("accessProfileManagedGroupsTip")} />
+          </legend>
+          <label className="checkbox-row">
+            <input
+              type="radio"
+              name="profile-scope"
+              checked={scope === "all"}
+              onChange={() => setScope("all")}
+            />
+            <span>{t("accessProfileScope_all")}</span>
+          </label>
+          <label className="checkbox-row">
+            <input
+              type="radio"
+              name="profile-scope"
+              checked={scope === "groups"}
+              onChange={() => setScope("groups")}
+            />
+            <span>{t("accessProfileScope_groups")}</span>
+          </label>
+          {scope === "groups" && (
+            <div className="access-children">
+              {[
+                {
+                  id: COMPANY_GROUP_ID,
+                  name: t("companyGroupName"),
+                  description: t("companyGroupDescription"),
+                  status: "active" as const,
+                },
+                ...groups.filter(
+                  (group) =>
+                    group.status === "active" || groupIds.includes(group.id),
+                ),
+              ].map((group) => (
+                <label className="checkbox-row" key={group.id}>
+                  <input
+                    type="checkbox"
+                    checked={groupIds.includes(group.id)}
+                    onChange={(event) =>
+                      setGroupIds((current) =>
+                        event.target.checked
+                          ? [...current, group.id]
+                          : current.filter((id) => id !== group.id),
+                      )
+                    }
+                  />
+                  <span>
+                    {group.name}
+                    {group.status === "disabled" &&
+                      ` (${t("userGroupStatus_disabled")})`}
+                  </span>
+                  {group.description && <InfoTip text={group.description} />}
+                </label>
+              ))}
+              {groupIds.length === 0 && (
+                <p className="notice notice-warning">
+                  {t("accessProfileNoGroups")}
+                </p>
+              )}
+            </div>
+          )}
+        </fieldset>
+      )}
       <div className="actions">
         <Link className="button secondary" href="/admin/access-profiles">
           {t("cancel")}

@@ -1,4 +1,11 @@
 import type { UserRole } from "@/domain/types";
+import {
+  FULL_SCOPE,
+  NO_SCOPE,
+  scopeFromProfile,
+  scopeReachesCompany,
+  type AccessScope,
+} from "@/domain/access/groups";
 
 export const PERMISSION_KEYS = [
   "finance.ledger.view",
@@ -361,7 +368,27 @@ export function can(
   return user.permissions.includes(key);
 }
 
-type Holder = { permissions: readonly PermissionKey[] };
+type Holder = {
+  permissions: readonly PermissionKey[];
+  accessScope?: AccessScope;
+};
+
+/** Finance pages that only hold records belonging to no employee. */
+const COMPANY_FINANCE_KEYS: readonly PermissionKey[] = [
+  "finance.vat.view",
+  "finance.incomingEmails.view",
+  "finance.categories.view",
+  "finance.customers.view",
+];
+
+/** The permission, and for company-only pages also the company group. */
+export function canOpenFinancePage(user: Holder, key: PermissionKey) {
+  return (
+    can(user, key) &&
+    (!COMPANY_FINANCE_KEYS.includes(key) ||
+      scopeReachesCompany(user.accessScope))
+  );
+}
 
 const ORGANIZATION_FINANCE_PAGES: Array<[PermissionKey, string]> = [
   ["finance.ledger.view", "/finance"],
@@ -376,7 +403,9 @@ const ORGANIZATION_FINANCE_PAGES: Array<[PermissionKey, string]> = [
 /** Where someone with company finance access lands, or null without any. */
 export function financeHome(user: Holder) {
   return (
-    ORGANIZATION_FINANCE_PAGES.find(([key]) => can(user, key))?.[1] ?? null
+    ORGANIZATION_FINANCE_PAGES.find(([key]) =>
+      canOpenFinancePage(user, key),
+    )?.[1] ?? null
   );
 }
 
@@ -559,7 +588,27 @@ export type StoredProfile = {
   organizationId: string;
   audience: ProfileAudience;
   permissions: readonly unknown[];
+  scope?: unknown;
+  groupIds?: unknown;
 };
+
+function validProfile(
+  user: {
+    role: string;
+    organizationId: string;
+    accessProfileId?: string | null;
+  },
+  profile: StoredProfile | null,
+) {
+  const audience = audienceForRole(user.role);
+  return user.accessProfileId &&
+    profile &&
+    audience &&
+    profile.organizationId === user.organizationId &&
+    profile.audience === audience
+    ? audience
+    : null;
+}
 
 /**
  * Admins hold everything. Otherwise the assigned profile decides, and no
@@ -575,14 +624,24 @@ export function resolvePermissions(
   profile: StoredProfile | null,
 ): PermissionKey[] {
   if (user.role === "admin") return [...ADMIN_PERMISSIONS];
-  const audience = audienceForRole(user.role);
-  if (
-    !user.accessProfileId ||
-    !profile ||
-    !audience ||
-    profile.organizationId !== user.organizationId ||
-    profile.audience !== audience
-  )
-    return [];
-  return normalizePermissions(profile.permissions, audience);
+  const audience = validProfile(user, profile);
+  return audience ? normalizePermissions(profile!.permissions, audience) : [];
+}
+
+/**
+ * Whose records the person's company permissions reach. Admins reach
+ * everyone; consultant profiles only grant their own records.
+ */
+export function resolveScope(
+  user: {
+    role: string;
+    organizationId: string;
+    accessProfileId?: string | null;
+  },
+  profile: StoredProfile | null,
+): AccessScope {
+  if (user.role === "admin") return FULL_SCOPE;
+  return validProfile(user, profile) === "staff"
+    ? scopeFromProfile(profile!)
+    : NO_SCOPE;
 }

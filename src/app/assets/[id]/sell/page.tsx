@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { reachesUser } from "@/domain/access/groups";
 import { canSell } from "@/domain/assets";
 import { getTranslator } from "@/lib/localization/server";
 import { byName } from "../../asset-data";
@@ -12,7 +13,7 @@ export default async function SellAssetPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { actor, db, asset } = await loadAssetPage(id, true);
+  const { actor, db, asset, reach } = await loadAssetPage(id, true);
   if (!canSell(asset)) redirect("/assets");
   const [t, users] = await Promise.all([
     getTranslator(),
@@ -35,7 +36,9 @@ export default async function SellAssetPage({
         users={users.docs
           .filter(
             (doc) =>
-              doc.data().status === "active" || doc.id === asset.holder.userId,
+              reachesUser(reach, doc.id) &&
+              (doc.data().status === "active" ||
+                doc.id === asset.holder.userId),
           )
           .map((doc) => ({ id: doc.id, name: String(doc.data().displayName) }))
           .sort(byName)}

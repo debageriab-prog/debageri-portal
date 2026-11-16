@@ -1,4 +1,6 @@
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachesUser } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { financeIsEnabled } from "@/server/services/finance-service";
 import {
@@ -27,6 +29,7 @@ export default async function RequestsPage({
     month: "2-digit",
   }).format(new Date());
   const params = await searchParams;
+  const reach = await reachOf(db, actor);
   const requests = db
     .collection("requests")
     .where("organizationId", "==", actor.organizationId);
@@ -43,7 +46,7 @@ export default async function RequestsPage({
     ]);
     const history = historyByRequest(eventSnapshot.docs);
     const items = snapshot.docs
-      .filter((doc) => requestVisible(actor, doc.data()))
+      .filter((doc) => requestVisible(actor, doc.data(), reach))
       .map((doc) => toRequestItem(doc, history))
       .filter((item): item is RequestItem => item !== null)
       .sort(newestFirst);
@@ -72,19 +75,24 @@ export default async function RequestsPage({
       .get(),
     financeIsEnabled(db, actor.organizationId),
   ]);
-  const history = historyByRequest(eventSnapshot.docs);
+  const history = historyByRequest(
+    eventSnapshot.docs.filter((doc) => reachesUser(reach, doc.data().userId)),
+  );
   const items = snapshot.docs
+    .filter((doc) => reachesUser(reach, doc.data().userId))
     .map((doc) => toRequestItem(doc, history))
     .filter((item): item is RequestItem => item !== null)
     .sort(newestFirst);
   const people = new Map(
-    users.docs.map((doc) => [
-      doc.id,
-      {
-        name: String(doc.data().displayName),
-        employeeNumber: String(doc.data().employeeNumber ?? ""),
-      },
-    ]),
+    users.docs
+      .filter((doc) => reachesUser(reach, doc.id))
+      .map((doc) => [
+        doc.id,
+        {
+          name: String(doc.data().displayName),
+          employeeNumber: String(doc.data().employeeNumber ?? ""),
+        },
+      ]),
   );
   for (const item of items)
     if (!people.has(item.userId))

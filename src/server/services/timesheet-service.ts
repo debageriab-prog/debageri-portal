@@ -16,6 +16,7 @@ import {
   isEditable,
 } from "@/domain/timesheets/rules";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 
 export async function transitionTimesheet(
   actor: PortalUser,
@@ -24,6 +25,7 @@ export async function transitionTimesheet(
   comment: string | null,
 ): Promise<Timesheet> {
   const { db } = getAdminServices();
+  const reach = await reachOf(db, actor);
   return db.runTransaction(async (transaction) => {
     const ref = db.collection("timesheets").doc(timesheetId);
     const snapshot = await transaction.get(ref);
@@ -48,14 +50,18 @@ export async function transitionTimesheet(
       can(actor, "my.time.report");
     const reviewerAction =
       ["approved", "rejected", "reopened"].includes(toStatus) &&
-      canReview(actor, {
-        id: sheet.userId,
-        role: subject.role,
-        reportsTime:
-          subject.reportsTime ??
-          ["employee", "consultant"].includes(String(subject.role)),
-        organizationId: subject.organizationId,
-      });
+      canReview(
+        actor,
+        {
+          id: sheet.userId,
+          role: subject.role,
+          reportsTime:
+            subject.reportsTime ??
+            ["employee", "consultant"].includes(String(subject.role)),
+          organizationId: subject.organizationId,
+        },
+        reach,
+      );
     if (!employeeAction && !reviewerAction) throw new Error("FORBIDDEN");
     assertTransition(sheet.status, toStatus);
     if (toStatus === "rejected" && (!comment || comment.trim().length < 3))

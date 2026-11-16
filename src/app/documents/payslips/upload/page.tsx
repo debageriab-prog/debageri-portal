@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { parsePayslipPeriod } from "@/domain/payslips";
+import { reachesUser } from "@/domain/access/groups";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
 import { permissionResolver } from "@/server/auth/permissions";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import {
   canUploadPayslips,
@@ -20,16 +22,19 @@ export default async function UploadPayslipsPage({
   if (!canUploadPayslips(actor)) redirect("/unauthorized");
   const t = await getTranslator();
   const { db } = getAdminServices();
-  const [users, permissionsFor] = await Promise.all([
+  const [users, permissionsFor, reach] = await Promise.all([
     db
       .collection("users")
       .where("organizationId", "==", actor.organizationId)
       .where("role", "in", RECIPIENT_ROLES)
       .get(),
     permissionResolver(db, actor.organizationId),
+    reachOf(db, actor),
   ]);
   const recipients = users.docs
-    .filter((doc) => receivesDocuments(doc.data()))
+    .filter(
+      (doc) => receivesDocuments(doc.data()) && reachesUser(reach, doc.id),
+    )
     .map((doc) => ({
       id: doc.id,
       name: String(doc.data().displayName),
