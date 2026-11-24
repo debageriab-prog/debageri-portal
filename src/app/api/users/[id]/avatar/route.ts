@@ -1,4 +1,5 @@
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachesUser, reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 
 function objectPath(organizationId: string, userId: string) {
@@ -19,13 +20,16 @@ export async function GET(
   if (!userDoc.exists) return new Response(null, { status: 404 });
   const user = userDoc.data()!;
   const role = String(user.role);
+  // Staff see their own picture and those of the people their groups reach.
   const visible =
     ["admin", "manager", "accountant"].includes(actor.role) &&
     user.organizationId === actor.organizationId &&
-    (["employee", "consultant"].includes(role) ||
-      (actor.role === "admin" &&
-        ["manager", "accountant"].includes(role) &&
-        user.reportsTime === true));
+    (id === actor.id ||
+      ((["employee", "consultant"].includes(role) ||
+        (actor.role === "admin" &&
+          ["manager", "accountant"].includes(role) &&
+          user.reportsTime === true)) &&
+        reachesUser(await reachOf(services.db, actor), id)));
   if (!visible) return Response.json({ error: "Forbidden" }, { status: 403 });
 
   try {

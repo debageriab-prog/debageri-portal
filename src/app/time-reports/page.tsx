@@ -6,6 +6,7 @@ import { isMonth } from "@/lib/dates/month";
 import { TimeReportsView, type ReportPeriod } from "./TimeReportsView";
 import { getTranslator } from "@/lib/localization/server";
 import { reportVisibleTo } from "@/domain/reports/time-report-export";
+import { reachOf } from "@/server/auth/reach";
 
 export default async function TimeReportsPage({
   searchParams,
@@ -22,7 +23,7 @@ export default async function TimeReportsPage({
   const params = await searchParams;
   const { userId } = params;
   const { db } = getAdminServices();
-  const [usersSnapshot, timeCodeSnapshot] = await Promise.all([
+  const [usersSnapshot, timeCodeSnapshot, reach] = await Promise.all([
     db
       .collection("users")
       .where("organizationId", "==", actor.organizationId)
@@ -31,6 +32,7 @@ export default async function TimeReportsPage({
       .collection("timeCodes")
       .where("organizationId", "==", actor.organizationId)
       .get(),
+    reachOf(db, actor),
   ]);
   const workedCodes = timeCodeSnapshot.docs
     .map((doc) => doc.data())
@@ -64,7 +66,7 @@ export default async function TimeReportsPage({
         hourlyRate: incomeRate(hourlyRateFor(doc.id)),
       };
     })
-    .filter((user) => reportVisibleTo(actor.role, user))
+    .filter((user) => reportVisibleTo(actor.role, user, reach))
     .sort((left, right) =>
       String(left.displayName).localeCompare(String(right.displayName)),
     );

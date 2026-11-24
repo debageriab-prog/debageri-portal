@@ -5,6 +5,8 @@ import { shiftMonth, stockholmMonthStart } from "@/lib/dates/month";
 import { stockholmDateTime } from "@/lib/dates/stockholm";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
+import { reachesCompany, reachesUser } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { financeIsEnabled } from "@/server/services/finance-service";
 import {
@@ -19,6 +21,9 @@ export default async function IncomingEmailsPage() {
   if (!can(actor, "finance.incomingEmails.view")) redirect("/unauthorized");
   const t = await getTranslator();
   const { db } = getAdminServices();
+  // Forwarded emails belong to the company group.
+  const reach = await reachOf(db, actor);
+  if (!reachesCompany(reach)) redirect("/unauthorized");
   const [financeOn, availability, settings] = await Promise.all([
     financeIsEnabled(db, actor.organizationId),
     incomingEmailAvailability(db, actor.organizationId),
@@ -57,10 +62,12 @@ export default async function IncomingEmailsPage() {
       }),
     ),
     consultants: Object.fromEntries(
-      (users?.docs ?? []).map((document) => [
-        document.id,
-        String(document.data().displayName ?? ""),
-      ]),
+      (users?.docs ?? [])
+        .filter((document) => reachesUser(reach, document.id))
+        .map((document) => [
+          document.id,
+          String(document.data().displayName ?? ""),
+        ]),
     ),
     customers: Object.fromEntries(
       (customers?.docs ?? []).map((document) => [

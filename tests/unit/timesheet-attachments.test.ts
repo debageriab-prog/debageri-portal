@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   isUnsentTimesheetAttachment,
   TIMESHEET_ATTACHMENT_MAX_BYTES,
-  timesheetAttachmentAccess,
+  timesheetAttachmentAccess as accessWithin,
   timesheetAttachmentFileError,
 } from "@/domain/timesheets/attachments";
+import { FULL_REACH, type Reach } from "@/domain/access/groups";
 import type { PermissionKey } from "@/domain/access/permissions";
 import type { UserRole } from "@/domain/types";
 import { timesheetAttachmentRemovalSchema } from "@/server/validators/timesheet-attachments";
@@ -21,6 +22,17 @@ const owner = (role: UserRole, reportsTime = true) => ({
   reportsTime,
   organizationId: "debageri",
 });
+const timesheetAttachmentAccess = (
+  who: Parameters<typeof accessWithin>[0],
+  ownerId: string,
+  ownerData: Parameters<typeof accessWithin>[2],
+  reach: Reach = FULL_REACH,
+) => accessWithin(who, ownerId, ownerData, reach);
+const itConsultants: Reach = {
+  all: false,
+  company: true,
+  userIds: new Set(["u1"]),
+};
 
 describe("timesheet attachment access", () => {
   it("follows the profile rather than the role", () => {
@@ -105,6 +117,39 @@ describe("timesheet attachment access", () => {
           owner("consultant"),
         ),
       ).toEqual({ canAdd: false, canRemove: false, canView: false });
+  });
+});
+
+describe("timesheet attachment reach", () => {
+  it("hides files of people outside the actor's groups", () => {
+    for (const role of ["manager", "admin", "accountant"] as const)
+      expect(
+        timesheetAttachmentAccess(
+          actor("x1", role),
+          "u2",
+          owner("consultant"),
+          itConsultants,
+        ),
+      ).toEqual({ canAdd: false, canRemove: false, canView: false });
+    expect(
+      timesheetAttachmentAccess(
+        actor("m1", "manager"),
+        "u1",
+        owner("consultant"),
+        itConsultants,
+      ),
+    ).toEqual({ canAdd: false, canRemove: true, canView: true });
+  });
+
+  it("never limits the reporter's own files", () => {
+    expect(
+      timesheetAttachmentAccess(
+        actor("u2", "consultant"),
+        "u2",
+        owner("consultant"),
+        itConsultants,
+      ),
+    ).toEqual({ canAdd: true, canRemove: false, canView: true });
   });
 });
 

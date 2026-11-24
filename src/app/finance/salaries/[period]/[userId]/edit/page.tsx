@@ -10,6 +10,7 @@ import {
 import { previousMonth } from "@/domain/time/working-days";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { getTranslator } from "@/lib/localization/server";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { loadTaxTable } from "@/server/services/tax-table-service";
 import { loadSalaryRow, loadTimeSummary } from "../../../salary-data";
@@ -32,6 +33,7 @@ export default async function SalaryRowPage({
     actor.organizationId,
     period,
     decodeURIComponent(userId),
+    await reachOf(db, actor),
   );
   if (!row) notFound();
   const timeSummary = await loadTimeSummary(

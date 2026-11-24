@@ -6,6 +6,8 @@ import type { Firestore } from "firebase-admin/firestore";
 import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 import { can } from "@/domain/access/permissions";
+import { FULL_REACH, reachesUser, type Reach } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import type { PortalUser } from "@/domain/types";
 import {
   AI_PURPOSE_FEATURE,
@@ -469,6 +471,7 @@ export async function extractFinanceDocument(
     actor.organizationId,
     { files: [file] },
     purpose,
+    await reachOf(db, actor),
   );
 }
 
@@ -482,6 +485,8 @@ export async function extractFinanceInput(
   organizationId: string,
   input: ExtractionInput,
   purpose: AiExtractionPurpose,
+  /** Only consultants the reader's employee groups reach are suggested. */
+  reach: Reach = FULL_REACH,
 ): Promise<FinanceExtraction> {
   const { settings, encryptedKeys } = await readAiSettings(db, organizationId);
   if (!aiFeatureEnabled(settings, AI_PURPOSE_FEATURE[purpose]))
@@ -522,7 +527,11 @@ export async function extractFinanceInput(
     name: String(document.data().name ?? ""),
   }));
   const consultants = userSnapshot.docs
-    .filter((document) => document.data().role === "consultant")
+    .filter(
+      (document) =>
+        document.data().role === "consultant" &&
+        reachesUser(reach, document.id),
+    )
     .map((document) => ({
       id: document.id,
       displayName: String(document.data().displayName ?? ""),

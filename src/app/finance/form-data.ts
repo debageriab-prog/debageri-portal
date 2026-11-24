@@ -6,11 +6,15 @@ import {
   hasOrganizationFinance,
   type PermissionKey,
 } from "@/domain/access/permissions";
+import { reachesCompany, reachesUser } from "@/domain/access/groups";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import type { Firestore } from "firebase-admin/firestore";
 import { invoiceSettingsFrom } from "@/domain/finance/invoice-settings";
 import type { InvoiceArticle } from "@/domain/finance/invoice-articles";
+import { articleVisibleTo } from "@/domain/finance/reach";
+import type { Reach } from "@/domain/access/groups";
 
 import type {
   EditableCustomer,
@@ -18,18 +22,31 @@ import type {
   InvoiceDefaults,
 } from "./FinanceForms";
 
-export async function financeFormContext(permission: PermissionKey) {
+/**
+ * The signed-in staff member with `permission`, and whose records their
+ * employee groups reach. `company` pages (customers, categories, VAT) also
+ * need the company group.
+ */
+export async function financeFormContext(
+  permission: PermissionKey,
+  options: { company?: boolean } = {},
+) {
   const actor = await verifySession();
   if (!actor) redirect("/auth/login");
   if (!can(actor, permission)) redirect("/unauthorized");
-  return { actor, db: getAdminServices().db };
+  const db = getAdminServices().db;
+  const reach = await reachOf(db, actor);
+  if (options.company && !reachesCompany(reach)) redirect("/unauthorized");
+  return { actor, db, reach, reachesCompany: reachesCompany(reach) };
 }
 
+/** Consultants the signed-in staff member's employee groups reach. */
 export async function financeUsers() {
   const actor = await verifySession();
   if (!actor) redirect("/auth/login");
   if (!hasOrganizationFinance(actor)) redirect("/unauthorized");
   const { db } = getAdminServices();
+  const reach = await reachOf(db, actor);
   const snapshot = await db
     .collection("users")
     .where("organizationId", "==", actor.organizationId)
@@ -40,7 +57,7 @@ export async function financeUsers() {
       displayName: String(document.data().displayName),
       role: document.data().role as string,
     }))
-    .filter((user) => user.role === "consultant")
+    .filter((user) => user.role === "consultant" && reachesUser(reach, user.id))
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
@@ -137,13 +154,20 @@ export function invoiceArticleFrom(
   };
 }
 
-/** Every invoice article; the invoice form picks the ones that apply. */
-export async function invoiceArticles(db: Firestore, organizationId: string) {
+/**
+ * Every invoice article the staff member's groups reach; the invoice form
+ * picks the ones that apply.
+ */
+export async function invoiceArticles(
+  db: Firestore,
+  organizationId: string,
+  reach: Reach,
+) {
   const snapshot = await db
     .collection("invoiceArticles")
     .where("organizationId", "==", organizationId)
     .get();
-  return snapshot.docs.map((document) =>
-    invoiceArticleFrom(document.id, document.data()),
-  );
+  return snapshot.docs
+    .map((document) => invoiceArticleFrom(document.id, document.data()))
+    .filter((article) => articleVisibleTo(reach, article.consultantScope));
 }

@@ -1,6 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { parseContractForm } from "@/server/validators/contracts";
 import {
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
       db,
       actor,
       parsed.data.consultantId,
+      await reachOf(db, actor),
     );
     await ref.create({
       organizationId: actor.organizationId,

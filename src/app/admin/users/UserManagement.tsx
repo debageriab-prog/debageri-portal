@@ -30,6 +30,7 @@ export interface ManagedUser {
   reportingStartDate: string;
   accessProfileId: string | null;
   accessProfileName: string | null;
+  groupIds: string[];
   emailPreferences: EmailPreferences;
   locale: Locale;
   compensationModel: CompensationModel | null;

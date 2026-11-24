@@ -60,6 +60,7 @@ export function SalaryRun({
   defaults,
   canEdit,
   canBook,
+  canExportAgi,
   agiContact,
 }: {
   period: string;
@@ -69,6 +70,8 @@ export function SalaryRun({
   defaults: SalaryRunInfo;
   canEdit: boolean;
   canBook: boolean;
+  /** The AGI file covers everyone, so only staff reaching everyone get it. */
+  canExportAgi: boolean;
   /** Who Skatteverket contacts about the AGI file, filled in beforehand. */
   agiContact: AgiContactDefaults;
 }) {
@@ -166,7 +169,7 @@ export function SalaryRun({
                   .replace("{eventTo}", run.eventTo)}
               </span>
             )}
-            {canBook && booked.length > 0 && (
+            {canExportAgi && booked.length > 0 && (
               <>
                 <button
                   className="button secondary"

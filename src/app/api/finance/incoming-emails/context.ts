@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { can, type PermissionKey } from "@/domain/access/permissions";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachesCompany } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { financeIsEnabled } from "@/server/services/finance-service";
 import {
@@ -23,6 +25,11 @@ export async function incomingEmailContext(key: PermissionKey) {
       error: NextResponse.json({ error: "forbidden" }, { status: 403 }),
     };
   const { db, storage } = getAdminServices();
+  // Forwarded emails belong to the company group.
+  if (!reachesCompany(await reachOf(db, actor)))
+    return {
+      error: NextResponse.json({ error: "forbidden" }, { status: 403 }),
+    };
   if (!(await financeIsEnabled(db, actor.organizationId)))
     return {
       error: NextResponse.json({ error: "financeDisabled" }, { status: 409 }),

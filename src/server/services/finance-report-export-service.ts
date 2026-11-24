@@ -14,6 +14,8 @@ import {
   type ExportPeriod,
 } from "@/domain/reports/time-report-export";
 import type { CompensationModel } from "@/domain/types";
+import { reachesUser, type AccessScope } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import { compensationHistory } from "@/app/admin/users/user-data";
 import { financeReportPdf } from "@/server/export/finance-report-pdf";
 import { financeReportWorkbook } from "@/server/export/finance-report-workbook";
@@ -34,6 +36,7 @@ type Actor = {
   organizationId: string;
   compensationModel?: CompensationModel | null;
   permissions: PermissionKey[];
+  accessScope?: AccessScope;
 };
 
 export const canExportOwnFinanceReport = (actor: Actor) =>
@@ -77,7 +80,9 @@ export async function exportFinanceReport(
   if (
     !user ||
     user.organizationId !== actor.organizationId ||
-    !["consultant", "employee"].includes(String(user.role))
+    !["consultant", "employee"].includes(String(user.role)) ||
+    // Staff only export consultants their employee groups reach.
+    (!own && !reachesUser(await reachOf(db, actor), userId))
   )
     throw new FinanceReportExportError("notFound", 404);
 

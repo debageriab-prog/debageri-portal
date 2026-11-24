@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { reachesRecord } from "@/domain/access/groups";
 import {
   TransactionForm,
   type EditableTransaction,
@@ -16,7 +17,9 @@ export default async function EditTransactionPage({
   searchParams: Promise<{ returnTo?: string }>;
 }) {
   const { id } = await params;
-  const { actor, db } = await financeFormContext("finance.ledger.edit");
+  const { actor, db, reach, reachesCompany } = await financeFormContext(
+    "finance.ledger.edit",
+  );
   const [transactionSnapshot, categorySnapshot, users] = await Promise.all([
     db.collection("financialTransactions").doc(id).get(),
     db
@@ -29,6 +32,7 @@ export default async function EditTransactionPage({
   if (
     !transactionSnapshot.exists ||
     data?.organizationId !== actor.organizationId ||
+    !reachesRecord(reach, data.consultantId || data.employeeId) ||
     data.invoiceId ||
     data.status === "reversal" ||
     data.reversedByTransactionId
@@ -64,6 +68,7 @@ export default async function EditTransactionPage({
   return (
     <TransactionForm
       users={users}
+      reachesCompany={reachesCompany}
       categories={categories}
       transaction={transaction}
       accountingRecipients={await accountingRecipientsFor(

@@ -39,7 +39,8 @@ export default async function NewTransactionPage({
   }>;
 }) {
   const params = await searchParams;
-  const { actor, db } = await financeFormContext("finance.ledger.add");
+  const { actor, db, reachesCompany } =
+    await financeFormContext("finance.ledger.add");
   let receipt: ExpenseReceipt | undefined;
   if (params.receiptId) {
     const data = await expensableReceipt(db, actor, params.receiptId).catch(
@@ -159,6 +160,7 @@ export default async function NewTransactionPage({
   return (
     <TransactionForm
       users={await financeUsers()}
+      reachesCompany={reachesCompany}
       categories={categories}
       returnHref={returnHref}
       receipt={receipt}

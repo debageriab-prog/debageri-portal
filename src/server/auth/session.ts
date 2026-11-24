@@ -8,7 +8,8 @@ import { canImpersonate, IMPERSONATION_COOKIE } from "@/domain/impersonation";
 import type { PortalUser } from "@/domain/types";
 import { getAdminServices } from "@/lib/firebase/admin";
 import { hasSecondFactor, isMfaRequired } from "@/server/auth/mfa";
-import { permissionsOf } from "@/server/auth/permissions";
+import { accessOf } from "@/server/auth/permissions";
+import { membershipIds } from "@/domain/access/groups";
 
 export const SESSION_COOKIE = "__session";
 export const SESSION_DURATION_MS = 5 * 24 * 60 * 60 * 1_000;
@@ -66,11 +67,12 @@ async function loadPortalUser(
       assets: data.emailPreferences?.assets !== false,
     },
     accessProfileId: data.accessProfileId ?? null,
-    permissions: await permissionsOf(db, {
+    groupIds: membershipIds(data.groupIds),
+    ...(await accessOf(db, {
       role: data.role,
       organizationId: data.organizationId,
       accessProfileId: data.accessProfileId,
-    }),
+    })),
   } as PortalUser;
 }
 

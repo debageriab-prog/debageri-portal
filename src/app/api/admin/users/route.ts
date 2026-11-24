@@ -8,6 +8,11 @@ import {
   assertProfileFitsRole,
 } from "@/server/services/access-profile-service";
 import { accessProfileIdSchema } from "@/server/validators/access-profile";
+import { groupIdsSchema } from "@/server/validators/user-group";
+import {
+  existingGroupIds,
+  UserGroupError,
+} from "@/server/services/user-group-service";
 import {
   emailPreferencesSchema,
   localeSchema,
@@ -34,6 +39,7 @@ const inputSchema = z
     employmentStartDate: z.iso.date(),
     reportingStartDate: z.iso.date().nullable(),
     accessProfileId: accessProfileIdSchema.nullable(),
+    groupIds: groupIdsSchema.default([]),
     emailPreferences: emailPreferencesSchema.optional(),
     locale: localeSchema,
     vacation: vacationSettingsSchema.nullable().optional(),
@@ -82,6 +88,12 @@ export async function POST(request: Request) {
       parsed.data.role,
       parsed.data.accessProfileId,
     );
+    const groupIds = await existingGroupIds(
+      db,
+      actor.organizationId,
+      parsed.data.groupIds,
+      { allowCompany: false },
+    );
     const created = await auth.createUser({
       email: parsed.data.email,
       password: parsed.data.password,
@@ -104,6 +116,7 @@ export async function POST(request: Request) {
       employmentEndDate: null,
       reportingStartDate: parsed.data.reportingStartDate,
       accessProfileId: parsed.data.accessProfileId,
+      groupIds,
       ...(parsed.data.emailPreferences
         ? { emailPreferences: parsed.data.emailPreferences }
         : {}),
@@ -127,6 +140,7 @@ export async function POST(request: Request) {
         role: parsed.data.role,
         reportsTime: parsed.data.reportsTime,
         accessProfileId: parsed.data.accessProfileId,
+        groupIds,
         locale: parsed.data.locale,
         vacation: parsed.data.vacation ?? null,
       },
@@ -160,7 +174,7 @@ export async function POST(request: Request) {
     await batch.commit();
     return NextResponse.json({ id: uid }, { status: 201 });
   } catch (error) {
-    if (error instanceof AccessProfileError)
+    if (error instanceof AccessProfileError || error instanceof UserGroupError)
       return NextResponse.json({ error: error.code }, { status: error.status });
     if (uid) await auth.deleteUser(uid).catch(() => undefined);
     const code =

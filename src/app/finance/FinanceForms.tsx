@@ -442,8 +442,11 @@ export function InvoiceForm({
   defaults,
   articles = [],
   locked = null,
+  reachesCompany = true,
 }: {
   users: User[];
+  /** Whether company invoices (with no consultant) can be chosen. */
+  reachesCompany?: boolean;
   customers: InvoiceCustomer[];
   /** Every invoice article; the rows offer those that suit the invoice. */
   articles?: InvoiceArticle[];
@@ -474,7 +477,9 @@ export function InvoiceForm({
     invoice?.invoiceNumber ?? String(defaults.nextInvoiceNumber),
   );
   const [customerId, setCustomerId] = useState(invoice?.customerId ?? "");
-  const [consultantId, setConsultantId] = useState(invoice?.consultantId ?? "");
+  const [consultantId, setConsultantId] = useState(
+    invoice?.consultantId ?? (reachesCompany ? "" : (users[0]?.id ?? "")),
+  );
   const [issueDate, setIssueDate] = useState(invoice?.issueDate ?? today());
   const [dueDate, setDueDate] = useState(
     invoice?.dueDate ?? addDays(today(), defaults.paymentTermsDays),
@@ -1217,7 +1222,7 @@ export function InvoiceForm({
                 updateGeneratedTexts({ consultantId: event.target.value });
               }}
             >
-              <option value="">{t("companyOnly")}</option>
+              {reachesCompany && <option value="">{t("companyOnly")}</option>}
               {users.map((user) => (
                 <option key={user.id} value={user.id}>
                   {user.displayName}
@@ -1845,8 +1850,11 @@ export function TransactionForm({
   accountingRecipients = [],
   aiEnabled = false,
   canCreateAssets = false,
+  reachesCompany = true,
 }: {
   users: User[];
+  /** Whether company entries (with no consultant) can be chosen. */
+  reachesCompany?: boolean;
   categories: Category[];
   returnHref?: string;
   defaultDate?: string;
@@ -2540,7 +2548,9 @@ export function TransactionForm({
             }}
           >
             <option value="">{t("select")}</option>
-            <option value={COMPANY_ONLY}>{t("companyOnly")}</option>
+            {reachesCompany && (
+              <option value={COMPANY_ONLY}>{t("companyOnly")}</option>
+            )}
             {users.map((user) => (
               <option key={user.id} value={user.id}>
                 {user.displayName}
@@ -3195,9 +3205,12 @@ export type EditableArticle = InvoiceArticle;
 export function ArticleForm({
   article,
   users,
+  reachesCompany = true,
 }: {
   article?: EditableArticle;
   users: User[];
+  /** Articles for all or for company invoices need the company group. */
+  reachesCompany?: boolean;
 }) {
   const { t } = useLocale();
   const { busy, error, submit } = useFinanceSubmit("/finance?section=articles");
@@ -3310,10 +3323,17 @@ export function ArticleForm({
           <select
             className="field"
             name="consultantScope"
-            defaultValue={article?.consultantScope ?? ARTICLE_FOR_ALL}
+            defaultValue={
+              article?.consultantScope ??
+              (reachesCompany ? ARTICLE_FOR_ALL : users[0]?.id)
+            }
           >
-            <option value={ARTICLE_FOR_ALL}>{t("articleForAll")}</option>
-            <option value={ARTICLE_FOR_COMPANY}>{t("companyOnly")}</option>
+            {reachesCompany && (
+              <>
+                <option value={ARTICLE_FOR_ALL}>{t("articleForAll")}</option>
+                <option value={ARTICLE_FOR_COMPANY}>{t("companyOnly")}</option>
+              </>
+            )}
             {users.map((user) => (
               <option key={user.id} value={user.id}>
                 {user.displayName}

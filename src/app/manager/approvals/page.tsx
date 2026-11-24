@@ -6,6 +6,8 @@ import { getTranslator } from "@/lib/localization/server";
 import { dateRangeLabel } from "@/lib/localization/timesheets";
 import { aggregateReportedBreakdown } from "@/domain/reports/aggregate";
 import { vacationMinutesIn } from "@/components/vacation/VacationOverviewCard";
+import { reportVisibleTo } from "@/domain/reports/time-report-export";
+import { reachOf, reachesUser } from "@/server/auth/reach";
 
 export default async function ApprovalsPage() {
   const actor = (await verifySession())!;
@@ -15,10 +17,10 @@ export default async function ApprovalsPage() {
     .collection("timesheets")
     .where("organizationId", "==", actor.organizationId)
     .where("status", "==", "submitted");
-  const sheets = await query.get();
+  const [sheets, reach] = await Promise.all([query.get(), reachOf(db, actor)]);
   const userIds = [
     ...new Set(sheets.docs.map((doc) => String(doc.data().userId))),
-  ];
+  ].filter((id) => reachesUser(reach, id));
   const users = new Map<string, FirebaseFirestore.DocumentData>();
   await Promise.all(
     userIds.map(async (id) => {
@@ -27,14 +29,16 @@ export default async function ApprovalsPage() {
     }),
   );
   const visibleSheets = sheets.docs.filter((doc) => {
-    const user = users.get(String(doc.data().userId));
-    if (!user) return false;
-    const consultant = ["employee", "consultant"].includes(String(user.role));
-    return actor.role === "admin"
-      ? consultant ||
-          (["manager", "accountant"].includes(String(user.role)) &&
-            user.reportsTime === true)
-      : consultant;
+    const userId = String(doc.data().userId);
+    const user = users.get(userId);
+    return (
+      Boolean(user) &&
+      reportVisibleTo(
+        actor.role,
+        { id: userId, role: user?.role, reportsTime: user?.reportsTime },
+        reach,
+      )
+    );
   });
   const vacationSheets = new Set<string>();
   const reportedBreakdowns = new Map<

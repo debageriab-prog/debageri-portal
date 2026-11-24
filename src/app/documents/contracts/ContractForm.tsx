@@ -16,14 +16,17 @@ type Consultant = { id: string; name: string };
 export function ContractForm({
   consultants,
   contract,
+  allowCompany = true,
 }: {
   consultants: Consultant[];
   contract?: ContractItem;
+  /** False when the actor's groups do not include the company group. */
+  allowCompany?: boolean;
 }) {
   const { t } = useLocale();
   const router = useRouter();
   const [ownerType, setOwnerType] = useState<"company" | "consultant">(
-    contract?.ownerType ?? "company",
+    contract?.ownerType ?? (allowCompany ? "company" : "consultant"),
   );
   const [files, setFiles] = useState<File[]>([]);
   const [existing, setExisting] = useState(contract?.files ?? []);
@@ -115,7 +118,7 @@ export function ContractForm({
               setOwnerType(event.target.value as "company" | "consultant")
             }
           >
-            <option value="company">{t("company")}</option>
+            {allowCompany && <option value="company">{t("company")}</option>}
             <option value="consultant">{t("consultant")}</option>
           </select>
         </label>

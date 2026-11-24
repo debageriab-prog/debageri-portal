@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   can,
   canReportTime,
+  canOpenFinancePage,
   canViewOwnHistory,
   hasOrganizationFinance,
   type PermissionKey,
@@ -167,7 +168,7 @@ function financeItems(user: PortalUser, t: Translate): NavItem[] {
   ];
   if (hasOrganizationFinance(user))
     return organizationItems
-      .filter(([key]) => can(user, key))
+      .filter(([key]) => canOpenFinancePage(user, key))
       .map(([, item]) => item);
   return [
     ...(canViewMyFinance(user)
@@ -336,6 +337,7 @@ function navigation(user: PortalUser, t: Translate): NavGroup[] {
         ? [
             { label: t("employees"), href: "/admin/users" },
             { label: t("accessProfiles"), href: "/admin/access-profiles" },
+            { label: t("userGroups"), href: "/admin/groups" },
             { label: t("organization"), href: "/admin/settings" },
             { label: t("emailSettings"), href: "/admin/email-settings" },
             { label: t("aiIntegration"), href: "/admin/ai-integration" },

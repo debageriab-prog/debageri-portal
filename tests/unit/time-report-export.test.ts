@@ -8,6 +8,7 @@ import {
   sheetNames,
   type ExportEntry,
 } from "@/domain/reports/time-report-export";
+import { FULL_REACH } from "@/domain/access/groups";
 import { inflateSync } from "node:zlib";
 import {
   pdfText,
@@ -147,14 +148,27 @@ describe("exportFileName", () => {
 
 describe("reportVisibleTo", () => {
   it("shows consultants to staff and reporting managers to admins only", () => {
-    expect(reportVisibleTo("manager", { role: "consultant" })).toBe(true);
-    expect(
-      reportVisibleTo("manager", { role: "accountant", reportsTime: true }),
-    ).toBe(false);
-    expect(
-      reportVisibleTo("admin", { role: "accountant", reportsTime: true }),
-    ).toBe(true);
-    expect(reportVisibleTo("admin", { role: "admin" })).toBe(false);
+    const visible = (actorRole: string, user: object) =>
+      reportVisibleTo(actorRole, { id: "u1", role: "", ...user }, FULL_REACH);
+    expect(visible("manager", { role: "consultant" })).toBe(true);
+    expect(visible("manager", { role: "accountant", reportsTime: true })).toBe(
+      false,
+    );
+    expect(visible("admin", { role: "accountant", reportsTime: true })).toBe(
+      true,
+    );
+    expect(visible("admin", { role: "admin" })).toBe(false);
+  });
+
+  it("hides people outside the actor's groups", () => {
+    const reach = {
+      all: false as const,
+      company: true,
+      userIds: new Set(["it1"]),
+    };
+    const consultant = (id: string) => ({ id, role: "consultant" });
+    expect(reportVisibleTo("manager", consultant("it1"), reach)).toBe(true);
+    expect(reportVisibleTo("manager", consultant("fin1"), reach)).toBe(false);
   });
 });
 

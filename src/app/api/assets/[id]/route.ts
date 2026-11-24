@@ -7,13 +7,16 @@ import {
 import type { HandoverItem } from "@/app/assets/asset-types";
 import { can } from "@/domain/access/permissions";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import {
   AssetError,
+  assetVisible,
   canManageAssets,
   canViewAssets,
   changeAsset,
   deleteAsset,
+  handoverVisible,
   updateAsset,
 } from "@/server/services/asset-service";
 import { financeIsEnabled } from "@/server/services/finance-service";
@@ -28,9 +31,13 @@ export async function GET(_request: Request, { params }: Context) {
   if (!actor || !canViewAssets(actor))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const { db } = getAdminServices();
-  const snapshot = await db.collection("assets").doc(id).get();
+  const [snapshot, reach] = await Promise.all([
+    db.collection("assets").doc(id).get(),
+    reachOf(db, actor),
+  ]);
+  const data = snapshot.data();
   const asset =
-    snapshot.data()?.organizationId === actor.organizationId
+    data && assetVisible(actor, data, reach)
       ? toAssetItem(snapshot, actor)
       : null;
   if (!asset) return NextResponse.json({ error: "notFound" }, { status: 404 });
@@ -52,8 +59,10 @@ export async function GET(_request: Request, { params }: Context) {
       .map(toAssetEvent)
       .sort((a, b) => b.performedAt.localeCompare(a.performedAt)),
     handovers: handovers.docs
-      .filter((doc) =>
-        (doc.data().assetIds as unknown[] | undefined)?.includes(id),
+      .filter(
+        (doc) =>
+          (doc.data().assetIds as unknown[] | undefined)?.includes(id) &&
+          handoverVisible(actor, doc.data(), reach),
       )
       .map(toHandoverItem)
       .filter((item): item is HandoverItem => item !== null)

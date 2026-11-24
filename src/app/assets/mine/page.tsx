@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import {
   assetVisible,
@@ -13,7 +14,7 @@ export default async function MyAssetsPage() {
   const actor = (await verifySession())!;
   if (!canViewOwnAssets(actor)) redirect("/unauthorized");
   const { db } = getAdminServices();
-  const [assets, handovers] = await Promise.all([
+  const [assets, handovers, reach] = await Promise.all([
     db
       .collection("assets")
       .where("organizationId", "==", actor.organizationId)
@@ -24,13 +25,14 @@ export default async function MyAssetsPage() {
       .where("organizationId", "==", actor.organizationId)
       .where("recipientUserId", "==", actor.id)
       .get(),
+    reachOf(db, actor),
   ]);
   return (
     <MyAssets
       assets={assets.docs
         .filter((doc) => {
           const data = doc.data();
-          return assetVisible(actor, data) && data.status === "active";
+          return assetVisible(actor, data, reach) && data.status === "active";
         })
         .map((doc) => toAssetItem(doc, actor))
         .filter((item): item is AssetItem => item !== null)

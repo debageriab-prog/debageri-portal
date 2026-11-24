@@ -1,5 +1,6 @@
 import type { InvoiceLine } from "@/domain/finance/invoice-lines";
 import type { PermissionKey } from "@/domain/access/permissions";
+import type { AccessScope } from "@/domain/access/groups";
 
 export type UserRole =
   "employee" | "consultant" | "manager" | "accountant" | "admin";
@@ -45,6 +46,10 @@ export interface PortalUser {
   paysSalary?: boolean;
   accessProfileId: string | null;
   permissions: PermissionKey[];
+  /** Employee groups this person belongs to. */
+  groupIds: string[];
+  /** Whose records the company permissions reach; see `reachOf`. */
+  accessScope: AccessScope;
   emailPreferences: Record<
     "receipts" | "payslips" | "timesheets" | "requests" | "assets",
     boolean

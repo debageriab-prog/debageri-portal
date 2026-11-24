@@ -1,5 +1,7 @@
 import { getAdminServices } from "@/lib/firebase/admin";
 import { isReceiptStatus } from "@/domain/receipts";
+import { reachesUser } from "@/domain/access/groups";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import {
   canBookReceipts,
@@ -55,13 +57,14 @@ export default async function ReceiptsPage({
     .collection("receipts")
     .where("organizationId", "==", actor.organizationId);
   const params = await searchParams;
+  const reach = await reachOf(db, actor);
   if (
     !canReviewReceipts(actor) ||
     (params.mine === "1" && canViewOwnReceipts(actor))
   ) {
     const snapshot = await scoped.where("userId", "==", actor.id).get();
     const receipts = snapshot.docs
-      .filter((doc) => receiptVisible(actor, doc.data()))
+      .filter((doc) => receiptVisible(actor, doc.data(), reach))
       .map(toItem)
       .sort(newestFirst);
     return (
@@ -81,15 +84,20 @@ export default async function ReceiptsPage({
       .where("role", "in", SUBMITTER_ROLES)
       .get(),
   ]);
-  const receipts = snapshot.docs.map(toItem).sort(newestFirst);
+  const receipts = snapshot.docs
+    .filter((doc) => reachesUser(reach, doc.data().userId))
+    .map(toItem)
+    .sort(newestFirst);
   const people = new Map(
-    users.docs.map((doc) => [
-      doc.id,
-      {
-        name: String(doc.data().displayName),
-        employeeNumber: String(doc.data().employeeNumber ?? ""),
-      },
-    ]),
+    users.docs
+      .filter((doc) => reachesUser(reach, doc.id))
+      .map((doc) => [
+        doc.id,
+        {
+          name: String(doc.data().displayName),
+          employeeNumber: String(doc.data().employeeNumber ?? ""),
+        },
+      ]),
   );
   for (const item of receipts)
     if (!people.has(item.userId))

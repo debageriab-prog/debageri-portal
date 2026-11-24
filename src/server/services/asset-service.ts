@@ -8,6 +8,12 @@ import {
   type Transaction,
 } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
+import {
+  reachesCompany,
+  reachesRecord,
+  reachesUser,
+  type Reach,
+} from "@/domain/access/groups";
 import { can } from "@/domain/access/permissions";
 import {
   ASSET_MAX_BYTES,
@@ -47,6 +53,7 @@ import type { PortalUser } from "@/domain/types";
 import { isLocale, type Locale } from "@/lib/localization/locale";
 import { translate } from "@/lib/localization/messages";
 import { permissionResolver } from "@/server/auth/permissions";
+import { reachOf } from "@/server/auth/reach";
 import {
   assetReceiptPdf,
   type AssetReceiptPdfLabels,
@@ -84,24 +91,50 @@ export const canViewOwnAssets = (actor: PortalUser) => can(actor, "my.assets");
 export const canUseAssets = (actor: PortalUser) =>
   canViewAssets(actor) || canViewOwnAssets(actor);
 
+/**
+ * The employee an asset belongs to when deciding reach: the person holding
+ * it, or nobody for equipment at the company or outside it.
+ */
+export const assetOwnerId = (data: FirebaseFirestore.DocumentData) =>
+  assetHolderFrom(data.holder).userId;
+
+/**
+ * Holders see their own equipment through `my.assets`; the register shows
+ * equipment held by reached people, and company-held equipment only with
+ * the company group.
+ */
 export function assetVisible(
   actor: PortalUser,
   data: FirebaseFirestore.DocumentData,
+  reach: Reach,
 ) {
   if (data.organizationId !== actor.organizationId) return false;
-  if (canViewAssets(actor)) return true;
-  return (
-    canViewOwnAssets(actor) && assetHolderFrom(data.holder).userId === actor.id
-  );
+  const ownerId = assetOwnerId(data);
+  if (canViewOwnAssets(actor) && ownerId === actor.id) return true;
+  return canViewAssets(actor) && reachesRecord(reach, ownerId);
 }
 
 /** The recipient can always open their own receipt, to accept it. */
 export function handoverVisible(
   actor: PortalUser,
   data: FirebaseFirestore.DocumentData,
+  reach: Reach,
 ) {
   if (data.organizationId !== actor.organizationId) return false;
-  return canViewAssets(actor) || data.recipientUserId === actor.id;
+  if (data.recipientUserId === actor.id) return true;
+  return canViewAssets(actor) && reachesUser(reach, data.recipientUserId);
+}
+
+/** Throws `notFound` unless the actor reaches whoever holds the asset now. */
+function checkAssetReach(reach: Reach, data: FirebaseFirestore.DocumentData) {
+  if (!reachesRecord(reach, assetOwnerId(data)))
+    throw new AssetError("notFound", 404);
+}
+
+/** Throws `forbidden` unless the actor reaches the holder the asset gets. */
+function checkNewHolder(reach: Reach, holder: AssetHolder) {
+  if (!reachesRecord(reach, holder.type === "user" ? holder.userId : null))
+    throw new AssetError("forbidden", 403);
 }
 
 export function storedAssetFiles(value: unknown): StoredAssetFile[] {
@@ -317,7 +350,7 @@ export async function assetSourceTransaction(
   transactionId: string,
 ) {
   if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
-  const [snapshot, linked, attachments] = await Promise.all([
+  const [snapshot, linked, attachments, reach] = await Promise.all([
     db.collection("financialTransactions").doc(transactionId).get(),
     db
       .collection("assets")
@@ -331,11 +364,16 @@ export async function assetSourceTransaction(
       .where("entityType", "==", "transaction")
       .where("entityId", "==", transactionId)
       .get(),
+    reachOf(db, actor),
   ]);
   const data = snapshot.data();
   if (
     !data ||
     data.organizationId !== actor.organizationId ||
+    !reachesRecord(
+      reach,
+      data.consultantId ? String(data.consultantId) : null,
+    ) ||
     data.direction !== "expense" ||
     data.status !== "posted"
   )
@@ -415,9 +453,13 @@ export async function createAsset(
 ) {
   if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
   checkFiles(files);
+  const reach = await reachOf(db, actor);
+  // Equipment nobody uses yet stays with the company.
+  if (!input.inUseBy && !reachesCompany(reach))
+    throw new AssetError("forbidden", 403);
   if (
     input.inUseBy &&
-    !(await handoverRecipients(db, actor.organizationId)).some(
+    !(await handoverRecipients(db, actor.organizationId, reach)).some(
       (person) => person.id === input.inUseBy,
     )
   )
@@ -500,12 +542,14 @@ export async function deleteAsset(
   assetId: string,
 ) {
   if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
+  const reach = await reachOf(db, actor);
   const ref = db.collection("assets").doc(assetId);
   const files = await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     const data = snapshot.data();
     if (!data || data.organizationId !== actor.organizationId)
       throw new AssetError("notFound", 404);
+    checkAssetReach(reach, data);
     const state = assetStateFrom(data);
     if (!canDeleteAsset(state))
       throw new AssetError(
@@ -544,11 +588,13 @@ export async function updateAsset(
 ) {
   if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
   checkFiles(files);
+  const reach = await reachOf(db, actor);
   const ref = db.collection("assets").doc(assetId);
   const before = await ref.get();
   const current = before.data();
   if (!before.exists || current?.organizationId !== actor.organizationId)
     throw new AssetError("notFound", 404);
+  checkAssetReach(reach, current);
   const existing = storedAssetFiles(current.files);
   const kept = existing.filter((file) => input.keepFileIds.includes(file.id));
   if (kept.length + files.length > ASSET_MAX_FILES)
@@ -559,6 +605,7 @@ export async function updateAsset(
       const snapshot = await transaction.get(ref);
       const data = snapshot.data();
       if (!data) throw new AssetError("notFound", 404);
+      checkAssetReach(reach, data);
       if (!canEditAsset(assetStateFrom(data)))
         throw new AssetError("assetNotActive", 409);
       const latest = storedAssetFiles(data.files).filter((file) =>
@@ -609,7 +656,14 @@ export async function changeAsset(
   input: AssetActionInput,
 ) {
   if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
+  const reach = await reachOf(db, actor);
   let buyerName = input.action === "sell" ? input.buyerName : "";
+  if (
+    input.action === "sell" &&
+    input.buyerType === "user" &&
+    !reachesUser(reach, input.buyerUserId)
+  )
+    throw new AssetError("invalidBuyer");
   if (input.action === "sell" && input.buyerType === "user")
     buyerName = String(
       (await orgUser(db, actor, input.buyerUserId!, "invalidBuyer"))
@@ -621,6 +675,7 @@ export async function changeAsset(
     const data = snapshot.data();
     if (!data || data.organizationId !== actor.organizationId)
       throw new AssetError("notFound", 404);
+    checkAssetReach(reach, data);
     const state = assetStateFrom(data);
     if (input.action === "holder") {
       if (!canChangeHolder(state))
@@ -634,6 +689,7 @@ export async function changeAsset(
         name: input.type === "external" ? input.name : "",
         location: input.location,
       };
+      checkNewHolder(reach, holder);
       transaction.update(ref, {
         holder,
         updatedAt: FieldValue.serverTimestamp(),
@@ -672,6 +728,7 @@ export async function changeAsset(
         name: buyerName,
         location: "",
       };
+      checkNewHolder(reach, holder);
       transaction.update(ref, {
         status: "sold",
         sale,
@@ -719,10 +776,14 @@ export async function changeAsset(
   });
 }
 
-/** People who can open their own equipment page and so accept a receipt. */
+/**
+ * People who can open their own equipment page and so accept a receipt,
+ * limited to those the actor's reach includes.
+ */
 export async function handoverRecipients(
   db: Firestore,
   organizationId: string,
+  reach: Reach,
 ) {
   const [snapshot, permissionsFor] = await Promise.all([
     db.collection("users").where("organizationId", "==", organizationId).get(),
@@ -731,7 +792,7 @@ export async function handoverRecipients(
   return snapshot.docs
     .filter((doc) => {
       const data = doc.data();
-      if (data.status !== "active") return false;
+      if (data.status !== "active" || !reachesUser(reach, doc.id)) return false;
       const permissions = permissionsFor({
         role: String(data.role),
         organizationId: String(data.organizationId),
@@ -755,7 +816,8 @@ export async function issueHandover(
   input: HandoverIssueInput,
 ) {
   if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
-  const recipients = await handoverRecipients(db, actor.organizationId);
+  const reach = await reachOf(db, actor);
+  const recipients = await handoverRecipients(db, actor.organizationId, reach);
   const recipient = recipients.find(
     (person) => person.id === input.recipientUserId,
   );
@@ -784,6 +846,7 @@ export async function issueHandover(
       const data = snapshot.data();
       if (!data || data.organizationId !== actor.organizationId)
         throw new AssetError("notFound", 404);
+      checkAssetReach(reach, data);
       if (!canIssueHandover(assetStateFrom(data)))
         throw new AssetError("assetNotAvailable", 409);
       return handoverLines({
@@ -869,11 +932,16 @@ export async function cancelHandover(
   handoverId: string,
 ) {
   if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
+  const reach = await reachOf(db, actor);
   const ref = db.collection("assetHandovers").doc(handoverId);
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     const data = snapshot.data();
-    if (!data || data.organizationId !== actor.organizationId)
+    if (
+      !data ||
+      data.organizationId !== actor.organizationId ||
+      !reachesUser(reach, data.recipientUserId)
+    )
       throw new AssetError("notFound", 404);
     if (
       !canCancelHandover({
@@ -887,6 +955,8 @@ export async function cancelHandover(
       handoverId,
       handoverLinesFrom(data.lines),
     );
+    // The equipment goes back to whoever had it before.
+    for (const { line } of assets) checkNewHolder(reach, line.previousHolder);
     transaction.update(ref, {
       status: "cancelled",
       closedAt: FieldValue.serverTimestamp(),
@@ -919,13 +989,20 @@ export async function returnHandover(
   location: string,
 ) {
   if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
+  const reach = await reachOf(db, actor);
   const ref = db.collection("assetHandovers").doc(handoverId);
   const holder: AssetHolder = { ...COMPANY_HOLDER, location };
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     const data = snapshot.data();
-    if (!data || data.organizationId !== actor.organizationId)
+    if (
+      !data ||
+      data.organizationId !== actor.organizationId ||
+      !reachesUser(reach, data.recipientUserId)
+    )
       throw new AssetError("notFound", 404);
+    // The equipment comes back to the company.
+    checkNewHolder(reach, holder);
     if (
       !canReturnHandover({
         status: isHandoverStatus(data.status) ? data.status : "cancelled",
@@ -1117,7 +1194,7 @@ export async function acceptHandover(
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     const data = snapshot.data();
-    if (!data || !handoverVisible(actor, data))
+    if (!data || data.organizationId !== actor.organizationId)
       throw new AssetError("notFound", 404);
     if (data.recipientUserId !== actor.id)
       throw new AssetError("forbidden", 403);
@@ -1212,10 +1289,15 @@ export async function uploadHandoverScan(
 ) {
   if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
   checkFiles([file]);
+  const reach = await reachOf(db, actor);
   const ref = db.collection("assetHandovers").doc(handoverId);
   const snapshot = await ref.get();
   const data = snapshot.data();
-  if (!data || data.organizationId !== actor.organizationId)
+  if (
+    !data ||
+    data.organizationId !== actor.organizationId ||
+    !reachesUser(reach, data.recipientUserId)
+  )
     throw new AssetError("notFound", 404);
   if (data.status === "cancelled")
     throw new AssetError("invalidTransition", 409);
@@ -1254,10 +1336,14 @@ export async function linkableAsset(
   link: AssetLink,
 ) {
   if (!canManageAssets(actor)) throw new AssetError("forbidden", 403);
-  const snapshot = await db.collection("assets").doc(assetId).get();
+  const [snapshot, reach] = await Promise.all([
+    db.collection("assets").doc(assetId).get(),
+    reachOf(db, actor),
+  ]);
   const data = snapshot.data();
   if (!snapshot.exists || data?.organizationId !== actor.organizationId)
     throw new AssetError("notFound", 404);
+  checkAssetReach(reach, data);
   if (!canLinkTransaction(assetStateFrom(data), link))
     throw new AssetError("assetNotLinkable", 409);
   return { ...data, id: snapshot.id } as FirebaseFirestore.DocumentData & {
@@ -1272,6 +1358,7 @@ export async function linkAssetTransaction(
   link: AssetLink,
   transactionId: string,
 ) {
+  const reach = await reachOf(db, actor);
   const ref = db.collection("assets").doc(assetId);
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
@@ -1279,6 +1366,7 @@ export async function linkAssetTransaction(
     if (
       !data ||
       data.organizationId !== actor.organizationId ||
+      !reachesRecord(reach, assetOwnerId(data)) ||
       !canLinkTransaction(assetStateFrom(data), link)
     )
       throw new AssetError("assetNotLinkable", 409);

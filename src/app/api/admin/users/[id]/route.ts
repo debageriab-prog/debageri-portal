@@ -8,6 +8,12 @@ import {
   assertProfileFitsRole,
 } from "@/server/services/access-profile-service";
 import { accessProfileIdSchema } from "@/server/validators/access-profile";
+import { groupIdsSchema } from "@/server/validators/user-group";
+import {
+  existingGroupIds,
+  UserGroupError,
+} from "@/server/services/user-group-service";
+import { membershipIds } from "@/domain/access/groups";
 import {
   emailPreferencesSchema,
   employmentDatesValid,
@@ -34,6 +40,8 @@ const updateSchema = z
     employmentEndDate: z.iso.date().nullable(),
     reportingStartDate: z.iso.date().nullable(),
     accessProfileId: accessProfileIdSchema.nullable(),
+    /** Left out by older clients, which keeps the saved groups. */
+    groupIds: groupIdsSchema.optional(),
     emailPreferences: emailPreferencesSchema.optional(),
     locale: localeSchema,
     vacation: vacationSettingsSchema.nullable().optional(),
@@ -114,6 +122,25 @@ export async function PATCH(
       parsed.data.role,
       parsed.data.accessProfileId,
     );
+    const groupIds =
+      parsed.data.groupIds === undefined
+        ? undefined
+        : await existingGroupIds(
+            loaded.db,
+            loaded.actor.organizationId,
+            parsed.data.groupIds,
+            { allowCompany: false },
+          );
+    const previousGroupIds = membershipIds(loaded.target.data()?.groupIds);
+    if (
+      id === loaded.actor.id &&
+      groupIds &&
+      groupIds.slice().sort().join() !== previousGroupIds.slice().sort().join()
+    )
+      return NextResponse.json(
+        { error: "You can only change your own full name and email." },
+        { status: 403 },
+      );
     await loaded.auth.updateUser(id, {
       email: parsed.data.email,
       displayName: parsed.data.displayName,
@@ -160,6 +187,7 @@ export async function PATCH(
       employmentEndDate: parsed.data.employmentEndDate,
       reportingStartDate: parsed.data.reportingStartDate,
       accessProfileId: parsed.data.accessProfileId,
+      ...(groupIds ? { groupIds } : {}),
       ...(parsed.data.emailPreferences
         ? { emailPreferences: parsed.data.emailPreferences }
         : {}),
@@ -198,6 +226,7 @@ export async function PATCH(
         employmentEndDate: parsed.data.employmentEndDate,
         reportingStartDate: parsed.data.reportingStartDate,
         accessProfileId: parsed.data.accessProfileId,
+        ...(groupIds ? { groupIds, previousGroupIds } : {}),
         ...(parsed.data.emailPreferences
           ? { emailPreferences: parsed.data.emailPreferences }
           : {}),
@@ -210,7 +239,7 @@ export async function PATCH(
     await batch.commit();
     return NextResponse.json({ ok: true });
   } catch (error) {
-    if (error instanceof AccessProfileError)
+    if (error instanceof AccessProfileError || error instanceof UserGroupError)
       return NextResponse.json({ error: error.code }, { status: error.status });
     const code =
       typeof error === "object" && error && "code" in error

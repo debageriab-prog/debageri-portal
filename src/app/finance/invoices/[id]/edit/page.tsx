@@ -3,6 +3,7 @@ import {
   madeWithGenerator,
   type InvoiceLine,
 } from "@/domain/finance/invoice-lines";
+import { reachesRecord } from "@/domain/access/groups";
 import { InvoiceForm } from "../../../FinanceForms";
 import {
   financeFormContext,
@@ -18,11 +19,17 @@ export default async function EditInvoicePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { actor, db } = await financeFormContext("finance.invoices.edit");
+  const { actor, db, reach, reachesCompany } = await financeFormContext(
+    "finance.invoices.edit",
+  );
   const { id } = await params;
   const document = await db.collection("invoices").doc(id).get();
   const data = document.data();
-  if (!document.exists || data?.organizationId !== actor.organizationId)
+  if (
+    !document.exists ||
+    data?.organizationId !== actor.organizationId ||
+    !reachesRecord(reach, data.consultantId)
+  )
     notFound();
   // Paid, sent and void invoices are shown but their amounts, rows and
   // dates stay; a paid one can still change its texts, and all take files.
@@ -38,9 +45,10 @@ export default async function EditInvoicePage({
   return (
     <InvoiceForm
       users={await financeUsers()}
+      reachesCompany={reachesCompany}
       customers={await invoiceCustomers(db, actor.organizationId)}
       defaults={await invoiceDefaults(db, actor.organizationId)}
-      articles={await invoiceArticles(db, actor.organizationId)}
+      articles={await invoiceArticles(db, actor.organizationId, reach)}
       locked={locked}
       invoice={{
         id,

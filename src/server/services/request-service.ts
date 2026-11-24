@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
+import { reachesUser, type Reach } from "@/domain/access/groups";
 import { can } from "@/domain/access/permissions";
 import type { PortalUser } from "@/domain/types";
 import {
@@ -17,6 +18,7 @@ import {
   type RequestStatus,
   type RequestType,
 } from "@/domain/requests";
+import { reachOf } from "@/server/auth/reach";
 import type { RequestFormInput } from "@/server/validators/requests";
 
 export class RequestError extends Error {
@@ -58,13 +60,18 @@ export const canSubmitRequests = (actor: PortalUser) =>
 export const canUseRequests = (actor: PortalUser) =>
   canReviewRequests(actor) || canViewOwnRequests(actor);
 
+/**
+ * Own requests through `my.requests`; others' only when the reviewer's reach
+ * includes the requester.
+ */
 export function requestVisible(
   actor: PortalUser,
   data: FirebaseFirestore.DocumentData,
+  reach: Reach,
 ) {
   if (data.organizationId !== actor.organizationId) return false;
-  if (canReviewRequests(actor)) return true;
-  return canViewOwnRequests(actor) && data.userId === actor.id;
+  if (canViewOwnRequests(actor) && data.userId === actor.id) return true;
+  return canReviewRequests(actor) && reachesUser(reach, data.userId);
 }
 
 export function storedRequestFiles(value: unknown): StoredRequestFile[] {
@@ -330,11 +337,12 @@ export async function changeRequestStatus(
   requestId: string,
   input: { status: RequestStatus; note: string },
 ) {
+  const reach = await reachOf(db, actor);
   const ref = db.collection("requests").doc(requestId);
   return db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     const data = snapshot.data();
-    if (!snapshot.exists || !data || !requestVisible(actor, data))
+    if (!snapshot.exists || !data || !requestVisible(actor, data, reach))
       throw new RequestError("notFound", 404);
     const own = data.userId === actor.id;
     const by = input.status === "withdrawn" ? "owner" : "reviewer";
@@ -386,9 +394,16 @@ export async function expensableRequest(
   requestId: string,
 ) {
   if (!canBookRequests(actor)) throw new RequestError("forbidden", 403);
-  const snapshot = await db.collection("requests").doc(requestId).get();
+  const [snapshot, reach] = await Promise.all([
+    db.collection("requests").doc(requestId).get(),
+    reachOf(db, actor),
+  ]);
   const data = snapshot.data();
-  if (!snapshot.exists || data?.organizationId !== actor.organizationId)
+  if (
+    !snapshot.exists ||
+    data?.organizationId !== actor.organizationId ||
+    !reachesUser(reach, data.userId)
+  )
     throw new RequestError("notFound", 404);
   const status = isRequestStatus(data.status) ? data.status : "requested";
   if (
@@ -409,6 +424,7 @@ export async function linkRequestExpense(
   requestId: string,
   transactionId: string,
 ) {
+  const reach = await reachOf(db, actor);
   const ref = db.collection("requests").doc(requestId);
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
@@ -416,6 +432,7 @@ export async function linkRequestExpense(
     if (
       !snapshot.exists ||
       data?.organizationId !== actor.organizationId ||
+      !reachesUser(reach, data.userId) ||
       data.status !== "finalized" ||
       data.expenseTransactionId
     )

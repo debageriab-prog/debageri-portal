@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { payslipVisible } from "@/server/services/payslip-service";
 
@@ -14,7 +15,10 @@ export async function GET(
   const { db, storage } = getAdminServices();
   const payslip = await db.collection("payslips").doc(id).get();
   const data = payslip.data();
-  if (!payslip.exists || !payslipVisible(actor, data!))
+  if (
+    !payslip.exists ||
+    !payslipVisible(actor, data!, await reachOf(db, actor))
+  )
     return NextResponse.json({ error: "notFound" }, { status: 404 });
   const [contents] = await storage
     .bucket()

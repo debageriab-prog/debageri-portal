@@ -11,7 +11,15 @@ import {
   canViewMyFinance,
   canViewMyTransactions,
 } from "@/domain/finance/calculations";
+import {
+  FULL_REACH,
+  reachesCompany,
+  reachesRecord,
+  reachesUser,
+} from "@/domain/access/groups";
+import { articleVisibleTo, reachesTransaction } from "@/domain/finance/reach";
 import { getAdminServices } from "@/lib/firebase/admin";
+import { reachOf } from "@/server/auth/reach";
 import { verifySession } from "@/server/auth/session";
 import { FinanceDashboard, type FinancePageData } from "./FinanceDashboard";
 
@@ -76,6 +84,17 @@ export default async function FinancePage({
       : "overview";
   const { db } = getAdminServices();
   const organizationId = actor.organizationId;
+  // Staff see the consultants their employee groups reach, and records that
+  // belong to no consultant only with the company group. Consultants see
+  // their own records.
+  const reach = manager ? await reachOf(db, actor) : FULL_REACH;
+  const companyReached = manager && reachesCompany(reach);
+  if (
+    manager &&
+    !companyReached &&
+    (section === "customers" || section === "categories")
+  )
+    redirect("/unauthorized");
   const [
     organizationSnapshot,
     usersSnapshot,
@@ -116,7 +135,7 @@ export default async function FinancePage({
           .where("organizationId", "==", organizationId)
           .get()
       : Promise.resolve(null),
-    can(actor, "finance.vat.view")
+    can(actor, "finance.vat.view") && companyReached
       ? db
           .collection("vatSettlements")
           .where("organizationId", "==", organizationId)
@@ -149,6 +168,9 @@ export default async function FinancePage({
         .get()
     : null;
   const articles: FinancePageData["articles"] = (articlesSnapshot?.docs ?? [])
+    .filter((document) =>
+      articleVisibleTo(reach, String(document.data().consultantScope ?? "all")),
+    )
     .map((document) => {
       const data = document.data();
       return {
@@ -215,7 +237,7 @@ export default async function FinancePage({
       role: String(document.data().role),
       compensationModel: document.data().compensationModel ?? null,
     }))
-    .filter((user) => user.role === "consultant")
+    .filter((user) => user.role === "consultant" && reachesUser(reach, user.id))
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
   const categories: FinancePageData["categories"] = categoriesSnapshot.docs
     .map((document) => ({
@@ -266,11 +288,25 @@ export default async function FinancePage({
         sentTo: manager ? (data.sentTo ?? null) : null,
       };
     })
-    .filter((invoice) => manager || invoice.consultantId === actor.id)
+    .filter((invoice) =>
+      manager
+        ? reachesRecord(reach, invoice.consultantId)
+        : invoice.consultantId === actor.id,
+    )
     .sort((a, b) => b.issueDate.localeCompare(a.issueDate));
   const transactions: FinancePageData["transactions"] = (
     transactionsSnapshot?.docs ?? []
   )
+    .filter(
+      (document) =>
+        !manager ||
+        reachesTransaction(reach, {
+          consultantId: document.data().consultantId ?? null,
+          employeeId: document.data().employeeId ?? null,
+          invoiceConsultantId:
+            invoiceConsultantIds.get(document.data().invoiceId) ?? null,
+        }),
+    )
     .map((document) => {
       const data = document.data();
       const recordedBalanceDelta = Number(
@@ -311,17 +347,22 @@ export default async function FinancePage({
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
   const agreements: FinancePageData["agreements"] = (
     agreementsSnapshot?.docs ?? []
-  ).map((document) => ({
-    id: document.id,
-    userId: String(document.data().userId),
-    model: document.data().model,
-    validFrom: String(document.data().validFrom),
-    validTo: document.data().validTo ?? null,
-    shareBps: Number(document.data().shareBps ?? 0),
-    fixedMonthlySalaryMinor: document.data().fixedMonthlySalaryMinor ?? null,
-    requestedMonthlySalaryMinor:
-      document.data().requestedMonthlySalaryMinor ?? null,
-  }));
+  )
+    .filter(
+      (document) =>
+        !manager || reachesUser(reach, String(document.data().userId)),
+    )
+    .map((document) => ({
+      id: document.id,
+      userId: String(document.data().userId),
+      model: document.data().model,
+      validFrom: String(document.data().validFrom),
+      validTo: document.data().validTo ?? null,
+      shareBps: Number(document.data().shareBps ?? 0),
+      fixedMonthlySalaryMinor: document.data().fixedMonthlySalaryMinor ?? null,
+      requestedMonthlySalaryMinor:
+        document.data().requestedMonthlySalaryMinor ?? null,
+    }));
   const customers: FinancePageData["customers"] = (
     customersSnapshot?.docs ?? []
   )
@@ -367,6 +408,7 @@ export default async function FinancePage({
     <FinanceDashboard
       data={{
         financeEnabled: organizationSnapshot.data()?.financeEnabled === true,
+        reachesCompany: companyReached,
         users,
         customers,
         articles,
